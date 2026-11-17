@@ -1,0 +1,12 @@
+{"meta": {"seeds": ["concept:demo-app"], "space": "synthetic", "extracted_at": "2026-11-17T00:00:00Z"},
+ "nodes": [
+  {"id": "concept:demo-app", "kind": "concept", "title": "Demo app", "domain": "product/app", "props": {"code_ref": "Demo:package.json"}},
+  {"id": "decision:no-high-advisories-in-shipped-dependencies", "kind": "decision", "title": "No high advisories in shipped dependencies", "domain": "platform/security",
+   "props": {"statement": "A dependency the app ships may not carry an advisory of high severity or above.", "decided_by": "owner", "rule": {"advisory_severity_at_least": "HIGH", "dependencies": "shipped"}}},
+  {"id": "decision:dependencies-are-pinned-by-a-lockfile", "kind": "decision", "title": "Dependencies are pinned by a lockfile", "domain": "platform/security",
+   "props": {"statement": "Every install resolves from the committed lockfile.", "decided_by": "owner"}}
+ ],
+ "edges": [
+  {"source": "decision:no-high-advisories-in-shipped-dependencies", "target": "concept:demo-app", "type": "ABOUT", "evidence": "policy on the app"},
+  {"source": "decision:dependencies-are-pinned-by-a-lockfile", "target": "concept:demo-app", "type": "ABOUT", "evidence": "policy on the app"}
+ ]}
