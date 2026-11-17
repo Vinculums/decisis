@@ -1,0 +1,14 @@
+{"meta": {"seeds": ["concept:service-api"], "space": "synthetic", "extracted_at": "2026-11-17T00:00:00Z"},
+ "nodes": [
+  {"id": "concept:service-api", "kind": "concept", "title": "Service API", "domain": "engineering/api", "props": {"code_ref": "Demo:api/server.py"}},
+  {"id": "concept:http-client-lib", "kind": "concept", "title": "HTTP client library", "domain": "engineering/deps", "props": {}},
+  {"id": "concept:tls-stack", "kind": "concept", "title": "TLS stack", "domain": "engineering/deps", "props": {}},
+  {"id": "decision:pin-tls-stack-to-a-patched-line", "kind": "decision", "title": "Pin the TLS stack to a patched line", "domain": "platform/security", "props": {"statement": "Only patched TLS releases are allowed.", "decided_by": "owner"}},
+  {"id": "record:tls-advisory-example", "kind": "record", "title": "Advisory on the TLS stack", "domain": "platform/security", "props": {"source": "synthetic"}}
+ ],
+ "edges": [
+  {"source": "concept:http-client-lib", "target": "concept:service-api", "type": "PREREQUISITE_OF", "evidence": "the API calls out through it"},
+  {"source": "concept:tls-stack", "target": "concept:http-client-lib", "type": "PREREQUISITE_OF", "evidence": "the client links it"},
+  {"source": "decision:pin-tls-stack-to-a-patched-line", "target": "concept:tls-stack", "type": "ABOUT", "evidence": "policy on the stack"},
+  {"source": "record:tls-advisory-example", "target": "concept:tls-stack", "type": "RELATED_TO", "evidence": "advisory names the stack"}
+ ]}
