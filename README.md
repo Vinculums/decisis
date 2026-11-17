@@ -24,7 +24,7 @@ VINC_API_KEY=<read-only key> VINC_SPACE=<space id> .venv/bin/vinc-relate checkou
 ## Dependency policy audit
 
 ```
-.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/package-lock.json --repo Demo
+.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo
 ```
 
 The audit loads three things into one throwaway graph: the Vinc snapshot (decisions about the

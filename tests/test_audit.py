@@ -32,7 +32,7 @@ def advisories():
 
 
 def lock():
-    return (FIX / "package-lock.json").read_text()
+    return (FIX / "demo-lockfile.json").read_text()
 
 
 def test_the_lockfile_becomes_a_dependency_graph_with_nested_copies_resolved():
