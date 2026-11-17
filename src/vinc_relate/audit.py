@@ -66,7 +66,8 @@ def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dic
             else:
                 policies.append({"decision": d["decision"], "verdict": "not_violated", "why": f"status {status}, severity {sev}"})
         findings.append({"package": row["package"], "advisory": row["advisory"], "severity": sev, "status": status,
-                         "dev_only": bool(pkg.get("dev")), "path": row["path"], "source_url": adv.get("source_url"), "policies": policies})
+                         "dev_only": bool(pkg.get("dev")), "path": row["path"], "source_url": adv.get("source_url"),
+                         "advisory_summary": by_id[row["advisory"]].get("title") or "", "policies": policies})
     order = {"affected": 0, "unresolved": 1, "not_affected": 2}
     return sorted(findings, key=lambda f: (order[f["status"]], -SEVERITY.index(f["severity"]) if f["severity"] in SEVERITY else 0, len(f["path"])))
 

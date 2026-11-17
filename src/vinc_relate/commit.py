@@ -20,6 +20,19 @@ def record_id(repo: str, name: str, scope: str, advisory: str) -> str:
     return f"record:{_slug(f'{repo}-{name}')[:max(room, 8)].strip('-')}-{scope}-{adv}"
 
 
+def _package_name(purl: str) -> str:
+    return purl.split("/", 1)[-1].rsplit("@", 1)[0]
+
+
+def claim(repo: str, name: str, versions: list[str], scope: str, osv: str, severity: str, summary: str,
+          paths: list[list[str]]) -> str:
+    use = "ships" if scope == "shipped" else "uses in development only"
+    head = f"{repo} {use} {name} {' and '.join(versions)}, which OSV {osv} ({severity}) covers"
+    head += f": {summary.rstrip('.')}." if summary and summary != osv else "."
+    routes = sorted({" -> ".join(_package_name(x) for x in path[1:-1]) for path in paths})
+    return f"{head} Path: {'; '.join(routes)}."
+
+
 def digest(plan: dict) -> str:
     body = {k: plan[k] for k in ("space", "nodes", "edges")}
     return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
@@ -51,8 +64,8 @@ def propose(report: dict, repo: str, space: str, today: str | None = None,
             for p in f["policies"]:
                 if p["verdict"] in ("violated", "relevant") and verdicts.get(p["decision"], {}).get("verdict") != "violated":
                     verdicts[p["decision"]] = p
-        statement = " ".join(f"{repo} resolves {name} {v} through {' -> '.join(f['path'][1:-1])}." for v, f in found)
-        statement += f" OSV {osv} ({first['severity']}) covers {'that version' if len(versions) == 1 else 'those versions'}."
+        statement = claim(repo, name, versions, scope, osv, first["severity"], first.get("advisory_summary") or "",
+                          [f["path"] for _, f in found])
         nodes.append({"id": rid, "type": "record",
                       "title": f"{repo} {scope} dependency {name} {', '.join(versions)} is affected by {osv}",
                       "domain": DOMAIN, "valid_from": today,

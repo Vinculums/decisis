@@ -79,6 +79,16 @@ def test_the_lockfile_path_and_commit_go_into_the_claim_fields():
     assert {n["props"]["measured_ref"] for n in plan["nodes"]} == {"abc123"}
 
 
+def test_the_statement_leads_with_the_claim_and_the_advisory_in_words():
+    plan = wb.propose(report(), "Demo", "space-1", today="2026-11-17")
+    for n in plan["nodes"]:
+        st = n["props"]["statement"]
+        assert st.startswith("Demo ships lodash" if n["props"]["scope"] == "shipped" else "Demo uses in development only lodash")
+        assert n["props"]["value"] in st[:120] and "pkg:" not in st and "Path: " in st
+    shipped = next(n for n in plan["nodes"] if n["props"]["scope"] == "shipped")
+    assert "report-kit -> lodash" in shipped["props"]["statement"]
+
+
 def test_unverified_findings_are_held_back():
     rep = report()
     rep["findings"][0]["status"] = "unresolved"
