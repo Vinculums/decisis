@@ -58,3 +58,4 @@ printed write set.
 - The same structure loads into a Relate file; a bounded multi-hop query returns the expected path.
 - Reasoning opens the file read only; a write is refused, and an open writer locks out a second writer and any reader.
 - The task directory is private (0700) and removed after the run.
+- An approved write set reaches the vinc space: seven advisory records from the Vinc app lockfile were written with `create_only`, read back field for field, and a second run with the same approval wrote nothing.
