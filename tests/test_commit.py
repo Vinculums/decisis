@@ -51,12 +51,32 @@ def test_only_verified_findings_enter_the_write_set_with_ids_the_graph_accepts()
     for n in plan["nodes"]:
         assert NODE_ID.match(n["id"]) and len(n["id"].split(":", 1)[1]) <= 60
         assert not re.search(r"\d{4}-\d{2}-\d{2}", n["id"])
+        assert not any(v.replace(".", "-") in n["id"] for v in n["props"]["versions"])
         assert n["props"]["source"].startswith("https://osv.dev/") and n["props"]["measured_ref"]
         assert n["props"]["subject_path"] == "demo:package-lock.json"
     shipped = [n for n in plan["nodes"] if n["props"]["violates"]]
     assert shipped and all(n["props"]["scope"] == "shipped" and n["props"]["severity"] == "HIGH" for n in shipped)
     targets = {e["to"] for e in plan["edges"]}
     assert targets == {"decision:no-high-advisories-in-shipped-dependencies", "decision:dependencies-are-pinned-by-a-lockfile"}
+
+
+def test_one_advisory_on_two_versions_in_one_scope_is_one_record():
+    rep = report()
+    twin = copy.deepcopy(rep["findings"][0])
+    name, version = twin["package"].rsplit("@", 1)
+    twin["package"] = f"{name}@0.0.1"
+    rep["findings"].append(twin)
+    plan = wb.propose(rep, "Demo", "space-1", today="2026-11-17")
+    ids = [n["id"] for n in plan["nodes"]]
+    assert len(ids) == len(set(ids)) == 7
+    merged = next(n for n in plan["nodes"] if "0.0.1" in n["props"]["versions"])
+    assert merged["props"]["versions"] == sorted(["0.0.1", version]) and len(merged["props"]["dependency_paths"]) == 2
+
+
+def test_the_lockfile_path_and_commit_go_into_the_claim_fields():
+    plan = wb.propose(report(), "Demo", "space-1", today="2026-11-17", lockfile_path="./app/package-lock.json", ref="abc123")
+    assert {n["props"]["subject_path"] for n in plan["nodes"]} == {"demo:app/package-lock.json"}
+    assert {n["props"]["measured_ref"] for n in plan["nodes"]} == {"abc123"}
 
 
 def test_unverified_findings_are_held_back():

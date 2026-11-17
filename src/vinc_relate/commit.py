@@ -14,12 +14,10 @@ def _slug(text: str) -> str:
     return re.sub(r"-{2,}", "-", re.sub(r"[^a-z0-9]+", "-", text.lower())).strip("-")
 
 
-def record_id(repo: str, name: str, version: str, advisory: str) -> str:
+def record_id(repo: str, name: str, scope: str, advisory: str) -> str:
     adv = _slug(advisory)
-    head = _slug(f"{repo}-{name}")
-    ver = _slug(version)
-    room = SLUG_MAX - len(adv) - len(ver) - 2
-    return f"record:{head[:max(room, 8)].strip('-')}-{ver}-{adv}"
+    room = SLUG_MAX - len(adv) - len(scope) - 2
+    return f"record:{_slug(f'{repo}-{name}')[:max(room, 8)].strip('-')}-{scope}-{adv}"
 
 
 def digest(plan: dict) -> str:
@@ -27,10 +25,12 @@ def digest(plan: dict) -> str:
     return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
 
 
-def propose(report: dict, repo: str, space: str, today: str | None = None) -> dict:
+def propose(report: dict, repo: str, space: str, today: str | None = None,
+            lockfile_path: str = "package-lock.json", ref: str | None = None) -> dict:
     today = today or date.today().isoformat()
     lock_hash = (report.get("meta") or {}).get("lockfile_hash", "")
-    nodes, edges, held = [], [], []
+    groups: dict[str, dict] = {}
+    held = []
     for f in report.get("findings", []):
         if f["status"] != "affected":
             held.append({"package": f["package"], "advisory": f["advisory"], "why": f"status {f['status']}: not recorded"})
@@ -38,20 +38,34 @@ def propose(report: dict, repo: str, space: str, today: str | None = None) -> di
         name, version = f["package"].split("/", 1)[1].rsplit("@", 1)
         osv = f["advisory"].split(":", 1)[1]
         scope = "development" if f["dev_only"] else "shipped"
-        rid = record_id(repo, name, version, osv)
-        violated = [p for p in f["policies"] if p["verdict"] == "violated"]
-        statement = (f"{repo} resolves {name} {version} through {' -> '.join(f['path'][1:-1])}, and OSV {osv} "
-                     f"({f['severity']}) covers that version.")
-        nodes.append({"id": rid, "type": "record", "title": f"{repo} {scope} dependency {name} {version} is affected by {osv}",
+        g = groups.setdefault(record_id(repo, name, scope, osv), {"name": name, "osv": osv, "scope": scope, "found": []})
+        g["found"].append((version, f))
+    nodes, edges = [], []
+    for rid, g in sorted(groups.items()):
+        name, osv, scope = g["name"], g["osv"], g["scope"]
+        found = sorted(g["found"], key=lambda vf: vf[0])
+        versions = sorted({v for v, _ in found})
+        first = found[0][1]
+        verdicts: dict[str, dict] = {}
+        for _, f in found:
+            for p in f["policies"]:
+                if p["verdict"] in ("violated", "relevant") and verdicts.get(p["decision"], {}).get("verdict") != "violated":
+                    verdicts[p["decision"]] = p
+        statement = " ".join(f"{repo} resolves {name} {v} through {' -> '.join(f['path'][1:-1])}." for v, f in found)
+        statement += f" OSV {osv} ({first['severity']}) covers {'that version' if len(versions) == 1 else 'those versions'}."
+        nodes.append({"id": rid, "type": "record",
+                      "title": f"{repo} {scope} dependency {name} {', '.join(versions)} is affected by {osv}",
                       "domain": DOMAIN, "valid_from": today,
                       "props": {"entity": f"{repo}:{name}", "predicate": "affected_by_advisory", "value": osv, "scope": scope,
-                                "statement": statement, "severity": f["severity"], "dependency_path": f["path"],
-                                "violates": [p["decision"] for p in violated], "source": f["source_url"],
-                                "source_system": "vinc-relate audit over OSV", "measured_at": today,
-                                "measured_ref": lock_hash or "lockfile", "subject_path": f"{repo.lower()}:package-lock.json"}})
-        for p in f["policies"]:
-            if p["verdict"] in ("violated", "relevant"):
-                edges.append({"from": rid, "to": p["decision"], "type": "relates_to", "evidence": f"{p['verdict']}: {p['why']}"})
+                                "versions": versions, "statement": statement, "severity": first["severity"],
+                                "dependency_paths": [f["path"] for _, f in found],
+                                "violates": sorted(d for d, p in verdicts.items() if p["verdict"] == "violated"),
+                                "source": first["source_url"], "source_system": "vinc-relate audit over OSV",
+                                "measured_at": today, "measured_ref": ref or lock_hash or "lockfile",
+                                "lockfile_hash": lock_hash,
+                                "subject_path": f"{repo.lower()}:{lockfile_path.removeprefix('./').lstrip('/')}"}})
+        for d, p in sorted(verdicts.items()):
+            edges.append({"from": rid, "to": d, "type": "relates_to", "evidence": f"{p['verdict']}: {p['why']}"})
     plan = {"space": space, "nodes": nodes, "edges": edges, "held": held}
     plan["digest"] = digest(plan)
     return plan

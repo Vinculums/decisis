@@ -37,12 +37,15 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("--repo", required=True)
     pr.add_argument("--space", required=True)
     pr.add_argument("--out", required=True)
+    pr.add_argument("--lockfile-path", default="package-lock.json", help="the lockfile path inside the repository, for subject_path")
+    pr.add_argument("--ref", help="the commit the lockfile was read at, for measured_ref")
     cm = sub.add_parser("commit", help="write an approved write set to Vinc and read it back (needs a full key)")
     cm.add_argument("plan")
     cm.add_argument("--approve", required=True, help="the approval digest printed by propose")
     a = ap.parse_args(argv)
     if a.cmd == "propose":
-        plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space)
+        plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
+                          lockfile_path=a.lockfile_path, ref=a.ref)
         Path(a.out).write_text(json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         print(wb.render(plan))
         return 0
