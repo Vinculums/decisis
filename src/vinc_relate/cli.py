@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from . import audit
+from . import commit as wb
 from . import checkout as co
 from .queries import load as query
 from .sandbox import sandbox
@@ -31,7 +32,31 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=int, default=8)
     au.add_argument("--out")
+    pr = sub.add_parser("propose", help="turn an audit report into the exact write set the owner approves")
+    pr.add_argument("report")
+    pr.add_argument("--repo", required=True)
+    pr.add_argument("--space", required=True)
+    pr.add_argument("--out", required=True)
+    pr.add_argument("--lockfile-path", default="package-lock.json", help="the lockfile path inside the repository, for subject_path")
+    pr.add_argument("--ref", help="the commit the lockfile was read at, for measured_ref")
+    cm = sub.add_parser("commit", help="write an approved write set to Vinc and read it back (needs a full key)")
+    cm.add_argument("plan")
+    cm.add_argument("--approve", required=True, help="the approval digest printed by propose")
     a = ap.parse_args(argv)
+    if a.cmd == "propose":
+        plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
+                          lockfile_path=a.lockfile_path, ref=a.ref)
+        Path(a.out).write_text(json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        print(wb.render(plan))
+        return 0
+    if a.cmd == "commit":
+        plan = json.loads(Path(a.plan).read_text(encoding="utf-8"))
+        wb.check_approval(plan, a.approve)
+        client = co.VincMCP.from_env("full")
+        client.space = plan["space"]
+        receipt = wb.commit(plan, a.approve, client)
+        print(json.dumps(receipt, ensure_ascii=False, indent=1))
+        return 0 if receipt["verified"] else 1
     if a.cmd == "audit":
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth)
         text = json.dumps(report, ensure_ascii=False, indent=1)

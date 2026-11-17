@@ -36,7 +36,8 @@ def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch
     pkg_nodes, dep_edges = external.parse_npm_lock(lock_text, repo)
     adv_nodes, adv_edges = advisories(pkg_nodes)
     links = governance_links(vinc.nodes, repo)
-    meta = {**vinc.meta, "repo": repo, "packages": sum(1 for n in pkg_nodes if n["kind"] == "Package"),
+    lock_hash = next((n["props"].get("content_hash") for n in pkg_nodes if n["kind"] == "Repository"), "")
+    meta = {**vinc.meta, "repo": repo, "lockfile_hash": lock_hash, "packages": sum(1 for n in pkg_nodes if n["kind"] == "Package"),
             "advisories": len(adv_nodes), "governance_links": len(links)}
     return Subgraph(vinc.nodes + pkg_nodes + adv_nodes, vinc.edges + dep_edges + adv_edges + links, meta)
 
@@ -65,7 +66,8 @@ def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dic
             else:
                 policies.append({"decision": d["decision"], "verdict": "not_violated", "why": f"status {status}, severity {sev}"})
         findings.append({"package": row["package"], "advisory": row["advisory"], "severity": sev, "status": status,
-                         "dev_only": bool(pkg.get("dev")), "path": row["path"], "source_url": adv.get("source_url"), "policies": policies})
+                         "dev_only": bool(pkg.get("dev")), "path": row["path"], "source_url": adv.get("source_url"),
+                         "advisory_summary": by_id[row["advisory"]].get("title") or "", "policies": policies})
     order = {"affected": 0, "unresolved": 1, "not_affected": 2}
     return sorted(findings, key=lambda f: (order[f["status"]], -SEVERITY.index(f["severity"]) if f["severity"] in SEVERITY else 0, len(f["path"])))
 
