@@ -35,6 +35,23 @@ verifier checks the installed version against the advisory ranges and applies ea
 decision: a decision with a machine-checkable `rule` is `violated` or `not_violated`, one without a
 rule is only `relevant`. Development-only paths do not violate a rule scoped to shipped dependencies.
 
+## Record after approval
+
+```
+.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --out report.json
+.venv/bin/vinc-relate propose report.json --repo Demo --space <space id> --out plan.json
+VINC_API_KEY=<full key> .venv/bin/vinc-relate commit plan.json --approve <digest>
+```
+
+`propose` turns only `affected` findings into records (anything else is held back and listed) and
+prints the exact write set with an approval digest over the space, nodes and edges. `commit` refuses
+unless the digest matches the plan file as it stands now, so an edited plan needs a new approval. It
+writes with `create_only` and an operation id derived from the digest, leaves ids that already exist
+alone, then reads every new node and its edges back and exits non-zero if anything differs.
+
+Run the demo against a synthetic space; write to a real space only after its owner approves the
+printed write set.
+
 ## What is proven so far
 
 - A Vinc subgraph is exported over the Vinc MCP with stable ids, edge direction and evidence.

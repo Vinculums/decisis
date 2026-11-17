@@ -16,10 +16,10 @@ class VincMCP:
         self.token, self.url, self.space, self.opener, self.session = token, url, space, opener, None
 
     @classmethod
-    def from_env(cls) -> "VincMCP":
+    def from_env(cls, key_kind: str = "read-only") -> "VincMCP":
         token = os.environ.get("VINC_API_KEY")
         if not token:
-            raise SystemExit("VINC_API_KEY is not set; use a read-only key")
+            raise SystemExit(f"VINC_API_KEY is not set; use a {key_kind} key")
         return cls(token, os.environ.get("VINC_MCP_URL", DEFAULT_URL), os.environ.get("VINC_SPACE"))
 
     def _post(self, payload: dict) -> dict:
