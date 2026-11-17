@@ -6,7 +6,7 @@ import pytest
 import relate
 
 from vinc_relate import checkout as co
-from vinc_relate.cli import PATH_QUERY
+from vinc_relate.queries import load as query
 from vinc_relate.sandbox import Sandbox, sandbox
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "vinc_subgraph.json"
@@ -27,7 +27,7 @@ def test_the_task_file_lives_in_its_own_private_directory_and_is_gone_after(tmp_
 def test_load_counts_what_landed_and_a_multi_hop_path_comes_back(tmp_path):
     with sandbox(tmp_path) as box:
         assert box.load(graph()) == {"nodes": 5, "edges": 4}
-        q = PATH_QUERY.replace("$hops", "4").replace("$limit", "5")
+        q = query("paths_between", hops=4, limit=5)
         rows = box.query(q, {"source": "record:tls-advisory-example", "target": "concept:service-api"})
     assert rows[0]["ids"] == ["record:tls-advisory-example", "concept:tls-stack", "concept:http-client-lib", "concept:service-api"]
     assert rows[0]["rels"] == ["RELATED_TO", "PREREQUISITE_OF", "PREREQUISITE_OF"]

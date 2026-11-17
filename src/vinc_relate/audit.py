@@ -4,18 +4,11 @@ import json
 import re
 
 from . import external, semver
+from .queries import load as query
 from .sandbox import Subgraph, sandbox
 
 SEVERITY = ["LOW", "MODERATE", "MEDIUM", "HIGH", "CRITICAL"]
 
-DEPENDENCY_PATHS = (
-    "MATCH p = (r:Repository {id: $repo})-[:DEPENDS_ON*1..$depth]->(pkg:Package)-[:AFFECTED_BY]->(a:Advisory) "
-    "RETURN pkg.id AS package, a.id AS advisory, [n IN nodes(p) | n.id] AS path ORDER BY length(p)"
-)
-GOVERNING = (
-    "MATCH (r:Repository {id: $repo})-[:DESCRIBED_BY]->(c)<-[:ABOUT]-(d:Decision) "
-    "RETURN DISTINCT d.id AS decision, d.title AS title, c.id AS via"
-)
 
 
 def governance_links(vinc_nodes: list[dict], repo: str) -> list[dict]:
@@ -81,8 +74,8 @@ def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=ex
     graph = compose(vinc, lock_text, repo, advisories)
     with sandbox() as box:
         counts = box.load(graph)
-        rows = box.query(DEPENDENCY_PATHS.replace("$depth", str(int(depth))), {"repo": f"repo:{repo}"})
-        decisions = box.query(GOVERNING, {"repo": f"repo:{repo}"})
+        rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
+        decisions = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
     findings = verify(rows, graph, decisions)
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
     return {"meta": graph.meta, "loaded": counts, "governing": decisions, "summary": summary,

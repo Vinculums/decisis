@@ -7,10 +7,9 @@ from pathlib import Path
 
 from . import audit
 from . import checkout as co
+from .queries import load as query
 from .sandbox import sandbox
 
-PATH_QUERY = ("MATCH p = (a {id: $source})-[*1..$hops]-(b {id: $target}) "
-              "RETURN [n IN nodes(p) | n.id] AS ids, [r IN relationships(p) | type(r)] AS rels ORDER BY length(p) LIMIT $limit")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -50,8 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     graph = co.load(Path(a.snapshot).read_text(encoding="utf-8"))
     with sandbox() as box:
         counts = box.load(graph)
-        query = PATH_QUERY.replace("$hops", str(int(a.hops))).replace("$limit", str(int(a.limit)))
-        rows = box.query(query, {"source": a.source, "target": a.target})
+        rows = box.query(query("paths_between", hops=a.hops, limit=a.limit), {"source": a.source, "target": a.target})
     json.dump({"loaded": counts, "paths": rows}, sys.stdout, ensure_ascii=False, indent=1)
     sys.stdout.write("\n")
     return 0
