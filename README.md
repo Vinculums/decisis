@@ -21,6 +21,20 @@ VINC_API_KEY=<read-only key> VINC_SPACE=<space id> .venv/bin/vinc-relate checkou
 .venv/bin/vinc-relate paths snapshot.json <from id> <to id>
 ```
 
+## Dependency policy audit
+
+```
+.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/package-lock.json --repo Demo
+```
+
+The audit loads three things into one throwaway graph: the Vinc snapshot (decisions about the
+repository, found through a concept whose `code_ref` names it), the npm lockfile (direct and
+transitive `DEPENDS_ON`, nested copies resolved) and OSV advisories (`AFFECTED_BY`, with source URL,
+fetch time and content hash). A path query finds each advisory the repository reaches, then the
+verifier checks the installed version against the advisory ranges and applies each governing
+decision: a decision with a machine-checkable `rule` is `violated` or `not_violated`, one without a
+rule is only `relevant`. Development-only paths do not violate a rule scoped to shipped dependencies.
+
 ## What is proven so far
 
 - A Vinc subgraph is exported over the Vinc MCP with stable ids, edge direction and evidence.

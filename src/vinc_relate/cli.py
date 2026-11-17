@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import audit
 from . import checkout as co
 from .sandbox import sandbox
 
@@ -25,7 +26,22 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("target")
     p.add_argument("--hops", type=int, default=4)
     p.add_argument("--limit", type=int, default=10)
+    au = sub.add_parser("audit", help="join a Vinc snapshot, an npm lockfile and OSV advisories in a throwaway Relate graph")
+    au.add_argument("snapshot")
+    au.add_argument("lockfile")
+    au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
+    au.add_argument("--depth", type=int, default=8)
+    au.add_argument("--out")
     a = ap.parse_args(argv)
+    if a.cmd == "audit":
+        report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth)
+        text = json.dumps(report, ensure_ascii=False, indent=1)
+        if a.out:
+            Path(a.out).write_text(text + "\n", encoding="utf-8")
+            print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"], "out": a.out}))
+        else:
+            sys.stdout.write(text + "\n")
+        return 0
     if a.cmd == "checkout":
         graph = co.checkout(co.VincMCP.from_env(), a.seeds, a.depth)
         Path(a.out).write_text(co.dump(graph), encoding="utf-8")
