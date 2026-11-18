@@ -21,6 +21,23 @@ VINC_API_KEY=<read-only key> VINC_SPACE=<space id> .venv/bin/vinc-relate checkou
 .venv/bin/vinc-relate paths snapshot.json <from id> <to id>
 ```
 
+## Impact of a code change
+
+```
+.venv/bin/vinc-relate impact fixtures/impact/vinc.json api/graph_algo.py store/ --format text
+```
+
+`impact` answers "this code path changes; what governs it". It loads the snapshot into a throwaway
+Relate file, opens it read only and deletes it after the run. For each path it lists the nodes whose
+`code_ref` names the path, then the decisions and records within `--hops` (default 3) of them, each
+with its edge path in the snapshot's edge direction and the evidence on every edge. Results are
+ordered by hop count, then decision, record, concept. A `code_ref` matches when it names the same
+path, lies under a queried directory (`store/` matches `store/embedded_backend.py`, `api` does not
+match `api_gateway/`), or is a directory holding the queried path. A repository prefix
+(`Demo:api/server.py`) and a symbol suffix (`store/embedded_backend.py:_vector_query_guard`) are
+dropped before matching; `--repo Demo` skips refs that name another repository. Output is JSON by
+default; `--format text` prints the short form.
+
 ## Dependency policy audit
 
 ```

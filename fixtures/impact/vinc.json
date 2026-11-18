@@ -1,0 +1,25 @@
+{"meta": {"seeds": ["concept:graph-algorithms", "concept:embedded-store"], "space": "synthetic", "extracted_at": "2026-11-18T00:00:00Z"},
+ "nodes": [
+  {"id": "concept:graph-algorithms", "kind": "concept", "title": "Graph algorithms endpoint", "domain": "engineering/api", "props": {"code_ref": "api/graph_algo.py"}},
+  {"id": "concept:api-layer", "kind": "concept", "title": "API layer", "domain": "engineering/api", "props": {"code_ref": "Demo:api/"}},
+  {"id": "concept:api-gateway", "kind": "concept", "title": "API gateway routes", "domain": "engineering/api", "props": {"code_ref": "api_gateway/routes.py"}},
+  {"id": "concept:embedded-store", "kind": "concept", "title": "Embedded store backend", "domain": "engineering/store", "props": {"code_ref": "Demo:store/embedded_backend.py"}},
+  {"id": "concept:vector-query-guard", "kind": "concept", "title": "Vector query guard", "domain": "engineering/store", "props": {"code_ref": "store/embedded_backend.py:_vector_query_guard"}},
+  {"id": "concept:query-budget", "kind": "concept", "title": "Query budget", "domain": "engineering/store", "props": {}},
+  {"id": "concept:other-repo-cache", "kind": "concept", "title": "Cache in another repository", "domain": "engineering/cache", "props": {"code_ref": "Other:store/cache.py"}},
+  {"id": "decision:bound-graph-algorithm-cost", "kind": "decision", "title": "Graph algorithms run under a cost bound", "domain": "engineering/api", "props": {"statement": "Every graph algorithm request carries a cost bound.", "decided_by": "owner"}},
+  {"id": "decision:refuse-unbounded-vector-scans", "kind": "decision", "title": "Refuse unbounded vector scans", "domain": "engineering/store", "props": {"statement": "A vector query without a limit is refused.", "decided_by": "owner"}},
+  {"id": "decision:gateway-rate-limits", "kind": "decision", "title": "Gateway routes are rate limited", "domain": "engineering/api", "props": {"statement": "Every gateway route has a rate limit.", "decided_by": "owner"}},
+  {"id": "record:graph-algo-timeout", "kind": "record", "title": "A graph algorithm request timed out", "domain": "engineering/api", "props": {"source": "synthetic"}},
+  {"id": "record:vector-scan-review", "kind": "record", "title": "Review of the vector scan guard", "domain": "engineering/store", "props": {"source": "synthetic"}}
+ ],
+ "edges": [
+  {"source": "decision:bound-graph-algorithm-cost", "target": "concept:graph-algorithms", "type": "ABOUT", "evidence": "the bound applies to this endpoint"},
+  {"source": "record:graph-algo-timeout", "target": "concept:graph-algorithms", "type": "RELATED_TO", "evidence": "the timeout was in this endpoint"},
+  {"source": "concept:graph-algorithms", "target": "concept:api-layer", "type": "PREREQUISITE_OF", "evidence": "the endpoint is served by the API layer"},
+  {"source": "decision:gateway-rate-limits", "target": "concept:api-gateway", "type": "ABOUT", "evidence": "the limits apply to gateway routes"},
+  {"source": "concept:vector-query-guard", "target": "concept:embedded-store", "type": "PREREQUISITE_OF", "evidence": "the guard runs inside the backend"},
+  {"source": "concept:query-budget", "target": "concept:vector-query-guard", "type": "RELATED_TO", "evidence": "the guard enforces the budget"},
+  {"source": "decision:refuse-unbounded-vector-scans", "target": "concept:query-budget", "type": "ABOUT", "evidence": "the decision sets the budget"},
+  {"source": "record:vector-scan-review", "target": "decision:refuse-unbounded-vector-scans", "type": "RELATED_TO", "evidence": "the review checked the decision"}
+ ]}

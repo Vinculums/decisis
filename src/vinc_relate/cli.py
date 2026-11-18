@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from . import audit
+from . import impact
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
@@ -26,6 +27,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("target")
     p.add_argument("--hops", type=int, default=4)
     p.add_argument("--limit", type=int, default=10)
+    im = sub.add_parser("impact", help="list the decisions, records and concepts that govern one or more code paths")
+    im.add_argument("snapshot")
+    im.add_argument("code_paths", nargs="+", metavar="code_path", help="a file or directory, for example api/graph_algo.py or store/")
+    im.add_argument("--hops", type=int, default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
+    im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
+    im.add_argument("--format", choices=["json", "text"], default="json")
     au = sub.add_parser("audit", help="join a Vinc snapshot, an npm lockfile and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
     au.add_argument("lockfile")
@@ -57,6 +64,17 @@ def main(argv: list[str] | None = None) -> int:
         receipt = wb.commit(plan, a.approve, client)
         print(json.dumps(receipt, ensure_ascii=False, indent=1))
         return 0 if receipt["verified"] else 1
+    if a.cmd == "impact":
+        try:
+            report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo)
+        except ValueError as e:
+            ap.error(str(e))
+        if a.format == "text":
+            print(impact.render(report))
+        else:
+            json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
+            sys.stdout.write("\n")
+        return 0
     if a.cmd == "audit":
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth)
         text = json.dumps(report, ensure_ascii=False, indent=1)
