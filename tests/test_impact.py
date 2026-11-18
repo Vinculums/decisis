@@ -118,3 +118,21 @@ def test_an_unusable_path_or_hop_bound_is_refused():
         impact.run(graph(), ["/"])
     with pytest.raises(ValueError):
         impact.run(graph(), ["api"], hops=99)
+
+
+def test_a_decision_anchors_by_its_subject_path_and_also_touches_with_any_repo_case(tmp_path):
+    snap = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    snap["nodes"] += [
+        {"id": "decision:runs-stop-and-report", "kind": "decision", "title": "Runs stop and report", "domain": "engineering/runs",
+         "props": {"subject_path": "demo:runs/protocol.py", "also_touches": ["Demo:runs/state.py"]}},
+        {"id": "record:old-waits-closed", "kind": "record", "title": "Old waits closed", "domain": "engineering/runs",
+         "props": {}},
+    ]
+    snap["edges"].append({"source": "record:old-waits-closed", "target": "decision:runs-stop-and-report", "type": "RELATED_TO",
+                          "evidence": "the close follows the decision"})
+    g = co.load(json.dumps(snap))
+    report = impact.run(g, ["runs/protocol.py", "runs/state.py"], repo="Demo", root=tmp_path)
+    first = [(x["hops"], x["kind"], x["id"]) for x in one(report, 0)]
+    assert first == [(0, "decision", "decision:runs-stop-and-report"), (1, "record", "record:old-waits-closed")]
+    assert one(report, 0)[0]["code_ref"] == [{"ref": "demo:runs/protocol.py", "match": "exact"}]
+    assert [x["id"] for x in one(report, 1)][:1] == ["decision:runs-stop-and-report"]
