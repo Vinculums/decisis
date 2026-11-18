@@ -1,6 +1,7 @@
 """Which decisions, records and concepts govern a code path.
 
-A node anchors a path when one of its `code_ref` values names that path. A ref may carry a repository
+A node anchors a path when one of its `code_ref` values, or a decision's `subject_path` and `also_touches`,
+names that path. A ref may carry a repository
 prefix (`Demo:api/server.py`) and a symbol suffix (`store/backend.py:_guard`); both are dropped before
 matching. A ref matches a queried path when it is the same path, when it lies under the queried path
 (the query names a directory), or when it is a directory that holds the queried path. From each
@@ -22,7 +23,7 @@ def code_path(ref: str, repo: str | None = None) -> str | None:
     ref = ref.strip()
     head, sep, tail = ref.partition(":")
     if sep and head and "/" not in head and "." not in head and ("/" in tail or "." in tail.split(":", 1)[0]):
-        if repo and head != repo:
+        if repo and head.lower() != repo.lower():
             return None
         ref = tail
     ref = ref.split(":", 1)[0].strip()
@@ -32,13 +33,19 @@ def code_path(ref: str, repo: str | None = None) -> str | None:
     return ref or None
 
 
+REF_KEYS = ("code_ref", "subject_path", "also_touches")
+
+
 def refs_of(node: dict) -> list[str]:
-    ref = (node.get("props") or {}).get("code_ref")
-    if isinstance(ref, str):
-        return [ref]
-    if isinstance(ref, list):
-        return [r for r in ref if isinstance(r, str)]
-    return []
+    props = node.get("props") or {}
+    out: list[str] = []
+    for key in REF_KEYS:
+        ref = props.get(key)
+        if isinstance(ref, str):
+            out.append(ref)
+        elif isinstance(ref, list):
+            out += [r for r in ref if isinstance(r, str)]
+    return out
 
 
 def match_kind(ref_path: str, path: str) -> str | None:
