@@ -53,7 +53,12 @@ a coding agent how to run the same procedure.
 `impact` answers "this code path changes; what governs it". It loads the snapshot into a throwaway
 Relate file, opens it read only and deletes it after the run. For each path it lists the nodes whose
 `code_ref` names the path, then the decisions and records within `--hops` (default 3) of them, each
-with its edge path in the snapshot's edge direction and the evidence on every edge. Results are
+with its edge path in the snapshot's edge direction and the evidence on every edge. The walk follows
+only edges that carry governance, from the node that governs to the node it governs (`CARRIES` in
+`impact.py`): a decision `ABOUT` its target, `DERIVES_FROM` and `INHERITS_FROM` from the origin to what
+comes out of it, a record to the node it attaches to, and `RELATED_TO` between two concepts only from a
+concept that names no code of its own (an idea such as a budget) to the concept that implements it.
+`PREREQUISITE_OF`, `SUPERSEDES`, `CONNECTS_VIA` and `RETURNS_TO` are not followed. Results are
 ordered by hop count, then decision, record, concept. A `code_ref` matches when it names the same
 path, lies under a queried directory (`storage/` matches `storage/page_store.py`, `reports` does not
 match `reports_archive/`), or is a directory holding the queried path. A repository prefix
@@ -118,18 +123,21 @@ unsupported; a claim is covered when its evidence is a connected chain of edges 
 
 | Method | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
 |---|---|---|---|---|---|---|
-| A | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.4 |
+| A | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.2 |
 | B | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.6 |
-| C | 13/13 | 17/17 | 5/5 | 2/37 | 37/37 | 80.2 |
+| C | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 85.0 |
 
 The graph helped on two tasks: a vulnerable package reached only through a shared transitive dependency
 (B finds no chain and claims a wrong one through test-kit, which has its own nested copy), and a decision two
 hops from the code it governs. It made no difference on a direct dependency, a development-only dependency,
 a version outside the advisory's range (the lockfile record and the advisory text carry those), a one-hop
-decision or a directory prefix decoy. The nested copy task was expected to need the graph and did not: the
+decision, a directory prefix decoy or the overreach decoy. The nested copy task was expected to need the graph and did not: the
 copy sits under a direct dependency, so the name join finds its chain; the same join's error shows up on the
-hoisted copy instead. On impact tasks B has no external data to add, so it equals A. It was worse on one task: a bounded walk reached a log retention
-decision through a shared logger and claimed it governs the archive index. Per-task numbers are in
+hoisted copy instead. On impact tasks B has no external data to add, so it equals A. On the overreach decoy C
+used to be worse: a walk in both directions over any edge reached a log retention decision through a shared
+logger and claimed it governs the archive index (2 of C's 37 claims were unsupported). The walk now follows
+only edges that carry governance, so C makes no unsupported claim there and equals A and B; the graph does
+not help on that task, it only no longer hurts. Per-task numbers are in
 `bench/results.md`; every claim with its coverage is in `bench/results.json`. C's latency includes building and
 loading a graph for each task. Latency is the only number that changes between runs. The benchmark is small and synthetic, so it shows which kinds of connection need the
 graph, not how often they occur.

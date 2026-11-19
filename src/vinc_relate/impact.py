@@ -7,8 +7,13 @@ matching. A ref matches a queried path when it is the same path, when it lies un
 (the query names a directory), or when it is a directory that holds the queried path. From each
 anchor, decisions and records within a bounded number of hops are listed with the edge path and the
 evidence on each edge, in the snapshot's own edge direction.
+
+The walk follows only edges that carry governance, each from the node that governs to the node it governs
+(`CARRIES`). An edge type it does not name, or a direction it does not name, is not followed.
 """
 from __future__ import annotations
+
+from dataclasses import dataclass
 
 from .queries import load as query
 from .sandbox import Subgraph, sandbox
@@ -34,6 +39,37 @@ def code_path(ref: str, repo: str | None = None) -> str | None:
 
 
 REF_KEYS = ("code_ref", "subject_path", "also_touches")
+
+
+@dataclass(frozen=True)
+class Carry:
+    type: str
+    source_kind: str
+    governor: str
+    why: str
+
+
+ANY = "*"
+RECORD_ATTACHES = "a record attaches to the node it is about with one of four edge types (GRAPH.md has no about from a record); it bears on that node"
+SOURCE, TARGET, LOOSE = "source", "target", "loose"
+CARRIES = (
+    Carry("RELATED_TO", "record", SOURCE, RECORD_ATTACHES),
+    Carry("PREREQUISITE_OF", "record", SOURCE, RECORD_ATTACHES),
+    Carry("DERIVES_FROM", "record", SOURCE, RECORD_ATTACHES),
+    Carry("INHERITS_FROM", "record", SOURCE, RECORD_ATTACHES),
+    Carry("ABOUT", ANY, SOURCE, "a decision or episode is about its target; what it decides holds for the target"),
+    Carry("DERIVES_FROM", ANY, TARGET, "A comes out of B; what governs B holds for what comes out of it"),
+    Carry("INHERITS_FROM", ANY, TARGET, "A inherits from B; what governs B holds for its heir"),
+    Carry("RELATED_TO", "concept", LOOSE, "a loose, undirected link between two concepts carries governance only from a concept that names "
+          "no code of its own (an idea such as a budget) to the concept that implements it; a concept with its own code keeps "
+          "what governs it to that code"),
+)
+NOT_CARRIED = {
+    "PREREQUISITE_OF": "A comes before B is an order of work, not a rule that holds for B",
+    "SUPERSEDES": "the new claim replaces the old; the old one no longer governs",
+    "CONNECTS_VIA": "a bridge joins topics; it decides nothing about them",
+    "RETURNS_TO": "work handed back between two roles; it is about the roles, not the code",
+}
 
 
 def refs_of(node: dict) -> list[str]:
@@ -70,12 +106,51 @@ def prepare(graph: Subgraph, repo: str | None = None) -> Subgraph:
     return Subgraph(nodes, graph.edges, graph.meta)
 
 
+def has_code(node: dict) -> bool:
+    return any(code_path(r) for r in refs_of(node))
+
+
+def carry_of(rel: str, source_kind: str) -> Carry | None:
+    for c in CARRIES:
+        if c.type == rel and c.source_kind in (source_kind, ANY):
+            return c
+    return None
+
+
+def governance_edges(graph: Subgraph) -> list[dict]:
+    """Each edge that carries governance, oriented from the node that governs to the node it governs."""
+    by_id = {n["id"]: n for n in graph.nodes}
+    out: dict[tuple[str, str, str], dict] = {}
+    for e in graph.edges:
+        s, t = by_id.get(e["source"]), by_id.get(e["target"])
+        if s is None or t is None:
+            continue
+        c = carry_of(e["type"], s["kind"])
+        if c is None:
+            continue
+        if c.governor == SOURCE:
+            pairs = [(s, t)]
+        elif c.governor == TARGET:
+            pairs = [(t, s)]
+        elif t["kind"] != "concept":
+            pairs = []
+        else:
+            pairs = [(g, d) for g, d in ((s, t), (t, s)) if not has_code(g)]
+        for g, d in pairs:
+            out.setdefault((g["id"], e["type"], d["id"]), {"source": g["id"], "target": d["id"], "type": e["type"], "evidence": e.get("evidence") or ""})
+    return sorted(out.values(), key=lambda e: (e["source"], e["type"], e["target"]))
+
+
 def _steps(row: dict, edges: set[tuple[str, str, str]]) -> list[dict]:
     out = []
     for a, b, rel, ev in zip(row["ids"], row["ids"][1:], row["rels"], row["evidence"]):
         s, t = (a, b) if (a, rel, b) in edges else (b, a)
         out.append({"source": s, "type": rel, "target": t, "evidence": ev or ""})
     return out
+
+
+def from_anchor(row: dict) -> dict:
+    return {**row, "ids": row["ids"][::-1], "rels": row["rels"][::-1], "evidence": row["evidence"][::-1]}
 
 
 def collect(rows: list[dict], graph: Subgraph, path: str, repo: str | None = None) -> list[dict]:
@@ -109,9 +184,9 @@ def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = Non
     cypher = query("governing_nodes", hops=hops)
     results = []
     with sandbox(root) as box:
-        counts = box.load(prepared)
+        counts = box.load(Subgraph(prepared.nodes, governance_edges(prepared), prepared.meta))
         for raw, p in wanted:
-            rows = box.query(cypher, {"path": p, "dir": p + "/", "kinds": GOVERNING})
+            rows = [from_anchor(r) for r in box.query(cypher, {"path": p, "dir": p + "/", "kinds": GOVERNING})]
             results.append({"path": raw, "matched_as": p, "governing": collect(rows, prepared, p, repo)})
     return {"loaded": counts, "hops": hops, "repo": repo, "impact": results}
 

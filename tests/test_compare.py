@@ -32,7 +32,7 @@ def test_two_runs_give_the_same_numbers_apart_from_latency(result):
 
 def test_the_graph_finds_every_expected_path_and_policy_link(result):
     c = result["total"]["C"]
-    assert c["paths"] == [13, 13] and c["policy_links"] == [17, 17] and c["covered"] == [37, 37]
+    assert c["paths"] == [13, 13] and c["policy_links"] == [17, 17] and c["covered"] == [35, 35] and c["unsupported"] == [0, 35]
 
 
 def test_a_transitive_chain_is_found_only_by_the_graph(result):
@@ -43,12 +43,16 @@ def test_a_transitive_chain_is_found_only_by_the_graph(result):
     assert wrong[0]["covered"] is False
 
 
-def test_the_report_says_where_the_graph_does_not_help(result):
+def test_the_report_says_where_the_graph_helps_and_where_it_does_not(result):
     assert result["c_vs_b"]["better"] == ["audit-transitive-shipped", "impact-two-hop-decision"]
-    assert result["c_vs_b"]["worse"] == ["impact-overreach-decoy"]
+    assert result["c_vs_b"]["worse"] == []
+    assert "impact-overreach-decoy" in result["c_vs_b"]["same"]
+
+
+def test_a_decision_about_a_shared_logger_is_not_claimed_for_the_archive(result):
     over = by_id(result, "impact-overreach-decoy")["results"]["C"]
-    assert over["unsupported"] == [2, 4]
-    assert ["reports_archive/index.py", "decision:demo-logs-are-kept-thirty-days"] in [c["key"] for c in over["claims"]]
+    assert over["unsupported"] == [0, 2] and over["paths"] == [1, 1] and over["policy_links"] == [1, 1]
+    assert "decision:demo-logs-are-kept-thirty-days" not in {k for c in over["claims"] for k in c["key"]}
 
 
 def test_scope_and_range_decoys_are_judged_by_text_and_graph_alike(result):
