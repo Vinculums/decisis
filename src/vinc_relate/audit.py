@@ -43,6 +43,17 @@ def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch
     return Subgraph(nodes, edges, meta)
 
 
+def judge(governing: dict, rule: dict | None, status: str, severity: str, dev: bool) -> dict:
+    d = governing["decision"]
+    if rule is None:
+        return {"decision": d, "verdict": "relevant", "why": f"governs this repository through {governing['via']}; it states no machine-checkable rule"}
+    if rule.get("dependencies") == "shipped" and dev:
+        return {"decision": d, "verdict": "not_violated", "why": "reached only through development dependencies; the rule covers shipped ones"}
+    if status == "affected" and severity in SEVERITY and SEVERITY.index(severity) >= SEVERITY.index(rule["advisory_severity_at_least"]):
+        return {"decision": d, "verdict": "violated", "why": f"severity {severity} is at or above {rule['advisory_severity_at_least']}"}
+    return {"decision": d, "verdict": "not_violated", "why": f"status {status}, severity {severity}"}
+
+
 def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dict]:
     by_id = {n["id"]: n for n in graph.nodes}
     rules = [(d, rule_of(by_id.get(d["decision"], {}))) for d in decisions]
@@ -56,16 +67,7 @@ def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dic
         applies = semver.affects(pkg["version"], pkg["ecosystem"], pkg["name"], json.loads(adv["affected_json"]))
         status = {True: "affected", False: "not_affected", None: "unresolved"}[applies]
         sev = adv.get("severity", "UNKNOWN")
-        policies = []
-        for d, rule in rules:
-            if rule is None:
-                policies.append({"decision": d["decision"], "verdict": "relevant", "why": f"governs this repository through {d['via']}; it states no machine-checkable rule"})
-            elif rule.get("dependencies") == "shipped" and pkg.get("dev"):
-                policies.append({"decision": d["decision"], "verdict": "not_violated", "why": "reached only through development dependencies; the rule covers shipped ones"})
-            elif status == "affected" and sev in SEVERITY and SEVERITY.index(sev) >= SEVERITY.index(rule["advisory_severity_at_least"]):
-                policies.append({"decision": d["decision"], "verdict": "violated", "why": f"severity {sev} is at or above {rule['advisory_severity_at_least']}"})
-            else:
-                policies.append({"decision": d["decision"], "verdict": "not_violated", "why": f"status {status}, severity {sev}"})
+        policies = [judge(d, rule, status, sev, bool(pkg.get("dev"))) for d, rule in rules]
         findings.append({"package": row["package"], "advisory": row["advisory"], "severity": sev, "status": status,
                          "dev_only": bool(pkg.get("dev")), "path": row["path"], "source_url": adv.get("source_url"),
                          "fetched_at": adv.get("fetched_at"), "content_hash": adv.get("content_hash"),

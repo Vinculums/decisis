@@ -103,6 +103,37 @@ must come back with the same type and direction. A record's `relates_to` edge co
 Run the demo against a synthetic space; write to a real space only after its owner approves the
 printed write set.
 
+## Does the graph help?
+
+```
+.venv/bin/vinc-relate compare --out bench/results.json --table bench/results.md
+```
+
+`compare` runs nine tasks from `bench/tasks.json` three ways, offline and without a model: A answers from the
+Vinc snapshot alone (nodes whose `code_ref` matches the subject, then one hop); B adds the lockfile and the
+advisories as flat records joined by package name, with the same version range check and policy rule as C;
+C loads all three into a Relate graph and queries it. The tasks and their expected findings were committed
+before the first run. A path or a policy link counts when it equals an expected one; any other claim is
+unsupported; a claim is covered when its evidence is a connected chain of edges that exist in the inputs.
+
+| Method | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
+|---|---|---|---|---|---|---|
+| A | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.4 |
+| B | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.6 |
+| C | 13/13 | 17/17 | 5/5 | 2/37 | 37/37 | 80.2 |
+
+The graph helped on two tasks: a vulnerable package reached only through a shared transitive dependency
+(B finds no chain and claims a wrong one through test-kit, which has its own nested copy), and a decision two
+hops from the code it governs. It made no difference on a direct dependency, a development-only dependency,
+a version outside the advisory's range (the lockfile record and the advisory text carry those), a one-hop
+decision or a directory prefix decoy. The nested copy task was expected to need the graph and did not: the
+copy sits under a direct dependency, so the name join finds its chain; the same join's error shows up on the
+hoisted copy instead. On impact tasks B has no external data to add, so it equals A. It was worse on one task: a bounded walk reached a log retention
+decision through a shared logger and claimed it governs the archive index. Per-task numbers are in
+`bench/results.md`; every claim with its coverage is in `bench/results.json`. C's latency includes building and
+loading a graph for each task. Latency is the only number that changes between runs. The benchmark is small and synthetic, so it shows which kinds of connection need the
+graph, not how often they occur.
+
 ## What is proven so far
 
 - A Vinc subgraph is exported over the Vinc MCP with stable ids, edge direction and evidence.
