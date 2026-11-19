@@ -1,5 +1,21 @@
 {
- "batch": null,
+ "fetched_at": "2026-11-17T11:20:41Z",
+ "queries": {
+  "pkg:npm/lodash@4.17.15": [
+   "GHSA-29mw-wpgm-hmr9",
+   "GHSA-35jh-r3h4-6jhm",
+   "GHSA-p6mc-m468-83gw",
+   "GHSA-r5fr-rjxr-66jc",
+   "GHSA-xxjr-mmjv-4gpg"
+  ],
+  "pkg:npm/lodash@4.17.21": [
+   "GHSA-r5fr-rjxr-66jc",
+   "GHSA-xxjr-mmjv-4gpg"
+  ],
+  "pkg:npm/minimist@1.2.8": [],
+  "pkg:npm/report-kit@2.1.0": [],
+  "pkg:npm/test-kit@1.0.3": []
+ },
  "vulns": {
   "GHSA-29mw-wpgm-hmr9": {
    "affected": [

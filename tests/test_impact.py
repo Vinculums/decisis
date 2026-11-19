@@ -21,12 +21,12 @@ def one(report, i=0):
 
 
 @pytest.mark.parametrize("ref,repo,want", [
-    ("api/graph_algo.py", None, "api/graph_algo.py"),
-    ("store/embedded_backend.py:_vector_query_guard", None, "store/embedded_backend.py"),
-    ("Demo:store/embedded_backend.py", None, "store/embedded_backend.py"),
-    ("Demo:store/embedded_backend.py", "Demo", "store/embedded_backend.py"),
-    ("Other:store/cache.py", "Demo", None),
-    ("Demo:api/", None, "api"),
+    ("reports/export.py", None, "reports/export.py"),
+    ("storage/page_store.py:check_page_size", None, "storage/page_store.py"),
+    ("Demo:storage/page_store.py", None, "storage/page_store.py"),
+    ("Demo:storage/page_store.py", "Demo", "storage/page_store.py"),
+    ("Other:storage/cache.py", "Demo", None),
+    ("Demo:reports/", None, "reports"),
     ("./server.py:main", None, "server.py"),
     ("Makefile:build", None, "Makefile"),
 ])
@@ -35,30 +35,30 @@ def test_a_code_ref_drops_its_repository_prefix_and_symbol_suffix(ref, repo, wan
 
 
 def test_a_direct_code_ref_hit_lists_the_concept_then_what_governs_it(tmp_path):
-    gov = one(impact.run(graph(), ["api/graph_algo.py"], root=tmp_path))
+    gov = one(impact.run(graph(), ["reports/export.py"], root=tmp_path))
     assert [(g["hops"], g["kind"], g["id"]) for g in gov] == [
-        (0, "concept", "concept:api-layer"),
-        (0, "concept", "concept:graph-algorithms"),
-        (1, "decision", "decision:bound-graph-algorithm-cost"),
-        (1, "record", "record:graph-algo-timeout"),
+        (0, "concept", "concept:demo-report-export"),
+        (0, "concept", "concept:demo-report-service"),
+        (1, "decision", "decision:demo-report-exports-finish-in-time"),
+        (1, "record", "record:demo-report-export-timed-out"),
     ]
     by = {g["id"]: g for g in gov}
-    assert by["concept:graph-algorithms"]["code_ref"] == [{"ref": "api/graph_algo.py", "match": "exact"}]
-    assert by["concept:api-layer"]["code_ref"] == [{"ref": "Demo:api/", "match": "encloses"}]
-    assert by["decision:bound-graph-algorithm-cost"]["path"] == [
-        {"source": "decision:bound-graph-algorithm-cost", "type": "ABOUT", "target": "concept:graph-algorithms",
-         "evidence": "the bound applies to this endpoint"}]
-    assert by["decision:bound-graph-algorithm-cost"]["via"] == "concept:graph-algorithms"
+    assert by["concept:demo-report-export"]["code_ref"] == [{"ref": "reports/export.py", "match": "exact"}]
+    assert by["concept:demo-report-service"]["code_ref"] == [{"ref": "Demo:reports/", "match": "encloses"}]
+    assert by["decision:demo-report-exports-finish-in-time"]["path"] == [
+        {"source": "decision:demo-report-exports-finish-in-time", "type": "ABOUT", "target": "concept:demo-report-export",
+         "evidence": "the limit applies to this endpoint"}]
+    assert by["decision:demo-report-exports-finish-in-time"]["via"] == "concept:demo-report-export"
 
 
 def test_a_decision_two_hops_away_comes_with_its_edge_path_and_evidence(tmp_path):
-    gov = one(impact.run(graph(), ["store/embedded_backend.py:_vector_query_guard"], root=tmp_path))
-    d = next(g for g in gov if g["id"] == "decision:refuse-unbounded-vector-scans")
+    gov = one(impact.run(graph(), ["storage/page_store.py:check_page_size"], root=tmp_path))
+    d = next(g for g in gov if g["id"] == "decision:demo-oversized-pages-are-refused")
     assert d["hops"] == 2 and d["kind"] == "decision"
-    assert d["nodes"] == ["concept:vector-query-guard", "concept:query-budget", "decision:refuse-unbounded-vector-scans"]
+    assert d["nodes"] == ["concept:demo-page-size-check", "concept:demo-page-budget", "decision:demo-oversized-pages-are-refused"]
     assert d["path"] == [
-        {"source": "concept:query-budget", "type": "RELATED_TO", "target": "concept:vector-query-guard", "evidence": "the guard enforces the budget"},
-        {"source": "decision:refuse-unbounded-vector-scans", "type": "ABOUT", "target": "concept:query-budget", "evidence": "the decision sets the budget"},
+        {"source": "concept:demo-page-budget", "type": "RELATED_TO", "target": "concept:demo-page-size-check", "evidence": "the check enforces the budget"},
+        {"source": "decision:demo-oversized-pages-are-refused", "type": "ABOUT", "target": "concept:demo-page-budget", "evidence": "the decision sets the budget"},
     ]
 
 
@@ -71,10 +71,10 @@ def test_ordering_is_by_hops_then_decision_record_concept():
 
 
 def test_the_hop_bound_holds(tmp_path):
-    ids = [g["id"] for g in one(impact.run(graph(), ["store/embedded_backend.py"], hops=1, root=tmp_path))]
-    assert "decision:refuse-unbounded-vector-scans" not in ids
-    ids = [g["id"] for g in one(impact.run(graph(), ["store/embedded_backend.py"], hops=3, root=tmp_path))]
-    assert "decision:refuse-unbounded-vector-scans" in ids and "record:vector-scan-review" in ids
+    ids = [g["id"] for g in one(impact.run(graph(), ["storage/page_store.py"], hops=1, root=tmp_path))]
+    assert "decision:demo-oversized-pages-are-refused" not in ids
+    ids = [g["id"] for g in one(impact.run(graph(), ["storage/page_store.py"], hops=3, root=tmp_path))]
+    assert "decision:demo-oversized-pages-are-refused" in ids and "record:demo-page-size-check-review" in ids
 
 
 def test_a_path_nothing_names_returns_no_governing_node(tmp_path):
@@ -84,17 +84,17 @@ def test_a_path_nothing_names_returns_no_governing_node(tmp_path):
 
 
 def test_a_directory_prefix_matches_the_files_under_it_and_not_a_sibling_with_the_same_stem(tmp_path):
-    report = impact.run(graph(), ["store/", "api"], repo="Demo", root=tmp_path)
+    report = impact.run(graph(), ["storage/", "reports"], repo="Demo", root=tmp_path)
     store = {g["id"]: g for g in one(report, 0)}
-    assert {i for i, g in store.items() if g["hops"] == 0} == {"concept:embedded-store", "concept:vector-query-guard"}
-    assert store["concept:embedded-store"]["code_ref"] == [{"ref": "Demo:store/embedded_backend.py", "match": "under"}]
-    assert "decision:refuse-unbounded-vector-scans" in store
+    assert {i for i, g in store.items() if g["hops"] == 0} == {"concept:demo-page-store", "concept:demo-page-size-check"}
+    assert store["concept:demo-page-store"]["code_ref"] == [{"ref": "Demo:storage/page_store.py", "match": "under"}]
+    assert "decision:demo-oversized-pages-are-refused" in store
     api = {g["id"] for g in one(report, 1)}
-    assert "concept:graph-algorithms" in api and "concept:api-gateway" not in api and "decision:gateway-rate-limits" not in api
+    assert "concept:demo-report-export" in api and "concept:demo-report-archive" not in api and "decision:demo-archive-reads-are-rate-limited" not in api
 
 
 def test_the_task_file_is_gone_after_the_run(tmp_path):
-    impact.run(graph(), ["api/graph_algo.py"], root=tmp_path)
+    impact.run(graph(), ["reports/export.py"], root=tmp_path)
     assert list(tmp_path.iterdir()) == []
 
 
@@ -103,36 +103,37 @@ def test_the_query_lives_in_a_cypher_file():
 
 
 def test_the_cli_prints_json_and_a_short_human_form(capsys):
-    assert cli.main(["impact", str(FIXTURE), "api/graph_algo.py", "docs/index.md"]) == 0
+    assert cli.main(["impact", str(FIXTURE), "reports/export.py", "docs/index.md"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert [r["path"] for r in out["impact"]] == ["api/graph_algo.py", "docs/index.md"]
+    assert [r["path"] for r in out["impact"]] == ["reports/export.py", "docs/index.md"]
     assert out["loaded"] == {"nodes": 12, "edges": 8}
-    assert cli.main(["impact", str(FIXTURE), "api/graph_algo.py", "--format", "text"]) == 0
+    assert cli.main(["impact", str(FIXTURE), "reports/export.py", "--format", "text"]) == 0
     text = capsys.readouterr().out
-    assert text.startswith("api/graph_algo.py: 4 node(s) within 3 hop(s)")
-    assert "decision:bound-graph-algorithm-cost -ABOUT-> concept:graph-algorithms" in text
+    assert text.startswith("reports/export.py: 4 node(s) within 3 hop(s)")
+    assert "decision:demo-report-exports-finish-in-time -ABOUT-> concept:demo-report-export" in text
 
 
 def test_an_unusable_path_or_hop_bound_is_refused():
     with pytest.raises(ValueError):
         impact.run(graph(), ["/"])
     with pytest.raises(ValueError):
-        impact.run(graph(), ["api"], hops=99)
+        impact.run(graph(), ["reports"], hops=99)
 
 
 def test_a_decision_anchors_by_its_subject_path_and_also_touches_with_any_repo_case(tmp_path):
     snap = json.loads(FIXTURE.read_text(encoding="utf-8"))
     snap["nodes"] += [
-        {"id": "decision:runs-stop-and-report", "kind": "decision", "title": "Runs stop and report", "domain": "engineering/runs",
+        {"id": "decision:demo-runs-stop-and-report", "kind": "decision", "title": "Runs stop and report", "domain": "engineering/runs",
          "props": {"subject_path": "demo:runs/protocol.py", "also_touches": ["Demo:runs/state.py"]}},
-        {"id": "record:old-waits-closed", "kind": "record", "title": "Old waits closed", "domain": "engineering/runs",
+        {"id": "record:demo-old-waits-closed", "kind": "record", "title": "Old waits closed", "domain": "engineering/runs",
          "props": {}},
     ]
-    snap["edges"].append({"source": "record:old-waits-closed", "target": "decision:runs-stop-and-report", "type": "RELATED_TO",
+    snap["edges"].append({"source": "record:demo-old-waits-closed", "target": "decision:demo-runs-stop-and-report", "type": "RELATED_TO",
                           "evidence": "the close follows the decision"})
+    snap["meta"].update(nodes=len(snap["nodes"]), edges=len(snap["edges"]))
     g = co.load(json.dumps(snap))
     report = impact.run(g, ["runs/protocol.py", "runs/state.py"], repo="Demo", root=tmp_path)
     first = [(x["hops"], x["kind"], x["id"]) for x in one(report, 0)]
-    assert first == [(0, "decision", "decision:runs-stop-and-report"), (1, "record", "record:old-waits-closed")]
+    assert first == [(0, "decision", "decision:demo-runs-stop-and-report"), (1, "record", "record:demo-old-waits-closed")]
     assert one(report, 0)[0]["code_ref"] == [{"ref": "demo:runs/protocol.py", "match": "exact"}]
-    assert [x["id"] for x in one(report, 1)][:1] == ["decision:runs-stop-and-report"]
+    assert [x["id"] for x in one(report, 1)][:1] == ["decision:demo-runs-stop-and-report"]

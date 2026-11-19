@@ -12,7 +12,10 @@ uv venv .venv && uv pip install --python .venv/bin/python -e ".[dev]"
 .venv/bin/vinc-relate paths fixtures/vinc_subgraph.json record:tls-advisory-example concept:service-api
 ```
 
-The fixture is synthetic, so the tests and the demo run without a Vinc account.
+The fixtures are synthetic, so the tests and the demo run without a Vinc account or the network.
+`paths` looks for paths of 1 to 6 hops (`--hops`, default 4) and returns at most 100 (`--limit`,
+default 10). Every command that loads a snapshot compares the nodes and edges that landed with the
+snapshot's own counts and stops with an error that names a repeated id or an edge with a missing endpoint.
 
 With a Vinc account, set a read-only key and a space, then check out real seeds:
 
@@ -24,7 +27,7 @@ VINC_API_KEY=<read-only key> VINC_SPACE=<space id> .venv/bin/vinc-relate checkou
 ## Impact of a code change
 
 ```
-.venv/bin/vinc-relate impact fixtures/impact/vinc.json api/graph_algo.py store/ --format text
+.venv/bin/vinc-relate impact fixtures/impact/vinc.json reports/export.py storage/ --format text
 ```
 
 `impact` answers "this code path changes; what governs it". It loads the snapshot into a throwaway
@@ -32,16 +35,16 @@ Relate file, opens it read only and deletes it after the run. For each path it l
 `code_ref` names the path, then the decisions and records within `--hops` (default 3) of them, each
 with its edge path in the snapshot's edge direction and the evidence on every edge. Results are
 ordered by hop count, then decision, record, concept. A `code_ref` matches when it names the same
-path, lies under a queried directory (`store/` matches `store/embedded_backend.py`, `api` does not
-match `api_gateway/`), or is a directory holding the queried path. A repository prefix
-(`Demo:api/server.py`) and a symbol suffix (`store/embedded_backend.py:_vector_query_guard`) are
+path, lies under a queried directory (`storage/` matches `storage/page_store.py`, `reports` does not
+match `reports_archive/`), or is a directory holding the queried path. A repository prefix
+(`Demo:reports/export.py`) and a symbol suffix (`storage/page_store.py:check_page_size`) are
 dropped before matching; `--repo Demo` skips refs that name another repository. Output is JSON by
 default; `--format text` prints the short form.
 
 ## Dependency policy audit
 
 ```
-.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo
+.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json
 ```
 
 The audit loads three things into one throwaway graph: the Vinc snapshot (decisions about the
@@ -51,20 +54,31 @@ fetch time and content hash). A path query finds each advisory the repository re
 verifier checks the installed version against the advisory ranges and applies each governing
 decision: a decision with a machine-checkable `rule` is `violated` or `not_violated`, one without a
 rule is only `relevant`. Development-only paths do not violate a rule scoped to shipped dependencies.
+Each finding keeps the advisory's `source_url`, `fetched_at` and `content_hash`.
+
+`--osv-cache <file>` reads the advisories from a file instead of api.osv.dev and refuses the network:
+a package or advisory the file does not hold stops the run with an error. The file holds `fetched_at`
+(when the advisories were read), `queries` (package id to the advisory ids OSV returned for it) and
+`vulns` (advisory id to the OSV record). `fixtures/audit/osv-cache.json` covers the demo lockfile, so the
+demo runs offline and gives the same findings every time. Without `--osv-cache`, `audit` asks OSV live.
 
 ## Record after approval
 
 ```
-.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --out report.json
+.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json
 .venv/bin/vinc-relate propose report.json --repo Demo --space <space id> --out plan.json
 VINC_API_KEY=<full key> .venv/bin/vinc-relate commit plan.json --approve <digest>
 ```
 
 `propose` turns only `affected` findings into records (anything else is held back and listed) and
-prints the exact write set with an approval digest over the space, nodes and edges. `commit` refuses
+prints the exact write set with an approval digest over the space, nodes and edges. Each record
+carries the advisory's `source`, `advisory_fetched_at` and `advisory_content_hash`. `commit` refuses
 unless the digest matches the plan file as it stands now, so an edited plan needs a new approval. It
 writes with `create_only` and an operation id derived from the digest, leaves ids that already exist
-alone, then reads every new node and its edges back and exits non-zero if anything differs.
+alone, then reads every new node and its edges back and exits non-zero if anything differs. An edge
+must come back with the same type and direction. A record's `relates_to` edge comes back from Vinc as
+`ATTACHES_TO` with the role `relates_to`; checkout reads it as `RELATED_TO`, the name Vinc returns for
+`relates_to` between concepts, so a later checkout keeps the committed edges.
 
 Run the demo against a synthetic space; write to a real space only after its owner approves the
 printed write set.

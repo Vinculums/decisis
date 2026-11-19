@@ -1,34 +1,34 @@
 from __future__ import annotations
 
-import functools
-import io
 import json
+import socket
+import urllib.request
 from pathlib import Path
 
-from vinc_relate import audit, external, semver
+import pytest
+
+from vinc_relate import audit, cli, external, semver
 from vinc_relate import checkout as co
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures" / "audit"
-HITS = {("lodash", "4.17.15"): ["GHSA-29mw-wpgm-hmr9", "GHSA-35jh-r3h4-6jhm", "GHSA-p6mc-m468-83gw", "GHSA-r5fr-rjxr-66jc", "GHSA-xxjr-mmjv-4gpg"],
-        ("lodash", "4.17.21"): ["GHSA-r5fr-rjxr-66jc", "GHSA-xxjr-mmjv-4gpg"]}
+CACHE = FIX / "osv-cache.json"
 
 
-class Resp(io.BytesIO):
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        return False
-
-
-def osv_opener(req, timeout):
-    queries = json.loads(req.data)["queries"]
-    return Resp(json.dumps({"results": [{"vulns": [{"id": i} for i in HITS.get((q["package"]["name"], q["version"]), [])]} for q in queries]}).encode())
+def osv_cache():
+    return external.read_osv_cache(CACHE.read_text(encoding="utf-8"))
 
 
 def advisories():
-    cache = json.loads((FIX / "osv-cache.json").read_text())["vulns"]
-    return functools.partial(external.fetch_advisories, opener=osv_opener, cache=cache)
+    return external.cached_advisories(osv_cache())
+
+
+@pytest.fixture
+def no_network(monkeypatch):
+    def refuse(*a, **k):
+        raise AssertionError("the network was used")
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)
 
 
 def lock():
@@ -74,3 +74,48 @@ def test_a_repository_without_a_code_ref_in_the_graph_gets_no_policy():
     rep = audit.run(co.load((FIX / "vinc.json").read_text()), lock(), "Other", advisories=advisories())
     assert rep["governing"] == [] and rep["violations"] == 0
     assert rep["summary"]["affected"] > 0
+
+
+def test_the_cli_audit_reads_the_cache_offline_and_gives_the_same_report_every_time(no_network, tmp_path, capsys):
+    args = ["audit", str(FIX / "vinc.json"), str(FIX / "demo-lockfile.json"), "--repo", "Demo", "--osv-cache", str(CACHE)]
+    outs = []
+    for i in range(2):
+        assert cli.main(args + ["--out", str(tmp_path / f"r{i}.json")]) == 0
+        outs.append((tmp_path / f"r{i}.json").read_text(encoding="utf-8"))
+    capsys.readouterr()
+    assert outs[0] == outs[1]
+    rep = json.loads(outs[0])
+    assert rep["summary"]["affected"] > 0 and rep["violations"] > 0
+
+
+def test_a_cached_run_refuses_what_the_cache_does_not_hold(no_network, tmp_path, capsys):
+    cache = osv_cache()
+    del cache["queries"]["pkg:npm/minimist@1.2.8"]
+    partial = tmp_path / "partial.json"
+    partial.write_text(json.dumps(cache), encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        cli.main(["audit", str(FIX / "vinc.json"), str(FIX / "demo-lockfile.json"), "--repo", "Demo", "--osv-cache", str(partial)])
+    assert e.value.code == 1
+    assert "pkg:npm/minimist@1.2.8 is not in the OSV cache" in capsys.readouterr().err
+    opener = external.cache_opener(osv_cache())
+    with pytest.raises(external.NetworkRefused):
+        opener(urllib.request.Request(external.OSV_VULN.format(id="GHSA-0000-0000-0000")))
+
+
+def test_a_cache_without_its_fetch_time_is_refused(tmp_path, capsys):
+    cache = osv_cache()
+    del cache["fetched_at"]
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps(cache), encoding="utf-8")
+    with pytest.raises(SystemExit) as e:
+        cli.main(["audit", str(FIX / "vinc.json"), str(FIX / "demo-lockfile.json"), "--repo", "Demo", "--osv-cache", str(bad)])
+    assert e.value.code == 2 and "fetched_at" in capsys.readouterr().err
+
+
+def test_each_finding_carries_the_advisory_fetch_time_and_content_hash():
+    cache = osv_cache()
+    rep = audit.run(co.load((FIX / "vinc.json").read_text()), lock(), "Demo", advisories=advisories())
+    for f in rep["findings"]:
+        osv = f["advisory"].split(":", 1)[1]
+        assert f["fetched_at"] == cache["fetched_at"]
+        assert f["content_hash"] == external.digest(cache["vulns"][osv])

@@ -25,6 +25,23 @@ def default_root() -> Path:
     return TMPFS if TMPFS.is_dir() and os.access(TMPFS, os.W_OK) else Path(tempfile.gettempdir())
 
 
+class LoadMismatch(ValueError):
+    pass
+
+
+def _mismatch(graph: Subgraph, got: dict) -> str:
+    ids = [n["id"] for n in graph.nodes]
+    known = set(ids)
+    out = [f"loaded {got['nodes']} nodes and {got['edges']} edges, but the snapshot has {len(graph.nodes)} nodes and {len(graph.edges)} edges"]
+    dupes = sorted({i for i in ids if ids.count(i) > 1})
+    if dupes:
+        out.append("repeated node ids: " + ", ".join(dupes[:5]))
+    dangling = [f"{e['source']} -{e['type']}-> {e['target']}" for e in graph.edges if e["source"] not in known or e["target"] not in known]
+    if dangling:
+        out.append("edges with a missing endpoint: " + ", ".join(dangling[:5]))
+    return "; ".join(out)
+
+
 class Sandbox:
     def __init__(self, root: Path | None = None):
         self.dir = (root or default_root()) / f"vinc-relate-{uuid.uuid4().hex}"
@@ -44,11 +61,15 @@ class Sandbox:
             for rel in sorted({e["type"] for e in graph.edges}):
                 rows = [{"s": e["source"], "t": e["target"], "evidence": e.get("evidence") or ""} for e in graph.edges if e["type"] == rel]
                 con.execute(f"UNWIND $rows AS r MATCH (a {{id: r.s}}), (b {{id: r.t}}) CREATE (a)-[:{_label(rel)} {{evidence: r.evidence}}]->(b)", {"rows": rows})
-            counts = con.execute("MATCH (n) WITH count(n) AS n MATCH ()-[r]->() RETURN n AS nodes, count(r) AS edges").single()
+            nodes = con.execute("MATCH (n) RETURN count(n) AS c").single()
+            edges = con.execute("MATCH ()-[r]->() RETURN count(r) AS c").single()
         finally:
             con.close()
         self.loaded = True
-        return dict(counts) if counts else {"nodes": 0, "edges": 0}
+        got = {"nodes": dict(nodes)["c"] if nodes else 0, "edges": dict(edges)["c"] if edges else 0}
+        if got != {"nodes": len(graph.nodes), "edges": len(graph.edges)}:
+            raise LoadMismatch(_mismatch(graph, got))
+        return got
 
     def query(self, cypher: str, params: dict | None = None) -> list[dict]:
         if not self.loaded:

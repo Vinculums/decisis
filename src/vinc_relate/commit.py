@@ -6,6 +6,8 @@ import re
 import uuid
 from datetime import date
 
+from . import checkout as co
+
 SLUG_MAX = 60
 DOMAIN = "platform/security"
 
@@ -74,6 +76,7 @@ def propose(report: dict, repo: str, space: str, today: str | None = None,
                                 "dependency_paths": [f["path"] for _, f in found],
                                 "violates": sorted(d for d, p in verdicts.items() if p["verdict"] == "violated"),
                                 "source": first["source_url"], "source_system": "vinc-relate audit over OSV",
+                                "advisory_fetched_at": first.get("fetched_at"), "advisory_content_hash": first.get("content_hash"),
                                 "measured_at": today, "measured_ref": ref or lock_hash or "lockfile",
                                 "lockfile_hash": lock_hash,
                                 "subject_path": f"{repo.lower()}:{lockfile_path.removeprefix('./').lstrip('/')}"}})
@@ -124,9 +127,11 @@ def commit(plan: dict, approve: str, client) -> dict:
         elif any(stored.get(k) != v for k, v in n["props"].items()):
             problems.append(f"{n['id']}: stored props differ from the write set")
     for n in nodes:
-        want = {e["to"] for e in edges if e["from"] == n["id"]}
+        want = {(e["from"], co.relation(e), e["to"]) for e in edges if e["from"] == n["id"]}
         if want:
-            seen = {x.get("id") for x in client.tool("vinc_neighbors", {"node": n["id"], "limit": 50}).get("neighbors", [])}
-            problems += [f"{n['id']}: edge to {t} not found after the write" for t in sorted(want - seen)]
+            got = co.normalize([client.tool("vinc_graph", {"seed_id": n["id"], "depth": 1})], [n["id"]], plan["space"])
+            have = {(e["source"], e["type"], e["target"]) for e in got.edges}
+            problems += [f"{n['id']}: edge {s} -{t}-> {d} not found after the write with this type and direction"
+                         for s, t, d in sorted(want - have)]
     return {"written": [n["id"] for n in nodes], "existing": existing, "edges": len(edges),
             "verified": not problems, "problems": problems}
