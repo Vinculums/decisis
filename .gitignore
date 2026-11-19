@@ -3,3 +3,4 @@ __pycache__/
 *.egg-info/
 *.rl
 .pytest_cache/
+!demo/sample.rl

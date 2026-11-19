@@ -12,6 +12,7 @@ from test_audit import advisories, lock, osv_cache
 from vinc_relate import audit, external
 from vinc_relate import checkout as co
 from vinc_relate import commit as wb
+from vinc_relate.fake_vinc import FakeVinc
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures" / "audit"
 NODE_ID = re.compile(r"^record:[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -19,35 +20,6 @@ NODE_ID = re.compile(r"^record:[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 def report():
     return audit.run(co.load((FIX / "vinc.json").read_text()), lock(), "Demo", advisories=advisories())
-
-
-class FakeVinc:
-    def __init__(self, existing=(), tamper=None, flip=False):
-        self.nodes = {i: {"id": i, "props": {}} for i in existing}
-        self.edges, self.calls, self.tamper, self.flip, self.space = [], [], tamper, flip, "space-1"
-
-    def tool(self, name, args):
-        self.calls.append(name)
-        if name == "vinc_node":
-            n = self.nodes.get(args["node_id"])
-            return {"found": n is not None, "node": n}
-        if name == "vinc_ingest":
-            assert args["create_only"] is True and args["operation_id"]
-            for n in args["nodes"]:
-                props = dict(n["props"])
-                if self.tamper and n["id"] == self.tamper:
-                    props["severity"] = "LOW"
-                self.nodes[n["id"]] = {"id": n["id"], "props": props}
-            for e in args["edges"]:
-                src, dst = (e["to"], e["from"]) if self.flip else (e["from"], e["to"])
-                self.edges.append({"source": src, "target": dst, "type": "ATTACHES_TO", "role": e["type"], "evidence": e["evidence"]})
-            return {"executed": True, "warnings": []}
-        if name == "vinc_graph":
-            seed = args["seed_id"]
-            edges = [e for e in self.edges if seed in (e["source"], e["target"])]
-            ids = sorted({seed} | {x for e in edges for x in (e["source"], e["target"])})
-            return {"nodes": [{"id": i, "kind": i.split(":", 1)[0], "label": i} for i in ids], "edges": edges}
-        raise AssertionError(name)
 
 
 def test_only_verified_findings_enter_the_write_set_with_ids_the_graph_accepts():

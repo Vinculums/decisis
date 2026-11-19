@@ -74,13 +74,17 @@ def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dic
     return sorted(findings, key=lambda f: (order[f["status"]], -SEVERITY.index(f["severity"]) if f["severity"] in SEVERITY else 0, len(f["path"])))
 
 
-def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories) -> dict:
-    graph = compose(vinc, lock_text, repo, advisories)
-    with sandbox() as box:
-        counts = box.load(graph)
-        rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
-        decisions = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
+def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
+    counts = box.load(graph)
+    rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
+    decisions = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
     findings = verify(rows, graph, decisions)
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
     return {"meta": graph.meta, "loaded": counts, "governing": decisions, "summary": summary,
             "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings}
+
+
+def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories) -> dict:
+    graph = compose(vinc, lock_text, repo, advisories)
+    with sandbox() as box:
+        return analyze(box, graph, repo, depth)

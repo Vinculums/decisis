@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from . import audit
+from . import demo
 from . import external
 from . import impact
 from . import commit as wb
@@ -64,6 +65,12 @@ def main(argv: list[str] | None = None) -> int:
     cm = sub.add_parser("commit", help="write an approved write set to Vinc and read it back (needs a full key)")
     cm.add_argument("plan")
     cm.add_argument("--approve", required=True, help="the approval digest printed by propose")
+    dm = sub.add_parser("demo", help="run the whole sandbox procedure on synthetic data, offline, against an in-process fake Vinc")
+    dm.add_argument("--out", default="demo", help="where the transcript, the expected findings and the sample Relate database go")
+    dm.add_argument("--fixtures", type=Path, help="the fixtures directory (default: the one in this repository)")
+    ok = dm.add_mutually_exclusive_group()
+    ok.add_argument("--approve", metavar="DIGEST", help="approve the write set with the digest the demo prints")
+    ok.add_argument("--yes", action="store_true", help="approve the demo write set without typing the digest")
     a = ap.parse_args(argv)
     try:
         return run(a)
@@ -74,6 +81,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run(a: argparse.Namespace) -> int:
+    if a.cmd == "demo":
+        return demo.run(Path(a.out), a.fixtures, approve=a.approve, yes=a.yes)[0]
     if a.cmd == "propose":
         plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
                           lockfile_path=a.lockfile_path, ref=a.ref)

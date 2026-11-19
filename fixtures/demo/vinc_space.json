@@ -1,0 +1,25 @@
+{"meta": {"space": "demo-space", "note": "a synthetic Vinc space; the demo serves it from an in-process fake Vinc"},
+ "nodes": [
+  {"id": "concept:demo-app", "kind": "concept", "title": "Demo app", "domain": "product/app", "props": {"code_ref": "Demo:package.json"}},
+  {"id": "decision:no-high-advisories-in-shipped-dependencies", "kind": "decision", "title": "No high advisories in shipped dependencies", "domain": "platform/security",
+   "props": {"statement": "A dependency the app ships may not carry an advisory of high severity or above.", "decided_by": "owner", "rule": {"advisory_severity_at_least": "HIGH", "dependencies": "shipped"}}},
+  {"id": "decision:dependencies-are-pinned-by-a-lockfile", "kind": "decision", "title": "Dependencies are pinned by a lockfile", "domain": "platform/security",
+   "props": {"statement": "Every install resolves from the committed lockfile.", "decided_by": "owner"}},
+  {"id": "concept:demo-ci", "kind": "concept", "title": "Demo CI pipeline", "domain": "platform/ci", "props": {"code_ref": "Demo:.ci/pipeline.yml"}},
+  {"id": "concept:demo-billing", "kind": "concept", "title": "Demo billing service", "domain": "product/billing", "props": {"code_ref": "DemoBilling:invoices/"}},
+  {"id": "decision:demo-invoices-are-immutable", "kind": "decision", "title": "Invoices are immutable once issued", "domain": "product/billing",
+   "props": {"statement": "An issued invoice is corrected by a credit note, never edited.", "decided_by": "owner"}},
+  {"id": "record:demo-billing-load-test", "kind": "record", "title": "Billing handles 200 invoices a second", "domain": "product/billing",
+   "props": {"statement": "A load test of the billing service sustained 200 invoices a second.", "source": "synthetic"}},
+  {"id": "concept:demo-design-tokens", "kind": "concept", "title": "Demo design tokens", "domain": "product/design", "props": {"code_ref": "DemoSite:tokens/"}},
+  {"id": "decision:demo-colors-live-in-tokens", "kind": "decision", "title": "Colors live in design tokens", "domain": "product/design",
+   "props": {"statement": "A color is named by a token, never written as a literal.", "decided_by": "owner"}}
+ ],
+ "edges": [
+  {"source": "decision:no-high-advisories-in-shipped-dependencies", "target": "concept:demo-app", "type": "ABOUT", "evidence": "policy on the app"},
+  {"source": "decision:dependencies-are-pinned-by-a-lockfile", "target": "concept:demo-app", "type": "ABOUT", "evidence": "policy on the app"},
+  {"source": "decision:dependencies-are-pinned-by-a-lockfile", "target": "concept:demo-ci", "type": "RELATED_TO", "evidence": "CI installs with npm ci"},
+  {"source": "decision:demo-invoices-are-immutable", "target": "concept:demo-billing", "type": "ABOUT", "evidence": "policy on billing"},
+  {"source": "record:demo-billing-load-test", "target": "concept:demo-billing", "type": "RELATED_TO", "evidence": "measured on billing"},
+  {"source": "decision:demo-colors-live-in-tokens", "target": "concept:demo-design-tokens", "type": "ABOUT", "evidence": "policy on the site"}
+ ]}
