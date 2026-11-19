@@ -113,7 +113,7 @@ def method_a_audit(inp: dict, subject: str) -> list[dict]:
     return claims
 
 
-def text_records(lock_text: str, repo: str) -> tuple[set[str], list[dict]]:
+def text_records(lock_text: str) -> tuple[set[str], list[dict]]:
     pkgs = json.loads(lock_text)["packages"]
     root = pkgs.get("", {})
     direct = set(root.get("dependencies") or {}) | set(root.get("devDependencies") or {})
@@ -129,7 +129,7 @@ def text_records(lock_text: str, repo: str) -> tuple[set[str], list[dict]]:
 
 def method_b_audit(inp: dict, subject: str) -> list[dict]:
     repo_id = f"repo:{inp['repo']}"
-    direct, records = text_records(inp["lock"], inp["repo"])
+    direct, records = text_records(inp["lock"])
     rec = next((r for r in records if r["id"] == subject), None)
     if rec is None:
         return []
