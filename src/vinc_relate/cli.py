@@ -6,12 +6,26 @@ import sys
 from pathlib import Path
 
 from . import audit
+from . import external
 from . import impact
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
 from .sandbox import sandbox
 
+MAX_LIMIT = 100
+
+
+def bounded(lo: int, hi: int):
+    def parse(text: str) -> int:
+        try:
+            value = int(text)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"{text!r} is not a whole number") from None
+        if not lo <= value <= hi:
+            raise argparse.ArgumentTypeError(f"{value} is outside {lo} to {hi}")
+        return value
+    return parse
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,12 +39,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("snapshot")
     p.add_argument("source")
     p.add_argument("target")
-    p.add_argument("--hops", type=int, default=4)
-    p.add_argument("--limit", type=int, default=10)
+    p.add_argument("--hops", type=bounded(1, impact.MAX_HOPS), default=4, help=f"longest path to look for (1 to {impact.MAX_HOPS})")
+    p.add_argument("--limit", type=bounded(1, MAX_LIMIT), default=10, help=f"most paths to return (1 to {MAX_LIMIT})")
     im = sub.add_parser("impact", help="list the decisions, records and concepts that govern one or more code paths")
     im.add_argument("snapshot")
-    im.add_argument("code_paths", nargs="+", metavar="code_path", help="a file or directory, for example api/graph_algo.py or store/")
-    im.add_argument("--hops", type=int, default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
+    im.add_argument("code_paths", nargs="+", metavar="code_path", help="a file or directory, for example reports/export.py or storage/")
+    im.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
     im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     im.add_argument("--format", choices=["json", "text"], default="json")
     au = sub.add_parser("audit", help="join a Vinc snapshot, an npm lockfile and OSV advisories in a throwaway Relate graph")
@@ -39,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=int, default=8)
     au.add_argument("--out")
+    au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
     pr = sub.add_parser("propose", help="turn an audit report into the exact write set the owner approves")
     pr.add_argument("report")
     pr.add_argument("--repo", required=True)
@@ -50,6 +65,15 @@ def main(argv: list[str] | None = None) -> int:
     cm.add_argument("plan")
     cm.add_argument("--approve", required=True, help="the approval digest printed by propose")
     a = ap.parse_args(argv)
+    try:
+        return run(a)
+    except ValueError as e:
+        ap.error(str(e))
+    except external.NetworkRefused as e:
+        ap.exit(1, f"{ap.prog}: error: {e}\n")
+
+
+def run(a: argparse.Namespace) -> int:
     if a.cmd == "propose":
         plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
                           lockfile_path=a.lockfile_path, ref=a.ref)
@@ -65,10 +89,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(receipt, ensure_ascii=False, indent=1))
         return 0 if receipt["verified"] else 1
     if a.cmd == "impact":
-        try:
-            report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo)
-        except ValueError as e:
-            ap.error(str(e))
+        report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo)
         if a.format == "text":
             print(impact.render(report))
         else:
@@ -76,7 +97,11 @@ def main(argv: list[str] | None = None) -> int:
             sys.stdout.write("\n")
         return 0
     if a.cmd == "audit":
-        report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth)
+        advisories = external.fetch_advisories
+        if a.osv_cache:
+            advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
+        report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth,
+                           advisories=advisories)
         text = json.dumps(report, ensure_ascii=False, indent=1)
         if a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from test_audit import advisories, lock
-from vinc_relate import audit
+from test_audit import advisories, lock, osv_cache
+from vinc_relate import audit, external
 from vinc_relate import checkout as co
 from vinc_relate import commit as wb
 
@@ -22,9 +22,9 @@ def report():
 
 
 class FakeVinc:
-    def __init__(self, existing=(), tamper=None):
+    def __init__(self, existing=(), tamper=None, flip=False):
         self.nodes = {i: {"id": i, "props": {}} for i in existing}
-        self.edges, self.calls, self.tamper = [], [], tamper
+        self.edges, self.calls, self.tamper, self.flip, self.space = [], [], tamper, flip, "space-1"
 
     def tool(self, name, args):
         self.calls.append(name)
@@ -38,10 +38,15 @@ class FakeVinc:
                 if self.tamper and n["id"] == self.tamper:
                     props["severity"] = "LOW"
                 self.nodes[n["id"]] = {"id": n["id"], "props": props}
-            self.edges += args["edges"]
+            for e in args["edges"]:
+                src, dst = (e["to"], e["from"]) if self.flip else (e["from"], e["to"])
+                self.edges.append({"source": src, "target": dst, "type": "ATTACHES_TO", "role": e["type"], "evidence": e["evidence"]})
             return {"executed": True, "warnings": []}
-        if name == "vinc_neighbors":
-            return {"neighbors": [{"id": e["to"]} for e in self.edges if e["from"] == args["node"]]}
+        if name == "vinc_graph":
+            seed = args["seed_id"]
+            edges = [e for e in self.edges if seed in (e["source"], e["target"])]
+            ids = sorted({seed} | {x for e in edges for x in (e["source"], e["target"])})
+            return {"nodes": [{"id": i, "kind": i.split(":", 1)[0], "label": i} for i in ids], "edges": edges}
         raise AssertionError(name)
 
 
@@ -124,3 +129,27 @@ def test_a_store_that_kept_something_else_fails_the_read_back():
     receipt = wb.commit(plan, plan["digest"], fake)
     assert not receipt["verified"]
     assert any("stored props differ" in p for p in receipt["problems"])
+
+
+def test_a_committed_edge_survives_a_new_checkout_with_its_type_and_direction():
+    plan = wb.propose(report(), "Demo", "space-1", today="2026-11-17")
+    fake = FakeVinc()
+    assert wb.commit(plan, plan["digest"], fake)["verified"]
+    for e in plan["edges"]:
+        got = co.checkout(fake, [e["from"]], 1)
+        assert {"source": e["from"], "target": e["to"], "type": "RELATED_TO", "evidence": e["evidence"]} in got.edges
+
+
+def test_an_edge_stored_the_wrong_way_round_fails_the_read_back():
+    plan = wb.propose(report(), "Demo", "space-1", today="2026-11-17")
+    receipt = wb.commit(plan, plan["digest"], FakeVinc(flip=True))
+    assert not receipt["verified"]
+    assert any("-RELATED_TO-> decision:" in p and "type and direction" in p for p in receipt["problems"])
+
+
+def test_each_record_carries_the_advisory_fetch_time_and_content_hash():
+    plan = wb.propose(report(), "Demo", "space-1", today="2026-11-17")
+    vulns = osv_cache()["vulns"]
+    for n in plan["nodes"]:
+        assert n["props"]["advisory_fetched_at"] == "2026-11-17T11:20:41Z"
+        assert n["props"]["advisory_content_hash"] == external.digest(vulns[n["props"]["value"]])

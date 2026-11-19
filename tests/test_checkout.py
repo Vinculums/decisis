@@ -26,6 +26,22 @@ def test_normalize_dedupes_by_id_keeps_known_edges_and_drops_dangling_ones():
     assert g.meta["space"] == "space-1" and g.meta["seeds"] == ["concept:a"]
 
 
+def test_a_record_edge_read_through_its_carrier_keeps_its_relation_and_direction():
+    g = co.normalize([raw([{"id": "record:r", "kind": "record"}, {"id": "decision:d", "kind": "decision"}],
+                          [{"source": "record:r", "target": "decision:d", "type": "ATTACHES_TO", "role": "relates_to", "evidence": "e"},
+                           {"source": "record:r", "target": "decision:d", "type": "ATTACHES_TO", "subtype": "about"},
+                           {"source": "record:r", "target": "decision:d", "type": "ATTACHES_TO"}])], ["record:r"], None)
+    assert g.edges == [{"source": "record:r", "target": "decision:d", "type": "ABOUT", "evidence": ""},
+                       {"source": "record:r", "target": "decision:d", "type": "RELATED_TO", "evidence": "e"}]
+
+
+def test_a_snapshot_whose_counts_disagree_with_its_lists_is_refused():
+    g = co.normalize([raw([{"id": "concept:a", "kind": "concept"}], [])], ["concept:a"], None)
+    text = co.dump(g).replace('"nodes": 1,', '"nodes": 2,')
+    with pytest.raises(ValueError, match="says it has 2 nodes but lists 1"):
+        co.load(text)
+
+
 def test_a_snapshot_round_trips():
     g = co.normalize([raw([{"id": "concept:a", "kind": "concept"}], [])], ["concept:a"], None)
     assert co.load(co.dump(g)) == g

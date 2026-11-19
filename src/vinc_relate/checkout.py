@@ -9,6 +9,15 @@ from .sandbox import Subgraph
 
 DEFAULT_URL = "https://mcp.vincs.io/mcp"
 EDGE_TYPES = {"RELATED_TO", "PREREQUISITE_OF", "DERIVES_FROM", "INHERITS_FROM", "CONNECTS_VIA", "ABOUT", "SUPERSEDES", "RETURNS_TO"}
+WRITE_NAMES = {"RELATES_TO": "RELATED_TO"}
+CARRIER = "ATTACHES_TO"
+
+
+def relation(edge: dict) -> str:
+    rel = str(edge.get("type", "")).upper()
+    if rel == CARRIER:
+        rel = str(edge.get("role") or edge.get("subtype") or "").upper()
+    return WRITE_NAMES.get(rel, rel)
 
 
 class VincMCP:
@@ -56,7 +65,7 @@ def normalize(raw_graphs: list[dict], seeds: list[str], space: str | None) -> Su
             nodes.setdefault(n["id"], {"id": n["id"], "kind": n.get("kind") or n["id"].split(":", 1)[0], "title": n.get("label") or n.get("title") or "",
                                        "domain": n.get("domain") or "", "valid_until": n.get("valid_until"), "props": n.get("props") or {}})
         for e in g.get("edges", []):
-            rel = str(e.get("type", "")).upper()
+            rel = relation(e)
             if rel not in EDGE_TYPES:
                 continue
             key = (e["source"], rel, e["target"])
@@ -78,4 +87,8 @@ def dump(graph: Subgraph) -> str:
 
 def load(text: str) -> Subgraph:
     d = json.loads(text)
-    return Subgraph(d["nodes"], d["edges"], d.get("meta", {}))
+    meta = d.get("meta", {})
+    for key in ("nodes", "edges"):
+        if isinstance(meta.get(key), int) and meta[key] != len(d[key]):
+            raise ValueError(f"the snapshot says it has {meta[key]} {key} but lists {len(d[key])}")
+    return Subgraph(d["nodes"], d["edges"], meta)
