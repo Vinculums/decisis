@@ -81,19 +81,30 @@ def parse_npm_lock(text: str, repo: str, include_dev: bool = True) -> tuple[list
     return list(nodes.values()), edges
 
 
+class NetworkRefused(RuntimeError):
+    pass
+
+
+class NetworkFailed(RuntimeError):
+    pass
+
+
+def _open(req: urllib.request.Request, opener) -> dict:
+    try:
+        with opener(req, timeout=60) as resp:
+            return json.loads(resp.read())
+    except OSError as e:
+        reason = getattr(e, "reason", None) or e
+        raise NetworkFailed(f"could not reach OSV at {req.full_url} ({reason}); to run without the network, "
+                            "pass --osv-cache FILE (fixtures/audit/osv-cache.json covers the demo lockfile)") from None
+
+
 def _post(url: str, payload: dict, opener) -> dict:
-    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
-    with opener(req, timeout=60) as resp:
-        return json.loads(resp.read())
+    return _open(urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}), opener)
 
 
 def _get(url: str, opener) -> dict:
-    with opener(urllib.request.Request(url), timeout=60) as resp:
-        return json.loads(resp.read())
-
-
-class NetworkRefused(RuntimeError):
-    pass
+    return _open(urllib.request.Request(url), opener)
 
 
 def read_osv_cache(text: str) -> dict:

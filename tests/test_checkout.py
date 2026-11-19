@@ -77,10 +77,15 @@ def test_the_client_initializes_once_names_the_space_and_reads_structured_conten
     assert sent[2][1].get("Mcp-session-id") == "s1"
 
 
-@pytest.mark.skipif(not os.environ.get("VINC_API_KEY"), reason="live check needs a read-only VINC_API_KEY")
+LIVE = ("VINC_API_KEY", "VINC_LIVE_SEED", "VINC_LIVE_TARGET")
+
+
+@pytest.mark.skipif(not all(os.environ.get(k) for k in LIVE),
+                    reason="the live check needs a read-only VINC_API_KEY, VINC_LIVE_SEED and VINC_LIVE_TARGET (a node with an edge from the seed)")
 def test_live_checkout_keeps_ids_direction_and_evidence():
-    g = co.checkout(co.VincMCP.from_env(), ["concept:procedure-build-a-package"], 1)
-    ids = {n["id"] for n in g.nodes}
-    assert "concept:agent-maker" in ids
-    e = next(e for e in g.edges if e["source"] == "concept:procedure-build-a-package" and e["target"] == "concept:agent-maker")
-    assert e["type"] == "RELATED_TO" and e["evidence"]
+    seed, target = os.environ["VINC_LIVE_SEED"], os.environ["VINC_LIVE_TARGET"]
+    g = co.checkout(co.VincMCP.from_env(), [seed], 1)
+    ids = [n["id"] for n in g.nodes]
+    assert len(ids) == len(set(ids)) and {seed, target} <= set(ids)
+    e = next(e for e in g.edges if e["source"] == seed and e["target"] == target)
+    assert e["type"] in co.EDGE_TYPES and e["evidence"]

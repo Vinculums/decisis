@@ -102,6 +102,19 @@ def test_a_cached_run_refuses_what_the_cache_does_not_hold(no_network, tmp_path,
         opener(urllib.request.Request(external.OSV_VULN.format(id="GHSA-0000-0000-0000")))
 
 
+def test_a_live_audit_without_the_network_says_so_in_one_line_and_points_at_the_cache(monkeypatch, capsys):
+    def refused(*a, **k):
+        raise ConnectionRefusedError(111, "Connection refused")
+    monkeypatch.setattr(socket, "create_connection", refused)
+    monkeypatch.setattr(socket.socket, "connect", refused)
+    with pytest.raises(SystemExit) as e:
+        cli.main(["audit", str(FIX / "vinc.json"), str(FIX / "demo-lockfile.json"), "--repo", "Demo"])
+    assert e.value.code == 1
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1 and "Traceback" not in err
+    assert err.startswith("vinc-relate: error: could not reach OSV at https://api.osv.dev/") and "--osv-cache" in err
+
+
 def test_a_cache_without_its_fetch_time_is_refused(tmp_path, capsys):
     cache = osv_cache()
     del cache["fetched_at"]
