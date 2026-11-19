@@ -1,125 +1,86 @@
 # vinc-relate
 
-Check out task-relevant knowledge from a Vinc graph, reason over it in an ephemeral [Relate](https://github.com/relatedb/relate) graph, and keep only verified findings.
+[![test](https://github.com/Vinculums/vinc-relate/actions/workflows/test.yml/badge.svg)](https://github.com/Vinculums/vinc-relate/actions/workflows/test.yml)
 
-Vinc stays the persistent store. Relate holds one task's subgraph in a private single-file database under tmpfs, is read only while the agent reasons, and is deleted when the task ends.
+**Persistent knowledge, ephemeral reasoning.** A team's decisions live in a durable knowledge graph
+(Vinc); vinc-relate checks out only the slice a task needs, joins it with outside facts (an npm lockfile
+and OSV advisories) in a throwaway [Relate](https://github.com/relatedb/relate) graph, finds multi-hop
+paths from a decision to the thing that breaks it, and deletes the graph when the task ends. Nothing
+goes back to the durable graph unless a person approves the exact write set by its digest, and what
+was written is read back before the run counts as done.
 
-## Run
+```mermaid
+flowchart LR
+    V[("Vinc graph<br/>persistent")] -- "checkout: seeds, depth" --> S["snapshot.json"]
+    L["npm lockfile"] --> R
+    O["OSV advisories<br/>live or --osv-cache"] --> R
+    S --> R[("Relate file<br/>private 0700 tmpfs dir<br/>read only while reasoning")]
+    R -- "bounded Cypher paths" --> F["findings with<br/>paths and sources"]
+    F --> P["write set +<br/>approval digest"]
+    P -- "a person approves<br/>the digest" --> W["commit: create_only,<br/>then read back"]
+    W --> V
+    R -. "deleted after the run" .-> D["nothing left"]
+```
+
+Entry for the Relate by Neo4j hackathon, "Context, Connected". Licensed under Apache-2.0 (`LICENSE`).
+
+## Five-minute setup
+
+You need Python 3.11 or newer, git and [uv](https://docs.astral.sh/uv/). No Vinc account and no API key.
+The install fetches `relate-db` from PyPI once; every command after it runs offline.
 
 ```
+git clone https://github.com/Vinculums/vinc-relate.git
+cd vinc-relate
 uv venv .venv && uv pip install --python .venv/bin/python -e ".[dev]"
 .venv/bin/python -m pytest -q
-.venv/bin/vinc-relate paths fixtures/vinc_subgraph.json record:tls-advisory-example concept:service-api
-```
-
-The fixtures are synthetic, so the tests and the demo run without a Vinc account or the network.
-`paths` looks for paths of 1 to 6 hops (`--hops`, default 4) and returns at most 100 (`--limit`,
-default 10). Every command that loads a snapshot compares the nodes and edges that landed with the
-snapshot's own counts and stops with an error that names a repeated id or an edge with a missing endpoint.
-
-With a Vinc account, set a read-only key and a space, then check out real seeds:
-
-```
-VINC_API_KEY=<read-only key> VINC_SPACE=<space id> .venv/bin/vinc-relate checkout <node id> ... --out snapshot.json
-.venv/bin/vinc-relate paths snapshot.json <from id> <to id>
-```
-
-## The demo
-
-```
 .venv/bin/vinc-relate demo
-.venv/bin/vinc-relate demo --approve <digest>
 ```
 
-One command runs the whole procedure on synthetic data, offline and without a Vinc key: a synthetic
-space served by an in-process fake Vinc, a checkout of only the app's knowledge, a Relate graph that
-joins it with the demo lockfile and cached OSV advisories, a multi-hop path from a decision to an
-advisory, a Checker that re-derives each proposed record from the sandbox, and the write set with its
-approval digest. Without `--approve <digest>` (or `--yes`) it stops there and writes nothing. With it,
-the records go to the fake Vinc with `create_only`, are read back, and a new checkout finds their
-edges. The records are dated by the OSV cache, so the digest is the same on every run.
+Without uv: `python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"`. On Windows the scripts are
+under `.venv\Scripts\` instead of `.venv/bin/`.
 
-The run leaves `demo/transcript.json` (every step with its counts; run-time stamps only under
-`timestamps`), `demo/expected_findings.json` and `demo/sample.rl`, a copy of the sandbox graph built
-from the fixtures for inspection. The sandbox itself is deleted. `skills/vinc-relate/SKILL.md` tells
-a coding agent how to run the same procedure.
-
-## Impact of a code change
+`vinc-relate demo` runs the whole procedure on synthetic data in under a second: a synthetic Vinc
+space served by an in-process fake Vinc, a checkout of only the app's knowledge (3 of 9 nodes), a
+Relate graph that joins it with the demo lockfile and cached OSV advisories (14 nodes, 15 edges), a
+five-hop path from a decision to an advisory, a Checker that re-derives each proposed record from the
+sandbox (31 checks over 7 records), and the write set with its approval digest. It stops there and
+writes nothing. The path it finds:
 
 ```
-.venv/bin/vinc-relate impact fixtures/impact/vinc.json reports/export.py storage/ --format text
+decision:no-high-advisories-in-shipped-dependencies -ABOUT-> concept:demo-app <-DESCRIBED_BY- repo:Demo
+  -DEPENDS_ON-> pkg:npm/report-kit@2.1.0 -DEPENDS_ON-> pkg:npm/lodash@4.17.15 -AFFECTED_BY-> adv:GHSA-r5fr-rjxr-66jc
 ```
 
-`impact` answers "this code path changes; what governs it". It loads the snapshot into a throwaway
-Relate file, opens it read only and deletes it after the run. For each path it lists the nodes whose
-`code_ref` names the path, then the decisions and records within `--hops` (default 3) of them, each
-with its edge path in the snapshot's edge direction and the evidence on every edge. The walk follows
-only edges that carry governance, from the node that governs to the node it governs (`CARRIES` in
-`impact.py`): a decision `ABOUT` its target, `DERIVES_FROM` and `INHERITS_FROM` from the origin to what
-comes out of it, a record to the node it attaches to, and `RELATED_TO` between two concepts only from a
-concept that names no code of its own (an idea such as a budget) to the concept that implements it.
-`PREREQUISITE_OF`, `SUPERSEDES`, `CONNECTS_VIA` and `RETURNS_TO` are not followed. Results are
-ordered by hop count, then decision, record, concept. A `code_ref` matches when it names the same
-path, lies under a queried directory (`storage/` matches `storage/page_store.py`, `reports` does not
-match `reports_archive/`), or is a directory holding the queried path. A repository prefix
-(`Demo:reports/export.py`) and a symbol suffix (`storage/page_store.py:check_page_size`) are
-dropped before matching; `--repo Demo` skips refs that name another repository. Output is JSON by
-default; `--format text` prints the short form.
-
-## Dependency policy audit
+The rule lives in the knowledge graph, the dependency chain in the lockfile and the advisory in OSV;
+no single source holds the connection. Then approve, as the person would:
 
 ```
-.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json
+.venv/bin/vinc-relate demo --approve ba54a17c1d30b1ec
+git diff demo/transcript.json
 ```
 
-The audit loads three things into one throwaway graph: the Vinc snapshot (decisions about the
-repository, found through a concept whose `code_ref` names it), the npm lockfile (direct and
-transitive `DEPENDS_ON`, nested copies resolved) and OSV advisories (`AFFECTED_BY`, with source URL,
-fetch time and content hash). A path query finds each advisory the repository reaches, then the
-verifier checks the installed version against the advisory ranges and applies each governing
-decision: a decision with a machine-checkable `rule` is `violated` or `not_violated`, one without a
-rule is only `relevant`. Development-only paths do not violate a rule scoped to shipped dependencies.
-Each finding keeps the advisory's `source_url`, `fetched_at` and `content_hash`.
+The records go to the fake Vinc with `create_only`, every node and edge is read back, and a new
+checkout finds the committed edges with their type and direction. The digest is the same on every
+run because the records are dated by the OSV cache. Both runs write `demo/transcript.json`,
+`demo/expected_findings.json` and `demo/sample.rl` (a copy of the sandbox graph for inspection, synthetic
+data only). The committed copies come from the approved run, so `git diff demo/transcript.json` shows
+only its `timestamps` block changed; `sample.rl` is rebuilt, so its bytes differ. The sandbox itself is
+deleted.
 
-`--osv-cache <file>` reads the advisories from a file instead of api.osv.dev and refuses the network:
-a package or advisory the file does not hold stops the run with an error. The file holds `fetched_at`
-(when the advisories were read), `queries` (package id to the advisory ids OSV returned for it) and
-`vulns` (advisory id to the OSV record). `fixtures/audit/osv-cache.json` covers the demo lockfile, so the
-demo runs offline and gives the same findings every time. Without `--osv-cache`, `audit` asks OSV live.
-
-## Record after approval
+## Does the graph help? The measured comparison
 
 ```
-.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json
-.venv/bin/vinc-relate propose report.json --repo Demo --space <space id> --out plan.json
-VINC_API_KEY=<full key> .venv/bin/vinc-relate commit plan.json --approve <digest>
+.venv/bin/vinc-relate compare
 ```
 
-`propose` turns only `affected` findings into records (anything else is held back and listed) and
-prints the exact write set with an approval digest over the space, nodes and edges. Each record
-carries the advisory's `source`, `advisory_fetched_at` and `advisory_content_hash`. `commit` refuses
-unless the digest matches the plan file as it stands now, so an edited plan needs a new approval. It
-writes with `create_only` and an operation id derived from the digest, leaves ids that already exist
-alone, then reads every new node and its edges back and exits non-zero if anything differs. An edge
-must come back with the same type and direction. A record's `relates_to` edge comes back from Vinc as
-`ATTACHES_TO` with the role `relates_to`; checkout reads it as `RELATED_TO`, the name Vinc returns for
-`relates_to` between concepts, so a later checkout keeps the committed edges.
-
-Run the demo against a synthetic space; write to a real space only after its owner approves the
-printed write set.
-
-## Does the graph help?
-
-```
-.venv/bin/vinc-relate compare --out bench/results.json --table bench/results.md
-```
-
-`compare` runs nine tasks from `bench/tasks.json` three ways, offline and without a model: A answers from the
-Vinc snapshot alone (nodes whose `code_ref` matches the subject, then one hop); B adds the lockfile and the
-advisories as flat records joined by package name, with the same version range check and policy rule as C;
-C loads all three into a Relate graph and queries it. The tasks and their expected findings were committed
-before the first run. A path or a policy link counts when it equals an expected one; any other claim is
-unsupported; a claim is covered when its evidence is a connected chain of edges that exist in the inputs.
+`compare` runs nine tasks from `bench/tasks.json` three ways, offline and without a model:
+**A** answers from the Vinc snapshot alone (nodes whose `code_ref` matches the subject, then one hop);
+**B** adds the lockfile and the advisories as flat records joined by package name, with the same version
+range check and policy rule as C; **C** loads all three into a Relate graph and queries it. The tasks and
+their expected findings were committed before the first run. A path or a policy link counts when it
+equals an expected one; any other claim is unsupported; a claim is covered when its evidence is a
+connected chain of edges that exist in the inputs.
 
 | Method | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
 |---|---|---|---|---|---|---|
@@ -127,25 +88,109 @@ unsupported; a claim is covered when its evidence is a connected chain of edges 
 | B | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.6 |
 | C | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 85.0 |
 
-The graph helped on two tasks: a vulnerable package reached only through a shared transitive dependency
-(B finds no chain and claims a wrong one through test-kit, which has its own nested copy), and a decision two
-hops from the code it governs. It made no difference on a direct dependency, a development-only dependency,
-a version outside the advisory's range (the lockfile record and the advisory text carry those), a one-hop
-decision, a directory prefix decoy or the overreach decoy. The nested copy task was expected to need the graph and did not: the
-copy sits under a direct dependency, so the name join finds its chain; the same join's error shows up on the
-hoisted copy instead. On impact tasks B has no external data to add, so it equals A. On the overreach decoy C
-used to be worse: a walk in both directions over any edge reached a log retention decision through a shared
-logger and claimed it governs the archive index (2 of C's 37 claims were unsupported). The walk now follows
-only edges that carry governance, so C makes no unsupported claim there and equals A and B; the graph does
-not help on that task, it only no longer hurts. Per-task numbers are in
-`bench/results.md`; every claim with its coverage is in `bench/results.json`. C's latency includes building and
-loading a graph for each task. Latency is the only number that changes between runs. The benchmark is small and synthetic, so it shows which kinds of connection need the
-graph, not how often they occur.
+Against B, C is better on 2 tasks, the same on 7 and worse on none. It helped where a connection spans
+sources: a vulnerable package reached only through a shared transitive dependency, and a decision two
+hops from the code it governs. Per-task numbers are in `bench/results.md`, every claim with its
+coverage in `bench/results.json`. Latency is the only number that changes between runs; C's includes
+building and loading a graph for each task.
 
-## What is proven so far
+Read the numbers with these caveats:
 
-- A Vinc subgraph is exported over the Vinc MCP with stable ids, edge direction and evidence.
-- The same structure loads into a Relate file; a bounded multi-hop query returns the expected path.
-- Reasoning opens the file read only; a write is refused, and an open writer locks out a second writer and any reader.
-- The task directory is private (0700) and removed after the run.
-- An approved write set reaches the vinc space: seven advisory records from the Vinc app lockfile were written with `create_only`, read back field for field, and a second run with the same approval wrote nothing.
+- **B's policy-link score is generous.** On the shared transitive dependency B claims a wrong chain
+  (through test-kit, which has its own nested copy), yet both of its policy links on that task still
+  count as correct because they name the right decision and advisory. Their evidence chain is the wrong
+  one; the coverage column (27/30) is where that shows.
+- **"C against B" compares paths, policy links and unsupported claims only.** Findings, coverage and
+  latency are not part of that label.
+- **The impact rule was fitted after seeing the decoy.** `impact` follows a `RELATED_TO` edge only from a
+  concept that names no code of its own. That condition was chosen after the overreach decoy task had
+  been run, because edge type and direction alone cannot tell the expected path from the decoy. The
+  expected findings were not changed, but the rule is fitted on this benchmark; a held-out set is
+  needed to show it generalises.
+- **The benchmark is small and synthetic.** Nine hand-built tasks show which kinds of connection need a
+  graph, not how often they occur in real repositories.
+
+## What needs an account
+
+| Command | Needs | What it does |
+|---|---|---|
+| `demo` | nothing | the whole procedure on synthetic data, against an in-process fake Vinc |
+| `compare` | nothing | the A/B/C benchmark above |
+| `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids in any snapshot file |
+| `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a code path |
+| `audit <snapshot> <lockfile> --repo <name>` | nothing; the network for api.osv.dev unless `--osv-cache` | advisories the repository reaches and the decisions they break |
+| `propose <report> --repo <name> --space <space>` | nothing; it only writes a file | the exact write set and its approval digest |
+| `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
+| `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
+
+A snapshot is a plain JSON file. `docs/data-model.md` gives the format with a small hand-written
+example, so you can run `paths`, `impact` and `audit` on your own knowledge without Vinc.
+
+Try them on the synthetic fixtures:
+
+```
+.venv/bin/vinc-relate paths fixtures/vinc_subgraph.json record:tls-advisory-example concept:service-api
+.venv/bin/vinc-relate impact fixtures/impact/vinc.json reports/export.py storage/ --format text
+.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json
+.venv/bin/vinc-relate propose report.json --repo Demo --space demo-space --out plan.json
+```
+
+`report.json`, `plan.json` and `snapshot.json` at the repository root are ignored by git. Without
+`--osv-cache`, `audit` asks api.osv.dev; if the network fails it prints one line that says so and
+points at `--osv-cache`.
+
+With a Vinc account (needs a key):
+
+```
+VINC_API_KEY=<read-only key> VINC_SPACE=<space id> .venv/bin/vinc-relate checkout <seed id> ... --out snapshot.json
+VINC_API_KEY=<full key> .venv/bin/vinc-relate commit plan.json --approve <digest>
+```
+
+Without `VINC_SPACE`, `checkout` reads the key's default space, and the snapshot's `meta.space` says
+`personal`. Write to a real space only after its owner approves the printed write set.
+
+## How an agent uses it
+
+`skills/vinc-relate/SKILL.md` is a skill for a coding agent such as Claude Code: when to reach for
+`audit`, `impact` or `paths`, how to check out only what the task names, how to read a finding, and the
+rule that the agent shows the write set and digest to the person and stops. The agent never approves
+its own write. To use it, put the directory where your agent loads skills (for Claude Code,
+`.claude/skills/vinc-relate/`) with `vinc-relate` on the agent's `PATH`.
+
+vinc-relate itself calls no language model. The agent is the reasoner that chooses seeds, runs the
+bounded queries and explains the paths; the tool gives it a graph it cannot write to, findings that
+carry their evidence, and a write path that needs a person's digest.
+
+## What is proven, and what is future work
+
+Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and by the runs above:
+
+- A Vinc subgraph is exported over the Vinc MCP with stable ids, edge direction and evidence, and a
+  snapshot whose counts disagree with its lists is refused.
+- The snapshot loads into a Relate file; the loader compares what landed with the snapshot and names a
+  repeated id or an edge with a missing endpoint. A bounded multi-hop query returns the expected path.
+- Reasoning opens the file read only and a write is refused; an open writer locks out a second writer
+  and any reader.
+- The task directory is private (0700), under `/dev/shm` when it is writable, and removed after the run.
+- The audit joins the snapshot, the lockfile (nested copies resolved) and OSV, checks the installed
+  version against the advisory ranges, and keeps each advisory's source URL, fetch time and content hash.
+- `commit` refuses a digest that does not match the plan as it stands, writes with `create_only`, and
+  fails when a node, a property or an edge's type or direction does not come back.
+- A live run against a real Vinc space wrote and read back seven records with `create_only`, and a second
+  run with the same approval wrote nothing. That space is not public; `vinc-relate demo --approve` is the
+  reproducible version.
+
+Future work, not built:
+
+- A Relate MCP server as the agent's read-only query surface; today the agent drives the CLI.
+- Ecosystems other than npm, and repository metadata beyond the lockfile.
+- The demo's Checker (re-deriving each record) also in the `propose` path for real data.
+- Query time limits, a cap on imported graph size and on `audit --depth`; today `paths` and `impact` bound hops and results.
+- Encrypted scratch storage with key destruction for sensitive data (see `docs/threat-model.md`).
+- A held-out benchmark set, and real repositories, to test whether the comparison holds.
+
+## More
+
+- `docs/architecture.md`: modules, the sandbox lifecycle, the queries, and the write path.
+- `docs/data-model.md`: the snapshot format with a hand-written example, the Relate graph, the report and the plan.
+- `docs/threat-model.md`: what the sandbox protects and what it does not.
