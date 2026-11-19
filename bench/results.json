@@ -1,0 +1,1548 @@
+{
+ "tasks_file": "tasks.json",
+ "tasks_sha256": "f5aa7786fd9cb51112ab213eb5de82bfeb826a799c748ef518854a81f43036ad",
+ "methods": {
+  "A": "Vinc retrieval only: nodes whose code_ref matches the subject, then their one-hop neighbours",
+  "B": "A plus the lockfile and the advisories as flat records joined by package name",
+  "C": "A Relate graph of the Vinc snapshot, the lockfile and the advisories, queried with multi-hop paths"
+ },
+ "tasks": [
+  {
+   "id": "audit-direct-dependency",
+   "kind": "audit",
+   "subject": "pkg:npm/chart-kit@1.2.0",
+   "connection": "one hop: the repository depends on the affected package directly",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/chart-kit@1.2.0",
+        "adv:DEMO-2026-0004",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/chart-kit@1.2.0",
+        "adv:DEMO-2026-0004"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/chart-kit@1.2.0",
+        "adv:DEMO-2026-0004",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/chart-kit@1.2.0",
+        "adv:DEMO-2026-0004",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "not_violated"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 12.8,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/chart-kit@1.2.0",
+        "adv:DEMO-2026-0004",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/chart-kit@1.2.0",
+        "adv:DEMO-2026-0004"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/chart-kit@1.2.0",
+        "adv:DEMO-2026-0004",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/chart-kit@1.2.0",
+        "adv:DEMO-2026-0004",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "not_violated"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "audit-transitive-shipped",
+   "kind": "audit",
+   "subject": "pkg:npm/url-parse-lite@1.0.2",
+   "connection": "three hops through two direct dependencies that share http-core",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      1,
+      4
+     ],
+     "covered": [
+      1,
+      4
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.2",
+        "adv:DEMO-2026-0001",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/test-kit@1.0.3",
+        "pkg:npm/url-parse-lite@1.0.2",
+        "adv:DEMO-2026-0001"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.2",
+        "adv:DEMO-2026-0001",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.2",
+        "adv:DEMO-2026-0001",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "violated"
+       ],
+       "covered": false
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      5
+     ],
+     "covered": [
+      5,
+      5
+     ],
+     "latency_ms": 9.9,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.2",
+        "adv:DEMO-2026-0001",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/chart-kit@1.2.0",
+        "pkg:npm/http-core@2.4.0",
+        "pkg:npm/url-parse-lite@1.0.2",
+        "adv:DEMO-2026-0001"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/web-kit@3.0.1",
+        "pkg:npm/http-core@2.4.0",
+        "pkg:npm/url-parse-lite@1.0.2",
+        "adv:DEMO-2026-0001"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.2",
+        "adv:DEMO-2026-0001",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.2",
+        "adv:DEMO-2026-0001",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "violated"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "audit-nested-dev-copy",
+   "kind": "audit",
+   "subject": "pkg:npm/url-parse-lite@1.0.4",
+   "connection": "scope: a second copy of the same package, nested under a development dependency",
+   "graph_expected_to_help": true,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.4",
+        "adv:DEMO-2026-0001",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/test-kit@1.0.3",
+        "pkg:npm/url-parse-lite@1.0.4",
+        "adv:DEMO-2026-0001"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.4",
+        "adv:DEMO-2026-0001",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.4",
+        "adv:DEMO-2026-0001",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "not_violated"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 10.4,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.4",
+        "adv:DEMO-2026-0001",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/test-kit@1.0.3",
+        "pkg:npm/url-parse-lite@1.0.4",
+        "adv:DEMO-2026-0001"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.4",
+        "adv:DEMO-2026-0001",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/url-parse-lite@1.0.4",
+        "adv:DEMO-2026-0001",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "not_violated"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "audit-dev-only-direct",
+   "kind": "audit",
+   "subject": "pkg:npm/mock-server@0.9.0",
+   "connection": "scope: a direct development dependency with a CRITICAL advisory (decoy for the shipped rule)",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/mock-server@0.9.0",
+        "adv:DEMO-2026-0003",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/mock-server@0.9.0",
+        "adv:DEMO-2026-0003"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/mock-server@0.9.0",
+        "adv:DEMO-2026-0003",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/mock-server@0.9.0",
+        "adv:DEMO-2026-0003",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "not_violated"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 11.8,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/mock-server@0.9.0",
+        "adv:DEMO-2026-0003",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/mock-server@0.9.0",
+        "adv:DEMO-2026-0003"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/mock-server@0.9.0",
+        "adv:DEMO-2026-0003",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/mock-server@0.9.0",
+        "adv:DEMO-2026-0003",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "not_violated"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "audit-version-outside-range",
+   "kind": "audit",
+   "subject": "pkg:npm/color-fmt@2.1.0",
+   "connection": "decoy: the advisory names the package but 2.1.0 is outside the affected range",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/color-fmt@2.1.0",
+        "adv:DEMO-2026-0002",
+        "not_affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/chart-kit@1.2.0",
+        "pkg:npm/color-fmt@2.1.0",
+        "adv:DEMO-2026-0002"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/color-fmt@2.1.0",
+        "adv:DEMO-2026-0002",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/color-fmt@2.1.0",
+        "adv:DEMO-2026-0002",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "not_violated"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 10.9,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/color-fmt@2.1.0",
+        "adv:DEMO-2026-0002",
+        "not_affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:Demo",
+        "pkg:npm/chart-kit@1.2.0",
+        "pkg:npm/color-fmt@2.1.0",
+        "adv:DEMO-2026-0002"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/color-fmt@2.1.0",
+        "adv:DEMO-2026-0002",
+        "decision:dependencies-are-pinned-by-a-lockfile",
+        "relevant"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg:npm/color-fmt@2.1.0",
+        "adv:DEMO-2026-0002",
+        "decision:no-high-advisories-in-shipped-dependencies",
+        "not_violated"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "impact-two-hop-decision",
+   "kind": "impact",
+   "subject": "storage/page_store.py",
+   "connection": "two and three hops: the decision sets a budget that the check enforces",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 6.3,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-page-size-check",
+        "concept:demo-page-budget",
+        "decision:demo-oversized-pages-are-refused",
+        "record:demo-page-size-check-review"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-page-size-check",
+        "concept:demo-page-budget",
+        "decision:demo-oversized-pages-are-refused"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "storage/page_store.py",
+        "decision:demo-oversized-pages-are-refused"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "storage/page_store.py",
+        "record:demo-page-size-check-review"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "impact-one-hop-decision",
+   "kind": "impact",
+   "subject": "reports/export.py",
+   "connection": "one hop: the decision and the record attach to the concept that names the file",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/export.py",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/export.py",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "B": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 0.0,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/export.py",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/export.py",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 6.2,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/export.py",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/export.py",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "impact-directory-prefix-decoy",
+   "kind": "impact",
+   "subject": "reports/",
+   "connection": "decoy: reports_archive/ shares the prefix but is another directory",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "B": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 6.2,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-export",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/",
+        "decision:demo-report-exports-finish-in-time"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports/",
+        "record:demo-report-export-timed-out"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "impact-overreach-decoy",
+   "kind": "impact",
+   "subject": "reports_archive/index.py",
+   "connection": "decoy: a log retention decision two hops away through a shared logger",
+   "graph_expected_to_help": false,
+   "c_vs_b": "worse",
+   "results": {
+    "A": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-archive",
+        "decision:demo-archive-reads-are-rate-limited"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports_archive/index.py",
+        "decision:demo-archive-reads-are-rate-limited"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "B": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 0.0,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-archive",
+        "decision:demo-archive-reads-are-rate-limited"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports_archive/index.py",
+        "decision:demo-archive-reads-are-rate-limited"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      2,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 5.7,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-archive",
+        "concept:demo-shared-logger",
+        "decision:demo-logs-are-kept-thirty-days"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "concept:demo-report-archive",
+        "decision:demo-archive-reads-are-rate-limited"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports_archive/index.py",
+        "decision:demo-archive-reads-are-rate-limited"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "reports_archive/index.py",
+        "decision:demo-logs-are-kept-thirty-days"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "total": {
+  "A": {
+   "paths": [
+    5,
+    13
+   ],
+   "policy_links": [
+    5,
+    17
+   ],
+   "findings": [
+    0,
+    5
+   ],
+   "unsupported": [
+    0,
+    10
+   ],
+   "covered": [
+    10,
+    10
+   ],
+   "latency_ms": 0.4
+  },
+  "B": {
+   "paths": [
+    9,
+    13
+   ],
+   "policy_links": [
+    15,
+    17
+   ],
+   "findings": [
+    5,
+    5
+   ],
+   "unsupported": [
+    1,
+    30
+   ],
+   "covered": [
+    27,
+    30
+   ],
+   "latency_ms": 0.6
+  },
+  "C": {
+   "paths": [
+    13,
+    13
+   ],
+   "policy_links": [
+    17,
+    17
+   ],
+   "findings": [
+    5,
+    5
+   ],
+   "unsupported": [
+    2,
+    37
+   ],
+   "covered": [
+    37,
+    37
+   ],
+   "latency_ms": 80.2
+  }
+ },
+ "c_vs_b": {
+  "better": [
+   "audit-transitive-shipped",
+   "impact-two-hop-decision"
+  ],
+  "same": [
+   "audit-direct-dependency",
+   "audit-nested-dev-copy",
+   "audit-dev-only-direct",
+   "audit-version-outside-range",
+   "impact-one-hop-decision",
+   "impact-directory-prefix-decoy"
+  ],
+  "worse": [
+   "impact-overreach-decoy"
+  ],
+  "mixed": []
+ }
+}

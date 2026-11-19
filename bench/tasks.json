@@ -1,0 +1,341 @@
+{
+ "version": 1,
+ "repo": "Demo",
+ "inputs": {
+  "audit": {
+   "snapshot": "fixtures/audit/vinc.json",
+   "lockfile": "fixtures/compare/lockfile.json",
+   "osv_cache": "fixtures/compare/osv-cache.json"
+  },
+  "impact": {
+   "snapshots": [
+    "fixtures/impact/vinc.json",
+    "fixtures/compare/impact-extra.json"
+   ],
+   "hops": 3
+  }
+ },
+ "methods": {
+  "A": "Vinc retrieval only: nodes whose code_ref matches the subject, then their one-hop neighbours",
+  "B": "A plus the lockfile and the advisories as flat records joined by package name",
+  "C": "A Relate graph of the Vinc snapshot, the lockfile and the advisories, queried with multi-hop paths"
+ },
+ "tasks": [
+  {
+   "id": "audit-direct-dependency",
+   "kind": "audit",
+   "subject": "pkg:npm/chart-kit@1.2.0",
+   "connection": "one hop: the repository depends on the affected package directly",
+   "graph_expected_to_help": false,
+   "why": "A direct dependency is named in the lockfile's root record, so a text join finds the package, the advisory and the path. MODERATE is below the HIGH rule.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/chart-kit@1.2.0",
+      "advisory": "adv:DEMO-2026-0004",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:Demo",
+      "pkg:npm/chart-kit@1.2.0",
+      "adv:DEMO-2026-0004"
+     ]
+    ],
+    "policy_links": [
+     {
+      "package": "pkg:npm/chart-kit@1.2.0",
+      "advisory": "adv:DEMO-2026-0004",
+      "decision": "decision:no-high-advisories-in-shipped-dependencies",
+      "verdict": "not_violated"
+     },
+     {
+      "package": "pkg:npm/chart-kit@1.2.0",
+      "advisory": "adv:DEMO-2026-0004",
+      "decision": "decision:dependencies-are-pinned-by-a-lockfile",
+      "verdict": "relevant"
+     }
+    ]
+   }
+  },
+  {
+   "id": "audit-transitive-shipped",
+   "kind": "audit",
+   "subject": "pkg:npm/url-parse-lite@1.0.2",
+   "connection": "three hops through two direct dependencies that share http-core",
+   "graph_expected_to_help": true,
+   "why": "The affected copy is reached only through http-core, which no root record names; both shipped chains count. HIGH in a shipped dependency violates the rule.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/url-parse-lite@1.0.2",
+      "advisory": "adv:DEMO-2026-0001",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:Demo",
+      "pkg:npm/web-kit@3.0.1",
+      "pkg:npm/http-core@2.4.0",
+      "pkg:npm/url-parse-lite@1.0.2",
+      "adv:DEMO-2026-0001"
+     ],
+     [
+      "repo:Demo",
+      "pkg:npm/chart-kit@1.2.0",
+      "pkg:npm/http-core@2.4.0",
+      "pkg:npm/url-parse-lite@1.0.2",
+      "adv:DEMO-2026-0001"
+     ]
+    ],
+    "policy_links": [
+     {
+      "package": "pkg:npm/url-parse-lite@1.0.2",
+      "advisory": "adv:DEMO-2026-0001",
+      "decision": "decision:no-high-advisories-in-shipped-dependencies",
+      "verdict": "violated"
+     },
+     {
+      "package": "pkg:npm/url-parse-lite@1.0.2",
+      "advisory": "adv:DEMO-2026-0001",
+      "decision": "decision:dependencies-are-pinned-by-a-lockfile",
+      "verdict": "relevant"
+     }
+    ]
+   }
+  },
+  {
+   "id": "audit-nested-dev-copy",
+   "kind": "audit",
+   "subject": "pkg:npm/url-parse-lite@1.0.4",
+   "connection": "scope: a second copy of the same package, nested under a development dependency",
+   "graph_expected_to_help": true,
+   "why": "test-kit gets its own nested copy 1.0.4; the hoisted 1.0.2 is not reached through test-kit. The nested copy is development only, so the shipped rule is not violated.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/url-parse-lite@1.0.4",
+      "advisory": "adv:DEMO-2026-0001",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:Demo",
+      "pkg:npm/test-kit@1.0.3",
+      "pkg:npm/url-parse-lite@1.0.4",
+      "adv:DEMO-2026-0001"
+     ]
+    ],
+    "policy_links": [
+     {
+      "package": "pkg:npm/url-parse-lite@1.0.4",
+      "advisory": "adv:DEMO-2026-0001",
+      "decision": "decision:no-high-advisories-in-shipped-dependencies",
+      "verdict": "not_violated"
+     },
+     {
+      "package": "pkg:npm/url-parse-lite@1.0.4",
+      "advisory": "adv:DEMO-2026-0001",
+      "decision": "decision:dependencies-are-pinned-by-a-lockfile",
+      "verdict": "relevant"
+     }
+    ]
+   }
+  },
+  {
+   "id": "audit-dev-only-direct",
+   "kind": "audit",
+   "subject": "pkg:npm/mock-server@0.9.0",
+   "connection": "scope: a direct development dependency with a CRITICAL advisory (decoy for the shipped rule)",
+   "graph_expected_to_help": false,
+   "why": "The lockfile record carries dev: true, so the text join sees the scope without a graph. Development only, so not violated.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/mock-server@0.9.0",
+      "advisory": "adv:DEMO-2026-0003",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:Demo",
+      "pkg:npm/mock-server@0.9.0",
+      "adv:DEMO-2026-0003"
+     ]
+    ],
+    "policy_links": [
+     {
+      "package": "pkg:npm/mock-server@0.9.0",
+      "advisory": "adv:DEMO-2026-0003",
+      "decision": "decision:no-high-advisories-in-shipped-dependencies",
+      "verdict": "not_violated"
+     },
+     {
+      "package": "pkg:npm/mock-server@0.9.0",
+      "advisory": "adv:DEMO-2026-0003",
+      "decision": "decision:dependencies-are-pinned-by-a-lockfile",
+      "verdict": "relevant"
+     }
+    ]
+   }
+  },
+  {
+   "id": "audit-version-outside-range",
+   "kind": "audit",
+   "subject": "pkg:npm/color-fmt@2.1.0",
+   "connection": "decoy: the advisory names the package but 2.1.0 is outside the affected range",
+   "graph_expected_to_help": false,
+   "why": "The range check reads the advisory record; it needs no graph. Not affected, so not violated.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/color-fmt@2.1.0",
+      "advisory": "adv:DEMO-2026-0002",
+      "status": "not_affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:Demo",
+      "pkg:npm/chart-kit@1.2.0",
+      "pkg:npm/color-fmt@2.1.0",
+      "adv:DEMO-2026-0002"
+     ]
+    ],
+    "policy_links": [
+     {
+      "package": "pkg:npm/color-fmt@2.1.0",
+      "advisory": "adv:DEMO-2026-0002",
+      "decision": "decision:no-high-advisories-in-shipped-dependencies",
+      "verdict": "not_violated"
+     },
+     {
+      "package": "pkg:npm/color-fmt@2.1.0",
+      "advisory": "adv:DEMO-2026-0002",
+      "decision": "decision:dependencies-are-pinned-by-a-lockfile",
+      "verdict": "relevant"
+     }
+    ]
+   }
+  },
+  {
+   "id": "impact-two-hop-decision",
+   "kind": "impact",
+   "subject": "storage/page_store.py",
+   "connection": "two and three hops: the decision sets a budget that the check enforces",
+   "graph_expected_to_help": true,
+   "why": "The decision is ABOUT the page budget, which is RELATED_TO the check whose code_ref names the file; the review record hangs off the decision.",
+   "expected": {
+    "paths": [
+     [
+      "concept:demo-page-size-check",
+      "concept:demo-page-budget",
+      "decision:demo-oversized-pages-are-refused"
+     ],
+     [
+      "concept:demo-page-size-check",
+      "concept:demo-page-budget",
+      "decision:demo-oversized-pages-are-refused",
+      "record:demo-page-size-check-review"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "storage/page_store.py",
+      "node": "decision:demo-oversized-pages-are-refused"
+     },
+     {
+      "path": "storage/page_store.py",
+      "node": "record:demo-page-size-check-review"
+     }
+    ]
+   }
+  },
+  {
+   "id": "impact-one-hop-decision",
+   "kind": "impact",
+   "subject": "reports/export.py",
+   "connection": "one hop: the decision and the record attach to the concept that names the file",
+   "graph_expected_to_help": false,
+   "why": "Both governing nodes are one edge from the anchor, which one-hop retrieval returns.",
+   "expected": {
+    "paths": [
+     [
+      "concept:demo-report-export",
+      "decision:demo-report-exports-finish-in-time"
+     ],
+     [
+      "concept:demo-report-export",
+      "record:demo-report-export-timed-out"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "reports/export.py",
+      "node": "decision:demo-report-exports-finish-in-time"
+     },
+     {
+      "path": "reports/export.py",
+      "node": "record:demo-report-export-timed-out"
+     }
+    ]
+   }
+  },
+  {
+   "id": "impact-directory-prefix-decoy",
+   "kind": "impact",
+   "subject": "reports/",
+   "connection": "decoy: reports_archive/ shares the prefix but is another directory",
+   "graph_expected_to_help": false,
+   "why": "All three methods use the same code_ref matcher, so the sibling directory is excluded by matching, not by the graph.",
+   "expected": {
+    "paths": [
+     [
+      "concept:demo-report-export",
+      "decision:demo-report-exports-finish-in-time"
+     ],
+     [
+      "concept:demo-report-export",
+      "record:demo-report-export-timed-out"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "reports/",
+      "node": "decision:demo-report-exports-finish-in-time"
+     },
+     {
+      "path": "reports/",
+      "node": "record:demo-report-export-timed-out"
+     }
+    ]
+   }
+  },
+  {
+   "id": "impact-overreach-decoy",
+   "kind": "impact",
+   "subject": "reports_archive/index.py",
+   "connection": "decoy: a log retention decision two hops away through a shared logger",
+   "graph_expected_to_help": false,
+   "why": "The archive is logged through the shared logger, but the retention decision governs the logger's files, not the archive index. A bounded walk that ignores edge meaning reaches it anyway.",
+   "expected": {
+    "paths": [
+     [
+      "concept:demo-report-archive",
+      "decision:demo-archive-reads-are-rate-limited"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "reports_archive/index.py",
+      "node": "decision:demo-archive-reads-are-rate-limited"
+     }
+    ]
+   }
+  }
+ ]
+}

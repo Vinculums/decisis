@@ -10,7 +10,8 @@ PRIVATE_PATHS = ["api/graph_algo.py", "store/embedded_backend.py", "_vector_quer
 
 def public_files():
     files = [ROOT / "README.md", *sorted((ROOT / "fixtures").rglob("*.json")), *sorted((ROOT / "src").rglob("*.py")),
-             *sorted((ROOT / "demo").glob("*.json")), *sorted((ROOT / "skills").rglob("*.md"))]
+             *sorted((ROOT / "demo").glob("*.json")), *sorted((ROOT / "skills").rglob("*.md")),
+             *sorted((ROOT / "bench").glob("*")), *sorted((ROOT / "scripts").glob("*"))]
     return files + [p for p in sorted((ROOT / "tests").glob("*.py")) if p.name != Path(__file__).name]
 
 

@@ -1,0 +1,60 @@
+{
+ "name": "demo-app",
+ "version": "1.0.0",
+ "lockfileVersion": 3,
+ "requires": true,
+ "packages": {
+  "": {
+   "name": "demo-app",
+   "version": "1.0.0",
+   "dependencies": {
+    "web-kit": "^3.0.0",
+    "chart-kit": "^1.2.0"
+   },
+   "devDependencies": {
+    "test-kit": "^1.0.0",
+    "mock-server": "^0.9.0"
+   }
+  },
+  "node_modules/web-kit": {
+   "version": "3.0.1",
+   "dependencies": {
+    "http-core": "^2.4.0"
+   }
+  },
+  "node_modules/chart-kit": {
+   "version": "1.2.0",
+   "dependencies": {
+    "http-core": "^2.4.0",
+    "color-fmt": "^2.1.0"
+   }
+  },
+  "node_modules/http-core": {
+   "version": "2.4.0",
+   "dependencies": {
+    "url-parse-lite": "^1.0.0"
+   }
+  },
+  "node_modules/url-parse-lite": {
+   "version": "1.0.2"
+  },
+  "node_modules/color-fmt": {
+   "version": "2.1.0"
+  },
+  "node_modules/test-kit": {
+   "version": "1.0.3",
+   "dev": true,
+   "dependencies": {
+    "url-parse-lite": "^1.0.4"
+   }
+  },
+  "node_modules/test-kit/node_modules/url-parse-lite": {
+   "version": "1.0.4",
+   "dev": true
+  },
+  "node_modules/mock-server": {
+   "version": "0.9.0",
+   "dev": true
+  }
+ }
+}

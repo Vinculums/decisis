@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from . import audit
+from . import compare
 from . import demo
 from . import external
 from . import impact
@@ -71,6 +72,10 @@ def main(argv: list[str] | None = None) -> int:
     ok = dm.add_mutually_exclusive_group()
     ok.add_argument("--approve", metavar="DIGEST", help="approve the write set with the digest the demo prints")
     ok.add_argument("--yes", action="store_true", help="approve the demo write set without typing the digest")
+    cp = sub.add_parser("compare", help="run the benchmark: Vinc retrieval (A), a text join (B) and the Relate graph (C) on the same tasks")
+    cp.add_argument("--tasks", type=Path, help="the task file with expected findings (default: bench/tasks.json in this repository)")
+    cp.add_argument("--out", type=Path, help="write the full results as JSON here")
+    cp.add_argument("--table", type=Path, help="write the results table as Markdown here")
     a = ap.parse_args(argv)
     try:
         return run(a)
@@ -81,6 +86,16 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run(a: argparse.Namespace) -> int:
+    if a.cmd == "compare":
+        root = demo.default_fixtures().parent
+        result = compare.run(root, a.tasks or root / "bench" / "tasks.json")
+        if a.out:
+            a.out.write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        table = compare.render(result)
+        if a.table:
+            a.table.write_text(table, encoding="utf-8")
+        sys.stdout.write(table)
+        return 0
     if a.cmd == "demo":
         return demo.run(Path(a.out), a.fixtures, approve=a.approve, yes=a.yes)[0]
     if a.cmd == "propose":

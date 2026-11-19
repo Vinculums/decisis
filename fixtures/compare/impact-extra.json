@@ -1,0 +1,46 @@
+{
+ "meta": {
+  "seeds": [
+   "concept:demo-shared-logger"
+  ],
+  "space": "synthetic",
+  "extracted_at": "2026-11-19T00:00:00Z",
+  "nodes": 2,
+  "edges": 2
+ },
+ "nodes": [
+  {
+   "id": "concept:demo-shared-logger",
+   "kind": "concept",
+   "title": "Shared logger",
+   "domain": "demo/ops",
+   "props": {
+    "code_ref": "Demo:lib/logger.py"
+   }
+  },
+  {
+   "id": "decision:demo-logs-are-kept-thirty-days",
+   "kind": "decision",
+   "title": "Logs are kept for thirty days",
+   "domain": "demo/ops",
+   "props": {
+    "statement": "Application logs are deleted after thirty days.",
+    "decided_by": "owner"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "source": "decision:demo-logs-are-kept-thirty-days",
+   "target": "concept:demo-shared-logger",
+   "type": "ABOUT",
+   "evidence": "the retention applies to the logger's files"
+  },
+  {
+   "source": "concept:demo-shared-logger",
+   "target": "concept:demo-report-archive",
+   "type": "RELATED_TO",
+   "evidence": "archive reads are logged through the shared logger"
+  }
+ ]
+}
