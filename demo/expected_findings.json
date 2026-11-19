@@ -1,0 +1,197 @@
+{
+ "repo": "Demo",
+ "summary": {
+  "affected": 7,
+  "unresolved": 0,
+  "not_affected": 0
+ },
+ "violations": 3,
+ "findings": [
+  {
+   "package": "pkg:npm/lodash@4.17.21",
+   "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+   "severity": "HIGH",
+   "status": "affected",
+   "dev_only": true,
+   "path": [
+    "repo:Demo",
+    "pkg:npm/test-kit@1.0.3",
+    "pkg:npm/lodash@4.17.21",
+    "adv:GHSA-r5fr-rjxr-66jc"
+   ],
+   "violates": []
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+   "severity": "HIGH",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Demo",
+    "pkg:npm/report-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-r5fr-rjxr-66jc"
+   ],
+   "violates": [
+    "decision:no-high-advisories-in-shipped-dependencies"
+   ]
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-p6mc-m468-83gw",
+   "severity": "HIGH",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Demo",
+    "pkg:npm/report-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-p6mc-m468-83gw"
+   ],
+   "violates": [
+    "decision:no-high-advisories-in-shipped-dependencies"
+   ]
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-35jh-r3h4-6jhm",
+   "severity": "HIGH",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Demo",
+    "pkg:npm/report-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-35jh-r3h4-6jhm"
+   ],
+   "violates": [
+    "decision:no-high-advisories-in-shipped-dependencies"
+   ]
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.21",
+   "advisory": "adv:GHSA-xxjr-mmjv-4gpg",
+   "severity": "MODERATE",
+   "status": "affected",
+   "dev_only": true,
+   "path": [
+    "repo:Demo",
+    "pkg:npm/test-kit@1.0.3",
+    "pkg:npm/lodash@4.17.21",
+    "adv:GHSA-xxjr-mmjv-4gpg"
+   ],
+   "violates": []
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-xxjr-mmjv-4gpg",
+   "severity": "MODERATE",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Demo",
+    "pkg:npm/report-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-xxjr-mmjv-4gpg"
+   ],
+   "violates": []
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-29mw-wpgm-hmr9",
+   "severity": "MODERATE",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Demo",
+    "pkg:npm/report-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-29mw-wpgm-hmr9"
+   ],
+   "violates": []
+  }
+ ],
+ "multi_hop_path": {
+  "from": "decision:no-high-advisories-in-shipped-dependencies",
+  "to": "adv:GHSA-r5fr-rjxr-66jc",
+  "ids": [
+   "decision:no-high-advisories-in-shipped-dependencies",
+   "concept:demo-app",
+   "repo:Demo",
+   "pkg:npm/report-kit@2.1.0",
+   "pkg:npm/lodash@4.17.15",
+   "adv:GHSA-r5fr-rjxr-66jc"
+  ],
+  "rels": [
+   "ABOUT",
+   "DESCRIBED_BY",
+   "DEPENDS_ON",
+   "DEPENDS_ON",
+   "AFFECTED_BY"
+  ],
+  "hops": 5
+ },
+ "records": [
+  "record:demo-lodash-development-ghsa-r5fr-rjxr-66jc",
+  "record:demo-lodash-development-ghsa-xxjr-mmjv-4gpg",
+  "record:demo-lodash-shipped-ghsa-29mw-wpgm-hmr9",
+  "record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm",
+  "record:demo-lodash-shipped-ghsa-p6mc-m468-83gw",
+  "record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc",
+  "record:demo-lodash-shipped-ghsa-xxjr-mmjv-4gpg"
+ ],
+ "edges": [
+  [
+   "record:demo-lodash-development-ghsa-r5fr-rjxr-66jc",
+   "relates_to",
+   "decision:dependencies-are-pinned-by-a-lockfile"
+  ],
+  [
+   "record:demo-lodash-development-ghsa-xxjr-mmjv-4gpg",
+   "relates_to",
+   "decision:dependencies-are-pinned-by-a-lockfile"
+  ],
+  [
+   "record:demo-lodash-shipped-ghsa-29mw-wpgm-hmr9",
+   "relates_to",
+   "decision:dependencies-are-pinned-by-a-lockfile"
+  ],
+  [
+   "record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm",
+   "relates_to",
+   "decision:dependencies-are-pinned-by-a-lockfile"
+  ],
+  [
+   "record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm",
+   "relates_to",
+   "decision:no-high-advisories-in-shipped-dependencies"
+  ],
+  [
+   "record:demo-lodash-shipped-ghsa-p6mc-m468-83gw",
+   "relates_to",
+   "decision:dependencies-are-pinned-by-a-lockfile"
+  ],
+  [
+   "record:demo-lodash-shipped-ghsa-p6mc-m468-83gw",
+   "relates_to",
+   "decision:no-high-advisories-in-shipped-dependencies"
+  ],
+  [
+   "record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc",
+   "relates_to",
+   "decision:dependencies-are-pinned-by-a-lockfile"
+  ],
+  [
+   "record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc",
+   "relates_to",
+   "decision:no-high-advisories-in-shipped-dependencies"
+  ],
+  [
+   "record:demo-lodash-shipped-ghsa-xxjr-mmjv-4gpg",
+   "relates_to",
+   "decision:dependencies-are-pinned-by-a-lockfile"
+  ]
+ ],
+ "digest": "ba54a17c1d30b1ec"
+}

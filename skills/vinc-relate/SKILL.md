@@ -1,0 +1,61 @@
+---
+name: vinc-relate
+description: Reason over a task's slice of a Vinc knowledge graph joined with external data (an npm lockfile and OSV advisories) in a throwaway Relate graph, then propose findings that a person approves before anything is written back. Use for a dependency or advisory audit, or to find which decisions govern a code path.
+---
+
+# Reason in a sandbox with vinc-relate
+
+Vinc keeps the team's knowledge. Relate holds one task's subgraph in a private file under tmpfs,
+opened read only while you reason and deleted when the task ends. Only findings a person approves go
+back to Vinc.
+
+## When to use it
+
+- "Which advisories does this repository reach, and which of our decisions do they break?" (`audit`)
+- "This code path changes; which decisions and records govern it?" (`impact`)
+- "How are these two nodes connected?" (`paths`)
+
+Do not use it to edit the graph by hand. It writes only through `commit`, and only with the digest
+a person approved.
+
+## Try it first: the demo
+
+Runs offline with no Vinc account: a synthetic space in an in-process fake Vinc, the demo lockfile,
+and OSV advisories from `fixtures/audit/osv-cache.json`.
+
+```
+vinc-relate demo                      # stops at approval and prints the digest; nothing is written
+vinc-relate demo --approve <digest>   # the person's approval; writes to the fake Vinc and reads back
+```
+
+`--yes` approves the demo write set without typing the digest; use it only when the person asked for
+an unattended demo. The run writes `demo/transcript.json`, `demo/expected_findings.json` and
+`demo/sample.rl` (a copy of the sandbox graph for inspection); the sandbox itself is deleted.
+
+## The procedure on real data
+
+1. Check out only what the task needs, with a read-only key:
+   `VINC_API_KEY=<read-only key> VINC_SPACE=<space id> vinc-relate checkout <seed id> ... --out snapshot.json`
+   Pick seeds that the task names (the repository's concept, the decision in question); keep `--depth` at 1 or 2.
+2. Reason in the sandbox:
+   `vinc-relate audit snapshot.json package-lock.json --repo <name as in code_ref> --out report.json`
+   (add `--osv-cache <file>` to stay offline), or `vinc-relate impact snapshot.json <path> --format text`.
+3. Propose: `vinc-relate propose report.json --repo <name> --space <space id> --out plan.json`.
+   It prints the exact write set and an approval digest.
+4. Show the person the printed write set and the digest, and stop. Do not approve on their behalf.
+5. Only after the person gives the digest:
+   `VINC_API_KEY=<full key> vinc-relate commit plan.json --approve <digest>`.
+   A non-zero exit means the read-back differed; report the `problems` list and do not retry blindly.
+
+## Reading the findings
+
+- `status`: `affected` (the installed version is inside the advisory's ranges), `not_affected`, or
+  `unresolved` (the version could not be compared). Only `affected` findings become records.
+- `path`: the dependency route from `repo:<name>` through packages to the advisory.
+- `policies`: per governing decision, `violated` or `not_violated` when the decision has a
+  machine-checkable `rule`, otherwise `relevant`. A development-only path does not violate a rule
+  about shipped dependencies.
+- `source_url`, `fetched_at`, `content_hash`: the advisory evidence each record keeps.
+
+When you report back, quote the path and the decision for each violation, and name the digest the
+person needs to approve.

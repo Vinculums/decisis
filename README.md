@@ -24,6 +24,26 @@ VINC_API_KEY=<read-only key> VINC_SPACE=<space id> .venv/bin/vinc-relate checkou
 .venv/bin/vinc-relate paths snapshot.json <from id> <to id>
 ```
 
+## The demo
+
+```
+.venv/bin/vinc-relate demo
+.venv/bin/vinc-relate demo --approve <digest>
+```
+
+One command runs the whole procedure on synthetic data, offline and without a Vinc key: a synthetic
+space served by an in-process fake Vinc, a checkout of only the app's knowledge, a Relate graph that
+joins it with the demo lockfile and cached OSV advisories, a multi-hop path from a decision to an
+advisory, a Checker that re-derives each proposed record from the sandbox, and the write set with its
+approval digest. Without `--approve <digest>` (or `--yes`) it stops there and writes nothing. With it,
+the records go to the fake Vinc with `create_only`, are read back, and a new checkout finds their
+edges. The records are dated by the OSV cache, so the digest is the same on every run.
+
+The run leaves `demo/transcript.json` (every step with its counts; run-time stamps only under
+`timestamps`), `demo/expected_findings.json` and `demo/sample.rl`, a copy of the sandbox graph built
+from the fixtures for inspection. The sandbox itself is deleted. `skills/vinc-relate/SKILL.md` tells
+a coding agent how to run the same procedure.
+
 ## Impact of a code change
 
 ```

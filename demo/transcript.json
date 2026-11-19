@@ -1,0 +1,390 @@
+{
+ "demo": "vinc-relate dependency audit on synthetic data",
+ "tagline": "Persistent Knowledge. Ephemeral Reasoning.",
+ "steps": [
+  {
+   "step": 1,
+   "title": "Vinc knowledge",
+   "lines": [
+    "A synthetic Vinc space (demo-space) holds 9 nodes and 6 edges: decisions, concepts and records",
+    "for an app, a billing service and a design system. An in-process fake Vinc serves it; no account, no network."
+   ],
+   "data": {
+    "space": "demo-space",
+    "nodes": 9,
+    "edges": 6
+   }
+  },
+  {
+   "step": 2,
+   "title": "The task: a dependency audit",
+   "lines": [
+    "Which security advisories does repository Demo reach through its npm lockfile,",
+    "and which of the team's decisions do they break?"
+   ],
+   "data": {
+    "repo": "Demo",
+    "lockfile": "audit/demo-lockfile.json"
+   }
+  },
+  {
+   "step": 3,
+   "title": "Checkout: only task-relevant knowledge",
+   "lines": [
+    "Seed concept:demo-app, depth 1: 3 of 9 nodes and 2 of 6 edges come out.",
+    "  concept:demo-app  (Demo app)",
+    "  decision:dependencies-are-pinned-by-a-lockfile  (Dependencies are pinned by a lockfile)",
+    "  decision:no-high-advisories-in-shipped-dependencies  (No high advisories in shipped dependencies)",
+    "Billing, design and CI knowledge stays in Vinc."
+   ],
+   "data": {
+    "seeds": [
+     "concept:demo-app"
+    ],
+    "depth": 1,
+    "nodes": [
+     "concept:demo-app",
+     "decision:dependencies-are-pinned-by-a-lockfile",
+     "decision:no-high-advisories-in-shipped-dependencies"
+    ],
+    "edges": 2
+   }
+  },
+  {
+   "step": 4,
+   "title": "Relate graph: Vinc knowledge joined with external data",
+   "lines": [
+    "A private Relate file in a fresh 0700 directory under tmpfs; reasoning opens it read only.",
+    "Loaded 14 nodes and 15 edges: 3 Vinc nodes, 1 repository and 5 packages from the lockfile,",
+    "5 OSV advisories (cache fetched 2026-11-17T11:20:41Z) and 1 code_ref link from the repository to Vinc."
+   ],
+   "data": {
+    "loaded": {
+     "nodes": 14,
+     "edges": 15
+    },
+    "packages": 5,
+    "advisories": 5,
+    "governance_links": 1
+   }
+  },
+  {
+   "step": 5,
+   "title": "Multi-hop path: from a decision to an advisory",
+   "lines": [
+    "5 hops across Vinc knowledge, the lockfile and OSV:",
+    "  decision:no-high-advisories-in-shipped-dependencies -ABOUT-> concept:demo-app <-DESCRIBED_BY- repo:Demo -DEPENDS_ON-> pkg:npm/report-kit@2.1.0 -DEPENDS_ON-> pkg:npm/lodash@4.17.15 -AFFECTED_BY-> adv:GHSA-r5fr-rjxr-66jc",
+    "Findings: 7 package and advisory pairs; 7 affected, 0 not affected, 0 unresolved; 3 decision violations.",
+    "  affected     HIGH     GHSA-r5fr-rjxr-66jc  lodash@4.17.21  (development only)",
+    "  affected     HIGH     GHSA-r5fr-rjxr-66jc  lodash@4.17.15  violates decision:no-high-advisories-in-shipped-dependencies",
+    "  affected     HIGH     GHSA-p6mc-m468-83gw  lodash@4.17.15  violates decision:no-high-advisories-in-shipped-dependencies",
+    "  affected     HIGH     GHSA-35jh-r3h4-6jhm  lodash@4.17.15  violates decision:no-high-advisories-in-shipped-dependencies",
+    "  affected     MODERATE GHSA-xxjr-mmjv-4gpg  lodash@4.17.21  (development only)",
+    "  affected     MODERATE GHSA-xxjr-mmjv-4gpg  lodash@4.17.15",
+    "  affected     MODERATE GHSA-29mw-wpgm-hmr9  lodash@4.17.15"
+   ],
+   "data": {
+    "path": {
+     "from": "decision:no-high-advisories-in-shipped-dependencies",
+     "to": "adv:GHSA-r5fr-rjxr-66jc",
+     "ids": [
+      "decision:no-high-advisories-in-shipped-dependencies",
+      "concept:demo-app",
+      "repo:Demo",
+      "pkg:npm/report-kit@2.1.0",
+      "pkg:npm/lodash@4.17.15",
+      "adv:GHSA-r5fr-rjxr-66jc"
+     ],
+     "rels": [
+      "ABOUT",
+      "DESCRIBED_BY",
+      "DEPENDS_ON",
+      "DEPENDS_ON",
+      "AFFECTED_BY"
+     ],
+     "hops": 5
+    }
+   }
+  },
+  {
+   "step": 6,
+   "title": "Checker and approval",
+   "lines": [
+    "The Checker re-derives each proposed record from the sandbox: 31 checks over 7 records (advisory hash, version in range, path in the graph, decision in the checkout); 0 records fail.",
+    "Write set for space demo-space (approval digest ba54a17c1d30b1ec):",
+    "",
+    "  + record:demo-lodash-development-ghsa-r5fr-rjxr-66jc  [HIGH, development]",
+    "      Demo development dependency lodash 4.17.21 is affected by GHSA-r5fr-rjxr-66jc",
+    "  + record:demo-lodash-development-ghsa-xxjr-mmjv-4gpg  [MODERATE, development]",
+    "      Demo development dependency lodash 4.17.21 is affected by GHSA-xxjr-mmjv-4gpg",
+    "  + record:demo-lodash-shipped-ghsa-29mw-wpgm-hmr9  [MODERATE, shipped]",
+    "      Demo shipped dependency lodash 4.17.15 is affected by GHSA-29mw-wpgm-hmr9",
+    "  + record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm  [HIGH, shipped]",
+    "      Demo shipped dependency lodash 4.17.15 is affected by GHSA-35jh-r3h4-6jhm",
+    "  + record:demo-lodash-shipped-ghsa-p6mc-m468-83gw  [HIGH, shipped]",
+    "      Demo shipped dependency lodash 4.17.15 is affected by GHSA-p6mc-m468-83gw",
+    "  + record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc  [HIGH, shipped]",
+    "      Demo shipped dependency lodash 4.17.15 is affected by GHSA-r5fr-rjxr-66jc",
+    "  + record:demo-lodash-shipped-ghsa-xxjr-mmjv-4gpg  [MODERATE, shipped]",
+    "      Demo shipped dependency lodash 4.17.15 is affected by GHSA-xxjr-mmjv-4gpg",
+    "  + record:demo-lodash-development-ghsa-r5fr-rjxr-66jc -relates_to-> decision:dependencies-are-pinned-by-a-lockfile",
+    "  + record:demo-lodash-development-ghsa-xxjr-mmjv-4gpg -relates_to-> decision:dependencies-are-pinned-by-a-lockfile",
+    "  + record:demo-lodash-shipped-ghsa-29mw-wpgm-hmr9 -relates_to-> decision:dependencies-are-pinned-by-a-lockfile",
+    "  + record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm -relates_to-> decision:dependencies-are-pinned-by-a-lockfile",
+    "  + record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm -relates_to-> decision:no-high-advisories-in-shipped-dependencies",
+    "  + record:demo-lodash-shipped-ghsa-p6mc-m468-83gw -relates_to-> decision:dependencies-are-pinned-by-a-lockfile",
+    "  + record:demo-lodash-shipped-ghsa-p6mc-m468-83gw -relates_to-> decision:no-high-advisories-in-shipped-dependencies",
+    "  + record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc -relates_to-> decision:dependencies-are-pinned-by-a-lockfile",
+    "  + record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc -relates_to-> decision:no-high-advisories-in-shipped-dependencies",
+    "  + record:demo-lodash-shipped-ghsa-xxjr-mmjv-4gpg -relates_to-> decision:dependencies-are-pinned-by-a-lockfile",
+    ""
+   ],
+   "data": {
+    "checks": 31,
+    "records": 7,
+    "failed": [],
+    "digest": "ba54a17c1d30b1ec"
+   }
+  },
+  {
+   "step": 7,
+   "title": "Commit, read-back and cleanup",
+   "lines": [
+    "Wrote 7 records and 10 edges to the fake Vinc with create_only.",
+    "Read back: every node and edge matches.",
+    "A new checkout of the records finds 10 of 10 edges with their type and direction.",
+    "The space now holds 16 nodes and 16 edges.",
+    "Sample Relate database for judges: demo/sample.rl (64 KB, synthetic data only).",
+    "Operational sandbox deleted: yes."
+   ],
+   "data": {
+    "sandbox_removed": true,
+    "sample": "sample.rl",
+    "receipt": {
+     "written": [
+      "record:demo-lodash-development-ghsa-r5fr-rjxr-66jc",
+      "record:demo-lodash-development-ghsa-xxjr-mmjv-4gpg",
+      "record:demo-lodash-shipped-ghsa-29mw-wpgm-hmr9",
+      "record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm",
+      "record:demo-lodash-shipped-ghsa-p6mc-m468-83gw",
+      "record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc",
+      "record:demo-lodash-shipped-ghsa-xxjr-mmjv-4gpg"
+     ],
+     "existing": [],
+     "edges": 10,
+     "verified": true,
+     "problems": []
+    },
+    "edges_after_checkout": 10
+   }
+  }
+ ],
+ "approval": {
+  "status": "approved",
+  "digest": "ba54a17c1d30b1ec",
+  "by": "--approve"
+ },
+ "findings": {
+  "repo": "Demo",
+  "summary": {
+   "affected": 7,
+   "unresolved": 0,
+   "not_affected": 0
+  },
+  "violations": 3,
+  "findings": [
+   {
+    "package": "pkg:npm/lodash@4.17.21",
+    "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+    "severity": "HIGH",
+    "status": "affected",
+    "dev_only": true,
+    "path": [
+     "repo:Demo",
+     "pkg:npm/test-kit@1.0.3",
+     "pkg:npm/lodash@4.17.21",
+     "adv:GHSA-r5fr-rjxr-66jc"
+    ],
+    "violates": []
+   },
+   {
+    "package": "pkg:npm/lodash@4.17.15",
+    "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+    "severity": "HIGH",
+    "status": "affected",
+    "dev_only": false,
+    "path": [
+     "repo:Demo",
+     "pkg:npm/report-kit@2.1.0",
+     "pkg:npm/lodash@4.17.15",
+     "adv:GHSA-r5fr-rjxr-66jc"
+    ],
+    "violates": [
+     "decision:no-high-advisories-in-shipped-dependencies"
+    ]
+   },
+   {
+    "package": "pkg:npm/lodash@4.17.15",
+    "advisory": "adv:GHSA-p6mc-m468-83gw",
+    "severity": "HIGH",
+    "status": "affected",
+    "dev_only": false,
+    "path": [
+     "repo:Demo",
+     "pkg:npm/report-kit@2.1.0",
+     "pkg:npm/lodash@4.17.15",
+     "adv:GHSA-p6mc-m468-83gw"
+    ],
+    "violates": [
+     "decision:no-high-advisories-in-shipped-dependencies"
+    ]
+   },
+   {
+    "package": "pkg:npm/lodash@4.17.15",
+    "advisory": "adv:GHSA-35jh-r3h4-6jhm",
+    "severity": "HIGH",
+    "status": "affected",
+    "dev_only": false,
+    "path": [
+     "repo:Demo",
+     "pkg:npm/report-kit@2.1.0",
+     "pkg:npm/lodash@4.17.15",
+     "adv:GHSA-35jh-r3h4-6jhm"
+    ],
+    "violates": [
+     "decision:no-high-advisories-in-shipped-dependencies"
+    ]
+   },
+   {
+    "package": "pkg:npm/lodash@4.17.21",
+    "advisory": "adv:GHSA-xxjr-mmjv-4gpg",
+    "severity": "MODERATE",
+    "status": "affected",
+    "dev_only": true,
+    "path": [
+     "repo:Demo",
+     "pkg:npm/test-kit@1.0.3",
+     "pkg:npm/lodash@4.17.21",
+     "adv:GHSA-xxjr-mmjv-4gpg"
+    ],
+    "violates": []
+   },
+   {
+    "package": "pkg:npm/lodash@4.17.15",
+    "advisory": "adv:GHSA-xxjr-mmjv-4gpg",
+    "severity": "MODERATE",
+    "status": "affected",
+    "dev_only": false,
+    "path": [
+     "repo:Demo",
+     "pkg:npm/report-kit@2.1.0",
+     "pkg:npm/lodash@4.17.15",
+     "adv:GHSA-xxjr-mmjv-4gpg"
+    ],
+    "violates": []
+   },
+   {
+    "package": "pkg:npm/lodash@4.17.15",
+    "advisory": "adv:GHSA-29mw-wpgm-hmr9",
+    "severity": "MODERATE",
+    "status": "affected",
+    "dev_only": false,
+    "path": [
+     "repo:Demo",
+     "pkg:npm/report-kit@2.1.0",
+     "pkg:npm/lodash@4.17.15",
+     "adv:GHSA-29mw-wpgm-hmr9"
+    ],
+    "violates": []
+   }
+  ],
+  "multi_hop_path": {
+   "from": "decision:no-high-advisories-in-shipped-dependencies",
+   "to": "adv:GHSA-r5fr-rjxr-66jc",
+   "ids": [
+    "decision:no-high-advisories-in-shipped-dependencies",
+    "concept:demo-app",
+    "repo:Demo",
+    "pkg:npm/report-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-r5fr-rjxr-66jc"
+   ],
+   "rels": [
+    "ABOUT",
+    "DESCRIBED_BY",
+    "DEPENDS_ON",
+    "DEPENDS_ON",
+    "AFFECTED_BY"
+   ],
+   "hops": 5
+  },
+  "records": [
+   "record:demo-lodash-development-ghsa-r5fr-rjxr-66jc",
+   "record:demo-lodash-development-ghsa-xxjr-mmjv-4gpg",
+   "record:demo-lodash-shipped-ghsa-29mw-wpgm-hmr9",
+   "record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm",
+   "record:demo-lodash-shipped-ghsa-p6mc-m468-83gw",
+   "record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc",
+   "record:demo-lodash-shipped-ghsa-xxjr-mmjv-4gpg"
+  ],
+  "edges": [
+   [
+    "record:demo-lodash-development-ghsa-r5fr-rjxr-66jc",
+    "relates_to",
+    "decision:dependencies-are-pinned-by-a-lockfile"
+   ],
+   [
+    "record:demo-lodash-development-ghsa-xxjr-mmjv-4gpg",
+    "relates_to",
+    "decision:dependencies-are-pinned-by-a-lockfile"
+   ],
+   [
+    "record:demo-lodash-shipped-ghsa-29mw-wpgm-hmr9",
+    "relates_to",
+    "decision:dependencies-are-pinned-by-a-lockfile"
+   ],
+   [
+    "record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm",
+    "relates_to",
+    "decision:dependencies-are-pinned-by-a-lockfile"
+   ],
+   [
+    "record:demo-lodash-shipped-ghsa-35jh-r3h4-6jhm",
+    "relates_to",
+    "decision:no-high-advisories-in-shipped-dependencies"
+   ],
+   [
+    "record:demo-lodash-shipped-ghsa-p6mc-m468-83gw",
+    "relates_to",
+    "decision:dependencies-are-pinned-by-a-lockfile"
+   ],
+   [
+    "record:demo-lodash-shipped-ghsa-p6mc-m468-83gw",
+    "relates_to",
+    "decision:no-high-advisories-in-shipped-dependencies"
+   ],
+   [
+    "record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc",
+    "relates_to",
+    "decision:dependencies-are-pinned-by-a-lockfile"
+   ],
+   [
+    "record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc",
+    "relates_to",
+    "decision:no-high-advisories-in-shipped-dependencies"
+   ],
+   [
+    "record:demo-lodash-shipped-ghsa-xxjr-mmjv-4gpg",
+    "relates_to",
+    "decision:dependencies-are-pinned-by-a-lockfile"
+   ]
+  ],
+  "digest": "ba54a17c1d30b1ec"
+ },
+ "timestamps": {
+  "started_at": "2026-11-19T09:27:48Z",
+  "checked_out_at": "2026-11-19T09:27:48Z",
+  "read_back_at": "2026-11-19T09:27:48Z",
+  "finished_at": "2026-11-19T09:27:48Z"
+ }
+}
