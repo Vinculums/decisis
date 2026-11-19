@@ -106,7 +106,7 @@ def test_the_cli_prints_json_and_a_short_human_form(capsys):
     assert cli.main(["impact", str(FIXTURE), "reports/export.py", "docs/index.md"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert [r["path"] for r in out["impact"]] == ["reports/export.py", "docs/index.md"]
-    assert out["loaded"] == {"nodes": 12, "edges": 8}
+    assert out["loaded"] == {"nodes": 12, "edges": 6}
     assert cli.main(["impact", str(FIXTURE), "reports/export.py", "--format", "text"]) == 0
     text = capsys.readouterr().out
     assert text.startswith("reports/export.py: 4 node(s) within 3 hop(s)")
@@ -137,3 +137,61 @@ def test_a_decision_anchors_by_its_subject_path_and_also_touches_with_any_repo_c
     assert first == [(0, "decision", "decision:demo-runs-stop-and-report"), (1, "record", "record:demo-old-waits-closed")]
     assert one(report, 0)[0]["code_ref"] == [{"ref": "demo:runs/protocol.py", "match": "exact"}]
     assert [x["id"] for x in one(report, 1)][:1] == ["decision:demo-runs-stop-and-report"]
+
+
+EXTRA = FIXTURE.parents[1] / "compare" / "impact-extra.json"
+
+
+def with_shared_logger():
+    a, b = graph(), co.load(EXTRA.read_text(encoding="utf-8"))
+    return co.Subgraph(a.nodes + b.nodes, a.edges + b.edges, {})
+
+
+def test_a_decision_about_a_shared_logger_does_not_govern_the_code_that_logs_through_it(tmp_path):
+    report = impact.run(with_shared_logger(), ["reports_archive/index.py", "lib/logger.py"], hops=MAX, root=tmp_path)
+    assert [g["id"] for g in one(report, 0)] == ["concept:demo-report-archive", "decision:demo-archive-reads-are-rate-limited"]
+    assert [g["id"] for g in one(report, 1)] == ["concept:demo-shared-logger", "decision:demo-logs-are-kept-thirty-days"]
+
+
+MAX = impact.MAX_HOPS
+
+
+def tiny(nodes, edges):
+    kind = lambda i: i.split(":", 1)[0]
+    ns = [{"id": i, "kind": kind(i), "title": i, "props": {"code_ref": ref} if ref else {}} for i, ref in nodes.items()]
+    es = [{"source": s, "type": t, "target": d, "evidence": ""} for s, t, d in edges]
+    return co.Subgraph(ns, es, {})
+
+
+def governing_of(g, path, tmp_path):
+    return [x["id"] for x in one(impact.run(g, [path], hops=MAX, root=tmp_path)) if x["hops"] > 0]
+
+
+@pytest.mark.parametrize("edges,path,want", [
+    ([("decision:d", "ABOUT", "concept:a")], "a.py", ["decision:d"]),
+    ([("decision:d", "ABOUT", "concept:b"), ("concept:a", "DERIVES_FROM", "concept:b")], "a.py", ["decision:d"]),
+    ([("decision:d", "ABOUT", "concept:a"), ("concept:a", "DERIVES_FROM", "concept:b")], "b.py", []),
+    ([("decision:d", "ABOUT", "concept:b"), ("concept:a", "INHERITS_FROM", "concept:b")], "a.py", ["decision:d"]),
+    ([("decision:d", "ABOUT", "concept:a"), ("concept:a", "INHERITS_FROM", "concept:b")], "b.py", []),
+    ([("decision:d", "ABOUT", "concept:b"), ("concept:a", "PREREQUISITE_OF", "concept:b")], "a.py", []),
+    ([("decision:d", "ABOUT", "concept:a"), ("concept:a", "PREREQUISITE_OF", "concept:b")], "b.py", []),
+    ([("decision:d", "ABOUT", "concept:b"), ("concept:a", "RELATED_TO", "concept:b")], "a.py", []),
+    ([("decision:d", "ABOUT", "concept:a"), ("concept:a", "RELATED_TO", "concept:b")], "b.py", []),
+    ([("decision:d", "ABOUT", "concept:idea"), ("concept:idea", "RELATED_TO", "concept:a")], "a.py", ["decision:d"]),
+    ([("decision:d", "ABOUT", "concept:idea"), ("concept:a", "RELATED_TO", "concept:idea")], "a.py", ["decision:d"]),
+    ([("decision:new", "SUPERSEDES", "decision:old"), ("decision:new", "ABOUT", "concept:a")], "a.py", ["decision:new"]),
+    ([("record:r", "RELATED_TO", "concept:a")], "a.py", ["record:r"]),
+    ([("record:r", "PREREQUISITE_OF", "decision:d"), ("decision:d", "ABOUT", "concept:a")], "a.py", ["decision:d", "record:r"]),
+    ([("concept:a", "RELATED_TO", "record:r")], "a.py", []),
+])
+def test_each_edge_type_carries_governance_only_in_its_meaning_s_direction(edges, path, want, tmp_path):
+    ids = {i for e in edges for i in (e[0], e[2])}
+    refs = {"concept:a": "Demo:a.py", "concept:b": "Demo:b.py"}
+    g = tiny({i: refs.get(i) for i in sorted(ids)}, edges)
+    assert governing_of(g, path, tmp_path) == want
+
+
+def test_every_edge_type_a_checkout_keeps_has_a_stated_governance_rule():
+    stated = {c.type for c in impact.CARRIES} | set(impact.NOT_CARRIED)
+    assert co.EDGE_TYPES <= stated
+    assert all(c.why for c in impact.CARRIES) and all(impact.NOT_CARRIED.values())

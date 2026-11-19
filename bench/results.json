@@ -123,7 +123,7 @@
       4,
       4
      ],
-     "latency_ms": 12.8,
+     "latency_ms": 14.3,
      "claims": [
       {
        "type": "finding",
@@ -284,7 +284,7 @@
       5,
       5
      ],
-     "latency_ms": 9.9,
+     "latency_ms": 11.4,
      "claims": [
       {
        "type": "finding",
@@ -458,7 +458,7 @@
       4,
       4
      ],
-     "latency_ms": 10.4,
+     "latency_ms": 12.0,
      "claims": [
       {
        "type": "finding",
@@ -619,7 +619,7 @@
       4,
       4
      ],
-     "latency_ms": 11.8,
+     "latency_ms": 11.4,
      "claims": [
       {
        "type": "finding",
@@ -780,7 +780,7 @@
       4,
       4
      ],
-     "latency_ms": 10.9,
+     "latency_ms": 11.2,
      "claims": [
       {
        "type": "finding",
@@ -902,7 +902,7 @@
       4,
       4
      ],
-     "latency_ms": 6.3,
+     "latency_ms": 5.9,
      "claims": [
       {
        "type": "path",
@@ -1029,7 +1029,7 @@
       4,
       4
      ],
-     "latency_ms": 0.0,
+     "latency_ms": 0.1,
      "claims": [
       {
        "type": "path",
@@ -1086,7 +1086,7 @@
       4,
       4
      ],
-     "latency_ms": 6.2,
+     "latency_ms": 6.3,
      "claims": [
       {
        "type": "path",
@@ -1153,7 +1153,7 @@
       4,
       4
      ],
-     "latency_ms": 0.1,
+     "latency_ms": 0.0,
      "claims": [
       {
        "type": "path",
@@ -1210,7 +1210,7 @@
       4,
       4
      ],
-     "latency_ms": 0.1,
+     "latency_ms": 0.0,
      "claims": [
       {
        "type": "path",
@@ -1267,7 +1267,7 @@
       4,
       4
      ],
-     "latency_ms": 6.2,
+     "latency_ms": 6.8,
      "claims": [
       {
        "type": "path",
@@ -1311,7 +1311,7 @@
    "subject": "reports_archive/index.py",
    "connection": "decoy: a log retention decision two hops away through a shared logger",
    "graph_expected_to_help": false,
-   "c_vs_b": "worse",
+   "c_vs_b": "same",
    "results": {
     "A": {
      "paths": [
@@ -1334,7 +1334,7 @@
       2,
       2
      ],
-     "latency_ms": 0.1,
+     "latency_ms": 0.0,
      "claims": [
       {
        "type": "path",
@@ -1409,12 +1409,12 @@
       0
      ],
      "unsupported": [
-      2,
-      4
+      0,
+      2
      ],
      "covered": [
-      4,
-      4
+      2,
+      2
      ],
      "latency_ms": 5.7,
      "claims": [
@@ -1422,15 +1422,6 @@
        "type": "path",
        "key": [
         "concept:demo-report-archive",
-        "concept:demo-shared-logger",
-        "decision:demo-logs-are-kept-thirty-days"
-       ],
-       "covered": true
-      },
-      {
-       "type": "path",
-       "key": [
-        "concept:demo-report-archive",
         "decision:demo-archive-reads-are-rate-limited"
        ],
        "covered": true
@@ -1440,14 +1431,6 @@
        "key": [
         "reports_archive/index.py",
         "decision:demo-archive-reads-are-rate-limited"
-       ],
-       "covered": true
-      },
-      {
-       "type": "policy_link",
-       "key": [
-        "reports_archive/index.py",
-        "decision:demo-logs-are-kept-thirty-days"
        ],
        "covered": true
       }
@@ -1478,7 +1461,7 @@
     10,
     10
    ],
-   "latency_ms": 0.4
+   "latency_ms": 0.2
   },
   "B": {
    "paths": [
@@ -1517,14 +1500,14 @@
     5
    ],
    "unsupported": [
-    2,
-    37
+    0,
+    35
    ],
    "covered": [
-    37,
-    37
+    35,
+    35
    ],
-   "latency_ms": 80.2
+   "latency_ms": 85.0
   }
  },
  "c_vs_b": {
@@ -1538,11 +1521,10 @@
    "audit-dev-only-direct",
    "audit-version-outside-range",
    "impact-one-hop-decision",
-   "impact-directory-prefix-decoy"
-  ],
-  "worse": [
+   "impact-directory-prefix-decoy",
    "impact-overreach-decoy"
   ],
+  "worse": [],
   "mixed": []
  }
 }
