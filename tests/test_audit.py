@@ -132,3 +132,26 @@ def test_each_finding_carries_the_advisory_fetch_time_and_content_hash():
         osv = f["advisory"].split(":", 1)[1]
         assert f["fetched_at"] == cache["fetched_at"]
         assert f["content_hash"] == external.digest(cache["vulns"][osv])
+
+
+def test_a_decision_about_two_concepts_of_the_repository_counts_once_per_finding():
+    snap = json.loads((FIX / "vinc.json").read_text(encoding="utf-8"))
+    base = audit.run(co.load(json.dumps(snap)), lock(), "Demo", advisories=advisories())
+    snap["nodes"].append({"id": "concept:demo-api", "kind": "concept", "title": "Demo API", "domain": "product/app",
+                          "props": {"code_ref": "Demo:src/api"}})
+    snap["edges"].append({"source": "decision:no-high-advisories-in-shipped-dependencies", "target": "concept:demo-api",
+                          "type": "ABOUT", "evidence": "policy on the api"})
+    snap["edges"].append({"source": "decision:dependencies-are-pinned-by-a-lockfile", "target": "concept:demo-api",
+                          "type": "ABOUT", "evidence": "policy on the api"})
+    rep = audit.run(co.load(json.dumps(snap)), lock(), "Demo", advisories=advisories())
+    assert {(d["decision"], d["via"]) for d in rep["governing"]} >= {
+        ("decision:no-high-advisories-in-shipped-dependencies", "concept:demo-app"),
+        ("decision:no-high-advisories-in-shipped-dependencies", "concept:demo-api")}
+    for f in rep["findings"]:
+        ids = [p["decision"] for p in f["policies"]]
+        assert sorted(ids) == sorted(set(ids)) == sorted({"decision:no-high-advisories-in-shipped-dependencies",
+                                                          "decision:dependencies-are-pinned-by-a-lockfile"})
+    assert rep["violations"] == base["violations"] > 0
+    assert [[p["verdict"] for p in f["policies"]] for f in rep["findings"]] == [[p["verdict"] for p in f["policies"]] for f in base["findings"]]
+    pinned = next(p for p in rep["findings"][0]["policies"] if p["decision"] == "decision:dependencies-are-pinned-by-a-lockfile")
+    assert "through concept:demo-api, concept:demo-app;" in pinned["why"]

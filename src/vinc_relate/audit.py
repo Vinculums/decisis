@@ -54,9 +54,17 @@ def judge(governing: dict, rule: dict | None, status: str, severity: str, dev: b
     return {"decision": d, "verdict": "not_violated", "why": f"status {status}, severity {severity}"}
 
 
+def fold(decisions: list[dict]) -> list[dict]:
+    out: dict[str, dict] = {}
+    for d in decisions:
+        g = out.setdefault(d["decision"], {**d, "via": set()})
+        g["via"].add(d["via"])
+    return [{**g, "via": ", ".join(sorted(g["via"]))} for g in out.values()]
+
+
 def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dict]:
     by_id = {n["id"]: n for n in graph.nodes}
-    rules = [(d, rule_of(by_id.get(d["decision"], {}))) for d in decisions]
+    rules = [(d, rule_of(by_id.get(d["decision"], {}))) for d in fold(decisions)]
     findings, seen = [], set()
     for row in rows:
         key = (row["package"], row["advisory"])
