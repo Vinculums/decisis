@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         return run(a)
     except ValueError as e:
         ap.error(str(e))
-    except external.NetworkRefused as e:
+    except (external.NetworkRefused, external.NetworkFailed) as e:
         ap.exit(1, f"{ap.prog}: error: {e}\n")
 
 
