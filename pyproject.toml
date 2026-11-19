@@ -3,6 +3,8 @@ name = "vinc-relate"
 version = "0.0.1"
 description = "Check out task-relevant knowledge from Vinc, reason over it with external data in an ephemeral Relate graph, commit only verified findings."
 requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = ["relate-db==1.0.2"]
 
 [project.optional-dependencies]
@@ -12,7 +14,7 @@ dev = ["pytest>=8"]
 vinc-relate = "vinc_relate.cli:main"
 
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
