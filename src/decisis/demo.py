@@ -20,8 +20,10 @@ SAMPLE = "sample.rl"
 
 
 def default_fixtures() -> Path:
-    here = Path(__file__).resolve().parents[2] / "fixtures"
-    return here if (here / "demo").is_dir() else Path("fixtures")
+    for here in (Path(__file__).resolve().parents[2] / "fixtures", Path(__file__).resolve().parent / "fixtures"):
+        if (here / "demo").is_dir():
+            return here
+    return Path("fixtures")
 
 
 def _stamp() -> str:

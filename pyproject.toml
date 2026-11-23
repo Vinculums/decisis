@@ -21,11 +21,25 @@ vinc-relate = "decisis.cli:main"
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+packages = [
+    "decisis", "decisis.queries", "decisis.bench", "vinc_relate",
+    "decisis.fixtures", "decisis.fixtures.audit", "decisis.fixtures.compare", "decisis.fixtures.demo", "decisis.fixtures.impact",
+]
+
+[tool.setuptools.package-dir]
+"" = "src"
+"decisis.fixtures" = "fixtures"
+"decisis.bench" = "bench"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [tool.setuptools.package-data]
 decisis = ["queries/*.cypher"]
+"decisis.fixtures" = ["*.json"]
+"decisis.fixtures.audit" = ["*.json"]
+"decisis.fixtures.compare" = ["*.json"]
+"decisis.fixtures.demo" = ["*.json"]
+"decisis.fixtures.impact" = ["*.json"]
+"decisis.bench" = ["tasks.json"]
