@@ -7,10 +7,10 @@ test that shows it.
 
 ## What it protects
 
-**A private working directory.** Each task gets a new directory `vinc-relate-<random hex>` created with
+**A private working directory.** Each task gets a new directory `decisis-<random hex>` created with
 mode 0700, so other users on the machine cannot list or open it. It is under `/dev/shm` (memory-backed
 tmpfs) when that directory exists and is writable, otherwise under the system temporary directory.
-(`Sandbox.__init__` in `src/vinc_relate/sandbox.py`; `test_the_task_file_lives_in_its_own_private_directory_and_is_gone_after`.)
+(`Sandbox.__init__` in `src/decisis/sandbox.py`; `test_the_task_file_lives_in_its_own_private_directory_and_is_gone_after`.)
 
 **Read-only reasoning.** The graph is written once, by one connection that closes before any query.
 Every query opens its own connection with `read_only=True`, and Relate refuses a write on it with
@@ -40,7 +40,7 @@ it too. The demo prints whether the removal happened and the tests assert the sc
 digest: the first 16 hex digits of SHA-256 over the space, nodes and edges. `commit` recomputes the
 digest from the plan file and refuses unless it equals both the plan's digest and the one given with
 `--approve`, so a plan edited after approval is refused. Only `affected` findings enter a write set.
-(`check_approval` in `src/vinc_relate/commit.py`; `test_nothing_is_written_without_the_matching_approval_or_after_the_plan_changed`,
+(`check_approval` in `src/decisis/commit.py`; `test_nothing_is_written_without_the_matching_approval_or_after_the_plan_changed`,
 `test_unverified_findings_are_held_back`.)
 
 **Create-only writes and read-back.** `commit` skips ids that already exist and writes the rest with
@@ -63,7 +63,7 @@ carries them. `--osv-cache` replays a saved set of advisories and refuses the ne
   is missing (macOS, Windows) the directory is on the disk under the system temporary directory. Data
   that must not touch a disk needs encrypted scratch storage with key destruction, which is not built.
 - **A crash or kill.** A process killed with SIGKILL, or a machine that loses power, skips the `finally`
-  and leaves the directory behind; nothing cleans up stale `vinc-relate-*` directories.
+  and leaves the directory behind; nothing cleans up stale `decisis-*` directories.
 - **The same user and root.** 0700 keeps out other users, not other processes of the same user or an
   administrator.
 - **Files you ask for.** The snapshot from `checkout`, the report from `audit --out` and the plan from

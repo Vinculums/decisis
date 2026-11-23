@@ -110,7 +110,7 @@ def run(out: Path, fixtures: Path | None = None, approve: str | None = None, yes
     fixtures = fixtures or default_fixtures()
     stamps = {"started_at": _stamp()}
     demo = Demo(emit)
-    emit(f"vinc-relate demo: a dependency audit on synthetic data, offline. {TAGLINE}")
+    emit(f"decisis demo: a dependency audit on synthetic data, offline. {TAGLINE}")
 
     space = co.load((fixtures / "demo" / "vinc_space.json").read_text(encoding="utf-8"))
     fake = FakeVinc(space, name=SPACE)
@@ -211,7 +211,7 @@ def run(out: Path, fixtures: Path | None = None, approve: str | None = None, yes
               receipt=receipt, edges_after_checkout=survived)
 
     stamps["finished_at"] = _stamp()
-    transcript = {"demo": "vinc-relate dependency audit on synthetic data", "tagline": TAGLINE, "steps": demo.steps,
+    transcript = {"demo": "decisis dependency audit on synthetic data", "tagline": TAGLINE, "steps": demo.steps,
                   "approval": approval, "findings": findings, "timestamps": stamps}
     (out / "transcript.json").write_text(json.dumps(transcript, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     (out / "expected_findings.json").write_text(json.dumps(findings, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

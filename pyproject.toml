@@ -1,17 +1,21 @@
 [project]
-name = "vinc-relate"
-version = "0.0.1"
-description = "Check out task-relevant knowledge from Vinc, reason over it with external data in an ephemeral Relate graph, commit only verified findings."
+name = "decisis"
+version = "0.1.0"
+description = "Stand by what was decided: join a team's decisions with code and outside facts in a throwaway Relate graph, and keep only verified findings. Works offline; connects to Vinc when you configure it."
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 dependencies = ["relate-db==1.0.2"]
 
+[project.urls]
+Repository = "https://github.com/Vinculums/decisis"
+
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
 [project.scripts]
-vinc-relate = "vinc_relate.cli:main"
+decisis = "decisis.cli:main"
+vinc-relate = "decisis.cli:main"
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -24,4 +28,4 @@ where = ["src"]
 testpaths = ["tests"]
 
 [tool.setuptools.package-data]
-vinc_relate = ["queries/*.cypher"]
+decisis = ["queries/*.cypher"]

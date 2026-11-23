@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 from test_audit import no_network
-from vinc_relate import cli
+from decisis import cli
 
 ROOT = Path(__file__).resolve().parents[1]
 README = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -40,7 +40,7 @@ def test_the_hand_written_snapshot_runs_paths_impact_and_audit_offline(tmp_path,
 
 def test_the_readme_digest_is_the_one_the_demo_prints():
     digest = json.loads((ROOT / "demo" / "expected_findings.json").read_text(encoding="utf-8"))["digest"]
-    assert f"vinc-relate demo --approve {digest}" in README
+    assert f"decisis demo --approve {digest}" in README
 
 
 def test_the_readme_table_is_the_committed_benchmark_table():

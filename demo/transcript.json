@@ -1,5 +1,5 @@
 {
- "demo": "vinc-relate dependency audit on synthetic data",
+ "demo": "decisis dependency audit on synthetic data",
  "tagline": "Persistent Knowledge. Ephemeral Reasoning.",
  "steps": [
   {
@@ -111,7 +111,7 @@
    "title": "Checker and approval",
    "lines": [
     "The Checker re-derives each proposed record from the sandbox: 31 checks over 7 records (advisory hash, version in range, path in the graph, decision in the checkout); 0 records fail.",
-    "Write set for space demo-space (approval digest ba54a17c1d30b1ec):",
+    "Write set for space demo-space (approval digest d761d1c8a44d62e2):",
     "",
     "  + record:demo-lodash-development-ghsa-r5fr-rjxr-66jc  [HIGH, development]",
     "      Demo development dependency lodash 4.17.21 is affected by GHSA-r5fr-rjxr-66jc",
@@ -143,7 +143,7 @@
     "checks": 31,
     "records": 7,
     "failed": [],
-    "digest": "ba54a17c1d30b1ec"
+    "digest": "d761d1c8a44d62e2"
    }
   },
   {
@@ -181,7 +181,7 @@
  ],
  "approval": {
   "status": "approved",
-  "digest": "ba54a17c1d30b1ec",
+  "digest": "d761d1c8a44d62e2",
   "by": "--approve"
  },
  "findings": {
@@ -379,12 +379,12 @@
     "decision:dependencies-are-pinned-by-a-lockfile"
    ]
   ],
-  "digest": "ba54a17c1d30b1ec"
+  "digest": "d761d1c8a44d62e2"
  },
  "timestamps": {
-  "started_at": "2026-11-19T09:27:48Z",
-  "checked_out_at": "2026-11-19T09:27:48Z",
-  "read_back_at": "2026-11-19T09:27:48Z",
-  "finished_at": "2026-11-19T09:27:48Z"
+  "started_at": "2026-11-23T16:43:49Z",
+  "checked_out_at": "2026-11-23T16:43:49Z",
+  "read_back_at": "2026-11-23T16:43:49Z",
+  "finished_at": "2026-11-23T16:43:49Z"
  }
 }

@@ -9,10 +9,10 @@ from pathlib import Path
 import pytest
 
 from test_audit import advisories, lock, osv_cache
-from vinc_relate import audit, external
-from vinc_relate import checkout as co
-from vinc_relate import commit as wb
-from vinc_relate.fake_vinc import FakeVinc
+from decisis import audit, external
+from decisis import checkout as co
+from decisis import commit as wb
+from decisis.fake_vinc import FakeVinc
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures" / "audit"
 NODE_ID = re.compile(r"^record:[a-z0-9]+(?:-[a-z0-9]+)*$")
