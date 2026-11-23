@@ -17,6 +17,8 @@ every write back before the run counts as done.
 The project was called vinc-relate until 2026-11-24. The `vinc-relate` command and `import vinc_relate`
 still work for one more release.
 
+![decisis demo: a dependency audit on synthetic data, from the decision to the advisory it breaks](docs/media/demo.gif)
+
 ```mermaid
 flowchart LR
     V[("Vinc graph<br/>persistent")] -- "checkout: seeds, depth" --> S["snapshot.json"]
