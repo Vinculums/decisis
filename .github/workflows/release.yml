@@ -1,0 +1,47 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the sdist and the wheel
+        run: |
+          python -m pip install --disable-pip-version-check -q build
+          python -m build
+      - name: The wheel runs the demo and the comparison outside the repository
+        run: |
+          python -m venv /tmp/check
+          /tmp/check/bin/pip install --disable-pip-version-check -q dist/*.whl
+          cd /tmp
+          /tmp/check/bin/decisis demo --out /tmp/demo-out
+          /tmp/check/bin/decisis compare > /tmp/compare.md
+          /tmp/check/bin/vinc-relate --help > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
