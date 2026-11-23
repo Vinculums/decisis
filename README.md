@@ -4,9 +4,11 @@
 
 [![test](https://github.com/Vinculums/decisis/actions/workflows/test.yml/badge.svg)](https://github.com/Vinculums/decisis/actions/workflows/test.yml)
 [![PyPI](https://img.shields.io/pypi/v/decisis.svg)](https://pypi.org/project/decisis/)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/pypi/pyversions/decisis.svg)](https://pypi.org/project/decisis/)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/Vinculums/decisis/blob/main/LICENSE)
+[![Built on Relate](https://img.shields.io/badge/built%20on-Relate-6E40C9.svg)](https://github.com/relatedb/relate)
 
-![decisis demo: a dependency audit on synthetic data, from the decision to the advisory it breaks](docs/media/demo.gif)
+![decisis demo: a dependency audit on synthetic data, from the decision to the advisory it breaks](https://raw.githubusercontent.com/Vinculums/decisis/main/docs/media/demo.gif)
 
 decisis (from *stare decisis*, "stand by what was decided") is a command-line tool and Python package.
 It takes the decisions a task needs, joins them with code paths and outside facts (an npm lockfile and
@@ -62,7 +64,7 @@ The rule lives in the team's decisions, the dependency chain in the lockfile and
 no single source holds the connection.
 
 **2. Use your own decisions.** Write a snapshot: one JSON file of nodes and edges. This one has an app,
-a checkout flow, one decision and one incident record ([`docs/data-model.md`](docs/data-model.md) has
+a checkout flow, one decision and one incident record ([`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md) has
 every field):
 
 ```json
@@ -156,7 +158,7 @@ decisis propose report.json --repo Demo --space demo-space --out plan.json
 
 ## Use it from an AI agent
 
-[`skills/decisis/SKILL.md`](skills/decisis/SKILL.md) is a skill for a coding agent such as Claude Code. It
+[`skills/decisis/SKILL.md`](https://github.com/Vinculums/decisis/blob/main/skills/decisis/SKILL.md) is a skill for a coding agent such as Claude Code. It
 covers when to reach for `audit`, `impact` or `paths`, how to check out only what the task names, how to
 read a finding, and the rule that the agent shows the write set and digest to the person and stops. The
 agent never approves its own write. To use it, copy the directory to where your agent loads skills (for
@@ -278,16 +280,16 @@ data only). The committed copies come from the approved run, so `git diff demo/t
 only its `timestamps` block changed; `sample.rl` is rebuilt, so its bytes differ. The sandbox itself is
 deleted.
 
-More in [`docs/architecture.md`](docs/architecture.md) (modules, the sandbox lifecycle, the queries and
-the write path), [`docs/data-model.md`](docs/data-model.md) (the snapshot, the Relate graph, the report
-and the plan) and [`docs/threat-model.md`](docs/threat-model.md) (what the sandbox protects and what it
+More in [`docs/architecture.md`](https://github.com/Vinculums/decisis/blob/main/docs/architecture.md) (modules, the sandbox lifecycle, the queries and
+the write path), [`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md) (the snapshot, the Relate graph, the report
+and the plan) and [`docs/threat-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/threat-model.md) (what the sandbox protects and what it
 does not). `docs/media/make_media.py` redraws the demo recording and the social preview.
 
 ## Name and history
 
 The project was called vinc-relate until 2026-11-24. The `vinc-relate` command and `import vinc_relate`
-still work for one more release. It is an entry for the Relate by Neo4j hackathon, "Context, Connected".
+still work until 0.2.0. It is an entry for the Relate by Neo4j hackathon, "Context, Connected".
 
 ## License
 
-Apache-2.0. See [`LICENSE`](LICENSE).
+Apache-2.0. See [`LICENSE`](https://github.com/Vinculums/decisis/blob/main/LICENSE).

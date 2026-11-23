@@ -1,14 +1,32 @@
 [project]
 name = "decisis"
-version = "0.1.0"
+version = "0.1.1"
 description = "Stand by what was decided: join a team's decisions with code and outside facts in a throwaway Relate graph, and keep only verified findings. Works offline; connects to Vinc when you configure it."
+readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 dependencies = ["relate-db==1.0.2"]
+keywords = ["decisions", "knowledge-graph", "cypher", "relate", "dependency-audit", "impact-analysis", "ai-agents"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
 
 [project.urls]
 Repository = "https://github.com/Vinculums/decisis"
+Documentation = "https://github.com/Vinculums/decisis#readme"
+Issues = "https://github.com/Vinculums/decisis/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
