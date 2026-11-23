@@ -45,7 +45,7 @@ class VincMCP:
     def tool(self, name: str, arguments: dict) -> dict:
         if self.session is None:
             self._post({"jsonrpc": "2.0", "id": 0, "method": "initialize",
-                        "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "vinc-relate", "version": "0"}}})
+                        "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "decisis", "version": "0"}}})
         args = {**arguments, **({"space": self.space} if self.space else {})}
         reply = self._post({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}})
         result = reply.get("result") or {}

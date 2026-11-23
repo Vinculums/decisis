@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 import relate
 
-from vinc_relate import checkout as co
-from vinc_relate.queries import load as query
-from vinc_relate import cli
-from vinc_relate.sandbox import LoadMismatch, Sandbox, sandbox
+from decisis import checkout as co
+from decisis.queries import load as query
+from decisis import cli
+from decisis.sandbox import LoadMismatch, Sandbox, sandbox
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "vinc_subgraph.json"
 

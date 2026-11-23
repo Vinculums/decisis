@@ -44,7 +44,7 @@ def _mismatch(graph: Subgraph, got: dict) -> str:
 
 class Sandbox:
     def __init__(self, root: Path | None = None):
-        self.dir = (root or default_root()) / f"vinc-relate-{uuid.uuid4().hex}"
+        self.dir = (root or default_root()) / f"decisis-{uuid.uuid4().hex}"
         self.dir.mkdir(mode=0o700)
         self.path = self.dir / "task.rl"
         self.loaded = False

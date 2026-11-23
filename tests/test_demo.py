@@ -6,9 +6,9 @@ from pathlib import Path
 import relate
 
 from test_audit import no_network
-from vinc_relate import checkout as co
-from vinc_relate import cli, demo
-from vinc_relate.fake_vinc import FakeVinc
+from decisis import checkout as co
+from decisis import cli, demo
+from decisis.fake_vinc import FakeVinc
 
 ROOT = Path(__file__).resolve().parents[1]
 FIX = ROOT / "fixtures"

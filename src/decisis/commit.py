@@ -75,7 +75,7 @@ def propose(report: dict, repo: str, space: str, today: str | None = None,
                                 "versions": versions, "statement": statement, "severity": first["severity"],
                                 "dependency_paths": [f["path"] for _, f in found],
                                 "violates": sorted(d for d, p in verdicts.items() if p["verdict"] == "violated"),
-                                "source": first["source_url"], "source_system": "vinc-relate audit over OSV",
+                                "source": first["source_url"], "source_system": "decisis audit over OSV",
                                 "advisory_fetched_at": first.get("fetched_at"), "advisory_content_hash": first.get("content_hash"),
                                 "measured_at": today, "measured_ref": ref or lock_hash or "lockfile",
                                 "lockfile_hash": lock_hash,
@@ -96,7 +96,7 @@ def render(plan: dict) -> str:
         out.append(f"  + {e['from']} -{e['type']}-> {e['to']}")
     if plan["held"]:
         out += ["", f"  held back, not written: {len(plan['held'])}"]
-    out += ["", f"Approve with: vinc-relate commit <plan file> --approve {plan['digest']}"]
+    out += ["", f"Approve with: decisis commit <plan file> --approve {plan['digest']}"]
     return "\n".join(out)
 
 
@@ -114,7 +114,7 @@ def commit(plan: dict, approve: str, client) -> dict:
     edges = [e for e in plan["edges"] if e["from"] not in existing]
     reply = {}
     if nodes:
-        op = str(uuid.uuid5(uuid.NAMESPACE_URL, f"vinc-relate:{plan['digest']}"))
+        op = str(uuid.uuid5(uuid.NAMESPACE_URL, f"decisis:{plan['digest']}"))
         reply = client.tool("vinc_ingest", {"nodes": nodes, "edges": edges, "create_only": True, "operation_id": op})
     problems = list(reply.get("warnings") or [])
     if reply.get("partial"):

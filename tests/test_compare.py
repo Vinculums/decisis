@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from vinc_relate import cli, compare
+from decisis import cli, compare
 
 ROOT = Path(__file__).resolve().parents[1]
 TASKS = ROOT / "bench" / "tasks.json"

@@ -28,9 +28,9 @@ Vinc. You can write one by hand from your own notes, decisions and incident reco
 Save it as `my-snapshot.json` and run, offline:
 
 ```
-.venv/bin/vinc-relate paths my-snapshot.json record:checkout-timeout-october concept:shop-web
-.venv/bin/vinc-relate impact my-snapshot.json src/checkout/pay.py --format text
-.venv/bin/vinc-relate audit my-snapshot.json fixtures/audit/demo-lockfile.json --repo Shop --osv-cache fixtures/audit/osv-cache.json
+.venv/bin/decisis paths my-snapshot.json record:checkout-timeout-october concept:shop-web
+.venv/bin/decisis impact my-snapshot.json src/checkout/pay.py --format text
+.venv/bin/decisis audit my-snapshot.json fixtures/audit/demo-lockfile.json --repo Shop --osv-cache fixtures/audit/osv-cache.json
 ```
 
 `paths` finds the two-hop route from the incident through the checkout flow to the app. `impact` lists
@@ -70,7 +70,7 @@ Edge types `checkout` keeps from Vinc: `ABOUT`, `RELATED_TO`, `PREREQUISITE_OF`,
 `ATTACHES_TO` with a role is read as that role (`relates_to` becomes `RELATED_TO`). A hand-written
 snapshot may use any type; `impact` follows only `ABOUT`, `DERIVES_FROM`, `INHERITS_FROM`, a record's
 `RELATED_TO`, `PREREQUISITE_OF`, `DERIVES_FROM` or `INHERITS_FROM`, and `RELATED_TO` between concepts
-from one that names no code (see `CARRIES` in `src/vinc_relate/impact.py`).
+from one that names no code (see `CARRIES` in `src/decisis/impact.py`).
 
 ## The Relate graph of an audit
 

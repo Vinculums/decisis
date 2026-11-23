@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from vinc_relate import audit, cli, external, semver
-from vinc_relate import checkout as co
+from decisis import audit, cli, external, semver
+from decisis import checkout as co
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures" / "audit"
 CACHE = FIX / "osv-cache.json"
@@ -112,7 +112,7 @@ def test_a_live_audit_without_the_network_says_so_in_one_line_and_points_at_the_
     assert e.value.code == 1
     err = capsys.readouterr().err
     assert err.count("\n") == 1 and "Traceback" not in err
-    assert err.startswith("vinc-relate: error: could not reach OSV at https://api.osv.dev/") and "--osv-cache" in err
+    assert err.startswith("decisis: error: could not reach OSV at https://api.osv.dev/") and "--osv-cache" in err
 
 
 def test_a_cache_without_its_fetch_time_is_refused(tmp_path, capsys):

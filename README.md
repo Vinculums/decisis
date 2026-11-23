@@ -1,13 +1,20 @@
-# vinc-relate
+# decisis
 
-[![test](https://github.com/Vinculums/vinc-relate/actions/workflows/test.yml/badge.svg)](https://github.com/Vinculums/vinc-relate/actions/workflows/test.yml)
+[![test](https://github.com/Vinculums/decisis/actions/workflows/test.yml/badge.svg)](https://github.com/Vinculums/decisis/actions/workflows/test.yml)
 
-**Persistent knowledge, ephemeral reasoning.** A team's decisions live in a durable knowledge graph
-(Vinc); vinc-relate checks out only the slice a task needs, joins it with outside facts (an npm lockfile
-and OSV advisories) in a throwaway [Relate](https://github.com/relatedb/relate) graph, finds multi-hop
-paths from a decision to the thing that breaks it, and deletes the graph when the task ends. Nothing
-goes back to the durable graph unless a person approves the exact write set by its digest, and what
-was written is read back before the run counts as done.
+**Stand by what was decided.** decisis (from *stare decisis*) checks work against the decisions a team
+has already made. It takes the slice of decisions a task needs, joins it with outside facts (an npm
+lockfile and OSV advisories) in a throwaway [Relate](https://github.com/relatedb/relate) graph, finds
+multi-hop paths from a decision to the thing that breaks it, and deletes the graph when the task ends.
+
+It runs offline with no account: decisions come from a plain JSON snapshot (`docs/data-model.md`).
+Connecting a [Vinc](https://vincs.io) space is optional and yours to configure (`VINC_API_KEY`, see
+[What needs an account](#what-needs-an-account)): then `checkout` reads the snapshot from Vinc, and
+`commit` writes findings back only after a person approves the exact write set by its digest, reading
+every write back before the run counts as done.
+
+The project was called vinc-relate until 2026-11-24. The `vinc-relate` command and `import vinc_relate`
+still work for one more release.
 
 ```mermaid
 flowchart LR
@@ -30,17 +37,17 @@ You need Python 3.11 or newer, git and [uv](https://docs.astral.sh/uv/). No Vinc
 The install fetches `relate-db` from PyPI once; every command after it runs offline.
 
 ```
-git clone https://github.com/Vinculums/vinc-relate.git
-cd vinc-relate
+git clone https://github.com/Vinculums/decisis.git
+cd decisis
 uv venv .venv && uv pip install --python .venv/bin/python -e ".[dev]"
 .venv/bin/python -m pytest -q
-.venv/bin/vinc-relate demo
+.venv/bin/decisis demo
 ```
 
 Without uv: `python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"`. On Windows the scripts are
 under `.venv\Scripts\` instead of `.venv/bin/`.
 
-`vinc-relate demo` runs the whole procedure on synthetic data in under a second: a synthetic Vinc
+`decisis demo` runs the whole procedure on synthetic data in under a second: a synthetic Vinc
 space served by an in-process fake Vinc, a checkout of only the app's knowledge (3 of 9 nodes), a
 Relate graph that joins it with the demo lockfile and cached OSV advisories (14 nodes, 15 edges), a
 five-hop path from a decision to an advisory, a Checker that re-derives each proposed record from the
@@ -56,7 +63,7 @@ The rule lives in the knowledge graph, the dependency chain in the lockfile and 
 no single source holds the connection. Then approve, as the person would:
 
 ```
-.venv/bin/vinc-relate demo --approve ba54a17c1d30b1ec
+.venv/bin/decisis demo --approve d761d1c8a44d62e2
 git diff demo/transcript.json
 ```
 
@@ -71,7 +78,7 @@ deleted.
 ## Does the graph help? The measured comparison
 
 ```
-.venv/bin/vinc-relate compare
+.venv/bin/decisis compare
 ```
 
 `compare` runs nine tasks from `bench/tasks.json` three ways, offline and without a model:
@@ -129,10 +136,10 @@ example, so you can run `paths`, `impact` and `audit` on your own knowledge with
 Try them on the synthetic fixtures:
 
 ```
-.venv/bin/vinc-relate paths fixtures/vinc_subgraph.json record:tls-advisory-example concept:service-api
-.venv/bin/vinc-relate impact fixtures/impact/vinc.json reports/export.py storage/ --format text
-.venv/bin/vinc-relate audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json
-.venv/bin/vinc-relate propose report.json --repo Demo --space demo-space --out plan.json
+.venv/bin/decisis paths fixtures/vinc_subgraph.json record:tls-advisory-example concept:service-api
+.venv/bin/decisis impact fixtures/impact/vinc.json reports/export.py storage/ --format text
+.venv/bin/decisis audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json
+.venv/bin/decisis propose report.json --repo Demo --space demo-space --out plan.json
 ```
 
 `report.json`, `plan.json` and `snapshot.json` at the repository root are ignored by git. Without
@@ -142,8 +149,8 @@ points at `--osv-cache`.
 With a Vinc account (needs a key):
 
 ```
-VINC_API_KEY=<read-only key> VINC_SPACE=<space id> .venv/bin/vinc-relate checkout <seed id> ... --out snapshot.json
-VINC_API_KEY=<full key> .venv/bin/vinc-relate commit plan.json --approve <digest>
+VINC_API_KEY=<read-only key> VINC_SPACE=<space id> .venv/bin/decisis checkout <seed id> ... --out snapshot.json
+VINC_API_KEY=<full key> .venv/bin/decisis commit plan.json --approve <digest>
 ```
 
 Without `VINC_SPACE`, `checkout` reads the key's default space, and the snapshot's `meta.space` says
@@ -151,13 +158,13 @@ Without `VINC_SPACE`, `checkout` reads the key's default space, and the snapshot
 
 ## How an agent uses it
 
-`skills/vinc-relate/SKILL.md` is a skill for a coding agent such as Claude Code: when to reach for
+`skills/decisis/SKILL.md` is a skill for a coding agent such as Claude Code: when to reach for
 `audit`, `impact` or `paths`, how to check out only what the task names, how to read a finding, and the
 rule that the agent shows the write set and digest to the person and stops. The agent never approves
 its own write. To use it, put the directory where your agent loads skills (for Claude Code,
-`.claude/skills/vinc-relate/`) with `vinc-relate` on the agent's `PATH`.
+`.claude/skills/decisis/`) with `decisis` on the agent's `PATH`.
 
-vinc-relate itself calls no language model. The agent is the reasoner that chooses seeds, runs the
+decisis itself calls no language model. The agent is the reasoner that chooses seeds, runs the
 bounded queries and explains the paths; the tool gives it a graph it cannot write to, findings that
 carry their evidence, and a write path that needs a person's digest.
 
@@ -177,7 +184,7 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - `commit` refuses a digest that does not match the plan as it stands, writes with `create_only`, and
   fails when a node, a property or an edge's type or direction does not come back.
 - A live run against a real Vinc space wrote and read back seven records with `create_only`, and a second
-  run with the same approval wrote nothing. That space is not public; `vinc-relate demo --approve` is the
+  run with the same approval wrote nothing. That space is not public; `decisis demo --approve` is the
   reproducible version.
 
 Future work, not built:

@@ -31,7 +31,7 @@ def bounded(lo: int, hi: int):
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="vinc-relate")
+    ap = argparse.ArgumentParser(prog="decisis")
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("checkout", help="export a bounded subgraph from Vinc to a JSON snapshot")
     c.add_argument("seeds", nargs="+")

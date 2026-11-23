@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from vinc_relate import checkout as co
+from decisis import checkout as co
 
 
 def raw(nodes, edges):

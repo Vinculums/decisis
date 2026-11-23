@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from vinc_relate import checkout as co
-from vinc_relate import cli, impact
-from vinc_relate.queries import load as query
+from decisis import checkout as co
+from decisis import cli, impact
+from decisis.queries import load as query
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "impact" / "vinc.json"
 
