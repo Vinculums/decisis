@@ -1,6 +1,7 @@
 # decisis
 
 [![test](https://github.com/Vinculums/decisis/actions/workflows/test.yml/badge.svg)](https://github.com/Vinculums/decisis/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/decisis.svg)](https://pypi.org/project/decisis/)
 
 **Stand by what was decided.** decisis (from *stare decisis*) checks work against the decisions a team
 has already made. It takes the slice of decisions a task needs, joins it with outside facts (an npm
@@ -32,6 +33,18 @@ flowchart LR
 Entry for the Relate by Neo4j hackathon, "Context, Connected". Licensed under Apache-2.0 (`LICENSE`).
 
 ## Five-minute setup
+
+To try it, install it from [PyPI](https://pypi.org/project/decisis/) and run the demo, which needs
+no account and no network after the install:
+
+```
+pip install decisis
+decisis demo
+```
+
+The [npm package](https://www.npmjs.com/package/decisis) only points here; decisis is a Python tool.
+
+To work on it, set it up from the repository:
 
 You need Python 3.11 or newer, git and [uv](https://docs.astral.sh/uv/). No Vinc account and no API key.
 The install fetches `relate-db` from PyPI once; every command after it runs offline.
