@@ -46,3 +46,15 @@ def test_the_readme_digest_is_the_one_the_demo_prints():
 def test_the_readme_table_is_the_committed_benchmark_table():
     committed = (ROOT / "bench" / "results.md").read_text(encoding="utf-8").split("\n\n")[0].strip()
     assert committed in README
+
+
+def test_the_readme_quick_start_prints_what_the_readme_shows(tmp_path, capsys, no_network):
+    block = re.search(r"```json\n(.*?)```", README, re.S).group(1)
+    snap = tmp_path / "my-snapshot.json"
+    snap.write_text(block, encoding="utf-8")
+    shown = re.search(r"\$ decisis impact my-snapshot.json src/checkout/pay.py --format text\n(.*?)```", README, re.S).group(1)
+    out = run(capsys, "impact", str(snap), "src/checkout/pay.py", "--format", "text")
+    assert out.strip() == shown.strip()
+    report = json.loads(run(capsys, "audit", str(snap), str(ROOT / "fixtures/audit/demo-lockfile.json"), "--repo", "Shop",
+                            "--osv-cache", str(ROOT / "fixtures/audit/osv-cache.json")))
+    assert report["violations"] == 3
