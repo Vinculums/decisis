@@ -80,18 +80,30 @@ class Suggested:
     skipped: dict[str, str] = field(default_factory=dict)
 
 
-def repository_files(root: Path) -> tuple[list[str], list[str]]:
-    notes: list[str] = []
+def repository_files(root: Path) -> tuple[list[str], list[tuple[str, str]]]:
+    notes: list[tuple[str, str]] = []
     files = owners.git_files(root)
     if files is None:
         files = walk(root, ignored(root, notes))
     files = [f for f in files if not SKIP_DIRS.intersection(f.split("/")[:-1])]
+    named = [f for f in files if utf8(f)]
+    if len(named) < len(files):
+        notes.append((".", f"{count(len(files) - len(named), 'file name')} {'is' if len(files) - len(named) == 1 else 'are'} not UTF-8; --suggest-refs does not search them"))
+        files = named
     if len(files) > owners.MAX_FILES:
         raise TooLarge(f"the repository has {len(files)} files, more than the {owners.MAX_FILES} --suggest-refs searches")
     return files, notes
 
 
-def ignored(root: Path, notes: list[str]) -> list[re.Pattern]:
+def utf8(name: str) -> bool:
+    try:
+        name.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def ignored(root: Path, notes: list[tuple[str, str]]) -> list[re.Pattern]:
     path = root / ".gitignore"
     if not path.is_file() or not path.resolve().is_relative_to(root.resolve()):
         return []
@@ -103,7 +115,7 @@ def ignored(root: Path, notes: list[str]) -> list[re.Pattern]:
         try:
             patterns.append(owners.compile_pattern(line))
         except owners.Unsupported:
-            notes.append(f".gitignore line {n}: {line} uses negation, a range or an escape, which --suggest-refs does not read")
+            notes.append((".gitignore", f"line {n}: {line} uses negation, a range or an escape, which --suggest-refs does not read"))
     return patterns
 
 
@@ -226,5 +238,6 @@ def suggest(index: Index, body: str, base: str = "") -> Suggested:
     return found
 
 
-def count(paths: list[str]) -> str:
-    return "1 path" if len(paths) == 1 else f"{len(paths)} paths"
+def count(paths: list[str] | int, noun: str = "path") -> str:
+    n = paths if isinstance(paths, int) else len(paths)
+    return f"1 {noun}" if n == 1 else f"{n} {noun}s"

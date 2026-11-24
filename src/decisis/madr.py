@@ -19,15 +19,24 @@ NAME_CHARS = 60
 SECTIONS = ("Context and Problem Statement", "Considered Options", "Decision Outcome")
 
 
+def inside(root: Path, path: Path, shown: str) -> None:
+    try:
+        resolved, top = path.resolve(), root.resolve()
+    except (OSError, RuntimeError) as e:
+        raise ValueError(f"{shown} cannot be resolved ({e})") from None
+    if not path.is_relative_to(root) or not resolved.is_relative_to(top):
+        raise ValueError(f"{shown} is outside the repository directory {root}")
+
+
 def directory(root: Path, adr_dir: str | None) -> Path:
     if adr_dir is None:
         found = init.Tree(root).located(None, init.ADR_DIRS)
         if not found:
             raise ValueError(f"no ADR directory: looked in {', '.join(init.ADR_DIRS)}; name one with --adr-dir")
+        inside(root, found[0], f"the ADR directory {found[0].relative_to(root).as_posix()}")
         return found[0]
     path = Path(os.path.normpath(root / adr_dir))
-    if not path.is_relative_to(root) or not path.resolve().is_relative_to(root.resolve()):
-        raise ValueError(f"--adr-dir {adr_dir} is outside the repository directory {root}")
+    inside(root, path, f"--adr-dir {adr_dir}")
     if path.exists() and not path.is_dir():
         raise ValueError(f"--adr-dir {adr_dir} is not a directory")
     return path
@@ -110,11 +119,13 @@ def write(repo_dir: str | Path, title: str, adr_dir: str | None = None, code_ref
     if fm.get("code_ref", []) != refs or fm.get("rule") != stated:
         raise ValueError("the new ADR would not read back with the same code refs and rule")
     folder = directory(root, adr_dir)
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / next_name(folder, title)
     try:
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / next_name(folder, title)
         with path.open("x", encoding="utf-8", newline="\n") as f:
             f.write(text)
     except FileExistsError:
         raise ValueError(f"{path.relative_to(root).as_posix()} already exists; nothing was written") from None
+    except OSError as e:
+        raise ValueError(f"cannot write the new ADR in {folder.relative_to(root).as_posix()}: {e.strerror or e}") from None
     return path

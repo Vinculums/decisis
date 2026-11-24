@@ -108,8 +108,8 @@ class Tree:
         except suggest.TooLarge as e:
             self.problem(".", f"{e}; no code refs are suggested", NOT_READ)
             return None
-        for note in notes:
-            self.problem(".gitignore", note, NOT_READ)
+        for where, note in notes:
+            self.problem(where, note, NOT_READ)
         return suggest.Index.of(files)
 
     def node_id(self, kind: str, path: Path, extra: str = "") -> str:

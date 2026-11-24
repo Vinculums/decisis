@@ -104,3 +104,20 @@ def test_the_data_model_example_writes_an_adr_init_reads(tmp_path, capsys):
     [node] = init.build(root)["nodes"]
     assert node["props"]["code_ref"] == ["src/payments/"] and node["props"]["source_file"] == path.relative_to(root).as_posix()
     assert not rules.parse(node["props"]["rule"]).problems
+
+
+def test_a_default_adr_directory_that_links_outside_the_repository_is_refused(tmp_path, capsys):
+    root, outside = tmp_path / "repo", tmp_path / "outside"
+    (root / "docs").mkdir(parents=True)
+    outside.mkdir()
+    (root / "docs" / "adr").symlink_to(outside, target_is_directory=True)
+    assert "the ADR directory docs/adr is outside the repository" in refused(capsys, "Escape", "--repo-dir", str(root))
+    assert list(outside.iterdir()) == []
+
+
+def test_an_adr_dir_through_a_symlink_loop_is_refused_with_a_clear_error(tmp_path, capsys):
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "l1").symlink_to("l2")
+    (root / "l2").symlink_to("l1")
+    assert "--adr-dir l1/sub cannot be resolved" in refused(capsys, "Loop", "--repo-dir", str(root), "--adr-dir", "l1/sub")

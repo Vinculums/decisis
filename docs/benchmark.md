@@ -108,9 +108,13 @@ won for a reason other than the graph:
   too), and weave-gitops ADR 3 gains the status superseded and a `SUPERSEDES` edge from ADR 11; the other three
   snapshots are unchanged. The stored snapshots were kept so that the change in the numbers above comes from A
   alone. On the ten impact tasks of those two repositories, the rebuilt snapshots give every method the same scores.
-- **`init --suggest-refs` finds most of the hand mapping by itself.** Run on the five clones, the code refs it
-  suggests are scored against the hand mapping (`bench/holdout/score_suggest_refs.py`, which needs the clones;
-  the result is `bench/holdout/suggest-refs.json`). The snapshots, tasks and results above are not rebuilt from
+- **`init --suggest-refs` is scored in-sample on this set, not held out.** Run on the five clones, the code refs
+  it suggests are scored against the hand mapping (`bench/holdout/score_suggest_refs.py`, which needs the clones;
+  the result is `bench/holdout/suggest-refs.json`). Four of its matching rules were chosen after looking at these
+  five repositories: reading link and GitHub URL targets, counting only words with a `/` in fenced code blocks,
+  matching a bare word only at the root, and skipping the ADR's own directory. The mapping was written before
+  `--suggest-refs` existed, but the rules were fitted on it, so the score below shows how well the rules fit
+  this set and does not show that they generalise. The snapshots, tasks and results above are not rebuilt from
   it.
 
 | Repository | Suggested | Mapped | Matched | Precision | Recall |

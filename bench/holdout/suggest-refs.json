@@ -1,6 +1,7 @@
 {
  "command": "python bench/holdout/score_suggest_refs.py CLONES --out bench/holdout/suggest-refs.json --table bench/holdout/suggest-refs.md",
  "tool": "decisis init --suggest-refs",
+ "in_sample": "In-sample, not a held-out result: the matching rules of `--suggest-refs` (link and GitHub URL targets, only words with a `/` in fenced code blocks, bare words only at the root, the ADR's own directory skipped) were chosen after looking at these five repositories.",
  "repositories": [
   {
    "repo": "cf-cli",

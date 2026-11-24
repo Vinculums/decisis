@@ -175,8 +175,31 @@ def test_the_docs_describe_suggest_refs_and_show_the_committed_score():
     assert committed in (ROOT / "docs" / "benchmark.md").read_text(encoding="utf-8")
     result = json.loads((ROOT / "bench" / "holdout" / "suggest-refs.json").read_text(encoding="utf-8"))
     assert f"precision {result['total']['precision']}" in model and f"recall {result['total']['recall']}" in model
+    assert "in-sample" in model and "in-sample" in (ROOT / "docs" / "benchmark.md").read_text(encoding="utf-8")
+    assert result["in_sample"] in (ROOT / "bench" / "holdout" / "suggest-refs.md").read_text(encoding="utf-8")
 
 
 def test_a_path_with_a_colon_is_never_suggested(tmp_path):
     repo = write(tmp_path / "repo", {"docs/adr/0001-colon.md": "# Colon\n\nSee `a:b/c.py` and `src/c.py:12`.\n", "a:b/c.py": "", "src/c.py": ""})
     assert decision(init.build(repo, "Shop", suggest_refs=True), "0001-colon.md")["code_ref"] == ["Shop:src/c.py"]
+
+
+@pytest.mark.parametrize("git", [False, True])
+def test_a_file_name_that_is_not_utf8_is_left_out_and_the_snapshot_is_still_written(tmp_path, capsys, git):
+    if git and shutil.which("git") is None:
+        pytest.skip("needs git")
+    repo = write(tmp_path / "repo", {"docs/adr/0001-x.md": "# Use x\n\nWe keep `x.go` and `src/y.go` as they are.\n", "src/y.go": ""})
+    odd = repo / "d\udcff"
+    try:
+        odd.mkdir()
+    except (OSError, UnicodeEncodeError):
+        pytest.skip("the file system refuses a name that is not UTF-8")
+    (odd / "x.go").write_text("", encoding="utf-8")
+    if git:
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    out = tmp_path / "snapshot.json"
+    capsys.readouterr()
+    assert cli.main(["init", "--repo-dir", str(repo), "--suggest-refs", "--out", str(out)]) == 0
+    snap = json.loads(out.read_text(encoding="utf-8"))
+    assert decision(snap, "0001-x.md")["code_ref"] == ["src/y.go"]
+    assert {"file": ".", "reason": "1 file name is not UTF-8; --suggest-refs does not search them", "action": init.NOT_READ} in snap["meta"]["problems"]

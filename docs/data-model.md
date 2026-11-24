@@ -282,7 +282,9 @@ The decision gets each suggested path in `code_ref` (sorted, with `--repo` befor
 directory), `code_ref_source` set to `suggested`, and `code_ref_evidence`: one `{"code_ref": ..., "sentence": ...}`
 per path, the first sentence of the ADR that named it. An ADR with suggested paths is not listed under
 `kept without code paths`. On the five held-out repositories the suggestions match the hand mapping with
-precision 0.622 and recall 0.778 (`bench/holdout/suggest-refs.md`); review them before relying on them.
+precision 0.622 and recall 0.778 (`bench/holdout/suggest-refs.md`), but the matching rules above were chosen
+while looking at those repositories, so the score is in-sample and says nothing yet about other repositories.
+Review the suggestions before relying on them.
 
 ### CODEOWNERS owner sets become concepts
 

@@ -22,6 +22,9 @@ from decisis import init
 from decisis.impact import code_path
 
 HERE = Path(__file__).resolve().parent
+IN_SAMPLE = ("In-sample, not a held-out result: the matching rules of `--suggest-refs` (link and GitHub URL targets, only "
+             "words with a `/` in fenced code blocks, bare words only at the root, the ADR's own directory skipped) were "
+             "chosen after looking at these five repositories.")
 COMMAND = ("python bench/holdout/score_suggest_refs.py CLONES --out bench/holdout/suggest-refs.json "
            "--table bench/holdout/suggest-refs.md")
 
@@ -75,7 +78,7 @@ def table(result: dict) -> str:
     for r in [*result["repositories"], result["total"]]:
         shown = [("n/a" if r[k] is None else f"{r[k]:.3f}") for k in ("precision", "recall")]
         rows.append(f"| {r['repo']} | {r['suggested']} | {r['mapped']} | {r['matched']} | {shown[0]} | {shown[1]} |")
-    return "\n".join(rows) + f"\n\nMade with `{result['command']}`.\n"
+    return "\n".join(rows) + f"\n\n{IN_SAMPLE}\n\nMade with `{result['command']}`.\n"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -89,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         repos.append(score(a.clones / d.name, json.loads((d / "mapping.json").read_text(encoding="utf-8"))))
     total = {k: sum(r[k] for r in repos) for k in ("suggested", "mapped", "matched")}
     total = {"repo": "total", **total, "precision": ratio(total["matched"], total["suggested"]), "recall": ratio(total["matched"], total["mapped"])}
-    result = {"command": COMMAND, "tool": "decisis init --suggest-refs", "repositories": repos, "total": total}
+    result = {"command": COMMAND, "tool": "decisis init --suggest-refs", "in_sample": IN_SAMPLE, "repositories": repos, "total": total}
     a.out.write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     if a.table:
         a.table.write_text(table(result), encoding="utf-8")
