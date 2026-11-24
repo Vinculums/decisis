@@ -42,7 +42,8 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - Each format under the inventory table in [data-model.md](data-model.md#inventories) is read from a fixture in `fixtures/inventory/`
   into the same nodes and edges, and audited offline against a committed OSV cache; a binary `bun.lockb`, a
   `pom.xml` with a DOCTYPE and a YAML lockfile with an anchor are refused before they are parsed.
-- The MCP server lists four tools and no write. `query` is refused a write three separate ways, each tested
+- The MCP server lists five tools and no write; `check` over MCP gives the report `decisis check` gives, and
+  a changed snapshot is reloaded before the next call. `query` is refused a write three separate ways, each tested
   on its own: by the text check, by Relate's `EXPLAIN` plan, and by the read-only connection. Every reply
   stays under 1 MiB, and a server stopped during a call, or killed, leaves no sandbox behind.
 - The Mermaid and HTML views of `impact`, `check`, `paths` and `audit` match committed copies in

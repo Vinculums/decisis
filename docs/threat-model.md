@@ -114,9 +114,13 @@ leaves it out. A broken answer ends in the same one-line error and exit code 1 a
 `test_the_repr_of_the_client_and_the_bound_reader_never_holds_the_token`,
 `test_a_broken_answer_fails_the_command_with_a_message_and_no_traceback`.)
 
-**A read-only MCP server.** `decisis serve --mcp` lists only `impact`, `paths`, `audit` and `query`, and refuses
+**A read-only MCP server.** `decisis serve --mcp` lists only `impact`, `paths`, `audit`, `check` and `query`, and refuses
 any other tool name and any argument its schema does not list. Bounds are checked before a sandbox is
-built; a code path with `..`, an absolute path or another repository's prefix is refused. `audit` reads a
+built; a code path with `..`, an absolute path or another repository's prefix is refused. `check` refuses a
+changed path with `..`, an absolute path, a backslash or a control character, or one that resolves outside
+`--root`, and a `base` that starts with `-` or holds whitespace or a control character before git runs; git
+runs through the hardened helper and timeout of `check --base`. A snapshot file that changes and fails to
+load leaves the previous snapshot in use, and the reply says so. `audit` reads a
 lockfile only when its resolved path, after symlinks, lies under `--root`, and uses the network only with
 `--allow-network` and no `--osv-cache`. Each call builds and deletes its own sandbox inside one private
 `decisis-serve-<32 hex>` directory, which the server removes on SIGTERM, SIGINT or the end of stdin, even while a
@@ -124,7 +128,10 @@ call is still running; that directory records its owner like a task directory, s
 cleanup above removes it with the sandboxes inside. (`src/decisis/serve.py`; `test_a_write_shaped_request_is_refused_and_nothing_is_written`,
 `test_a_server_stopped_during_a_slow_call_leaves_no_sandbox`,
 `test_gc_removes_the_directory_of_a_server_killed_with_sigkill_and_keeps_a_live_one`,
-`test_the_audit_reads_only_under_the_root_and_refuses_an_escaping_symlink`, `test_the_audit_uses_the_network_only_when_allowed`.)
+`test_the_audit_reads_only_under_the_root_and_refuses_an_escaping_symlink`, `test_the_audit_uses_the_network_only_when_allowed`,
+`test_check_refuses_a_path_outside_the_root_and_a_base_that_could_pass_for_an_option_before_git_runs`,
+`test_check_over_mcp_with_base_runs_git_through_the_hardened_helper_and_matches_the_cli`,
+`test_a_snapshot_that_fails_to_reload_leaves_the_previous_one_and_the_reply_says_why`.)
 
 **A read-only `query`.** The `query` command and tool refuse a write three ways, and each is tested without
 the others. The text check refuses `CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`, `FOREACH`, `LOAD CSV`,

@@ -14,8 +14,8 @@ evidence, and a write path that needs a person's digest.
 
 ## Serve it over MCP
 
-`decisis serve --mcp` gives an agent the same `impact`, `paths`, `audit` and `query` as MCP tools over stdio, on
-one snapshot fixed when the server starts. It needs the optional `mcp` extra; the base install keeps
+`decisis serve --mcp` gives an agent the same `impact`, `paths`, `audit`, `check` and `query` as MCP tools over
+stdio, on the snapshot file named when the server starts. It needs the optional `mcp` extra; the base install keeps
 `relate-db` and `PyYAML` as its only dependencies. For Claude Code:
 
 ```
@@ -38,12 +38,45 @@ with the team:
 ```
 
 Relative paths are read from the directory the server starts in; use absolute paths if you are not sure
-which one that is. The server has no tool that writes, proposes or commits. The tools take the same
+which one that is. The server has no tool that writes, proposes or commits; `check` only reads files and
+runs `git diff`. The tools take the same
 bounds as the commands (`hops` 0 to 6 for `impact`, 1 to 6 for `paths`, `limit` 1 to 100; `audit` takes
 `depth` 1 to 16), refuse a code path outside the repository, and build and delete a sandbox for each call.
 `audit` takes the lockfile path as an argument and reads it only under `--root` (default: the current
 directory), after following symlinks. It reads advisories from `--osv-cache`; without a cache it asks
 api.osv.dev only when the server was started with `--allow-network`, and otherwise returns an error.
+
+## Judge a change with `check`
+
+`check` lets an agent judge its own change before it commits, without leaving the MCP session. It judges
+the repository under `--root` exactly as `decisis check --repo-dir <root>` does and returns the same
+report. Give one of:
+
+- `changed`: the changed files, relative to `--root`, for example `["src/shop/ui/view.py"]`. A path that
+  is absolute, starts with `~`, holds `..`, a backslash or a control character, or resolves outside
+  `--root` through a symlink is refused, as `impact` refuses one.
+- `base`: a git ref. The changed files are `git diff --name-only <base>...HEAD` in `--root`, run through
+  the same hardened git helper and 120 second timeout as `check --base`: the repository's hooks, fsmonitor
+  and pager are not run, and `GIT_*` variables are dropped. A `base` that starts with `-` or holds
+  whitespace or a control character is refused before git runs.
+
+and optionally `reviewers`, the handles that reviewed the change (for example `["@alice", "@org/team"]`).
+The summary gives the counts, the governing decisions, and the first 10 violations and unjudged entries
+with the file, the line, the decision, the rule and why; `"detail": "full"` gives the report
+`decisis check` prints. Read `unresolved` as not judged, never as a pass.
+
+## A changed snapshot is reloaded
+
+Long agent sessions outlive the snapshot the server started with. Before each tool call the server
+compares the snapshot file's mtime and size with the copy it holds, and reloads the file when either
+changed; the call is then answered from the new snapshot. After a reload the schema in the `query`
+tool's description is rebuilt, and the server sends `notifications/tools/list_changed` (on the
+2026-07-28 protocol, a `ToolsListChanged` event to clients listening with `subscriptions/listen`), so
+the client lists the tools again. If the new file fails to load, for example while it is still being
+written, the server keeps the previous snapshot, answers from it, and says so: a reply carries
+`reload_failed` with the reason, and an error result ends with the same note. The next call tries again.
+To replace a snapshot without a failed reload in between, write the new file next to it and rename it
+over the old one. The OSV cache and `--root` stay as they were at start.
 
 Each tool takes `detail`: `"summary"`, the default over MCP, gives counts, ids, titles and the first 10
 items of each list with a note on how to get the rest; `"full"` gives the whole report, the same JSON the

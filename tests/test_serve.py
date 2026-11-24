@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -18,9 +19,10 @@ pytest.importorskip("mcp")
 pytest.importorskip("jsonschema")
 
 import anyio
-from mcp import Client, ClientSession, StdioServerParameters
+from mcp import Client, ClientSession, StdioServerParameters, types
 
-from decisis import cli, impact
+from test_check import CHANGED, git_repo
+from decisis import check, cli, codeowners, impact
 from decisis import sandbox as sb
 from decisis import serve
 
@@ -30,6 +32,9 @@ AUDIT = FIX / "audit"
 IMPACT_SNAPSHOT = FIX / "impact" / "vinc.json"
 AUDIT_SNAPSHOT = AUDIT / "vinc.json"
 CACHE = AUDIT / "osv-cache.json"
+CHECK = FIX / "check"
+CHECK_SNAPSHOT = CHECK / "vinc.json"
+CHECK_REPO = CHECK / "repo"
 
 
 def tools(snapshot=AUDIT_SNAPSHOT, root=AUDIT, cache=CACHE, allow_network=False):
@@ -65,10 +70,10 @@ def boxes(monkeypatch, tmp_path):
     return root, made
 
 
-def test_the_server_lists_only_the_four_read_only_tools_with_the_cli_bounds():
+def test_the_server_lists_only_the_five_read_only_tools_with_the_cli_bounds():
     listed, _ = over_mcp(tools())
     by = {t.name: t for t in listed.tools}
-    assert sorted(by) == ["audit", "impact", "paths", "query"]
+    assert sorted(by) == ["audit", "check", "impact", "paths", "query"]
     assert all(t.annotations.read_only_hint and not t.annotations.destructive_hint for t in listed.tools)
     assert not by["audit"].annotations.open_world_hint
     hops = by["impact"].input_schema["properties"]["hops"]
@@ -76,6 +81,9 @@ def test_the_server_lists_only_the_four_read_only_tools_with_the_cli_bounds():
     p = by["paths"].input_schema["properties"]
     assert (p["hops"]["minimum"], p["hops"]["maximum"], p["limit"]["maximum"]) == (1, impact.MAX_HOPS, cli.MAX_LIMIT)
     assert all(t.input_schema["additionalProperties"] is False for t in listed.tools)
+    c = by["check"].input_schema["properties"]
+    assert sorted(c) == ["base", "changed", "detail", "reviewers"] and c["changed"]["maxItems"] == check.MAX_CHANGED
+    assert not by["check"].annotations.open_world_hint and by["check"].annotations.idempotent_hint
 
 
 def test_one_call_per_tool_gives_what_the_cli_gives(boxes, no_network, capsys):
@@ -296,7 +304,7 @@ def test_the_cli_serves_over_stdio(no_network):
                 result = await client.call_tool("impact", {"code_paths": ["reports/export.py"], "hops": 1})
                 return names, result
     names, result = anyio.run(drive)
-    assert names == ["audit", "impact", "paths", "query"]
+    assert names == ["audit", "check", "impact", "paths", "query"]
     assert not result.is_error and result.structured_content["hops"] == 1
 
 
@@ -477,3 +485,258 @@ def test_a_new_server_sweeps_the_directory_a_killed_server_left(tmp_path):
         p.wait()
         p.stdin.close()
         p.stdout.close()
+
+
+def cli_check(capsys, *args: str) -> tuple[int, dict]:
+    capsys.readouterr()
+    code = cli.main(["check", str(CHECK_SNAPSHOT), *args])
+    return code, json.loads(capsys.readouterr().out)
+
+
+def test_check_over_mcp_gives_what_the_cli_gives_for_changed_files(boxes, no_network, capsys):
+    root, made = boxes
+    args = {"changed": CHANGED, "reviewers": ["@alice"]}
+    _, (short, full) = over_mcp(tools(CHECK_SNAPSHOT, CHECK_REPO, None), ("check", args), ("check", {**args, "detail": "full"}))
+    code, shown = cli_check(capsys, "--repo-dir", str(CHECK_REPO), "--changed", *CHANGED, "--reviewers", "@alice")
+    assert code == 1 and not (short.is_error or full.is_error)
+    assert full.structured_content == shown and json.loads(text_of(full)) == shown
+    s = short.structured_content
+    assert s["detail"] == "summary" and "detail \"full\"" in s["note"] and s["summary"] == shown["summary"]
+    assert s["violations_count"] == len(shown["violations"]) == 3 and s["unresolved_count"] == len(shown["unresolved"])
+    key = ("file", "line", "decision", "rule", "why")
+    assert [{k: v[k] for k in key} for v in s["violations"]] == [{k: v[k] for k in key} for v in shown["violations"]]
+    assert s["governing"] == [{"decision": g["decision"], "title": g["title"]} for g in shown["governing"]]
+    assert s["changed"] == shown["changed"] and s["imports_count"] == len(shown["imports"])
+    assert "impact" not in s and "imports" not in s and len(json.dumps(s)) < len(json.dumps(shown))
+    assert made and list(root.iterdir()) == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_check_over_mcp_with_base_runs_git_through_the_hardened_helper_and_matches_the_cli(tmp_path, monkeypatch, no_network, capsys):
+    repo = git_repo(tmp_path)
+    marker = tmp_path / "ran"
+    hook = tmp_path / "monitor.sh"
+    hook.write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
+    hook.chmod(0o755)
+    subprocess.run(["git", "-C", str(repo), "config", "core.fsmonitor", str(hook)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "core.pager", f"touch {marker}"], check=True)
+    calls = []
+    real = codeowners.git
+
+    def spy(root, *args, timeout):
+        calls.append((root, args, timeout))
+        return real(root, *args, timeout=timeout)
+    monkeypatch.setattr(codeowners, "git", spy)
+    args = {"base": "main~1", "reviewers": ["@shop/payments"]}
+    _, (short, full) = over_mcp(tools(CHECK_SNAPSHOT, repo, None), ("check", args), ("check", {**args, "detail": "full"}))
+    diff = ("diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", "--relative", "main~1...HEAD", "--")
+    assert calls == [(repo.resolve(), diff, check.GIT_SECONDS)] * 2
+    code, shown = cli_check(capsys, "--repo-dir", str(repo), "--base", "main~1", "--reviewers", "@shop/payments")
+    assert code == 1 and full.structured_content == shown
+    assert shown["base"] == "main~1" and shown["changed"] == ["src/payments/charge.py", "src/shop/ui/late.py"]
+    assert short.structured_content["base"] == "main~1" and short.structured_content["violations_count"] == 1
+    assert not marker.exists()
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+def test_a_base_git_cannot_read_is_an_error_result(tmp_path, no_network):
+    repo = git_repo(tmp_path)
+    _, (bad, plain) = over_mcp(tools(CHECK_SNAPSHOT, repo, None), ("check", {"base": "no-such-ref"}),
+                               ("check", {"base": "main~1"}))
+    assert bad.is_error and "check: git diff no-such-ref...HEAD failed" in text_of(bad)
+    assert not plain.is_error
+
+
+@pytest.mark.parametrize("args,said", [
+    ({"changed": ["../outside.py"]}, "leaves the server's root"),
+    ({"changed": ["src/../../outside.py"]}, "leaves the server's root"),
+    ({"changed": ["src/payments/charge.py", "/etc/passwd"]}, "is not a path inside the server's root"),
+    ({"changed": ["~/notes.txt"]}, "is not a path inside the server's root"),
+    ({"changed": ["src\\payments\\charge.py"]}, "is not a path inside the server's root"),
+    ({"changed": ["src/x\x00.py"]}, "is not a path inside the server's root"),
+    ({"changed": ["escape/secret.py"]}, "is outside the server's root"),
+    ({"base": "-p"}, "base must name a commit"),
+    ({"base": "--output=/tmp/x"}, "base must name a commit"),
+    ({"base": "main --output=/tmp/x"}, "base must name a commit"),
+    ({"base": "main\tHEAD"}, "base must name a commit"),
+    ({"base": "main\n"}, "base must name a commit"),
+    ({"base": "main\x00"}, "base must name a commit"),
+    ({"base": "main\x1b[31m"}, "base must name a commit"),
+    ({"base": "main​"}, "base must name a commit"),
+    ({"base": "main　"}, "base must name a commit"),
+    ({"base": ""}, "base"),
+    ({}, "exactly one of them"),
+    ({"changed": ["src/payments/charge.py"], "base": "main"}, "exactly one of them"),
+    ({"changed": []}, "changed"),
+    ({"base": "main", "reviewers": "@alice"}, "reviewers"),
+    ({"base": "main", "repo_dir": "/"}, "Additional properties are not allowed"),
+])
+def test_check_refuses_a_path_outside_the_root_and_a_base_that_could_pass_for_an_option_before_git_runs(args, said, tmp_path, monkeypatch,
+                                                                                                       boxes):
+    root, made = boxes
+    repo = tmp_path / "repo"
+    shutil.copytree(CHECK_REPO, repo)
+    (repo / "escape").symlink_to(tmp_path)
+    calls = []
+    monkeypatch.setattr(codeowners, "git", lambda *a, **k: calls.append(a))
+    _, (bad,) = over_mcp(tools(CHECK_SNAPSHOT, repo, None), ("check", args))
+    assert bad.is_error and said in text_of(bad)
+    assert calls == [] and made == []
+
+
+COUNT = ("query", {"cypher": "MATCH (n) RETURN count(n) AS c"})
+
+
+def nodes_in(snapshot: Path) -> int:
+    return len(serve.co.load(snapshot.read_text(encoding="utf-8")).nodes)
+
+
+def rewrite(path: Path, data: bytes | None = None, ns: int | None = None) -> None:
+    before = path.stat().st_mtime_ns
+    if data is not None:
+        path.write_bytes(data)
+    when = before + 2_000_000_000 if ns is None else ns
+    os.utime(path, ns=(when, when))
+
+
+def held(tmp_path: Path, source: Path = IMPACT_SNAPSHOT) -> Path:
+    path = tmp_path / "snapshot.json"
+    path.write_bytes(source.read_bytes())
+    return path
+
+
+def reloading(t: serve.Tools, *steps, mode="legacy"):
+    heard = []
+
+    async def handler(message):
+        if isinstance(message, types.ToolListChangedNotification):
+            heard.append(message)
+
+    async def drive():
+        out = []
+        async with Client(serve.build(t), mode=mode, message_handler=handler) as client:
+            for step in steps:
+                if callable(step):
+                    step()
+                    continue
+                name, args = step
+                got = await client.list_tools(cache_mode="bypass") if name == "list" else await client.call_tool(name, args)
+                await anyio.wait_all_tasks_blocked()
+                out.append((got, len(heard)))
+            return out, client.server_capabilities
+    return anyio.run(drive)
+
+
+def query_description(listed) -> str:
+    return {t.name: t for t in listed.tools}["query"].description
+
+
+def test_a_changed_snapshot_is_reloaded_before_the_call_and_the_tool_list_is_announced(tmp_path, boxes):
+    path = held(tmp_path)
+    t = tools(path, ROOT, None)
+    (before, _), (first, h1), (again, h2), (second, h3), (after, _) = reloading(
+        t, ("list", None), COUNT, COUNT, lambda: rewrite(path, CHECK_SNAPSHOT.read_bytes()), COUNT, ("list", None))[0]
+    assert first.structured_content["rows"] == again.structured_content["rows"] == [{"c": nodes_in(IMPACT_SNAPSHOT)}]
+    assert second.structured_content["rows"] == [{"c": nodes_in(CHECK_SNAPSHOT)}] and nodes_in(CHECK_SNAPSHOT) != nodes_in(IMPACT_SNAPSHOT)
+    assert (h1, h2, h3) == (0, 0, 1)
+    assert "reload_failed" not in second.structured_content
+    assert query_description(before).endswith(serve.cypher.describe(t.graph))
+    assert query_description(after).endswith(serve.cypher.describe(serve.co.load(CHECK_SNAPSHOT.read_text(encoding="utf-8"))))
+    assert query_description(after) != query_description(before)
+
+
+def test_the_server_says_it_can_announce_a_changed_tool_list(tmp_path):
+    _, capabilities = reloading(tools(held(tmp_path), ROOT, None))
+    assert capabilities.tools.list_changed is True
+
+
+def test_a_reload_reaches_a_client_listening_on_the_2026_wire(tmp_path):
+    path = held(tmp_path)
+    t = tools(path, ROOT, None)
+
+    async def drive():
+        async with Client(serve.build(t)) as client:
+            assert client.protocol_version == "2026-07-28"
+            async with client.listen(tools_list_changed=True) as events:
+                await client.call_tool(*COUNT)
+                rewrite(path, CHECK_SNAPSHOT.read_bytes())
+                result = await client.call_tool(*COUNT)
+                with anyio.fail_after(10):
+                    event = await events.__anext__()
+                return result, event
+    result, event = anyio.run(drive)
+    assert result.structured_content["rows"] == [{"c": nodes_in(CHECK_SNAPSHOT)}]
+    assert type(event).__name__ == "ToolsListChanged"
+
+
+@pytest.mark.parametrize("breakage,why", [
+    (lambda p: rewrite(p, b'{"nodes": [}'), "JSONDecodeError"),
+    (lambda p: rewrite(p, b'{"meta": {}}'), "KeyError: 'nodes'"),
+    (lambda p: p.unlink(), "FileNotFoundError"),
+], ids=["not-json", "not-a-snapshot", "deleted"])
+def test_a_snapshot_that_fails_to_reload_leaves_the_previous_one_and_the_reply_says_why(breakage, why, tmp_path, boxes):
+    path = held(tmp_path)
+    t = tools(path, ROOT, None)
+    steps = reloading(t, COUNT, lambda: breakage(path), COUNT, ("query", {"cypher": "MATCH (n) DELETE n"}), ("list", None),
+                      lambda: path.write_bytes(CHECK_SNAPSHOT.read_bytes()), lambda: rewrite(path), COUNT)[0]
+    (ok, _), (kept, h1), (refused, _), (listed, _), (fixed, h2) = steps
+    old = [{"c": nodes_in(IMPACT_SNAPSHOT)}]
+    assert ok.structured_content["rows"] == old and not kept.is_error and kept.structured_content["rows"] == old
+    note = kept.structured_content["reload_failed"]
+    assert note.startswith(f"the snapshot reload failed: {path} changed on disk but could not be loaded") and why in note
+    assert note.endswith("this reply comes from the snapshot loaded before") and json.loads(text_of(kept)) == kept.structured_content
+    assert refused.is_error and "refused before running" in text_of(refused) and "the snapshot reload failed" in text_of(refused)
+    assert query_description(listed).endswith(serve.cypher.describe(t.graph))
+    assert fixed.structured_content["rows"] == [{"c": nodes_in(CHECK_SNAPSHOT)}] and "reload_failed" not in fixed.structured_content
+    assert (h1, h2) == (0, 1)
+
+
+def test_the_snapshot_is_reloaded_when_its_mtime_or_its_size_changes_and_only_then(tmp_path, monkeypatch):
+    path = held(tmp_path)
+    live = serve.Live(tools(path, ROOT, None))
+    loads = []
+    real = serve.co.load
+    monkeypatch.setattr(serve.co, "load", lambda text: loads.append(len(text)) or real(text))
+    assert live.current()[1:] == (False, None) and live.current()[1:] == (False, None) and loads == []
+    rewrite(path)
+    first, reloaded, failed = live.current()
+    assert (reloaded, failed, len(loads)) == (True, None, 1) and first.stamp == serve.stamp_of(path)
+    assert live.current()[1] is False and len(loads) == 1
+    same_time = path.stat().st_mtime_ns
+    rewrite(path, CHECK_SNAPSHOT.read_bytes(), ns=same_time)
+    assert path.stat().st_mtime_ns == same_time and path.stat().st_size != first.stamp[1]
+    second, reloaded, _ = live.current()
+    assert reloaded and len(loads) == 2 and len(second.graph.nodes) == nodes_in(CHECK_SNAPSHOT)
+    assert second.schema == serve.cypher.describe(second.graph) != first.schema
+
+
+def test_a_server_built_from_tools_without_a_snapshot_file_never_reloads(tmp_path):
+    t = tools(held(tmp_path), ROOT, None)
+    fixed = serve.Tools(t.graph, t.root)
+    live = serve.Live(fixed)
+    assert live.current() == (fixed, False, None)
+
+
+def test_the_cli_server_reloads_a_changed_snapshot_over_stdio(tmp_path, no_network):
+    path = held(tmp_path)
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+    params = StdioServerParameters(command=sys.executable, args=["-m", "decisis.cli", "serve", "--mcp", "--snapshot", str(path)],
+                                   env=env, cwd=str(ROOT))
+    heard = []
+
+    async def handler(message):
+        if isinstance(message, types.ToolListChangedNotification):
+            heard.append(message)
+
+    async def drive():
+        with anyio.fail_after(60):
+            async with Client(params, mode="legacy", message_handler=handler) as client:
+                first = await client.call_tool(*COUNT)
+                rewrite(path, CHECK_SNAPSHOT.read_bytes())
+                second = await client.call_tool(*COUNT)
+                await anyio.wait_all_tasks_blocked()
+                return first, second, client.server_capabilities
+    first, second, capabilities = anyio.run(drive)
+    assert first.structured_content["rows"] == [{"c": nodes_in(IMPACT_SNAPSHOT)}]
+    assert second.structured_content["rows"] == [{"c": nodes_in(CHECK_SNAPSHOT)}]
+    assert capabilities.tools.list_changed is True and len(heard) == 1
