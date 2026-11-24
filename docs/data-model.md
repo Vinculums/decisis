@@ -361,7 +361,7 @@ returns the same nodes and edges.
 
 | Format | `source_system` | Repository | `DEPENDS_ON` | `dev` |
 |---|---|---|---|---|
-| npm `package-lock.json` v2 or v3 | `npm-lockfile` | the root entry | `dependencies`, `devDependencies` and `optionalDependencies`, resolved through nested `node_modules` | the lockfile's `dev` |
+| npm `package-lock.json` v2 or v3 | `npm-lockfile` | the root entry | `dependencies`, `devDependencies`, `optionalDependencies` and `peerDependencies` (marked optional or peer; from the root they are shipped like `dependencies`), resolved through nested `node_modules` | reached only through `devDependencies` or entries the lockfile marks `dev`; a package nothing reaches keeps the lockfile's `dev` |
 | CycloneDX JSON 1.4 to 1.6 | `cyclonedx-sbom` | `metadata.component` | `dependencies[].dependsOn` | scope `excluded`, or property `cdx:npm:package:development` `true` |
 | SPDX JSON 2.3 | `spdx-sbom` | the packages the document `DESCRIBES` | `DEPENDS_ON`, `CONTAINS` and the `*_DEPENDENCY_OF` relationships | reached only through `DEV_DEPENDENCY_OF`, `TEST_DEPENDENCY_OF`, `BUILD_DEPENDENCY_OF` or `DEV_TOOL_OF` |
 | `uv.lock` | `uv-lockfile` | packages with an `editable`, `virtual`, `directory` or `path` source | `dependencies`, `optional-dependencies`, `dev-dependencies` | reached only through a dependency group |
@@ -394,10 +394,12 @@ Package props:
 - `purl` is the package URL without qualifiers.
 - `unresolved` is empty when the package can be queried at OSV, and otherwise says why not (no ecosystem,
   no version). Unresolved packages stay in the graph, are not queried, and are listed in the report.
-- `dev` is true when the package is reached only through development dependencies. Workspaces have no
-  `dev`; the repository always holds them. When an SBOM lists
-  one package id more than once, one production instance makes it shipped; it is development only when
-  every instance is marked development and nothing shipped reaches it.
+- `dev` is true when the package is reached only through development dependencies: every route from the
+  repository (or a workspace) to it passes through a development package or a development dependency,
+  whatever the inventory's own flag for it says. One route that passes through none makes it shipped.
+  Workspaces have no `dev`; the repository always holds them. When an inventory lists one package id
+  more than once, a production instance makes it shipped only when a shipped route reaches that
+  instance. A package nothing reaches is development only when every instance is marked development.
 
 A requirements line that is not a `name==version` pin gets the id `pkg:pypi/<name>@` with an empty
 `version` and an `unresolved` that names the file, the line and what it gives; a direct URL or path
