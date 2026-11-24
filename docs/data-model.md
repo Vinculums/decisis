@@ -317,12 +317,13 @@ Keys other than those above are ignored.
 | `Concept`, `Decision`, `Record`, ... | the snapshot | `id`, `title`, `domain`, flattened `props` |
 | `Repository` | the inventory | `id` = `repo:<name>`, `source_system` (see below), `source_ref`, `fetched_at`, `content_hash` of the inventory |
 | `Package` | the inventory | `id` = `pkg:<purl type>/<name>@<version>`, `ecosystem`, `name`, `version`, `dev`, `licenses`, `license_expression`, `purl`, `unresolved`, `source_system`, `source_ref`, `fetched_at` |
+| `Workspace` | a pnpm, Yarn or Bun lockfile | `id` = `workspace:<repo>:<path>`, `name` (empty for pnpm, which does not record it), `path`, `source_system`, `source_ref`, `fetched_at` |
 | `Advisory` | OSV | `id` = `adv:<osv id>`, `osv_id`, `severity`, `severity_source` (only when the severity is not the record's own), `aliases`, `published`, `affected_json`, `source_url`, `fetched_at`, `content_hash` of the OSV record |
 
 | Edge | Meaning | `evidence` |
 |---|---|---|
 | snapshot edges | as in the snapshot | as in the snapshot |
-| `DEPENDS_ON` | the repository or a package requires a package | the requirement as the inventory states it |
+| `DEPENDS_ON` | the repository, a workspace or a package requires a package or a workspace; the repository holds each workspace | the requirement as the inventory states it, with `(dev)`, `(optional)` or `(peer)` for those kinds; `workspace <path>` from the repository |
 | `AFFECTED_BY` | OSV returned the advisory for this name and version | `OSV returned <id> for this name and version` |
 | `DESCRIBED_BY` | the repository to a snapshot node whose `code_ref` names it | `<node> has code_ref <ref>` |
 
@@ -343,6 +344,10 @@ returns the same nodes and edges.
 | `pom.xml` | `maven-pom` | the project | the repository to every entry of `<dependencies>` (not profiles or plugins) | scope `test` or `provided` |
 | `poetry.lock` 1.x or 2.x, with `pyproject.toml` when present | `poetry-lockfile` | the project in `pyproject.toml`; without it, packages that nothing in the lock requires | `[package.dependencies]`; from the repository, `tool.poetry` dependencies, dev-dependencies and groups, and `project` dependencies, optional dependencies and `dependency-groups` | `category` other than `main` (1.x), `groups` without `main` (2.1), or reached only through a non-main group in `pyproject.toml`; with none of these, false and noted |
 | `requirements*.txt` | `pip-requirements` | the file and the files it includes with `-r` | the repository to each requirement line; no transitive edges | always false |
+| `pnpm-lock.yaml` v6 or v9 | `pnpm-lockfile` | importer `.`; every other importer is a `Workspace` | importers' `dependencies`, `optionalDependencies` and `devDependencies` (`link:` goes to a workspace); each package's `dependencies` and `optionalDependencies` (v9: `snapshots`), a name in its `peerDependencies` marked peer | reached only through `devDependencies`; v6 `dev: true` |
+| `yarn.lock` v1 | `yarn-lockfile` | the root `package.json`; each workspace `package.json` is a `Workspace` | the `package.json` fields, then each entry's `dependencies` and `optionalDependencies` by `name@range`; v1 does not record peers | reached only through `devDependencies` |
+| `yarn.lock` Berry | `yarn-berry-lockfile` | the `workspace:.` entry; every other `workspace:` entry is a `Workspace` | each entry's `dependencies` by descriptor, `dependenciesMeta` optional, `peerDependencies` to the locked package of that name | a workspace dependency listed only under `devDependencies` of its `package.json` |
+| `bun.lock` | `bun-lockfile` | workspace `""`; every other workspace is a `Workspace` | workspaces' four dependency fields, and each package's `dependencies`, `optionalDependencies` and `peerDependencies`, resolved through nested keys such as `debug/ms` | reached only through `devDependencies` |
 
 Package props:
 
@@ -357,7 +362,8 @@ Package props:
 - `purl` is the package URL without qualifiers.
 - `unresolved` is empty when the package can be queried at OSV, and otherwise says why not (no ecosystem,
   no version). Unresolved packages stay in the graph, are not queried, and are listed in the report.
-- `dev` is true when the package is reached only through development dependencies. When an SBOM lists
+- `dev` is true when the package is reached only through development dependencies. Workspaces have no
+  `dev`; the repository always holds them. When an SBOM lists
   one package id more than once, one production instance makes it shipped; it is development only when
   every instance is marked development and nothing shipped reaches it.
 
@@ -414,7 +420,25 @@ transitive dependencies are not resolved and pointing to `cyclonedx-gradle-plugi
 
 Readers live in `src/decisis/inventory/`. Each one has `FORMAT`, `SIBLINGS` (files read from the same
 directory), `detect(text, filename)` and `read(text, filename, repo, siblings=None)` returning
-`(nodes, edges)`; `inventory.read` picks the first reader whose `detect` matches.
+`(nodes, edges)`; `inventory.read` picks the first reader whose `detect` matches. A reader may also have
+`sibling_names(read, resolve)`, which names the files to read in place of `SIBLINGS`: the Yarn reader
+returns the root `package.json` and the `package.json` of each directory its `workspaces` globs match
+(outside `node_modules`). `inventory.gather` reads them with the same bounded reader as every other
+sibling, so the CLI reads them only under the repository root and `serve --mcp` only under its `--root`;
+a match that leads outside is skipped. Every inventory is read as strict UTF-8 with a leading BOM
+removed; a file that is not UTF-8 is refused. A binary `bun.lockb`, told by its name or its
+`bun-lockfile-format` header, is refused with the command that writes `bun.lock`, by the CLI and by
+`serve --mcp` before either reads it as text.
+
+The pnpm, Yarn and Bun readers give each package the npm ecosystem and the id the npm reader gives the
+same name and version, `pkg:npm/<name>@<version>`. An npm alias (`foo@npm:minimist@1.2.5`) gets the id of
+the package it names. A version that is not a registry version (a git,
+tarball, file or link source) keeps its node and is `unresolved`. pnpm and Yarn Berry lockfiles are read
+through `decisis.yamltext` with PyYAML's `BaseLoader`, which builds only mappings, lists and strings, so no
+value turns into a boolean, number or object. Before anything is built, the event stream is scanned: a
+lockfile larger than 64 MiB, nested deeper than 64 levels, or with any YAML anchor or alias is refused, so
+an alias bomb never expands. `yamltext.load(..., aliases=True)` allows aliases for other YAML (such as
+GitHub workflows) up to 100,000 expanded nodes.
 
 ## Versions
 

@@ -43,7 +43,7 @@ As an isolated command-line tool:
 uv tool install decisis      # or: pipx install decisis
 ```
 
-The install fetches `relate-db` from PyPI once; every command after it runs offline, except `audit`
+The install fetches `relate-db` and `PyYAML` from PyPI once; every command after it runs offline, except `audit`
 asking api.osv.dev when you give it no `--osv-cache`. The [npm package](https://www.npmjs.com/package/decisis)
 only points here.
 
@@ -174,9 +174,18 @@ decision above.
 | Maven POM | `pom.xml` | scope `test` or `provided` |
 | Poetry, lock-version 1.x and 2.x | `poetry.lock`, with `pyproject.toml` in the same directory when present | `category = "dev"` (1.x), `groups` without `main` (2.1), or the non-main groups in `pyproject.toml` |
 | pip requirements | `requirements*.txt` | not marked; every package counts as shipped |
+| pnpm lockfile v6 or v9 | `pnpm-lock.yaml` | an importer's `devDependencies`; v6 also `dev: true` |
+| Yarn v1 and Yarn Berry (2 and later) | `yarn.lock`, with the root `package.json` and the workspaces' `package.json` files next to it | `devDependencies` in the `package.json` files |
+| Bun text lockfile | `bun.lock` | a workspace's `devDependencies` |
 
 For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
-line there. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, Maven, and for
+line there. In a pnpm, Yarn or Bun monorepo each workspace package (a pnpm importer, a Yarn or Bun
+workspace) is a `Workspace` node between the repository and its dependencies, so a path reads
+`repo:<name> -> workspace:<name>:<path> -> pkg:npm/... -> pkg:npm/...`; the root package's dependencies hang
+from the repository. Peer and optional dependencies are edges with `(peer)` or `(optional)` in the evidence.
+For `yarn.lock`, `audit` reads the root `package.json` and the `package.json` of each directory its
+`workspaces` globs match; without them the packages are linked straight from the repository. A binary
+`bun.lockb` is refused: run `bun install --save-text-lockfile` and audit the `bun.lock` it writes. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, Maven, and for
 SBOMs also NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
 without a purl, or whose purl type has no OSV ecosystem, stays in the graph and is listed under
 `unresolved_packages` in the report; it is not queried. An inventory with no packages, or none that can
@@ -200,9 +209,9 @@ lists direct dependencies only, so the report says the packages they depend on w
 recommends a lockfile or an SBOM. Such notes are in the report's `inventory_notes`. Python names are
 normalized as in PEP 503 and queried under the PyPI ecosystem.
 
-Files next to the inventory (`go.sum`, `pyproject.toml`, `-r` includes) are read only inside the
-repository: the nearest directory above the inventory that holds a `.git` entry, found without running
-git, or the inventory's own directory when there is none. `--root DIR` sets it. Paths that lead outside,
+Files next to the inventory (`go.sum`, `pyproject.toml`, `-r` includes, the `package.json` files of Yarn
+workspaces) are read only inside the repository: the nearest directory above the inventory that holds a
+`.git` entry, found without running git, or the inventory's own directory when there is none. `--root DIR` sets it. Paths that lead outside,
 symbolic links included, are not read. Includes are followed 64 levels deep, and a leading UTF-8 byte order
 mark is dropped from every file.
 
@@ -302,7 +311,7 @@ evidence, and a write path that needs a person's digest.
 
 `decisis serve --mcp` gives an agent the same `impact`, `paths` and `audit` as MCP tools over stdio, on
 one snapshot fixed when the server starts. It needs the optional `mcp` extra; the base install keeps
-`relate-db` as its only dependency. For Claude Code:
+`relate-db` and `PyYAML` as its only dependencies. For Claude Code:
 
 ```
 pip install "decisis[mcp]"

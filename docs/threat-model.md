@@ -144,6 +144,10 @@ cleanup above removes it with the sandboxes inside. (`src/decisis/serve.py`; `te
   itself is right.
 - **Text in outside data.** Advisory summaries and lockfile fields are stored as data and never run as
   queries, but an agent that reads them can still be misled by what they say.
+- **YAML alias bombs.** pnpm and Yarn Berry lockfiles are parsed only after a scan of their YAML events
+  refuses any anchor or alias, nesting deeper than 64 levels, and input over 64 MiB, so a few hundred bytes
+  cannot expand into gigabytes. (`src/decisis/yamltext.py`;
+  `test_a_lockfile_with_a_yaml_anchor_is_refused_before_anything_expands`.)
 - **Memory and disk.** The caps bound the number of nodes and edges, not the size of their properties,
   and a query can use a lot of memory before its time limit; there is no memory limit on the query
   process. Loading is not under the time limit; the size caps bound it.
