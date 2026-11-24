@@ -61,8 +61,10 @@ carries them. `--osv-cache` replays a saved set of advisories and refuses the ne
 any other tool name and any argument its schema does not list. Bounds are checked before a sandbox is
 built; a code path with `..`, an absolute path or another repository's prefix is refused. `audit` reads a
 lockfile only when its resolved path, after symlinks, lies under `--root`, and uses the network only with
-`--allow-network` and no `--osv-cache`. Each call builds and deletes its own sandbox.
-(`src/decisis/serve.py`; `test_a_write_shaped_request_is_refused_and_nothing_is_written`,
+`--allow-network` and no `--osv-cache`. Each call builds and deletes its own sandbox inside one private
+`decisis-serve-*` directory, which the server removes on SIGTERM, SIGINT or the end of stdin, even while a
+call is still running. (`src/decisis/serve.py`; `test_a_write_shaped_request_is_refused_and_nothing_is_written`,
+`test_a_server_stopped_during_a_slow_call_leaves_no_sandbox`,
 `test_the_audit_reads_only_under_the_root_and_refuses_an_escaping_symlink`, `test_the_audit_uses_the_network_only_when_allowed`.)
 
 ## What it does not protect

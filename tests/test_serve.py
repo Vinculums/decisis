@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
+import time
 import tomllib
 from pathlib import Path
 
@@ -228,3 +230,51 @@ def test_the_docs_show_the_claude_code_configuration(doc):
     block = next(b for b in re.findall(r"```json\n(.*?)```", text, re.S) if "mcpServers" in b)
     server = json.loads(block)["mcpServers"]["decisis"]
     assert server["command"] == "decisis" and server["args"][:2] == ["serve", "--mcp"] and "--snapshot" in server["args"]
+
+
+def dense_snapshot(path: Path, n: int = 14) -> Path:
+    ids = [f"concept:n{i}" for i in range(n)]
+    nodes = [{"id": i, "kind": "concept", "title": i, "props": {}} for i in ids]
+    edges = [{"source": a, "target": b, "type": "RELATED_TO", "evidence": "x"} for a in ids for b in ids if a != b]
+    path.write_text(json.dumps({"meta": {}, "nodes": nodes, "edges": edges}), encoding="utf-8")
+    return path
+
+
+def scratch_dirs() -> set[Path]:
+    return set(sb.default_root().glob("decisis-serve-*"))
+
+
+def slow_call(snapshot: Path):
+    before = scratch_dirs()
+    p = subprocess.Popen([sys.executable, "-m", "decisis.cli", "serve", "--mcp", "--snapshot", str(snapshot)],
+                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=str(ROOT), env={**os.environ, "PYTHONPATH": str(ROOT / "src")})
+
+    def send(message):
+        p.stdin.write((json.dumps(message) + "\n").encode())
+        p.stdin.flush()
+    send({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+          "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}})
+    p.stdout.readline()
+    send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+    send({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+          "params": {"name": "paths", "arguments": {"source": "concept:n0", "target": "concept:n1", "hops": impact.MAX_HOPS, "limit": cli.MAX_LIMIT}}})
+    deadline = time.monotonic() + 30
+    while not any((d / "task.rl").exists() for s in scratch_dirs() - before for d in s.iterdir()):
+        assert time.monotonic() < deadline and p.poll() is None
+        time.sleep(0.05)
+    return p, scratch_dirs() - before
+
+
+@pytest.mark.parametrize("stop,code", [(lambda p: p.send_signal(signal.SIGTERM), 128 + signal.SIGTERM),
+                                       (lambda p: p.send_signal(signal.SIGINT), 128 + signal.SIGINT),
+                                       (lambda p: p.stdin.close(), 0)], ids=["sigterm", "sigint", "eof"])
+def test_a_server_stopped_during_a_slow_call_leaves_no_sandbox(stop, code, tmp_path):
+    p, mine = slow_call(dense_snapshot(tmp_path / "dense.json"))
+    try:
+        assert mine and p.poll() is None
+        stop(p)
+        assert p.wait(timeout=15) == code
+        assert not any(d.exists() for d in mine)
+    finally:
+        p.kill()
+        p.wait()

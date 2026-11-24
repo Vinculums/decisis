@@ -94,7 +94,7 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
             "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings}
 
 
-def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories) -> dict:
+def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories, root=None) -> dict:
     graph = compose(vinc, lock_text, repo, advisories)
-    with sandbox() as box:
+    with sandbox(root) as box:
         return analyze(box, graph, repo, depth)

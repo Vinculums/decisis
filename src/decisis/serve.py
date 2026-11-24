@@ -1,13 +1,18 @@
 """A read-only MCP server over stdio: impact, paths and audit on one snapshot.
 
-Each tool call loads the snapshot into its own sandbox and deletes it before the reply. No tool writes,
+Each tool call loads the snapshot into its own sandbox and deletes it before the reply. The sandboxes live
+in one private directory that the server removes when stdin closes or on SIGTERM or SIGINT, even while a call runs. No tool writes,
 proposes or commits. File reads are limited to the snapshot, the OSV cache given at start, and lockfiles
 under the root given at start. Audit asks api.osv.dev only when the server was started with --allow-network.
 """
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+import os
+import shutil
+import signal
+import tempfile
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 
 import anyio
@@ -20,7 +25,7 @@ from . import audit, external, impact
 from . import checkout as co
 from .cli import MAX_LIMIT
 from .queries import load as query
-from .sandbox import Subgraph, sandbox
+from .sandbox import Subgraph, default_root, sandbox
 
 MAX_DEPTH = 16
 MAX_TEXT = 512
@@ -89,6 +94,7 @@ class Tools:
     root: Path
     osv_cache: dict | None = None
     allow_network: bool = False
+    scratch: Path | None = None
 
     def call(self, name: str, arguments: dict | None) -> dict:
         if name not in SCHEMAS:
@@ -100,11 +106,11 @@ class Tools:
         repo = args.get("repo")
         for raw in args["code_paths"]:
             inside_repo(raw, repo)
-        return impact.run(self.graph, args["code_paths"], args.get("hops", 3), repo)
+        return impact.run(self.graph, args["code_paths"], args.get("hops", 3), repo, root=self.scratch)
 
     def paths(self, args: dict) -> dict:
         cypher = query("paths_between", hops=args.get("hops", 4), limit=args.get("limit", 10))
-        with sandbox() as box:
+        with sandbox(self.scratch) as box:
             counts = box.load(self.graph)
             rows = box.query(cypher, {"source": args["source"], "target": args["target"]})
         return {"loaded": counts, "paths": rows}
@@ -112,7 +118,7 @@ class Tools:
     def audit(self, args: dict) -> dict:
         advisories = self.advisories()
         lock_text = read_under(self.root, args["lockfile"])
-        return audit.run(self.graph, lock_text, args["repo"], args.get("depth", 8), advisories=advisories)
+        return audit.run(self.graph, lock_text, args["repo"], args.get("depth", 8), advisories=advisories, root=self.scratch)
 
     def advisories(self):
         if self.osv_cache is not None:
@@ -190,7 +196,7 @@ def build(tools: Tools) -> Server:
         return types.ListToolsResult(tools=tool_list(tools))
 
     async def on_call_tool(ctx, params: types.CallToolRequestParams) -> types.CallToolResult:
-        return await anyio.to_thread.run_sync(outcome, tools, params.name, params.arguments)
+        return await anyio.to_thread.run_sync(outcome, tools, params.name, params.arguments, abandon_on_cancel=True)
 
     return Server("decisis", instructions=INSTRUCTIONS, on_list_tools=on_list_tools, on_call_tool=on_call_tool)
 
@@ -206,6 +212,27 @@ async def stdio(server: Server) -> None:
         await server.run(read, write, server.create_initialization_options())
 
 
+def scratch_dir() -> Path:
+    return Path(tempfile.mkdtemp(prefix="decisis-serve-", dir=default_root()))
+
+
+def leave(scratch: Path, code: int) -> None:
+    shutil.rmtree(scratch, ignore_errors=True)
+    os._exit(code)
+
+
+def on_signal(scratch: Path):
+    def handler(signum, frame):
+        leave(scratch, 128 + signum)
+    return handler
+
+
 def main(tools: Tools) -> int:
-    anyio.run(stdio, build(tools))
-    return 0
+    scratch = scratch_dir()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, on_signal(scratch))
+    try:
+        anyio.run(stdio, build(replace(tools, scratch=scratch)))
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    leave(scratch, 0)
