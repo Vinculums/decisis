@@ -75,6 +75,14 @@ decisis init --repo-dir . --repo Shop --out snapshot.json
 decisis impact snapshot.json src/payments/retry.py --repo Shop --format text
 ```
 
+To add decisions made in pull requests, give `init` the GitHub repository. It reads merged pull requests
+that carry the `decision` label (or `--label NAME`) or a `## Decision` section, through the GitHub REST API
+with `GITHUB_TOKEN` when it is set (a public repository needs no token), and merges them with the files:
+
+```bash
+decisis init --repo-dir . --repo Shop --github acme/shop --since 2026-01-01 --out snapshot.json
+```
+
 `init` prints what it could not read and why; [`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md#a-snapshot-from-a-repository-init)
 lists the front matter keys and headings it reads. Or write a snapshot by hand: one JSON file of nodes and edges. This one has an app,
 a checkout flow, one decision and one incident record ([`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md) has
@@ -180,7 +188,7 @@ flowchart LR
 | Command | Needs | What it does |
 |---|---|---|
 | `demo` | nothing | the whole procedure on synthetic data, against an in-process fake Vinc |
-| `init --out <file>` | nothing | a snapshot from the repository's ADRs, CODEOWNERS and postmortems |
+| `init --out <file>` | nothing; with `--github`, the network for api.github.com | a snapshot from the repository's ADRs, CODEOWNERS and postmortems, and its merged pull requests |
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
 | `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
@@ -190,7 +198,7 @@ flowchart LR
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
 | `gc` | nothing | removes task directories that a killed run left behind, and prints them |
 
-Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `impact --hops N --format text`, `paths --hops N --limit N`,
+Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `paths --hops N --limit N`,
 `audit --osv-cache FILE --depth N`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
 
 Limits: `paths`, `impact`, `audit` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
@@ -236,6 +244,39 @@ Claude Code, `.claude/skills/decisis/`) and put `decisis` on the agent's `PATH`.
 decisis itself calls no language model. The agent is the reasoner that chooses seeds, runs the bounded
 queries and explains the paths; the tool gives it a graph it cannot write to, findings that carry their
 evidence, and a write path that needs a person's digest.
+
+### Serve it over MCP
+
+`decisis serve --mcp` gives an agent the same `impact`, `paths` and `audit` as MCP tools over stdio, on
+one snapshot fixed when the server starts. It needs the optional `mcp` extra; the base install keeps
+`relate-db` as its only dependency. For Claude Code:
+
+```
+pip install "decisis[mcp]"
+claude mcp add decisis -- decisis serve --mcp --snapshot snapshot.json --osv-cache osv-cache.json
+```
+
+`claude mcp add --scope project ...` writes the same entry to `.mcp.json` in the project, to share it
+with the team:
+
+```json
+{
+  "mcpServers": {
+    "decisis": {
+      "command": "decisis",
+      "args": ["serve", "--mcp", "--snapshot", "snapshot.json", "--osv-cache", "osv-cache.json"]
+    }
+  }
+}
+```
+
+Relative paths are read from the directory the server starts in; use absolute paths if you are not sure
+which one that is. The server has no tool that writes, proposes or commits. The tools take the same
+bounds as the commands (`hops` 0 to 6 for `impact`, 1 to 6 for `paths`, `limit` 1 to 100; `audit` takes
+`depth` 1 to 16), refuse a code path outside the repository, and build and delete a sandbox for each call.
+`audit` takes the lockfile path as an argument and reads it only under `--root` (default: the current
+directory), after following symlinks. It reads advisories from `--osv-cache`; without a cache it asks
+api.osv.dev only when the server was started with `--allow-network`, and otherwise returns an error.
 
 ## Connect Vinc (optional)
 
@@ -303,10 +344,11 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - The task directory is private (0700), under `/dev/shm` when it is writable, and removed after the run.
 - A graph over the node or edge cap is refused before anything is written, a query over the time limit
   is stopped, and in both cases the task directory is removed and the command exits non-zero.
-- Each task directory records its owner process. On Linux and macOS a new sandbox, or `decisis gc`,
-  removes `decisis-*` directories under the same root whose owner is gone; it leaves another user's
-  directory, a live run's directory, a `decisis-*` entry that is a symbolic link, and anything a symbolic
-  link inside a task directory points to. A root that is itself a symbolic link is followed and used as
+- Each task directory, and the parent directory of `decisis serve`, records its owner process. On Linux
+  and macOS a new sandbox, a new server or `decisis gc` removes `decisis-*` and `decisis-serve-*`
+  directories under the same root whose owner is gone, so a server killed with SIGKILL is cleaned up
+  too; it leaves another user's directory, a live run's directory, a `decisis-*` entry that is a
+  symbolic link, and anything a symbolic link inside a task directory points to. A root that is itself a symbolic link is followed and used as
   the root.
 - The audit joins the snapshot, the lockfile or SBOM (nested npm copies resolved) and OSV, checks the
   installed version against the advisory ranges (semantic versions, and PEP 440 for PyPI), and keeps each

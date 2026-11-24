@@ -93,6 +93,10 @@ CODEOWNERS line that owns no file) or `not read`.
 | `--repo NAME` | put `NAME:` before each code path that names no repository, so `impact --repo` and `audit --repo` match it; letters, digits, `-` and `_` |
 | `--adr-dir DIR` | read ADRs only from this directory, relative to `--repo-dir` (default: every one of `docs/adr`, `docs/decisions`, `adr`, `doc/adr` that exists) |
 | `--postmortem-dir DIR` | read postmortems only from this directory, relative to `--repo-dir` (default: `docs/postmortems`) |
+| `--github OWNER/REPO` | also read merged pull requests from this GitHub repository (below); without `--repo-dir`, read only them |
+| `--label NAME` | with `--github`: the label that selects a pull request (default: `decision`, any case) |
+| `--since DATE` | with `--github`: only pull requests merged on or after this date (UTC), such as `2026-01-31` |
+| `--limit N` | with `--github`: read at most N closed pull requests, most recently updated first (default 100, 1 to 5,000) |
 | `--out FILE` | where the snapshot goes; the command prints its counts and problems |
 
 Every `.md` file directly in those directories is read, except `README.md`, `index.md` and names that
@@ -169,6 +173,35 @@ an `ABOUT` edge to each decision it names: the `decisions` front matter key (a l
 text that matches no ADR is listed under `no edge`; a link to a file that is not an ADR is ignored.
 `impact` follows the edge from the record to the decision, so a path that a decision names also lists the
 postmortems about it.
+
+### Merged pull requests become decisions
+
+With `--github OWNER/REPO`, `init` lists the repository's closed pull requests through the GitHub REST API,
+most recently updated first, and keeps each merged one that has the `--label` label or a `## Decision` or
+`## Decision Outcome` section with text in its description. HTML comments are dropped first, so a template's
+empty section selects nothing. It sends `GITHUB_TOKEN` when the variable is set; a public repository needs no
+token, at GitHub's lower limit for anonymous requests.
+
+| Field | From the pull request |
+|---|---|
+| `title` | its title |
+| `statement` | the text of its `## Decision` or `## Decision Outcome` section, left out when it has none |
+| `valid_from` | `merged_at`, as GitHub gives it (`2026-03-21T16:00:00Z`) |
+| `deciders` | `@` and the author's login, then each reviewer whose last review is `APPROVED`, sorted |
+| `code_ref` | each changed file from `/pulls/{n}/files`, with `--repo` before it as for ADRs |
+| `source` | `https://github.com/OWNER/REPO/pull/{n}` |
+| `content_hash` | `sha256:` and the hex digest of the number, title, description, merge time, merge commit, labels, author, files and reviews that were read |
+
+Its id is `decision:github-<owner>-<repo>-pr-<number>`, so it stays the same across runs and never meets an
+ADR's id. No fetch time is stored, so the same answers from GitHub give the same bytes.
+
+The listing follows GitHub's `Link` headers and stops at `--limit` closed pull requests, or at the first one
+last updated before `--since`; a stop at the limit is listed as `not read` on `github:OWNER/REPO`. GitHub
+lists at most 3,000 changed files of a pull request; a pull request at that cap is kept and listed. A rate
+limit (HTTP 429, or 403 with `x-ratelimit-remaining: 0` or `retry-after`) stops the read: the pull requests
+read before it stay in the snapshot, and the stop is listed as `not read` with GitHub's reset time. Any other
+error answer, an answer that is not JSON, and a redirect or `Link` to another host stop the command with exit
+code 1 and write nothing.
 
 ### The front matter subset
 

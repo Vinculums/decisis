@@ -37,8 +37,8 @@ parameters; hop and result bounds are substituted as integers (`paths --hops` 1 
 it too. The demo prints whether the removal happened and the tests assert the scratch root is empty.
 
 **Cleanup after a kill.** Each task directory holds `owner.json` with the process id, the process start
-time (Linux) and the host name. A new sandbox, and `decisis gc`, remove a `decisis-<32 hex>` directory
-under the same root only when it is a real directory owned by the current user, older than 10 minutes,
+time (Linux) and the host name, and so does the parent directory of an MCP server. A new sandbox, a new
+server and `decisis gc` remove a `decisis-<32 hex>` or `decisis-serve-<32 hex>` directory under the same root only when it is a real directory owned by the current user, older than 10 minutes,
 and its owner process is gone (on Linux, a reused process id is told apart by its start time). A live
 owner, another user's directory, a `decisis-*` entry that is a symbolic link, a directory under another
 root and a directory without a readable owner record (or with a process id outside 1 to 2^31 - 1) are left
@@ -78,17 +78,49 @@ key comes from `VINC_API_KEY` and is not written to any file the tool produces.
 each advisory keeps its source URL and a SHA-256 of the record that was read, and each written record
 carries them. `--osv-cache` replays a saved set of advisories and refuses the network.
 
+**Outbound requests to GitHub.** `init --github` sends only GET requests, only to `https://api.github.com`
+on port 443: a `Link` header, a redirect or a final answer that points anywhere else is refused before
+anything is sent there or read from it. `GITHUB_TOKEN` is read from the environment, never from a flag, and
+goes only in the `Authorization` header; a token with a space, a line break or a character outside
+printable ASCII is refused without echoing it, and every error message has the token replaced by `[token]`.
+The token is not written to the snapshot or printed. Answers over 20 MB are refused, and the listing stops at
+`--limit` (at most 5,000) closed pull requests. (`src/decisis/github.py`;
+`test_it_sends_only_get_requests_to_api_github_com_and_follows_link_headers`,
+`test_a_next_page_or_an_answer_on_another_host_is_refused`, `test_a_redirect_to_another_host_is_not_followed`,
+`test_the_token_goes_only_in_the_authorization_header_and_never_into_an_error`, `test_init_never_prints_the_token`.)
+
+**A read-only MCP server.** `decisis serve --mcp` lists only `impact`, `paths` and `audit`, and refuses
+any other tool name and any argument its schema does not list. Bounds are checked before a sandbox is
+built; a code path with `..`, an absolute path or another repository's prefix is refused. `audit` reads a
+lockfile only when its resolved path, after symlinks, lies under `--root`, and uses the network only with
+`--allow-network` and no `--osv-cache`. Each call builds and deletes its own sandbox inside one private
+`decisis-serve-<32 hex>` directory, which the server removes on SIGTERM, SIGINT or the end of stdin, even while a
+call is still running; that directory records its owner like a task directory, so after a SIGKILL the
+cleanup above removes it with the sandboxes inside. (`src/decisis/serve.py`; `test_a_write_shaped_request_is_refused_and_nothing_is_written`,
+`test_a_server_stopped_during_a_slow_call_leaves_no_sandbox`,
+`test_gc_removes_the_directory_of_a_server_killed_with_sigkill_and_keeps_a_live_one`,
+`test_the_audit_reads_only_under_the_root_and_refuses_an_escaping_symlink`, `test_the_audit_uses_the_network_only_when_allowed`.)
+
 ## What it does not protect
 
 - **Erasure.** Deleting a file is not secure erasure. tmpfs can be swapped to disk, and where `/dev/shm`
   is missing (macOS, Windows) the directory is on the disk under the system temporary directory. Data
   that must not touch a disk needs encrypted scratch storage with key destruction, which is not built.
 - **A crash or kill, until the next run.** A process killed with SIGKILL, or a machine that loses power,
-  skips the `finally` and leaves the directory behind until the next sandbox or `decisis gc` under the
-  same root removes it, at least 10 minutes later. On Windows nothing removes it; delete it by hand. A
+  skips the `finally` and leaves the directory behind (for `decisis serve`, its `decisis-serve-*` parent
+  with any sandbox inside) until the next sandbox, the next server or `decisis gc` under the same root
+  removes it, at least 10 minutes later. On Windows nothing removes it; delete it by hand. A
   directory left by decisis 0.1.1 or earlier has no owner record and is never removed automatically.
 - **The same user and root.** 0700 keeps out other users, not other processes of the same user or an
   administrator.
+- **A root that changes under the server.** `serve --mcp` resolves a lockfile path, checks it is under
+  `--root`, then reads it. A process that can write under `--root` can swap a file for a symlink between
+  the check and the read. Give the server a root that only you write to.
+- **What GitHub says.** `init --github` trusts GitHub's answers for titles, descriptions, reviews and file
+  names; anyone who can edit a pull request's description can change its `statement` until the next
+  `init`. The content hash records what was read; it does not authenticate it. Give `GITHUB_TOKEN` read-only
+  access to the one repository (a fine-grained token with pull request read access) rather than a broad
+  classic token: decisis never writes to GitHub, so it needs nothing more.
 - **Files you ask for.** The snapshot from `checkout`, the report from `audit --out` and the plan from
   `propose` are written where `--out` says, on whatever disk that is, and are never deleted by the tool.
   A snapshot of a private space is private data; keep it out of public repositories (the root
