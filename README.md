@@ -177,6 +177,8 @@ decision above.
 | pnpm lockfile v6 or v9 | `pnpm-lock.yaml` | an importer's `devDependencies`; v6 also `dev: true` |
 | Yarn v1 and Yarn Berry (2 and later) | `yarn.lock`, with the root `package.json` and the workspaces' `package.json` files next to it | `devDependencies` in the `package.json` files |
 | Bun text lockfile | `bun.lock` | a workspace's `devDependencies` |
+| GitHub Actions workflows | any `.github/workflows/*.yml` (the other workflows beside it are read too), or an `action.yml` | not marked; every action counts as shipped |
+| Terraform lock file | `.terraform.lock.hcl` | not marked; every provider counts as shipped |
 
 For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
 line there. In a pnpm, Yarn or Bun monorepo each workspace package (a pnpm importer, a Yarn or Bun
@@ -185,12 +187,13 @@ workspace) is a `Workspace` node between the repository and its dependencies, so
 from the repository. Peer and optional dependencies are edges with `(peer)` or `(optional)` in the evidence.
 For `yarn.lock`, `audit` reads the root `package.json` and the `package.json` of each directory its
 `workspaces` globs match; without them the packages are linked straight from the repository. A binary
-`bun.lockb` is refused: run `bun install --save-text-lockfile` and audit the `bun.lock` it writes. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, Maven, and for
+`bun.lockb` is refused: run `bun install --save-text-lockfile` and audit the `bun.lock` it writes. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, Maven, GitHub Actions, and for
 SBOMs also NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
 without a purl, or whose purl type has no OSV ecosystem, stays in the graph and is listed under
 `unresolved_packages` in the report; it is not queried. An inventory with no packages, or none that can
 be queried, is refused. `fixtures/inventory/` holds one small example of each format and an OSV cache
-that covers them all; the Gradle and Maven examples and their cache are in `fixtures/inventory/jvm/`.
+that covers them all; the Gradle and Maven examples and their cache are in `fixtures/inventory/jvm/`, and the
+workflows and Terraform lock file with theirs in `fixtures/inventory/ci/`.
 
 A Gradle lockfile pins every resolved version but not which dependency brings in which, and a `pom.xml`
 declares direct dependencies only. `audit` reads `pom.xml` versions that are literals or properties
@@ -208,6 +211,34 @@ followed only inside the repository, and each file is read once. A requirements 
 lists direct dependencies only, so the report says the packages they depend on were not seen and
 recommends a lockfile or an SBOM. Such notes are in the report's `inventory_notes`. Python names are
 normalized as in PEP 503 and queried under the PyPI ecosystem.
+
+For GitHub Actions, pass one workflow file, such as `.github/workflows/ci.yml`; `audit` also reads every
+other `*.yml` and `*.yaml` workflow in the same directory through the same bounded reader as other
+sibling files (`serve --mcp` reads only the file it is given). Each `uses:` of a step, and of a job that
+calls a reusable workflow, becomes a package in the OSV `GitHub Actions` ecosystem named `owner/repo`
+(`owner/repo/path@ref` too) in lower case, since GitHub does not tell case apart, with its ref as written:
+a tag, a branch or a commit SHA. OSV does tell case apart and stores some names in mixed case
+(`Azure/setup-kubectl`), so when the inventory has actions `audit` also downloads OSV's own list of
+GitHub Actions records, `https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip`
+(once per run, at most 64 MiB), and asks OSV for each action under the spelling OSV stores; an action
+that is not in that list has no advisories and is not queried. `--osv-cache` carries that list as
+`names`, and a cached run with actions refuses without it. A local `./` action, a `docker://` image, a `uses:` built from an
+expression and one that is not a name (`../x@v1`) are listed under `unresolved_packages` with the reason
+and not queried, and so is a workflow file that is not valid YAML or cannot be read (not UTF-8, or a link
+that leads outside the repository). YAML anchors and aliases are
+allowed in workflows, up to 100,000 expanded nodes. OSV does not match GitHub Actions versions itself, so
+`audit` asks OSV for every advisory of each action and compares the ref with the ranges: a tag such as
+`v4.1.0` is a version, a major or minor tag such as `v4` covers every release under it and is `unresolved`
+when a range starts or ends inside it, and a branch or a commit SHA cannot be ordered, so its advisories
+are `unresolved` unless the record lists that ref. An `action.yml` is read for the `uses:` of its
+composite `runs.steps`.
+
+A `.terraform.lock.hcl` is read by a small strict parser: `provider "<address>" { ... }` blocks with
+quoted strings and lists of quoted strings, and comments; anything else stops the run with the line.
+Each provider is a package in the ecosystem `Terraform` with its full address as the name and its locked
+version. OSV has no Terraform ecosystem (checked 2026-11-24), so providers are not queried: they are
+checked against decision rules only (`package_denied`, `package_allowed`), each is listed under
+`unresolved_packages` with that reason, and `inventory_notes` says so.
 
 Files next to the inventory (`go.sum`, `pyproject.toml`, `-r` includes, the `package.json` files of Yarn
 workspaces) are read only inside the repository: the nearest directory above the inventory that holds a
@@ -248,7 +279,8 @@ flowchart LR
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `check <snapshot> (--changed <file>... \| --base <ref>)` | nothing; with `--base`, git | the decisions that govern a change set, and the `review_required` and `imports_forbidden` rules it breaks; exits 1 on a violation |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
-| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
+| `query <snapshot> <cypher> [--param KEY=VALUE]` | nothing | one read-only Cypher statement on a throwaway graph of the snapshot, rows as JSON |
+| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev (and OSV's GitHub Actions export for workflows), unless `--osv-cache` | advisories the repository reaches and the decisions they break |
 | `propose <report> <snapshot> <lockfile or SBOM> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
 | `compare` | nothing | the benchmark below |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
@@ -258,13 +290,13 @@ flowchart LR
 Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --format text`, `paths --hops N --limit N`,
 `audit --osv-cache FILE --depth N`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
 
-Limits: `paths`, `impact`, `check`, `audit` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
+Limits: `paths`, `impact`, `check`, `audit`, `query` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
 anything, and stop any query that runs longer than 60 seconds; the task directory is removed either way
 and the command exits with 1. Raise a limit with `--max-nodes`, `--max-edges` or `--query-timeout`, or with
 `DECISIS_MAX_NODES`, `DECISIS_MAX_EDGES` or `DECISIS_QUERY_TIMEOUT`, up to 1,000,000 nodes, 5,000,000 edges
 and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --hops` 1 to 6 and `paths --limit`
 1 to 100.
-`impact`, `check`, `paths` and `audit` print JSON (`impact --format text` and `check --format text` read better for people); `demo`, `propose`
+`impact`, `check`, `paths`, `audit` and `query` print JSON (`impact --format text` and `check --format text` read better for people); `demo`, `propose`
 and `compare` print text. `decisis <command> --help` lists the rest.
 
 `impact`, `check`, `paths` and `audit` also take `--format mermaid` and `--format html`:
@@ -375,7 +407,7 @@ evidence, and a write path that needs a person's digest.
 
 ### Serve it over MCP
 
-`decisis serve --mcp` gives an agent the same `impact`, `paths` and `audit` as MCP tools over stdio, on
+`decisis serve --mcp` gives an agent the same `impact`, `paths`, `audit` and `query` as MCP tools over stdio, on
 one snapshot fixed when the server starts. It needs the optional `mcp` extra; the base install keeps
 `relate-db` and `PyYAML` as its only dependencies. For Claude Code:
 
@@ -405,6 +437,43 @@ bounds as the commands (`hops` 0 to 6 for `impact`, 1 to 6 for `paths`, `limit` 
 `audit` takes the lockfile path as an argument and reads it only under `--root` (default: the current
 directory), after following symlinks. It reads advisories from `--osv-cache`; without a cache it asks
 api.osv.dev only when the server was started with `--allow-network`, and otherwise returns an error.
+
+Each tool takes `detail`: `"summary"`, the default over MCP, gives counts, ids, titles and the first 10
+items of each list with a note on how to get the rest; `"full"` gives the whole report, the same JSON the
+command prints. The commands always print the whole report.
+
+#### When to use `query` and when the fixed tools
+
+Ask the fixed tools first. `impact` answers which decisions and records govern a code path, and follows
+only the edges that carry governance, in their governing direction; `paths` lists the routes between two
+ids; `audit` joins a lockfile and advisories with the snapshot and judges each decision's rule. Their
+answers carry the evidence on each edge, and the same question gets the same report every time.
+
+Use `query` for a question they do not answer: which decisions have no `ABOUT` edge, how many records
+each concept has, which nodes name a field, a path that must pass through a given kind. It runs one
+read-only Cypher statement on a fresh sandbox of the server's snapshot and returns the rows:
+
+```
+decisis query fixtures/impact/vinc.json 'MATCH p = (g)-[*1..3]->(c) WHERE c.code_ref CONTAINS $path AND (g:Decision OR g:Record) RETURN DISTINCT g.id AS id ORDER BY id' --param path=storage/page_store.py
+```
+
+The tool's description carries the snapshot's schema, made when the server starts: each label (a node
+kind with the first letter in upper case) with its count and property keys, each edge type with its
+count and the labels it joins, and two example queries. A query must be one statement that starts with
+`MATCH`, `OPTIONAL MATCH`, `WITH`, `UNWIND`, `RETURN` or `CALL`. The text is checked before anything
+runs: `CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`, `FOREACH`, `LOAD CSV`, `DROP`, `SHOW`, `USE` and the
+other admin clauses are refused in any case, after comments and inside subqueries, and only the
+`db.labels`, `db.relationshipTypes`, `db.propertyKeys` and `db.schema.*` procedures may be called. Clause
+words inside strings, comments and backticked names do not count; a label, type or key named like a clause
+goes in backticks. Relate plans every `CALL { }` subquery as read-write, so those are refused too; use
+`COLLECT { }`, `COUNT { }`, `EXISTS { }` or `UNION`. Then the query process plans the statement with
+`EXPLAIN` on a read-only connection and runs it only when Relate plans it as a read, and the read-only
+connection refuses any write on its own. Results stop at 500 rows and 1 MiB with a note that says how many
+rows there were, and every MCP reply, as the server sends it, stays under 1 MiB: in full detail the
+longest list is shortened and a `cut` note says so. The schema names come from the snapshot: names that
+are not plain ASCII identifiers are shown in backticks, and long or unprintable ones are left out.
+The node, edge and time limits are the ones above. Nodes, edges and paths come back as
+labels or type and properties; return ids and properties to keep the rows small.
 
 ## Connect Vinc (optional)
 
@@ -455,9 +524,66 @@ Read the numbers with these caveats:
   concept that names no code of its own. That condition was chosen after the overreach decoy task had
   been run, because edge type and direction alone cannot tell the expected path from the decoy. The
   expected findings were not changed, but the rule is fitted on this benchmark; a held-out set is
-  needed to show it generalises.
+  needed to show it generalises. The held-out set below does not exercise that rule, so it is still
+  unshown.
 - **The benchmark is small and synthetic.** Nine hand-built tasks show which kinds of connection need a
-  graph, not how often they occur in real repositories.
+  graph, not how often they occur in real repositories. The held-out set below is a first look at that.
+
+### Held-out set: five open-source repositories
+
+```
+decisis compare --tasks bench/holdout/tasks.json
+```
+
+Run it from a checkout of this repository; the held-out inputs are not in the wheel. The 30 tasks (20 impact,
+10 audit) run on cloudfoundry/cli, rancher/turtles, weaveworks/weave-gitops, supabase-multitenant and
+karma-sabarivka-reporter at pinned commits (Apache-2.0 and MIT; sources, licenses and attribution in
+`bench/holdout/SOURCES.md`). Each snapshot is `decisis init` on the repository, cut to ids, paths, titles and
+short statements. ADRs there carry no `code_ref`, so a hand-made mapping adds the paths each ADR's own text
+names, quoting the sentence. Impact expectations were written from the ADR text; audit expectations from an npm
+resolution of the lockfile worked out without decisis and the advisories OSV returned. They were committed
+before the first run, and the results were committed as they came out. Scoring and the impact carry rules are
+the same as for the synthetic set.
+
+| Method | Set | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
+|---|---|---|---|---|---|---|---|
+| A | synthetic | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.2 |
+| A | held-out | 0/44 | 0/28 | 0/14 | 4/4 | 4/4 | 1.6 |
+| B | synthetic | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.6 |
+| B | held-out | 7/44 | 0/28 | 14/14 | 5/26 | 25/26 | 87.5 |
+| C | synthetic | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 85.0 |
+| C | held-out | 35/44 | 19/28 | 14/14 | 0/68 | 30/68 | 204571.5 |
+
+Against B on the held-out set, C is better on 21 tasks, the same on 9 and worse on none. Per-task numbers are
+in `bench/holdout/results.md`, every claim in `bench/holdout/results.json`. Where C did not beat A or B, or
+won for a reason other than the graph:
+
+- **Most of C's impact wins are not the graph's doing.** In an `init` snapshot the ADR's decision is itself the
+  node that names the path. A (and B, which is A for impact) reports the neighbours of a matching node but not
+  the matching node, so it returns nothing; C lists the matching decision at zero hops. That is the whole
+  difference on 13 of C's 15 impact wins. A retrieval that returned the matching decision would tie C there.
+- **The graph mattered on 8 tasks, the 8 marked in advance as expected to help.** On two weave-gitops tasks A
+  and B also return ADR 5, which ADR 15 supersedes (2 unsupported claims each); C does not follow `SUPERSEDES`.
+  On six audit tasks the affected package is three to seven hops from the repository, and B's join through a
+  direct parent finds no chain (on one it claims a wrong one); C finds every expected chain.
+- **C was the same as B on 9 tasks.** On four audit tasks the chain is one or two hops, which B's join finds.
+  On five impact tasks a decision governs the path by its text but names no path, and no method found anything.
+- **C missed 9 of 28 policy links and 9 of 44 paths.** All nine are decisions that govern the path by their
+  text without naming it: the five tasks above, cf-cli ADR 11 (which spells the actor directory `action/`
+  where the code is in `actor/`), and turtles ADR 12 (which names no path for the embedded clusterctl config).
+- **C's evidence coverage is lower than B's: 30/68 against 25/26.** Its 38 zero-hop impact claims have no edge
+  to cite, and a claim with no evidence counts as uncovered.
+- **C is far slower: 204.6 s against 0.1 s for B.** Each audit task takes 9 to 28 s to build the graph for a
+  lockfile of 700 to 1,250 packages and query paths up to eight hops.
+- **The audit policy logic is untested here.** No held-out ADR states a machine-checkable dependency rule or
+  names an affected package, and an `init` snapshot links no decision to the repository, so the audit tasks
+  expect no policy links and every method returns none.
+- **The carry rules are barely exercised.** The five snapshots hold one edge between them: weave-gitops ADR 15
+  `SUPERSEDES` ADR 5, which two tasks use (none of the repositories has postmortems, and `--github` was not used). The `RELATED_TO` rule fitted on the
+  synthetic decoy never comes into play, so this set does not show that it generalises.
+- **Small and hand-mapped.** Five repositories, two of them npm (the Go repositories have impact tasks only,
+  because B and the coverage check read npm lockfiles only), and one person's reading of which ADR governs
+  which path.
 
 ## What is proven, and what is not built yet
 
@@ -504,7 +630,6 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 
 Future work, not built:
 
-- A Relate MCP server as the agent's read-only query surface; today the agent drives the CLI.
 - pnpm, Yarn, Bun, Poetry, requirements.txt, Gradle and Maven inputs, and repository metadata beyond the inventory.
 - Removing stale task directories on Windows; there `decisis gc` says so and removes nothing.
 - Encrypted scratch storage with key destruction for sensitive data (see `docs/threat-model.md`).

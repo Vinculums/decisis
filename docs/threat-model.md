@@ -33,6 +33,21 @@ parameters; hop and result bounds are substituted as integers (`paths --hops` 1 
 1 to 100, `impact --hops` 0 to 6). (`_label`; `test_a_label_that_could_inject_cypher_is_refused`,
 `test_paths_bounds_hops_and_limit_with_an_argparse_error`.)
 
+The schema in the MCP `query` tool's description is built from the snapshot, so it is data an agent
+reads. It is bounded and escaped: a label, edge type or property key is shown as is only when it is a
+plain ASCII identifier, in backticks when it is printable and at most 64 characters, and otherwise left
+out with a count; the label and edge sections stop at 4,096 bytes; the example node id is a Cypher string
+literal with quotes, backslashes, line breaks and every character outside printable ASCII escaped, and
+ids over 128 characters are not used. No text from the snapshot starts a line of its own, and the
+description says the names are data, not instructions. (`cypher.describe`;
+`test_snapshot_names_and_ids_reach_the_description_escaped_and_bounded`,
+`test_a_non_ascii_kind_is_backticked_and_every_example_passes_the_check_and_runs`.)
+
+**Bounded tool replies.** Every MCP reply, text and structured content together as the server
+serializes them, stays under 1 MiB: the longest list is shortened from its end until the reply fits,
+and a `cut` note names each shortened list. (`compact.fit`, `serve.sent_size`;
+`test_what_the_server_sends_stays_under_the_byte_cap`.)
+
 **Deletion.** The directory is removed when the command ends, in a `finally`, so a failed task removes
 it too. The demo prints whether the removal happened and the tests assert the scratch root is empty.
 
@@ -77,6 +92,13 @@ key comes from `VINC_API_KEY` and is not written to any file the tool produces.
 **Provenance on outside data.** Each package and advisory keeps where it came from and when it was read;
 each advisory keeps its source URL and a SHA-256 of the record that was read, and each written record
 carries them. `--osv-cache` replays a saved set of advisories and refuses the network.
+
+**Outbound requests to OSV.** `audit` and `propose` send OSV queries to `https://api.osv.dev`. When the
+inventory has GitHub Actions packages they also download, once per run, OSV's export of GitHub Actions
+records from `https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip`, run by the
+same OSV project, to learn the spelling OSV stores for each action name. The download is cut off at
+64 MiB, and the archive at 100,000 records of 4 MiB each; only package names are kept from it. With
+`--osv-cache` neither host is asked.
 
 **Outbound requests to GitHub.** `init --github` sends only GET requests, only to `https://api.github.com`
 on port 443: a `Link` header, a redirect or a final answer that points anywhere else is refused before

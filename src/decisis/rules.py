@@ -7,6 +7,9 @@ from functools import lru_cache
 from typing import Callable
 
 from . import codeowners, semver
+from .inventory.actions import DOCKER as DOCKER_USE
+from .inventory.actions import LOCAL as LOCAL_USE
+from .inventory.actions import local
 from .inventory.shape import UNKNOWN_LICENSES
 
 SEVERITY = ["LOW", "MODERATE", "MEDIUM", "HIGH", "CRITICAL"]
@@ -18,6 +21,8 @@ VERDICT = {MATCH: "violated", CLEAR: "not_violated", UNKNOWN: "unresolved"}
 SHIPPED_ONLY = "reached only through development dependencies; the rule covers shipped ones"
 _TOKEN = re.compile(r"\s*(\(|\)|[^\s()]+)")
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+:-]*$")
+COMMIT = re.compile(r"[0-9a-f]{40}")
+PINNED = "GitHub Actions"
 _HANDLE = re.compile(r"^@?[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?(?:/[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?)?$")
 
 
@@ -205,6 +210,67 @@ def _package_denied(value: tuple, facts: dict) -> tuple[str, str]:
     return MATCH, f"{shown} is denied ({which})"
 
 
+def _allowed_spec(spec) -> dict:
+    if not isinstance(spec, dict) or set(spec) != {"ecosystem", "name"} or not all(isinstance(spec[k], str) and spec[k] for k in spec):
+        raise ValueError("package_allowed must be a non-empty list of {ecosystem, name} mappings")
+    return {"ecosystem": spec["ecosystem"], "name": spec["name"]}
+
+
+def _allowlist(value) -> tuple:
+    if not isinstance(value, list) or not value:
+        raise ValueError("package_allowed must be a non-empty list of {ecosystem, name} mappings")
+    return tuple(_allowed_spec(spec) for spec in value)
+
+
+def unnamed_use(facts: dict) -> str | None:
+    if (facts.get("ecosystem") or "").lower() != PINNED.lower() or facts.get("version"):
+        return None
+    name = facts.get("name") or ""
+    if facts.get("unresolved") == LOCAL_USE and local(name):
+        return "local"
+    return "docker" if facts.get("unresolved") == DOCKER_USE and name.startswith("docker://") else "unknown"
+
+
+def _package_allowed(value: tuple, facts: dict) -> tuple[str, str]:
+    ecosystem = facts.get("ecosystem") or ""
+    shown = f"{ecosystem} {facts.get('name')} {facts.get('version')}"
+    named = [spec for spec in value if spec["ecosystem"].lower() == ecosystem.lower()]
+    if not named:
+        return CLEAR, f"the allowlist names no {ecosystem or 'package without an ecosystem'} packages"
+    use = unnamed_use(facts)
+    if use == "local":
+        return CLEAR, f"{facts.get('name')} is a local action in this repository, which the allowlist allows"
+    if use == "docker":
+        return UNKNOWN, f"{facts.get('name')} is a Docker image, not an action the allowlist can name; it cannot be judged"
+    if use == "unknown":
+        return UNKNOWN, f"uses {facts.get('name')!r} names no action, so it cannot be shown to be on the allowlist"
+    if any(semver.same_package(spec["ecosystem"], spec["name"], facts) for spec in named):
+        return CLEAR, f"{shown} is on the allowlist"
+    return MATCH, f"{shown} is not on the allowlist of {ecosystem} packages ({', '.join(spec['name'] for spec in named)})"
+
+
+def _pin(value) -> tuple:
+    if value is not True:
+        raise ValueError(f"pinned_to_commit must be true, not {value!r}")
+    return (True,)
+
+
+def _pinned(value: tuple, facts: dict) -> tuple[str, str]:
+    ecosystem, name, version = facts.get("ecosystem") or "", facts.get("name"), facts.get("version") or ""
+    if ecosystem.lower() != PINNED.lower():
+        return CLEAR, f"pinned_to_commit covers {PINNED} only, not {ecosystem or 'a package without an ecosystem'}"
+    use = unnamed_use(facts)
+    if use == "local":
+        return CLEAR, f"{name} is a local action, read at the same commit as the workflow"
+    if use == "docker":
+        return UNKNOWN, f"{name} is a Docker image, not pinned to a commit; whether it is pinned to a digest is not checked"
+    if use == "unknown":
+        return UNKNOWN, f"uses {name!r} names no action, so it cannot be shown to be pinned to a commit"
+    if COMMIT.fullmatch(version):
+        return CLEAR, f"{name} is pinned to commit {version}"
+    return MATCH, f"{name} is pinned to {version!r}, not to a full 40-character commit SHA"
+
+
 def _globs(name: str, key: str, value) -> tuple[str, ...]:
     if not isinstance(value, list) or not value or not all(isinstance(x, str) and x.strip() for x in value):
         raise ValueError(f"{name} {key} must be a non-empty list of path globs")
@@ -295,10 +361,12 @@ KINDS: dict[str, Kind] = {
     "license_denied": Kind("license", _license_list("license_denied"), _license_denied),
     "license_allowed": Kind("license", _license_list("license_allowed"), _license_allowed),
     "package_denied": Kind("package", _packages, _package_denied),
+    "package_allowed": Kind("allowlist", _allowlist, _package_allowed),
+    "pinned_to_commit": Kind("pin", _pin, _pinned),
     "review_required": Kind("review", _review_rule, _review),
     "imports_forbidden": Kind("import", _import_rule, _import),
 }
-PACKAGE_SUBJECTS = ("license", "package")
+PACKAGE_SUBJECTS = ("license", "package", "allowlist", "pin")
 CHANGE_SUBJECTS = ("review", "import")
 
 

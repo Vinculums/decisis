@@ -1,0 +1,6401 @@
+{
+ "fetched_at": "2026-11-25T01:45:00Z",
+ "source": "https://api.osv.dev/v1/querybatch and https://api.osv.dev/v1/vulns/{id}",
+ "queries": {
+  "pkg:npm/@alloc/quick-lru@5.2.0": [],
+  "pkg:npm/@auth/core@0.41.3": [],
+  "pkg:npm/@auth/prisma-adapter@2.11.3": [],
+  "pkg:npm/@aws-crypto/sha256-browser@5.2.0": [],
+  "pkg:npm/@aws-crypto/sha256-js@5.2.0": [],
+  "pkg:npm/@aws-crypto/supports-web-crypto@5.2.0": [],
+  "pkg:npm/@aws-crypto/util@5.2.0": [],
+  "pkg:npm/@aws-sdk/client-sesv2@3.952.0": [],
+  "pkg:npm/@aws-sdk/client-sso@3.948.0": [],
+  "pkg:npm/@aws-sdk/core@3.947.0": [],
+  "pkg:npm/@aws-sdk/credential-provider-env@3.947.0": [],
+  "pkg:npm/@aws-sdk/credential-provider-http@3.947.0": [],
+  "pkg:npm/@aws-sdk/credential-provider-ini@3.952.0": [],
+  "pkg:npm/@aws-sdk/credential-provider-login@3.952.0": [],
+  "pkg:npm/@aws-sdk/credential-provider-node@3.952.0": [],
+  "pkg:npm/@aws-sdk/credential-provider-process@3.947.0": [],
+  "pkg:npm/@aws-sdk/credential-provider-sso@3.952.0": [],
+  "pkg:npm/@aws-sdk/credential-provider-web-identity@3.952.0": [],
+  "pkg:npm/@aws-sdk/middleware-host-header@3.936.0": [],
+  "pkg:npm/@aws-sdk/middleware-logger@3.936.0": [],
+  "pkg:npm/@aws-sdk/middleware-recursion-detection@3.948.0": [],
+  "pkg:npm/@aws-sdk/middleware-sdk-s3@3.947.0": [],
+  "pkg:npm/@aws-sdk/middleware-user-agent@3.947.0": [],
+  "pkg:npm/@aws-sdk/nested-clients@3.952.0": [],
+  "pkg:npm/@aws-sdk/region-config-resolver@3.936.0": [],
+  "pkg:npm/@aws-sdk/signature-v4-multi-region@3.947.0": [],
+  "pkg:npm/@aws-sdk/token-providers@3.952.0": [],
+  "pkg:npm/@aws-sdk/types@3.936.0": [],
+  "pkg:npm/@aws-sdk/util-arn-parser@3.893.0": [],
+  "pkg:npm/@aws-sdk/util-endpoints@3.936.0": [],
+  "pkg:npm/@aws-sdk/util-locate-window@3.953.0": [],
+  "pkg:npm/@aws-sdk/util-user-agent-browser@3.936.0": [],
+  "pkg:npm/@aws-sdk/util-user-agent-node@3.947.0": [],
+  "pkg:npm/@aws-sdk/xml-builder@3.930.0": [],
+  "pkg:npm/@aws/lambda-invoke-store@0.2.2": [],
+  "pkg:npm/@emnapi/core@1.7.1": [],
+  "pkg:npm/@emnapi/runtime@1.7.1": [],
+  "pkg:npm/@emnapi/wasi-threads@1.1.0": [],
+  "pkg:npm/@esbuild/aix-ppc64@0.28.2": [],
+  "pkg:npm/@esbuild/android-arm64@0.28.2": [],
+  "pkg:npm/@esbuild/android-arm@0.28.2": [],
+  "pkg:npm/@esbuild/android-x64@0.28.2": [],
+  "pkg:npm/@esbuild/darwin-arm64@0.28.2": [],
+  "pkg:npm/@esbuild/darwin-x64@0.28.2": [],
+  "pkg:npm/@esbuild/freebsd-arm64@0.28.2": [],
+  "pkg:npm/@esbuild/freebsd-x64@0.28.2": [],
+  "pkg:npm/@esbuild/linux-arm64@0.28.2": [],
+  "pkg:npm/@esbuild/linux-arm@0.28.2": [],
+  "pkg:npm/@esbuild/linux-ia32@0.28.2": [],
+  "pkg:npm/@esbuild/linux-loong64@0.28.2": [],
+  "pkg:npm/@esbuild/linux-mips64el@0.28.2": [],
+  "pkg:npm/@esbuild/linux-ppc64@0.28.2": [],
+  "pkg:npm/@esbuild/linux-riscv64@0.28.2": [],
+  "pkg:npm/@esbuild/linux-s390x@0.28.2": [],
+  "pkg:npm/@esbuild/linux-x64@0.28.2": [],
+  "pkg:npm/@esbuild/netbsd-arm64@0.28.2": [],
+  "pkg:npm/@esbuild/netbsd-x64@0.28.2": [],
+  "pkg:npm/@esbuild/openbsd-arm64@0.28.2": [],
+  "pkg:npm/@esbuild/openbsd-x64@0.28.2": [],
+  "pkg:npm/@esbuild/openharmony-arm64@0.28.2": [],
+  "pkg:npm/@esbuild/sunos-x64@0.28.2": [],
+  "pkg:npm/@esbuild/win32-arm64@0.28.2": [],
+  "pkg:npm/@esbuild/win32-ia32@0.28.2": [],
+  "pkg:npm/@esbuild/win32-x64@0.28.2": [],
+  "pkg:npm/@eslint-community/eslint-utils@4.10.1": [],
+  "pkg:npm/@eslint-community/regexpp@4.12.2": [],
+  "pkg:npm/@eslint/config-array@0.21.1": [],
+  "pkg:npm/@eslint/config-helpers@0.4.2": [],
+  "pkg:npm/@eslint/core@0.17.0": [],
+  "pkg:npm/@eslint/eslintrc@3.3.7": [],
+  "pkg:npm/@eslint/js@9.39.2": [],
+  "pkg:npm/@eslint/object-schema@2.1.7": [],
+  "pkg:npm/@eslint/plugin-kit@0.4.1": [],
+  "pkg:npm/@floating-ui/core@1.8.0": [],
+  "pkg:npm/@floating-ui/dom@1.8.0": [],
+  "pkg:npm/@floating-ui/react-dom@2.1.9": [],
+  "pkg:npm/@floating-ui/utils@0.2.12": [],
+  "pkg:npm/@humanfs/core@0.19.1": [],
+  "pkg:npm/@humanfs/node@0.16.7": [
+   "GHSA-p498-v437-472g"
+  ],
+  "pkg:npm/@humanwhocodes/module-importer@1.0.1": [],
+  "pkg:npm/@humanwhocodes/retry@0.4.3": [],
+  "pkg:npm/@img/colour@1.0.0": [],
+  "pkg:npm/@img/sharp-darwin-arm64@0.34.5": [],
+  "pkg:npm/@img/sharp-darwin-x64@0.34.5": [],
+  "pkg:npm/@img/sharp-libvips-darwin-arm64@1.2.4": [],
+  "pkg:npm/@img/sharp-libvips-darwin-x64@1.2.4": [],
+  "pkg:npm/@img/sharp-libvips-linux-arm64@1.2.4": [],
+  "pkg:npm/@img/sharp-libvips-linux-arm@1.2.4": [],
+  "pkg:npm/@img/sharp-libvips-linux-ppc64@1.2.4": [],
+  "pkg:npm/@img/sharp-libvips-linux-riscv64@1.2.4": [],
+  "pkg:npm/@img/sharp-libvips-linux-s390x@1.2.4": [],
+  "pkg:npm/@img/sharp-libvips-linux-x64@1.2.4": [],
+  "pkg:npm/@img/sharp-libvips-linuxmusl-arm64@1.2.4": [],
+  "pkg:npm/@img/sharp-libvips-linuxmusl-x64@1.2.4": [],
+  "pkg:npm/@img/sharp-linux-arm64@0.34.5": [],
+  "pkg:npm/@img/sharp-linux-arm@0.34.5": [],
+  "pkg:npm/@img/sharp-linux-ppc64@0.34.5": [],
+  "pkg:npm/@img/sharp-linux-riscv64@0.34.5": [],
+  "pkg:npm/@img/sharp-linux-s390x@0.34.5": [],
+  "pkg:npm/@img/sharp-linux-x64@0.34.5": [],
+  "pkg:npm/@img/sharp-linuxmusl-arm64@0.34.5": [],
+  "pkg:npm/@img/sharp-linuxmusl-x64@0.34.5": [],
+  "pkg:npm/@img/sharp-wasm32@0.34.5": [],
+  "pkg:npm/@img/sharp-win32-arm64@0.34.5": [],
+  "pkg:npm/@img/sharp-win32-ia32@0.34.5": [],
+  "pkg:npm/@img/sharp-win32-x64@0.34.5": [],
+  "pkg:npm/@jridgewell/gen-mapping@0.3.13": [],
+  "pkg:npm/@jridgewell/resolve-uri@3.1.2": [],
+  "pkg:npm/@jridgewell/sourcemap-codec@1.5.5": [],
+  "pkg:npm/@jridgewell/trace-mapping@0.3.31": [],
+  "pkg:npm/@napi-rs/lzma-linux-x64-gnu@1.5.1": [],
+  "pkg:npm/@napi-rs/wasm-runtime@0.2.12": [],
+  "pkg:npm/@next/env@15.5.9": [],
+  "pkg:npm/@next/eslint-plugin-next@15.5.9": [],
+  "pkg:npm/@next/swc-darwin-arm64@15.5.7": [],
+  "pkg:npm/@next/swc-darwin-x64@15.5.7": [],
+  "pkg:npm/@next/swc-linux-arm64-gnu@15.5.7": [],
+  "pkg:npm/@next/swc-linux-arm64-musl@15.5.7": [],
+  "pkg:npm/@next/swc-linux-x64-gnu@15.5.7": [],
+  "pkg:npm/@next/swc-linux-x64-musl@15.5.7": [],
+  "pkg:npm/@next/swc-win32-arm64-msvc@15.5.7": [],
+  "pkg:npm/@next/swc-win32-x64-msvc@15.5.7": [],
+  "pkg:npm/@nodelib/fs.scandir@2.1.5": [],
+  "pkg:npm/@nodelib/fs.stat@2.0.5": [],
+  "pkg:npm/@nodelib/fs.walk@1.2.8": [],
+  "pkg:npm/@nolyfill/is-core-module@1.0.39": [],
+  "pkg:npm/@panva/hkdf@1.2.1": [],
+  "pkg:npm/@prisma/client@6.19.1": [],
+  "pkg:npm/@prisma/config@6.19.3": [],
+  "pkg:npm/@prisma/debug@6.19.3": [],
+  "pkg:npm/@prisma/engines-version@7.1.1-3.c2990dca591cba766e3b7ef5d9e8a84796e47ab7": [],
+  "pkg:npm/@prisma/engines@6.19.3": [],
+  "pkg:npm/@prisma/fetch-engine@6.19.3": [],
+  "pkg:npm/@prisma/get-platform@6.19.3": [],
+  "pkg:npm/@radix-ui/primitive@1.1.7": [],
+  "pkg:npm/@radix-ui/react-arrow@1.1.15": [],
+  "pkg:npm/@radix-ui/react-collection@1.1.15": [],
+  "pkg:npm/@radix-ui/react-compose-refs@1.1.5": [],
+  "pkg:npm/@radix-ui/react-context@1.2.2": [],
+  "pkg:npm/@radix-ui/react-dialog@1.1.23": [],
+  "pkg:npm/@radix-ui/react-direction@1.1.4": [],
+  "pkg:npm/@radix-ui/react-dismissable-layer@1.1.19": [],
+  "pkg:npm/@radix-ui/react-dropdown-menu@2.1.24": [],
+  "pkg:npm/@radix-ui/react-focus-guards@1.1.6": [],
+  "pkg:npm/@radix-ui/react-focus-scope@1.1.16": [],
+  "pkg:npm/@radix-ui/react-id@1.1.4": [],
+  "pkg:npm/@radix-ui/react-label@2.1.15": [],
+  "pkg:npm/@radix-ui/react-menu@2.1.24": [],
+  "pkg:npm/@radix-ui/react-popper@1.3.7": [],
+  "pkg:npm/@radix-ui/react-portal@1.1.17": [],
+  "pkg:npm/@radix-ui/react-presence@1.1.10": [],
+  "pkg:npm/@radix-ui/react-primitive@2.1.10": [],
+  "pkg:npm/@radix-ui/react-roving-focus@1.1.19": [],
+  "pkg:npm/@radix-ui/react-separator@1.1.15": [],
+  "pkg:npm/@radix-ui/react-slot@1.3.3": [],
+  "pkg:npm/@radix-ui/react-tabs@1.1.21": [],
+  "pkg:npm/@radix-ui/react-use-callback-ref@1.1.4": [],
+  "pkg:npm/@radix-ui/react-use-controllable-state@1.2.6": [],
+  "pkg:npm/@radix-ui/react-use-effect-event@0.0.5": [],
+  "pkg:npm/@radix-ui/react-use-is-hydrated@0.1.3": [],
+  "pkg:npm/@radix-ui/react-use-layout-effect@1.1.4": [],
+  "pkg:npm/@radix-ui/react-use-rect@1.1.4": [],
+  "pkg:npm/@radix-ui/react-use-size@1.1.4": [],
+  "pkg:npm/@radix-ui/rect@1.1.3": [],
+  "pkg:npm/@reduxjs/toolkit@2.11.2": [],
+  "pkg:npm/@rollup/rollup-android-arm-eabi@4.63.1": [],
+  "pkg:npm/@rollup/rollup-android-arm64@4.63.1": [],
+  "pkg:npm/@rollup/rollup-darwin-arm64@4.63.1": [],
+  "pkg:npm/@rollup/rollup-darwin-x64@4.63.1": [],
+  "pkg:npm/@rollup/rollup-freebsd-arm64@4.63.1": [],
+  "pkg:npm/@rollup/rollup-freebsd-x64@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-arm-gnueabihf@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-arm-musleabihf@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-arm64-gnu@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-arm64-musl@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-loong64-gnu@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-loong64-musl@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-ppc64-gnu@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-ppc64-musl@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-riscv64-gnu@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-riscv64-musl@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-s390x-gnu@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-x64-gnu@4.63.1": [],
+  "pkg:npm/@rollup/rollup-linux-x64-musl@4.63.1": [],
+  "pkg:npm/@rollup/rollup-openbsd-x64@4.63.1": [],
+  "pkg:npm/@rollup/rollup-openharmony-arm64@4.63.1": [],
+  "pkg:npm/@rollup/rollup-win32-arm64-msvc@4.63.1": [],
+  "pkg:npm/@rollup/rollup-win32-ia32-msvc@4.63.1": [],
+  "pkg:npm/@rollup/rollup-win32-x64-gnu@4.63.1": [],
+  "pkg:npm/@rollup/rollup-win32-x64-msvc@4.63.1": [],
+  "pkg:npm/@rtsao/scc@1.1.0": [],
+  "pkg:npm/@rushstack/eslint-patch@1.16.1": [],
+  "pkg:npm/@smithy/abort-controller@4.2.6": [],
+  "pkg:npm/@smithy/config-resolver@4.4.4": [],
+  "pkg:npm/@smithy/core@3.19.0": [],
+  "pkg:npm/@smithy/credential-provider-imds@4.2.6": [],
+  "pkg:npm/@smithy/fetch-http-handler@5.3.7": [],
+  "pkg:npm/@smithy/hash-node@4.2.6": [],
+  "pkg:npm/@smithy/invalid-dependency@4.2.6": [],
+  "pkg:npm/@smithy/is-array-buffer@2.2.0": [],
+  "pkg:npm/@smithy/is-array-buffer@4.2.0": [],
+  "pkg:npm/@smithy/middleware-content-length@4.2.6": [],
+  "pkg:npm/@smithy/middleware-endpoint@4.4.0": [],
+  "pkg:npm/@smithy/middleware-retry@4.4.16": [],
+  "pkg:npm/@smithy/middleware-serde@4.2.7": [],
+  "pkg:npm/@smithy/middleware-stack@4.2.6": [],
+  "pkg:npm/@smithy/node-config-provider@4.3.6": [],
+  "pkg:npm/@smithy/node-http-handler@4.4.6": [],
+  "pkg:npm/@smithy/property-provider@4.2.6": [],
+  "pkg:npm/@smithy/protocol-http@5.3.6": [],
+  "pkg:npm/@smithy/querystring-builder@4.2.6": [],
+  "pkg:npm/@smithy/querystring-parser@4.2.6": [],
+  "pkg:npm/@smithy/service-error-classification@4.2.6": [],
+  "pkg:npm/@smithy/shared-ini-file-loader@4.4.1": [],
+  "pkg:npm/@smithy/signature-v4@5.3.6": [],
+  "pkg:npm/@smithy/smithy-client@4.10.1": [],
+  "pkg:npm/@smithy/types@4.10.0": [],
+  "pkg:npm/@smithy/url-parser@4.2.6": [],
+  "pkg:npm/@smithy/util-base64@4.3.0": [],
+  "pkg:npm/@smithy/util-body-length-browser@4.2.0": [],
+  "pkg:npm/@smithy/util-body-length-node@4.2.1": [],
+  "pkg:npm/@smithy/util-buffer-from@2.2.0": [],
+  "pkg:npm/@smithy/util-buffer-from@4.2.0": [],
+  "pkg:npm/@smithy/util-config-provider@4.2.0": [],
+  "pkg:npm/@smithy/util-defaults-mode-browser@4.3.15": [],
+  "pkg:npm/@smithy/util-defaults-mode-node@4.2.18": [],
+  "pkg:npm/@smithy/util-endpoints@3.2.6": [],
+  "pkg:npm/@smithy/util-hex-encoding@4.2.0": [],
+  "pkg:npm/@smithy/util-middleware@4.2.6": [],
+  "pkg:npm/@smithy/util-retry@4.2.6": [],
+  "pkg:npm/@smithy/util-stream@4.5.7": [],
+  "pkg:npm/@smithy/util-uri-escape@4.2.0": [],
+  "pkg:npm/@smithy/util-utf8@2.3.0": [],
+  "pkg:npm/@smithy/util-utf8@4.2.0": [],
+  "pkg:npm/@smithy/uuid@1.1.0": [],
+  "pkg:npm/@standard-schema/spec@1.1.0": [],
+  "pkg:npm/@standard-schema/utils@0.3.0": [],
+  "pkg:npm/@swc/helpers@0.5.15": [],
+  "pkg:npm/@tybys/wasm-util@0.10.1": [],
+  "pkg:npm/@types/bcryptjs@3.0.0": [],
+  "pkg:npm/@types/chai@5.2.3": [],
+  "pkg:npm/@types/d3-array@3.2.2": [],
+  "pkg:npm/@types/d3-color@3.1.3": [],
+  "pkg:npm/@types/d3-ease@3.0.2": [],
+  "pkg:npm/@types/d3-interpolate@3.0.4": [],
+  "pkg:npm/@types/d3-path@3.1.1": [],
+  "pkg:npm/@types/d3-scale@4.0.9": [],
+  "pkg:npm/@types/d3-shape@3.1.7": [],
+  "pkg:npm/@types/d3-time@3.0.4": [],
+  "pkg:npm/@types/d3-timer@3.0.2": [],
+  "pkg:npm/@types/deep-eql@4.0.2": [],
+  "pkg:npm/@types/estree@1.0.9": [],
+  "pkg:npm/@types/json-schema@7.0.15": [],
+  "pkg:npm/@types/json5@0.0.29": [],
+  "pkg:npm/@types/node@25.0.3": [],
+  "pkg:npm/@types/nodemailer@7.0.5": [],
+  "pkg:npm/@types/react-dom@19.3.0": [],
+  "pkg:npm/@types/react@19.3.0": [],
+  "pkg:npm/@types/use-sync-external-store@0.0.6": [],
+  "pkg:npm/@typescript-eslint/eslint-plugin@8.70.0": [],
+  "pkg:npm/@typescript-eslint/parser@8.70.0": [],
+  "pkg:npm/@typescript-eslint/project-service@8.70.0": [],
+  "pkg:npm/@typescript-eslint/scope-manager@8.70.0": [],
+  "pkg:npm/@typescript-eslint/tsconfig-utils@8.70.0": [],
+  "pkg:npm/@typescript-eslint/type-utils@8.70.0": [],
+  "pkg:npm/@typescript-eslint/types@8.70.0": [],
+  "pkg:npm/@typescript-eslint/typescript-estree@8.70.0": [],
+  "pkg:npm/@typescript-eslint/utils@8.70.0": [],
+  "pkg:npm/@typescript-eslint/visitor-keys@8.70.0": [],
+  "pkg:npm/@unrs/resolver-binding-android-arm-eabi@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-android-arm64@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-darwin-arm64@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-darwin-x64@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-freebsd-x64@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-arm-gnueabihf@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-arm-musleabihf@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-arm64-gnu@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-arm64-musl@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-ppc64-gnu@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-riscv64-gnu@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-riscv64-musl@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-s390x-gnu@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-x64-gnu@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-linux-x64-musl@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-wasm32-wasi@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-win32-arm64-msvc@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-win32-ia32-msvc@1.11.1": [],
+  "pkg:npm/@unrs/resolver-binding-win32-x64-msvc@1.11.1": [],
+  "pkg:npm/@vitest/expect@3.2.7": [],
+  "pkg:npm/@vitest/mocker@3.2.7": [
+   "GHSA-82fw-gwwq-j7x9",
+   "GHSA-qxg6-89mg-rqv8"
+  ],
+  "pkg:npm/@vitest/pretty-format@3.2.7": [],
+  "pkg:npm/@vitest/runner@3.2.7": [],
+  "pkg:npm/@vitest/snapshot@3.2.7": [],
+  "pkg:npm/@vitest/spy@3.2.7": [],
+  "pkg:npm/@vitest/utils@3.2.7": [],
+  "pkg:npm/acorn-jsx@5.3.2": [],
+  "pkg:npm/acorn@8.15.0": [],
+  "pkg:npm/ajv@6.15.0": [],
+  "pkg:npm/ansi-styles@4.3.0": [],
+  "pkg:npm/any-promise@1.3.0": [],
+  "pkg:npm/anymatch@3.1.3": [],
+  "pkg:npm/arg@5.0.2": [],
+  "pkg:npm/argparse@2.0.1": [],
+  "pkg:npm/aria-hidden@1.2.6": [],
+  "pkg:npm/aria-query@5.3.2": [],
+  "pkg:npm/array-buffer-byte-length@1.0.2": [],
+  "pkg:npm/array-includes@3.1.9": [],
+  "pkg:npm/array.prototype.findlast@1.2.5": [],
+  "pkg:npm/array.prototype.findlastindex@1.2.6": [],
+  "pkg:npm/array.prototype.flat@1.3.3": [],
+  "pkg:npm/array.prototype.flatmap@1.3.3": [],
+  "pkg:npm/array.prototype.tosorted@1.1.4": [],
+  "pkg:npm/arraybuffer.prototype.slice@1.0.4": [],
+  "pkg:npm/assertion-error@2.0.1": [],
+  "pkg:npm/ast-types-flow@0.0.8": [],
+  "pkg:npm/async-function@1.0.0": [],
+  "pkg:npm/autoprefixer@10.5.5": [],
+  "pkg:npm/available-typed-arrays@1.0.7": [],
+  "pkg:npm/axe-core@4.11.0": [],
+  "pkg:npm/axobject-query@4.1.0": [],
+  "pkg:npm/balanced-match@1.0.2": [],
+  "pkg:npm/balanced-match@4.0.4": [],
+  "pkg:npm/baseline-browser-mapping@2.11.21": [],
+  "pkg:npm/bcryptjs@3.0.3": [],
+  "pkg:npm/binary-extensions@2.3.0": [],
+  "pkg:npm/bowser@2.13.1": [],
+  "pkg:npm/brace-expansion@1.1.12": [
+   "GHSA-3jxr-9vmj-r5cp",
+   "GHSA-6j4f-fj2g-mc7p",
+   "GHSA-f886-m6hf-6m8v",
+   "GHSA-mh99-v99m-4gvg",
+   "GHSA-q2hr-2g5m-vwhr",
+   "GHSA-qhr7-859c-m2p7",
+   "GHSA-rgw5-rvv9-x895"
+  ],
+  "pkg:npm/brace-expansion@5.0.9": [
+   "GHSA-6j4f-fj2g-mc7p",
+   "GHSA-q2hr-2g5m-vwhr",
+   "GHSA-qhr7-859c-m2p7"
+  ],
+  "pkg:npm/braces@3.0.3": [],
+  "pkg:npm/browserslist@4.28.9": [],
+  "pkg:npm/c12@3.1.0": [],
+  "pkg:npm/cac@6.7.14": [],
+  "pkg:npm/call-bind-apply-helpers@1.0.2": [],
+  "pkg:npm/call-bind@1.0.8": [],
+  "pkg:npm/call-bound@1.0.4": [],
+  "pkg:npm/callsites@3.1.0": [],
+  "pkg:npm/camelcase-css@2.0.1": [],
+  "pkg:npm/caniuse-lite@1.0.30001810": [],
+  "pkg:npm/chai@5.3.3": [],
+  "pkg:npm/chalk@4.1.2": [],
+  "pkg:npm/check-error@2.1.3": [],
+  "pkg:npm/chokidar@3.6.0": [],
+  "pkg:npm/chokidar@4.0.3": [],
+  "pkg:npm/citty@0.1.6": [],
+  "pkg:npm/citty@0.2.2": [],
+  "pkg:npm/class-variance-authority@0.7.1": [],
+  "pkg:npm/client-only@0.0.1": [],
+  "pkg:npm/clsx@2.1.1": [],
+  "pkg:npm/color-convert@2.0.1": [],
+  "pkg:npm/color-name@1.1.4": [],
+  "pkg:npm/commander@4.1.1": [],
+  "pkg:npm/concat-map@0.0.1": [],
+  "pkg:npm/confbox@0.2.4": [],
+  "pkg:npm/confbox@0.3.1": [],
+  "pkg:npm/consola@3.4.2": [],
+  "pkg:npm/cross-spawn@7.0.6": [],
+  "pkg:npm/cssesc@3.0.0": [],
+  "pkg:npm/csstype@3.2.3": [],
+  "pkg:npm/d3-array@3.2.4": [],
+  "pkg:npm/d3-color@3.1.0": [],
+  "pkg:npm/d3-ease@3.0.1": [],
+  "pkg:npm/d3-format@3.1.0": [],
+  "pkg:npm/d3-interpolate@3.0.1": [],
+  "pkg:npm/d3-path@3.1.0": [],
+  "pkg:npm/d3-scale@4.0.2": [],
+  "pkg:npm/d3-shape@3.2.0": [],
+  "pkg:npm/d3-time-format@4.1.0": [],
+  "pkg:npm/d3-time@3.1.0": [],
+  "pkg:npm/d3-timer@3.0.1": [],
+  "pkg:npm/damerau-levenshtein@1.0.8": [],
+  "pkg:npm/data-view-buffer@1.0.2": [],
+  "pkg:npm/data-view-byte-length@1.0.2": [],
+  "pkg:npm/data-view-byte-offset@1.0.1": [],
+  "pkg:npm/debug@3.2.7": [],
+  "pkg:npm/debug@4.4.3": [],
+  "pkg:npm/decimal.js-light@2.5.1": [],
+  "pkg:npm/deep-eql@5.0.2": [],
+  "pkg:npm/deep-is@0.1.4": [],
+  "pkg:npm/deepmerge-ts@7.1.5": [
+   "GHSA-ggr8-5vv4-36mx"
+  ],
+  "pkg:npm/define-data-property@1.1.4": [],
+  "pkg:npm/define-properties@1.2.1": [],
+  "pkg:npm/defu@6.1.7": [],
+  "pkg:npm/destr@2.0.5": [],
+  "pkg:npm/detect-libc@2.1.2": [],
+  "pkg:npm/detect-node-es@1.1.0": [],
+  "pkg:npm/didyoumean@1.2.2": [],
+  "pkg:npm/dlv@1.1.3": [],
+  "pkg:npm/doctrine@2.1.0": [],
+  "pkg:npm/dotenv@16.6.1": [],
+  "pkg:npm/dunder-proto@1.0.1": [],
+  "pkg:npm/effect@3.21.0": [
+   "GHSA-7589-6fvf-x4pw"
+  ],
+  "pkg:npm/electron-to-chromium@1.5.422": [],
+  "pkg:npm/emoji-regex@9.2.2": [],
+  "pkg:npm/empathic@2.0.0": [],
+  "pkg:npm/es-abstract@1.24.1": [],
+  "pkg:npm/es-define-property@1.0.1": [],
+  "pkg:npm/es-errors@1.3.0": [],
+  "pkg:npm/es-iterator-helpers@1.2.2": [],
+  "pkg:npm/es-module-lexer@1.7.0": [],
+  "pkg:npm/es-object-atoms@1.1.1": [],
+  "pkg:npm/es-set-tostringtag@2.1.0": [],
+  "pkg:npm/es-shim-unscopables@1.1.0": [],
+  "pkg:npm/es-to-primitive@1.3.0": [],
+  "pkg:npm/es-toolkit@1.43.0": [],
+  "pkg:npm/esbuild@0.28.2": [],
+  "pkg:npm/escalade@3.2.0": [],
+  "pkg:npm/escape-string-regexp@4.0.0": [],
+  "pkg:npm/eslint-config-next@15.5.9": [],
+  "pkg:npm/eslint-import-resolver-node@0.3.9": [],
+  "pkg:npm/eslint-import-resolver-typescript@3.10.1": [],
+  "pkg:npm/eslint-module-utils@2.12.1": [],
+  "pkg:npm/eslint-plugin-import@2.32.0": [],
+  "pkg:npm/eslint-plugin-jsx-a11y@6.10.2": [],
+  "pkg:npm/eslint-plugin-react-hooks@5.2.0": [],
+  "pkg:npm/eslint-plugin-react@7.37.5": [],
+  "pkg:npm/eslint-scope@8.4.0": [],
+  "pkg:npm/eslint-visitor-keys@3.4.3": [],
+  "pkg:npm/eslint-visitor-keys@4.2.1": [],
+  "pkg:npm/eslint-visitor-keys@5.0.1": [],
+  "pkg:npm/eslint@9.39.2": [],
+  "pkg:npm/espree@10.4.0": [],
+  "pkg:npm/esquery@1.6.0": [],
+  "pkg:npm/esrecurse@4.3.0": [],
+  "pkg:npm/estraverse@5.3.0": [],
+  "pkg:npm/estree-walker@3.0.3": [],
+  "pkg:npm/esutils@2.0.3": [],
+  "pkg:npm/eventemitter3@5.0.1": [],
+  "pkg:npm/expect-type@1.4.0": [],
+  "pkg:npm/exsolve@1.1.1": [],
+  "pkg:npm/fast-check@3.23.2": [],
+  "pkg:npm/fast-deep-equal@3.1.3": [],
+  "pkg:npm/fast-glob@3.3.1": [],
+  "pkg:npm/fast-glob@3.3.3": [],
+  "pkg:npm/fast-json-stable-stringify@2.1.0": [],
+  "pkg:npm/fast-levenshtein@2.0.6": [],
+  "pkg:npm/fast-xml-parser@5.2.5": [
+   "GHSA-37qj-frw5-hhjh",
+   "GHSA-474x-hrwr-fgx4",
+   "GHSA-8gc5-j5rx-235r",
+   "GHSA-fj3w-jwp8-x2g3",
+   "GHSA-gh4j-gqv2-49f6",
+   "GHSA-jmr7-xgp7-cmfj",
+   "GHSA-jp2q-39xq-3w4g",
+   "GHSA-m7jm-9gc2-mpf2"
+  ],
+  "pkg:npm/fastq@1.19.1": [],
+  "pkg:npm/fdir@6.5.0": [],
+  "pkg:npm/file-entry-cache@8.0.0": [],
+  "pkg:npm/fill-range@7.1.1": [],
+  "pkg:npm/find-up@5.0.0": [],
+  "pkg:npm/flat-cache@4.0.1": [],
+  "pkg:npm/flatted@3.3.3": [
+   "GHSA-25h7-pfq9-p65f",
+   "GHSA-rf6f-7fwh-wjgh"
+  ],
+  "pkg:npm/for-each@0.3.5": [],
+  "pkg:npm/fraction.js@5.3.4": [],
+  "pkg:npm/fsevents@2.3.3": [],
+  "pkg:npm/function-bind@1.1.2": [],
+  "pkg:npm/function.prototype.name@1.1.8": [],
+  "pkg:npm/functions-have-names@1.2.3": [],
+  "pkg:npm/generator-function@2.0.1": [],
+  "pkg:npm/get-intrinsic@1.3.0": [],
+  "pkg:npm/get-nonce@1.0.1": [],
+  "pkg:npm/get-proto@1.0.1": [],
+  "pkg:npm/get-symbol-description@1.1.0": [],
+  "pkg:npm/get-tsconfig@4.13.0": [],
+  "pkg:npm/giget@2.0.0": [],
+  "pkg:npm/glob-parent@5.1.2": [],
+  "pkg:npm/glob-parent@6.0.2": [],
+  "pkg:npm/globals@14.0.0": [],
+  "pkg:npm/globalthis@1.0.4": [],
+  "pkg:npm/gopd@1.2.0": [],
+  "pkg:npm/has-bigints@1.1.0": [],
+  "pkg:npm/has-flag@4.0.0": [],
+  "pkg:npm/has-property-descriptors@1.0.2": [],
+  "pkg:npm/has-proto@1.2.0": [],
+  "pkg:npm/has-symbols@1.1.0": [],
+  "pkg:npm/has-tostringtag@1.0.2": [],
+  "pkg:npm/hasown@2.0.2": [],
+  "pkg:npm/ignore@5.3.2": [],
+  "pkg:npm/ignore@7.0.9": [],
+  "pkg:npm/immer@10.2.0": [],
+  "pkg:npm/immer@11.0.1": [],
+  "pkg:npm/import-fresh@3.3.1": [],
+  "pkg:npm/imurmurhash@0.1.4": [],
+  "pkg:npm/internal-slot@1.1.0": [],
+  "pkg:npm/internmap@2.0.3": [],
+  "pkg:npm/is-array-buffer@3.0.5": [],
+  "pkg:npm/is-async-function@2.1.1": [],
+  "pkg:npm/is-bigint@1.1.0": [],
+  "pkg:npm/is-binary-path@2.1.0": [],
+  "pkg:npm/is-boolean-object@1.2.2": [],
+  "pkg:npm/is-bun-module@2.0.0": [],
+  "pkg:npm/is-callable@1.2.7": [],
+  "pkg:npm/is-core-module@2.16.1": [],
+  "pkg:npm/is-data-view@1.0.2": [],
+  "pkg:npm/is-date-object@1.1.0": [],
+  "pkg:npm/is-extglob@2.1.1": [],
+  "pkg:npm/is-finalizationregistry@1.1.1": [],
+  "pkg:npm/is-generator-function@1.1.2": [],
+  "pkg:npm/is-glob@4.0.3": [],
+  "pkg:npm/is-map@2.0.3": [],
+  "pkg:npm/is-negative-zero@2.0.3": [],
+  "pkg:npm/is-number-object@1.1.1": [],
+  "pkg:npm/is-number@7.0.0": [],
+  "pkg:npm/is-regex@1.2.1": [],
+  "pkg:npm/is-set@2.0.3": [],
+  "pkg:npm/is-shared-array-buffer@1.0.4": [],
+  "pkg:npm/is-string@1.1.1": [],
+  "pkg:npm/is-symbol@1.1.1": [],
+  "pkg:npm/is-typed-array@1.1.15": [],
+  "pkg:npm/is-weakmap@2.0.2": [],
+  "pkg:npm/is-weakref@1.1.1": [],
+  "pkg:npm/is-weakset@2.0.4": [],
+  "pkg:npm/isarray@2.0.5": [],
+  "pkg:npm/isexe@2.0.0": [],
+  "pkg:npm/iterator.prototype@1.1.5": [],
+  "pkg:npm/jiti@1.21.7": [],
+  "pkg:npm/jiti@2.6.1": [],
+  "pkg:npm/jose@6.2.12": [],
+  "pkg:npm/js-tokens@4.0.0": [],
+  "pkg:npm/js-tokens@9.0.1": [],
+  "pkg:npm/js-yaml@4.3.2": [],
+  "pkg:npm/json-buffer@3.0.1": [],
+  "pkg:npm/json-schema-traverse@0.4.1": [],
+  "pkg:npm/json-stable-stringify-without-jsonify@1.0.1": [],
+  "pkg:npm/json5@1.0.2": [],
+  "pkg:npm/jsx-ast-utils@3.3.5": [],
+  "pkg:npm/keyv@4.5.4": [],
+  "pkg:npm/language-subtag-registry@0.3.23": [],
+  "pkg:npm/language-tags@1.0.9": [],
+  "pkg:npm/levn@0.4.1": [],
+  "pkg:npm/lilconfig@3.1.3": [],
+  "pkg:npm/lines-and-columns@1.2.4": [],
+  "pkg:npm/locate-path@6.0.0": [],
+  "pkg:npm/lodash.merge@4.6.2": [],
+  "pkg:npm/loose-envify@1.4.0": [],
+  "pkg:npm/loupe@3.2.1": [],
+  "pkg:npm/lucide-react@0.562.0": [],
+  "pkg:npm/magic-string@0.30.21": [],
+  "pkg:npm/math-intrinsics@1.1.0": [],
+  "pkg:npm/merge2@1.4.1": [],
+  "pkg:npm/micromatch@4.0.8": [],
+  "pkg:npm/minimatch@10.2.6": [
+   "GHSA-g3hv-75wg-m249"
+  ],
+  "pkg:npm/minimatch@3.1.5": [],
+  "pkg:npm/minimist@1.2.8": [],
+  "pkg:npm/ms@2.1.3": [],
+  "pkg:npm/mz@2.7.0": [],
+  "pkg:npm/nanoid@3.3.11": [
+   "GHSA-28wg-ghj8-5hjv",
+   "GHSA-2v37-7h3g-55p8",
+   "GHSA-xwg4-73v4-xw9w"
+  ],
+  "pkg:npm/napi-postinstall@0.3.4": [],
+  "pkg:npm/natural-compare@1.4.0": [],
+  "pkg:npm/next-auth@5.0.0-beta.32": [],
+  "pkg:npm/next@15.5.9": [
+   "GHSA-2464-fhr4-w9xw",
+   "GHSA-267c-6grr-h53f",
+   "GHSA-26hh-7cqf-hhc6",
+   "GHSA-2xp9-vwfh-vxw4",
+   "GHSA-36qx-fr4f-26g5",
+   "GHSA-3g8h-86w9-wvmq",
+   "GHSA-3x4c-7xq6-9pq8",
+   "GHSA-4633-3j49-mh5q",
+   "GHSA-492v-c6pp-mqqv",
+   "GHSA-4c39-4ccg-62r3",
+   "GHSA-4jqv-mc3x-m676",
+   "GHSA-68g3-v927-f742",
+   "GHSA-7qx7-33qx-rqx2",
+   "GHSA-89xv-2m56-2m9x",
+   "GHSA-8h8q-6873-q5fj",
+   "GHSA-955p-x3mx-jcvp",
+   "GHSA-9g9p-9gw9-jx7f",
+   "GHSA-c4j6-fc7j-m34r",
+   "GHSA-f3mh-rxg3-f5g2",
+   "GHSA-ffhc-5mcf-pf4q",
+   "GHSA-ggv3-7p47-pfv8",
+   "GHSA-gx5p-jg67-6x7h",
+   "GHSA-h25m-26qc-wcjf",
+   "GHSA-h64f-5h5j-jqjh",
+   "GHSA-m99w-x7hq-7vfj",
+   "GHSA-mcj8-r9mp-w47p",
+   "GHSA-mg66-mrh9-m8jx",
+   "GHSA-p293-qw3h-jr36",
+   "GHSA-p3m5-59mp-jv5r",
+   "GHSA-p9j2-gv94-2wf4",
+   "GHSA-pc58-hwjq-p385",
+   "GHSA-q4gf-8mx6-v5v3",
+   "GHSA-q8wf-6r8g-63ch",
+   "GHSA-vfv6-92ff-j949",
+   "GHSA-wfc6-r584-vfw7"
+  ],
+  "pkg:npm/node-fetch-native@1.6.7": [],
+  "pkg:npm/node-releases@2.0.54": [],
+  "pkg:npm/nodemailer@7.0.12": [
+   "GHSA-268h-hp4c-crq3",
+   "GHSA-2x7j-588g-ccc2",
+   "GHSA-39m8-27wv-hr27",
+   "GHSA-4ffr-jq9g-5ffx",
+   "GHSA-4g23-2xm8-66gc",
+   "GHSA-6vj9-mwq6-2f5v",
+   "GHSA-85x2-q946-cp5h",
+   "GHSA-8c8m-p3m8-cjg8",
+   "GHSA-8m3c-c648-2xjj",
+   "GHSA-8vvx-rff5-p5rq",
+   "GHSA-c7w3-x93f-qmm8",
+   "GHSA-cc9r-2j5m-2m83",
+   "GHSA-g73g-hqqh-jr95",
+   "GHSA-m943-m63m-w62w",
+   "GHSA-p6gq-j5cr-w38f",
+   "GHSA-r7g4-qg5f-qqm2",
+   "GHSA-v53p-9fqp-m79j",
+   "GHSA-vvjj-xcjg-gr5g",
+   "GHSA-wmmp-3585-3rmp",
+   "GHSA-wqvq-jvpq-h66f"
+  ],
+  "pkg:npm/normalize-path@3.0.0": [],
+  "pkg:npm/nypm@0.6.9": [],
+  "pkg:npm/oauth4webapi@3.8.8": [],
+  "pkg:npm/object-assign@4.1.1": [],
+  "pkg:npm/object-hash@3.0.0": [],
+  "pkg:npm/object-inspect@1.13.4": [],
+  "pkg:npm/object-keys@1.1.1": [],
+  "pkg:npm/object.assign@4.1.7": [],
+  "pkg:npm/object.entries@1.1.9": [],
+  "pkg:npm/object.fromentries@2.0.8": [],
+  "pkg:npm/object.groupby@1.0.3": [],
+  "pkg:npm/object.values@1.2.1": [],
+  "pkg:npm/ohash@2.0.12": [],
+  "pkg:npm/optionator@0.9.4": [],
+  "pkg:npm/own-keys@1.0.1": [],
+  "pkg:npm/p-limit@3.1.0": [],
+  "pkg:npm/p-locate@5.0.0": [],
+  "pkg:npm/parent-module@1.0.1": [],
+  "pkg:npm/path-exists@4.0.0": [],
+  "pkg:npm/path-key@3.1.1": [],
+  "pkg:npm/path-parse@1.0.7": [],
+  "pkg:npm/pathe@2.0.3": [],
+  "pkg:npm/pathval@2.0.1": [],
+  "pkg:npm/perfect-debounce@1.0.0": [],
+  "pkg:npm/picocolors@1.1.1": [],
+  "pkg:npm/picomatch@2.3.1": [
+   "GHSA-3v7f-55p6-f55p",
+   "GHSA-c2c7-rcm5-vvqj"
+  ],
+  "pkg:npm/picomatch@4.0.3": [
+   "GHSA-3v7f-55p6-f55p",
+   "GHSA-c2c7-rcm5-vvqj"
+  ],
+  "pkg:npm/picomatch@4.0.7": [],
+  "pkg:npm/pify@2.3.0": [],
+  "pkg:npm/pirates@4.0.7": [],
+  "pkg:npm/pkg-types@2.3.2": [],
+  "pkg:npm/possible-typed-array-names@1.1.0": [],
+  "pkg:npm/postcss-import@15.1.0": [],
+  "pkg:npm/postcss-js@4.1.0": [],
+  "pkg:npm/postcss-load-config@6.0.1": [],
+  "pkg:npm/postcss-nested@6.2.0": [],
+  "pkg:npm/postcss-selector-parser@6.1.2": [
+   "GHSA-rj75-hqrm-r3gf",
+   "GHSA-w9m9-85wc-3x92"
+  ],
+  "pkg:npm/postcss-value-parser@4.2.0": [],
+  "pkg:npm/postcss@8.4.31": [
+   "GHSA-6g55-p6wh-862q",
+   "GHSA-fxqj-rqcc-2cmp",
+   "GHSA-qx2v-qp2m-jg93",
+   "GHSA-r28c-9q8g-f849"
+  ],
+  "pkg:npm/postcss@8.5.6": [
+   "GHSA-6g55-p6wh-862q",
+   "GHSA-fxqj-rqcc-2cmp",
+   "GHSA-qx2v-qp2m-jg93",
+   "GHSA-r28c-9q8g-f849"
+  ],
+  "pkg:npm/preact-render-to-string@6.5.11": [],
+  "pkg:npm/preact@10.24.3": [],
+  "pkg:npm/prelude-ls@1.2.1": [],
+  "pkg:npm/prisma@6.19.3": [],
+  "pkg:npm/prop-types@15.8.1": [],
+  "pkg:npm/punycode@2.3.1": [],
+  "pkg:npm/pure-rand@6.1.0": [],
+  "pkg:npm/queue-microtask@1.2.3": [],
+  "pkg:npm/rc9@2.1.2": [],
+  "pkg:npm/react-dom@19.3.0": [],
+  "pkg:npm/react-is@16.13.1": [],
+  "pkg:npm/react-redux@9.2.0": [],
+  "pkg:npm/react-remove-scroll-bar@2.3.8": [],
+  "pkg:npm/react-remove-scroll@2.7.2": [],
+  "pkg:npm/react-style-singleton@2.2.3": [],
+  "pkg:npm/react@19.3.0": [],
+  "pkg:npm/read-cache@1.0.0": [],
+  "pkg:npm/readdirp@3.6.0": [],
+  "pkg:npm/readdirp@4.1.2": [],
+  "pkg:npm/recharts@3.6.0": [],
+  "pkg:npm/redux-thunk@3.1.0": [],
+  "pkg:npm/redux@5.0.1": [],
+  "pkg:npm/reflect.getprototypeof@1.0.10": [],
+  "pkg:npm/regexp.prototype.flags@1.5.4": [],
+  "pkg:npm/reselect@5.1.1": [],
+  "pkg:npm/resolve-from@4.0.0": [],
+  "pkg:npm/resolve-pkg-maps@1.0.0": [],
+  "pkg:npm/resolve@1.22.11": [],
+  "pkg:npm/resolve@2.0.0-next.5": [],
+  "pkg:npm/reusify@1.1.0": [],
+  "pkg:npm/rollup@4.63.1": [],
+  "pkg:npm/run-parallel@1.2.0": [],
+  "pkg:npm/safe-array-concat@1.1.3": [],
+  "pkg:npm/safe-push-apply@1.0.0": [],
+  "pkg:npm/safe-regex-test@1.1.0": [],
+  "pkg:npm/scheduler@0.28.0": [],
+  "pkg:npm/semver@6.3.1": [],
+  "pkg:npm/semver@7.7.3": [],
+  "pkg:npm/set-function-length@1.2.2": [],
+  "pkg:npm/set-function-name@2.0.2": [],
+  "pkg:npm/set-proto@1.0.0": [],
+  "pkg:npm/sharp@0.34.5": [
+   "GHSA-f88m-g3jw-g9cj",
+   "GHSA-rgj7-g3m4-5g8c",
+   "GHSA-wq5f-xc86-pv6w"
+  ],
+  "pkg:npm/shebang-command@2.0.0": [],
+  "pkg:npm/shebang-regex@3.0.0": [],
+  "pkg:npm/side-channel-list@1.0.0": [],
+  "pkg:npm/side-channel-map@1.0.1": [],
+  "pkg:npm/side-channel-weakmap@1.0.2": [],
+  "pkg:npm/side-channel@1.1.0": [],
+  "pkg:npm/siginfo@2.0.0": [],
+  "pkg:npm/source-map-js@1.2.1": [
+   "GHSA-68fv-2mgg-jv7q"
+  ],
+  "pkg:npm/stable-hash@0.0.5": [],
+  "pkg:npm/stackback@0.0.2": [],
+  "pkg:npm/std-env@3.10.0": [],
+  "pkg:npm/stop-iteration-iterator@1.1.0": [],
+  "pkg:npm/string.prototype.includes@2.0.1": [],
+  "pkg:npm/string.prototype.matchall@4.0.12": [],
+  "pkg:npm/string.prototype.repeat@1.0.0": [],
+  "pkg:npm/string.prototype.trim@1.2.10": [],
+  "pkg:npm/string.prototype.trimend@1.0.9": [],
+  "pkg:npm/string.prototype.trimstart@1.0.8": [],
+  "pkg:npm/strip-bom@3.0.0": [],
+  "pkg:npm/strip-json-comments@3.1.1": [],
+  "pkg:npm/strip-literal@3.1.0": [],
+  "pkg:npm/strnum@2.1.2": [],
+  "pkg:npm/styled-jsx@5.1.6": [],
+  "pkg:npm/sucrase@3.35.1": [],
+  "pkg:npm/supports-color@7.2.0": [],
+  "pkg:npm/supports-preserve-symlinks-flag@1.0.0": [],
+  "pkg:npm/tailwind-merge@3.4.0": [],
+  "pkg:npm/tailwindcss-animate@1.0.7": [],
+  "pkg:npm/tailwindcss@3.4.19": [],
+  "pkg:npm/thenify-all@1.6.0": [],
+  "pkg:npm/thenify@3.3.1": [],
+  "pkg:npm/tiny-invariant@1.3.3": [],
+  "pkg:npm/tinybench@2.9.0": [],
+  "pkg:npm/tinyexec@0.3.2": [],
+  "pkg:npm/tinyexec@1.3.1": [],
+  "pkg:npm/tinyglobby@0.2.15": [],
+  "pkg:npm/tinypool@1.1.1": [
+   "GHSA-5gmw-xhrv-c9v3",
+   "GHSA-85c8-ppgw-ccpr"
+  ],
+  "pkg:npm/tinyrainbow@2.0.0": [],
+  "pkg:npm/tinyspy@4.0.6": [],
+  "pkg:npm/to-regex-range@5.0.1": [],
+  "pkg:npm/ts-api-utils@2.5.0": [],
+  "pkg:npm/ts-interface-checker@0.1.13": [],
+  "pkg:npm/tsconfig-paths@3.15.0": [],
+  "pkg:npm/tslib@2.8.1": [],
+  "pkg:npm/tw-animate-css@1.4.0": [],
+  "pkg:npm/type-check@0.4.0": [],
+  "pkg:npm/typed-array-buffer@1.0.3": [],
+  "pkg:npm/typed-array-byte-length@1.0.3": [],
+  "pkg:npm/typed-array-byte-offset@1.0.4": [],
+  "pkg:npm/typed-array-length@1.0.7": [],
+  "pkg:npm/typescript@5.9.3": [],
+  "pkg:npm/unbox-primitive@1.1.0": [],
+  "pkg:npm/undici-types@7.16.0": [],
+  "pkg:npm/unrs-resolver@1.11.1": [],
+  "pkg:npm/update-browserslist-db@1.3.2": [],
+  "pkg:npm/uri-js@4.4.1": [],
+  "pkg:npm/use-callback-ref@1.3.3": [],
+  "pkg:npm/use-sidecar@1.1.3": [],
+  "pkg:npm/use-sync-external-store@1.6.0": [],
+  "pkg:npm/util-deprecate@1.0.2": [],
+  "pkg:npm/victory-vendor@37.3.6": [],
+  "pkg:npm/vite-node@3.2.4": [],
+  "pkg:npm/vite@7.3.6": [
+   "GHSA-587h-7wmj-h5pm",
+   "GHSA-698v-4r3x-3vcv",
+   "GHSA-9jrq-w75r-8gcw",
+   "GHSA-r825-w8mm-5pxw",
+   "GHSA-rq7h-c2jc-7f22"
+  ],
+  "pkg:npm/vitest@3.2.7": [
+   "GHSA-82fw-gwwq-j7x9"
+  ],
+  "pkg:npm/which-boxed-primitive@1.1.1": [],
+  "pkg:npm/which-builtin-type@1.2.1": [],
+  "pkg:npm/which-collection@1.0.2": [],
+  "pkg:npm/which-typed-array@1.1.19": [],
+  "pkg:npm/which@2.0.2": [],
+  "pkg:npm/why-is-node-running@2.3.0": [],
+  "pkg:npm/word-wrap@1.2.5": [],
+  "pkg:npm/yocto-queue@0.1.0": []
+ },
+ "vulns": {
+  "GHSA-2464-fhr4-w9xw": {
+   "id": "GHSA-2464-fhr4-w9xw",
+   "summary": "Next.js: Unauthenticated Remote Code Execution in Image Optimization API when SVG files are used",
+   "published": "2026-10-22T15:52:53Z",
+   "modified": "2026-10-22T16:00:09.125335909Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "10.0.0"
+        },
+        {
+         "fixed": "15.5.28"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.4.1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "CRITICAL"
+   }
+  },
+  "GHSA-25h7-pfq9-p65f": {
+   "id": "GHSA-25h7-pfq9-p65f",
+   "summary": "flatted vulnerable to unbounded recursion DoS in parse() revive phase",
+   "aliases": [
+    "CVE-2026-32141"
+   ],
+   "published": "2026-03-13T15:40:42Z",
+   "modified": "2026-09-10T03:50:36.276174418Z",
+   "affected": [
+    {
+     "package": {
+      "name": "flatted",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/flatted"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.4.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-267c-6grr-h53f": {
+   "id": "GHSA-267c-6grr-h53f",
+   "summary": "Next.js has a Middleware / Proxy bypass in App Router applications via segment-prefetch routes",
+   "aliases": [
+    "CVE-2026-44575"
+   ],
+   "published": "2026-05-11T15:54:24Z",
+   "modified": "2026-09-10T03:51:03.970900692Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.2.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-268h-hp4c-crq3": {
+   "id": "GHSA-268h-hp4c-crq3",
+   "summary": "Nodemailer: CRLF injection in Nodemailer List-* header comments allows arbitrary message header injection",
+   "aliases": [
+    "CVE-2026-82661"
+   ],
+   "published": "2026-06-15T17:36:06Z",
+   "modified": "2026-09-10T03:51:07.307465115Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.0.9"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-26hh-7cqf-hhc6": {
+   "id": "GHSA-26hh-7cqf-hhc6",
+   "summary": "Next.js has a Middleware / Proxy bypass in App Router applications via segment-prefetch routes - Incomplete Fix Follow-Up",
+   "aliases": [
+    "CVE-2026-45109"
+   ],
+   "published": "2026-05-11T16:21:19Z",
+   "modified": "2026-11-04T03:45:10.188462703Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.2.0"
+        },
+        {
+         "fixed": "15.5.18"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.6"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-28wg-ghj8-5hjv": {
+   "id": "GHSA-28wg-ghj8-5hjv",
+   "summary": "nanoid: non-secure generators can loop indefinitely with negative size",
+   "aliases": [
+    "CVE-2026-67214"
+   ],
+   "published": "2026-07-29T15:31:12Z",
+   "modified": "2026-09-10T03:50:51.191256883Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nanoid",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nanoid"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.3.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "nanoid",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nanoid"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "5.1.16"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-2v37-7h3g-55p8": {
+   "id": "GHSA-2v37-7h3g-55p8",
+   "summary": "nanoid: custom generators can loop indefinitely when size is zero",
+   "aliases": [
+    "CVE-2026-67213"
+   ],
+   "published": "2026-07-29T15:31:12Z",
+   "modified": "2026-09-10T03:50:51.243328986Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nanoid",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nanoid"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.3.18"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "nanoid",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nanoid"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "5.1.6"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-2x7j-588g-ccc2": {
+   "id": "GHSA-2x7j-588g-ccc2",
+   "summary": "Nodemailer: Quadratic (O(n²)) time complexity in addressparser allows remote denial of service via a crafted address list",
+   "aliases": [
+    "CVE-2026-92596"
+   ],
+   "published": "2026-09-08T21:33:17Z",
+   "modified": "2026-09-17T11:56:03.050481347Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.1.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-2xp9-vwfh-vxw4": {
+   "id": "GHSA-2xp9-vwfh-vxw4",
+   "summary": "Next.js: Unauthenticated Remote Code Execution in Image Optimization API when AVIF files are used",
+   "published": "2026-09-08T21:21:12Z",
+   "modified": "2026-09-08T21:30:04.767189946Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "10.0.0"
+        },
+        {
+         "fixed": "15.5.24"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.3.3"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "CRITICAL"
+   }
+  },
+  "GHSA-36qx-fr4f-26g5": {
+   "id": "GHSA-36qx-fr4f-26g5",
+   "summary": "Next.js has a Middleware / Proxy bypass in Pages Router applications using i18n",
+   "aliases": [
+    "CVE-2026-44573"
+   ],
+   "published": "2026-05-11T15:53:51Z",
+   "modified": "2026-09-10T03:51:04.325298044Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "12.2.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-37qj-frw5-hhjh": {
+   "id": "GHSA-37qj-frw5-hhjh",
+   "summary": "fast-xml-parser has RangeError DoS Numeric Entities Bug",
+   "aliases": [
+    "CVE-2026-25128"
+   ],
+   "published": "2026-01-30T20:10:14Z",
+   "modified": "2026-09-10T03:50:32.638909177Z",
+   "affected": [
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.9"
+        },
+        {
+         "fixed": "5.3.4"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-39m8-27wv-hr27": {
+   "id": "GHSA-39m8-27wv-hr27",
+   "summary": "Nodemailer: Quadratic (O(n^2)) DKIM header unfolding lets a large folded header cause remote denial of service during signing",
+   "aliases": [
+    "CVE-2026-110871"
+   ],
+   "published": "2026-10-22T16:07:04Z",
+   "modified": "2026-10-22T16:15:47.127282008Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "10.0.10"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-3g8h-86w9-wvmq": {
+   "id": "GHSA-3g8h-86w9-wvmq",
+   "summary": "Next.js's Middleware / Proxy redirects can be cache-poisoned",
+   "aliases": [
+    "CVE-2026-44572"
+   ],
+   "published": "2026-05-11T16:12:07Z",
+   "modified": "2026-09-10T03:51:04.422954573Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "12.2.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "LOW"
+   }
+  },
+  "GHSA-3jxr-9vmj-r5cp": {
+   "id": "GHSA-3jxr-9vmj-r5cp",
+   "summary": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+   "aliases": [
+    "CVE-2026-13149"
+   ],
+   "published": "2026-07-20T20:51:09Z",
+   "modified": "2026-09-10T03:51:10.092354944Z",
+   "affected": [
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "5.0.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.0.0"
+        },
+        {
+         "fixed": "2.1.2"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-3v7f-55p6-f55p": {
+   "id": "GHSA-3v7f-55p6-f55p",
+   "summary": "Picomatch: Method Injection in POSIX Character Classes causes incorrect Glob Matching",
+   "aliases": [
+    "CVE-2026-33672"
+   ],
+   "published": "2026-03-25T21:13:39Z",
+   "modified": "2026-09-10T03:50:36.949634538Z",
+   "affected": [
+    {
+     "package": {
+      "name": "picomatch",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/picomatch"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "4.0.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "picomatch",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/picomatch"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.0.2"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "picomatch",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/picomatch"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "2.3.2"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-3x4c-7xq6-9pq8": {
+   "id": "GHSA-3x4c-7xq6-9pq8",
+   "summary": "Next.js: Unbounded next/image disk cache growth can exhaust storage",
+   "aliases": [
+    "CVE-2026-27980"
+   ],
+   "published": "2026-03-17T16:17:06Z",
+   "modified": "2026-09-10T03:50:36.950018769Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0-beta.0"
+        },
+        {
+         "fixed": "16.1.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "10.0.0"
+        },
+        {
+         "fixed": "15.5.14"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-4633-3j49-mh5q": {
+   "id": "GHSA-4633-3j49-mh5q",
+   "summary": "Next.js: Cache confusion of response bodies for requests with bodies containing invalid UTF-8 byte sequences",
+   "aliases": [
+    "CVE-2026-64647"
+   ],
+   "published": "2026-07-22T23:06:12Z",
+   "modified": "2026-09-10T03:50:51.390157243Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.5.21"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.11"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-474x-hrwr-fgx4": {
+   "id": "GHSA-474x-hrwr-fgx4",
+   "summary": "fast-xml-parser: Quadratic CPU consumption scanning unterminated stop-node tags",
+   "aliases": [
+    "CVE-2026-126066"
+   ],
+   "published": "2026-11-10T21:09:44Z",
+   "modified": "2026-11-10T21:15:03.074649810Z",
+   "affected": [
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "5.12.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "LOW"
+   }
+  },
+  "GHSA-492v-c6pp-mqqv": {
+   "id": "GHSA-492v-c6pp-mqqv",
+   "summary": "Next.js has a Middleware / Proxy bypass through dynamic route parameter injection",
+   "aliases": [
+    "CVE-2026-44574"
+   ],
+   "published": "2026-05-11T15:54:08Z",
+   "modified": "2026-09-10T03:51:04.588942784Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.4.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-4c39-4ccg-62r3": {
+   "id": "GHSA-4c39-4ccg-62r3",
+   "summary": "Next.js: Unbounded Server Action payload in Edge runtime",
+   "aliases": [
+    "CVE-2026-64646"
+   ],
+   "published": "2026-07-22T23:02:43Z",
+   "modified": "2026-09-10T03:50:51.398762372Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.5.21"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.11"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-4ffr-jq9g-5ffx": {
+   "id": "GHSA-4ffr-jq9g-5ffx",
+   "summary": "Nodemailer: Quadratic backtracking in SMTP AUTH mechanism detection regexes allows pre-auth remote denial of service",
+   "aliases": [
+    "CVE-2026-110869"
+   ],
+   "published": "2026-10-27T15:04:39Z",
+   "modified": "2026-10-27T15:15:07.820609988Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "10.0.13"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-4g23-2xm8-66gc": {
+   "id": "GHSA-4g23-2xm8-66gc",
+   "summary": "Nodemailer: Quadratic (O(n^2)) SMTP client reply parsing lets a malicious server or MITM cause a pre-auth remote denial of service",
+   "aliases": [
+    "CVE-2026-110872"
+   ],
+   "published": "2026-10-27T15:04:33Z",
+   "modified": "2026-10-27T15:15:08.378507355Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "10.0.10"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-4jqv-mc3x-m676": {
+   "id": "GHSA-4jqv-mc3x-m676",
+   "summary": "Next.js has cache poisoning of SSG and ISR pages in self-hosted applications",
+   "aliases": [
+    "CVE-2026-94543"
+   ],
+   "published": "2026-10-07T20:32:06Z",
+   "modified": "2026-10-07T20:45:06.342983181Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.0.0"
+        },
+        {
+         "fixed": "15.5.27"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.3.8"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-587h-7wmj-h5pm": {
+   "id": "GHSA-587h-7wmj-h5pm",
+   "summary": "launch-editor: `fs.existsSync()` existence check can be bypassed on Windows",
+   "aliases": [
+    "CVE-2026-112942"
+   ],
+   "published": "2026-10-20T19:48:25Z",
+   "modified": "2026-10-20T20:00:04.608979840Z",
+   "affected": [
+    {
+     "package": {
+      "name": "launch-editor",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/launch-editor"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "2.14.2"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.3.0"
+        },
+        {
+         "fixed": "8.3.3"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.2.0"
+        },
+        {
+         "fixed": "8.2.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.0.0"
+        },
+        {
+         "fixed": "8.1.6"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "7.0.0"
+        },
+        {
+         "fixed": "7.3.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "6.4.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite-plus",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite-plus"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-5gmw-xhrv-c9v3": {
+   "id": "GHSA-5gmw-xhrv-c9v3",
+   "summary": "Tinypool: Prototype Pollution gadget in worker options leads to Remote Code Execution",
+   "aliases": [
+    "CVE-2026-104848"
+   ],
+   "published": "2026-10-05T22:50:01Z",
+   "modified": "2026-10-05T23:00:04.259458991Z",
+   "affected": [
+    {
+     "package": {
+      "name": "tinypool",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/tinypool"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "2.1.1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "CRITICAL"
+   }
+  },
+  "GHSA-68fv-2mgg-jv7q": {
+   "id": "GHSA-68fv-2mgg-jv7q",
+   "summary": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+   "aliases": [
+    "CVE-2026-93749"
+   ],
+   "published": "2026-09-18T18:31:44Z",
+   "modified": "2026-10-05T23:45:07.974936711Z",
+   "affected": [
+    {
+     "package": {
+      "name": "source-map-js",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/source-map-js"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "1.0.0"
+        },
+        {
+         "fixed": "1.2.2"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-68g3-v927-f742": {
+   "id": "GHSA-68g3-v927-f742",
+   "summary": "Next.js: Cache confusion of response bodies for requests with bodies",
+   "aliases": [
+    "CVE-2026-64648"
+   ],
+   "published": "2026-07-22T23:08:17Z",
+   "modified": "2026-09-10T03:51:10.587986551Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.5.21"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.11"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-698v-4r3x-3vcv": {
+   "id": "GHSA-698v-4r3x-3vcv",
+   "summary": "launch-editor: escapeCmdArgs() omits % escaping on Windows",
+   "aliases": [
+    "CVE-2026-112943"
+   ],
+   "published": "2026-10-20T18:30:24Z",
+   "modified": "2026-10-20T18:45:09.467993691Z",
+   "affected": [
+    {
+     "package": {
+      "name": "launch-editor",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/launch-editor"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "2.14.2"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.3.0"
+        },
+        {
+         "fixed": "8.3.3"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.2.0"
+        },
+        {
+         "fixed": "8.2.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.0.0"
+        },
+        {
+         "fixed": "8.1.6"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "7.0.0"
+        },
+        {
+         "fixed": "7.3.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "6.4.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite-plus",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite-plus"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-6g55-p6wh-862q": {
+   "id": "GHSA-6g55-p6wh-862q",
+   "summary": "PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments",
+   "aliases": [
+    "CVE-2026-45623"
+   ],
+   "published": "2026-07-23T15:06:16Z",
+   "modified": "2026-09-10T03:51:10.752909750Z",
+   "affected": [
+    {
+     "package": {
+      "name": "postcss",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/postcss"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.5.12"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-6j4f-fj2g-mc7p": {
+   "id": "GHSA-6j4f-fj2g-mc7p",
+   "summary": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+   "aliases": [
+    "CVE-2026-102276"
+   ],
+   "published": "2026-09-29T23:44:58Z",
+   "modified": "2026-09-30T00:00:03.836613572Z",
+   "affected": [
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "5.0.10"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.0.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.0.0"
+        },
+        {
+         "fixed": "2.1.5"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.19"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-6vj9-mwq6-2f5v": {
+   "id": "GHSA-6vj9-mwq6-2f5v",
+   "summary": "Nodemailer: Process-global DNS cache reuses TLS `servername` across transports, enabling cross-tenant SMTP credential disclosure",
+   "aliases": [
+    "CVE-2026-100701"
+   ],
+   "published": "2026-09-28T21:56:05Z",
+   "modified": "2026-09-28T22:00:08.256596460Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0"
+        },
+        {
+         "fixed": "10.0.2"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-7589-6fvf-x4pw": {
+   "id": "GHSA-7589-6fvf-x4pw",
+   "summary": "Effect: ReDoS in Schema.TemplateLiteral compiled regex",
+   "aliases": [
+    "CVE-2026-121707"
+   ],
+   "published": "2026-11-19T20:51:01Z",
+   "modified": "2026-11-19T21:00:03.957083566Z",
+   "affected": [
+    {
+     "package": {
+      "name": "effect",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/effect"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.22.1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-7qx7-33qx-rqx2": {
+   "id": "GHSA-7qx7-33qx-rqx2",
+   "summary": "Next.js: SVG rejection bypass in the image optimization",
+   "aliases": [
+    "CVE-2026-119347"
+   ],
+   "published": "2026-11-19T22:23:06Z",
+   "modified": "2026-11-19T22:45:06.164972711Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.0.0"
+        },
+        {
+         "fixed": "15.5.29"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.4.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-82fw-gwwq-j7x9": {
+   "id": "GHSA-82fw-gwwq-j7x9",
+   "summary": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+   "aliases": [
+    "CVE-2026-84373"
+   ],
+   "published": "2026-09-08T20:46:45Z",
+   "modified": "2026-09-08T21:00:07.248611070Z",
+   "affected": [
+    {
+     "package": {
+      "name": "@vitest/mocker",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/%40vitest/mocker"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.1.0"
+        },
+        {
+         "fixed": "4.1.11"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vitest",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vitest"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.1.0"
+        },
+        {
+         "fixed": "4.1.11"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vitest",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vitest"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0-beta.1"
+        },
+        {
+         "fixed": "5.0.0-rc.2"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "@vitest/mocker",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/%40vitest/mocker"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0-beta.1"
+        },
+        {
+         "fixed": "5.0.0-rc.2"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-85c8-ppgw-ccpr": {
+   "id": "GHSA-85c8-ppgw-ccpr",
+   "summary": "Tinypool: Prototype Pollution Gadget to RCE in run() options",
+   "aliases": [
+    "CVE-2026-104849"
+   ],
+   "published": "2026-10-05T22:49:52Z",
+   "modified": "2026-10-05T23:00:05.324545780Z",
+   "affected": [
+    {
+     "package": {
+      "name": "tinypool",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/tinypool"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "2.1.2"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "CRITICAL"
+   }
+  },
+  "GHSA-85x2-q946-cp5h": {
+   "id": "GHSA-85x2-q946-cp5h",
+   "summary": "Nodemailer: A \">\" inside a quoted local part ends an angle-addr early in addressparser, delivering to a domain the header does not name",
+   "aliases": [
+    "CVE-2026-121426"
+   ],
+   "published": "2026-10-23T21:51:18Z",
+   "modified": "2026-11-04T02:56:06.991287324Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "10.1.4"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-89xv-2m56-2m9x": {
+   "id": "GHSA-89xv-2m56-2m9x",
+   "summary": "Next.js: Server-Side Request Forgery in Server Actions on custom servers",
+   "aliases": [
+    "CVE-2026-64649"
+   ],
+   "published": "2026-07-22T23:09:48Z",
+   "modified": "2026-09-10T03:50:51.547474623Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "14.1.1"
+        },
+        {
+         "fixed": "15.5.21"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.11"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-8c8m-p3m8-cjg8": {
+   "id": "GHSA-8c8m-p3m8-cjg8",
+   "summary": "Nodemailer: A nested comment ends early in addressparser, releasing the rest of the comment as a recipient",
+   "aliases": [
+    "CVE-2026-121424"
+   ],
+   "published": "2026-10-23T21:53:04Z",
+   "modified": "2026-11-04T02:56:06.627218994Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "10.1.4"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-8gc5-j5rx-235r": {
+   "id": "GHSA-8gc5-j5rx-235r",
+   "summary": "fast-xml-parser affected by numeric entity expansion bypassing all entity expansion limits (incomplete fix for CVE-2026-26278)",
+   "aliases": [
+    "CVE-2026-33036"
+   ],
+   "published": "2026-03-17T19:45:41Z",
+   "modified": "2026-09-10T03:50:38.199635360Z",
+   "affected": [
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0"
+        },
+        {
+         "fixed": "5.5.6"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0-beta.3"
+        },
+        {
+         "fixed": "4.5.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-8h8q-6873-q5fj": {
+   "id": "GHSA-8h8q-6873-q5fj",
+   "summary": "Next.js Vulnerable to Denial of Service with Server Components",
+   "published": "2026-05-11T14:50:27Z",
+   "modified": "2026-09-10T03:51:04.979274056Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-8m3c-c648-2xjj": {
+   "id": "GHSA-8m3c-c648-2xjj",
+   "summary": "Nodemailer: resolveContent() on a MailMessage bypasses disableFileAccess/disableUrlAccess when called with the legacy signature",
+   "aliases": [
+    "CVE-2026-92595"
+   ],
+   "published": "2026-09-08T21:16:00Z",
+   "modified": "2026-09-17T11:56:00.648821018Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.1.1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-8vvx-rff5-p5rq": {
+   "id": "GHSA-8vvx-rff5-p5rq",
+   "summary": "Nodemailer: Nested structured recipient arrays bypass the parser depth limit and cause stack exhaustion DoS",
+   "aliases": [
+    "CVE-2026-100702"
+   ],
+   "published": "2026-09-29T18:23:50Z",
+   "modified": "2026-09-29T18:30:42.037908406Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.0.2"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-955p-x3mx-jcvp": {
+   "id": "GHSA-955p-x3mx-jcvp",
+   "summary": "Next.js: Unauthenticated disclosure of internal Server Function endpoints",
+   "aliases": [
+    "CVE-2026-64643"
+   ],
+   "published": "2026-07-22T23:00:34Z",
+   "modified": "2026-09-10T03:51:11.198992864Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.5.21"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.11"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-9g9p-9gw9-jx7f": {
+   "id": "GHSA-9g9p-9gw9-jx7f",
+   "summary": "Next.js self-hosted applications vulnerable to DoS via Image Optimizer remotePatterns configuration",
+   "aliases": [
+    "CVE-2025-59471"
+   ],
+   "published": "2026-01-27T19:18:25Z",
+   "modified": "2026-09-10T03:50:59.013924260Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "10.0.0"
+        },
+        {
+         "fixed": "15.5.10"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.6.0-canary.0"
+        },
+        {
+         "fixed": "16.1.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-9jrq-w75r-8gcw": {
+   "id": "GHSA-9jrq-w75r-8gcw",
+   "summary": "Vite: Cross origin script execution through Vite custom middleware",
+   "aliases": [
+    "CVE-2026-112945"
+   ],
+   "published": "2026-10-21T16:48:14Z",
+   "modified": "2026-10-21T17:00:26.569382874Z",
+   "affected": [
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.3.0"
+        },
+        {
+         "fixed": "8.3.3"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.2.0"
+        },
+        {
+         "fixed": "8.2.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.0.0"
+        },
+        {
+         "fixed": "8.1.6"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "7.0.0"
+        },
+        {
+         "fixed": "7.3.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "6.4.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite-plus",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite-plus"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "LOW"
+   }
+  },
+  "GHSA-c2c7-rcm5-vvqj": {
+   "id": "GHSA-c2c7-rcm5-vvqj",
+   "summary": "Picomatch has a ReDoS vulnerability via extglob quantifiers",
+   "aliases": [
+    "CVE-2026-33671"
+   ],
+   "published": "2026-03-25T21:12:07Z",
+   "modified": "2026-09-10T03:51:00.292614896Z",
+   "affected": [
+    {
+     "package": {
+      "name": "picomatch",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/picomatch"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "4.0.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "picomatch",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/picomatch"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.0.2"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "picomatch",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/picomatch"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "2.3.2"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-c4j6-fc7j-m34r": {
+   "id": "GHSA-c4j6-fc7j-m34r",
+   "summary": "Next.js vulnerable to server-side request forgery in applications using WebSocket upgrades",
+   "aliases": [
+    "CVE-2026-44578"
+   ],
+   "published": "2026-05-11T15:55:15Z",
+   "modified": "2026-09-10T03:50:46.499274814Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.4.13"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-c7w3-x93f-qmm8": {
+   "id": "GHSA-c7w3-x93f-qmm8",
+   "summary": "Nodemailer has SMTP command injection due to unsanitized `envelope.size` parameter",
+   "aliases": [
+    "CVE-2026-82854"
+   ],
+   "published": "2026-03-26T22:26:46Z",
+   "modified": "2026-09-10T03:50:38.497772249Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.0.4"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "LOW"
+   }
+  },
+  "GHSA-cc9r-2j5m-2m83": {
+   "id": "GHSA-cc9r-2j5m-2m83",
+   "summary": "Nodemailer: Recipient-domain validation bypass via RFC 5322 comment mis-parsing leads to email delivery to an attacker-controlled domain",
+   "aliases": [
+    "CVE-2026-92597"
+   ],
+   "published": "2026-09-08T21:32:51Z",
+   "modified": "2026-09-17T11:56:01.670395333Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "6.9.16"
+        },
+        {
+         "fixed": "9.1.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-f3mh-rxg3-f5g2": {
+   "id": "GHSA-f3mh-rxg3-f5g2",
+   "summary": "Next.js: HttpOnly cookie exposure through internal response header on Next.js Edge runtime routes",
+   "aliases": [
+    "CVE-2026-119346"
+   ],
+   "published": "2026-11-19T22:23:21Z",
+   "modified": "2026-11-19T22:45:06.180078081Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.0.0"
+        },
+        {
+         "fixed": "15.5.29"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.4.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-f886-m6hf-6m8v": {
+   "id": "GHSA-f886-m6hf-6m8v",
+   "summary": "brace-expansion: Zero-step sequence causes process hang and memory exhaustion",
+   "aliases": [
+    "CVE-2026-33750"
+   ],
+   "published": "2026-03-26T18:29:42Z",
+   "modified": "2026-09-10T03:51:00.342356761Z",
+   "affected": [
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "5.0.5"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.0.2"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.0.0"
+        },
+        {
+         "fixed": "2.0.3"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.13"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-f88m-g3jw-g9cj": {
+   "id": "GHSA-f88m-g3jw-g9cj",
+   "summary": "sharp inherited vulnerabilities in libvips: CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591",
+   "aliases": [
+    "CVE-2026-114113"
+   ],
+   "published": "2026-07-21T22:07:17Z",
+   "modified": "2026-10-21T10:57:27.250198301Z",
+   "affected": [
+    {
+     "package": {
+      "name": "sharp",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/sharp"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "0.35.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-ffhc-5mcf-pf4q": {
+   "id": "GHSA-ffhc-5mcf-pf4q",
+   "summary": "Next.js vulnerable to cross-site scripting in App Router applications using CSP nonces",
+   "aliases": [
+    "CVE-2026-44581"
+   ],
+   "published": "2026-05-11T15:57:12Z",
+   "modified": "2026-09-10T03:51:05.447940563Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.4.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-fj3w-jwp8-x2g3": {
+   "id": "GHSA-fj3w-jwp8-x2g3",
+   "summary": "fast-xml-parser has stack overflow in XMLBuilder with preserveOrder",
+   "aliases": [
+    "CVE-2026-27942"
+   ],
+   "published": "2026-02-26T22:33:10Z",
+   "modified": "2026-09-10T03:50:34.765253793Z",
+   "affected": [
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0"
+        },
+        {
+         "fixed": "5.3.8"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0-beta.0"
+        },
+        {
+         "fixed": "4.5.4"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "LOW"
+   }
+  },
+  "GHSA-fxqj-rqcc-2cmp": {
+   "id": "GHSA-fxqj-rqcc-2cmp",
+   "summary": "PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+   "aliases": [
+    "CVE-2026-69153"
+   ],
+   "published": "2026-08-03T17:11:39Z",
+   "modified": "2026-09-10T03:50:53.572374167Z",
+   "affected": [
+    {
+     "package": {
+      "name": "postcss",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/postcss"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.5.23"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-g3hv-75wg-m249": {
+   "id": "GHSA-g3hv-75wg-m249",
+   "summary": "minimatch has potential denial of service via globparts amplification",
+   "aliases": [
+    "CVE-2026-118764"
+   ],
+   "published": "2026-10-30T23:09:55Z",
+   "modified": "2026-11-04T17:01:25.850114200Z",
+   "affected": [
+    {
+     "package": {
+      "name": "minimatch",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/minimatch"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "7.0.0"
+        },
+        {
+         "fixed": "11.0.1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-g73g-hqqh-jr95": {
+   "id": "GHSA-g73g-hqqh-jr95",
+   "summary": "Nodemailer: RFC 5322 comment inside an angle-bracket address is never stripped",
+   "aliases": [
+    "CVE-2026-110870"
+   ],
+   "published": "2026-10-27T15:04:36Z",
+   "modified": "2026-10-27T15:15:07.723338698Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "10.0.13"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-ggr8-5vv4-36mx": {
+   "id": "GHSA-ggr8-5vv4-36mx",
+   "summary": "DeepmergeTS has stack exhaustion when merging recursive object graphs",
+   "aliases": [
+    "CVE-2026-40345"
+   ],
+   "published": "2026-08-17T13:32:13Z",
+   "modified": "2026-09-10T03:51:14.089937520Z",
+   "affected": [
+    {
+     "package": {
+      "name": "deepmerge-ts",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/deepmerge-ts"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.0.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-ggv3-7p47-pfv8": {
+   "id": "GHSA-ggv3-7p47-pfv8",
+   "summary": "Next.js: HTTP request smuggling in rewrites",
+   "aliases": [
+    "CVE-2026-29057"
+   ],
+   "published": "2026-03-17T16:17:15Z",
+   "modified": "2026-09-10T03:50:39.201962373Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0-beta.0"
+        },
+        {
+         "fixed": "16.1.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "9.5.0"
+        },
+        {
+         "fixed": "15.5.13"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-gh4j-gqv2-49f6": {
+   "id": "GHSA-gh4j-gqv2-49f6",
+   "summary": "fast-xml-parser XMLBuilder: XML Comment and CDATA Injection via Unescaped Delimiters",
+   "aliases": [
+    "CVE-2026-41650"
+   ],
+   "published": "2026-04-22T20:04:17Z",
+   "modified": "2026-11-18T00:45:13.731912370Z",
+   "affected": [
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0"
+        },
+        {
+         "fixed": "5.7.0"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "4.5.7"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-gx5p-jg67-6x7h": {
+   "id": "GHSA-gx5p-jg67-6x7h",
+   "summary": "Next.js has cross-site scripting in beforeInteractive scripts with untrusted input",
+   "aliases": [
+    "CVE-2026-44580"
+   ],
+   "published": "2026-05-11T15:56:38Z",
+   "modified": "2026-09-10T03:51:05.785143220Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-h25m-26qc-wcjf": {
+   "id": "GHSA-h25m-26qc-wcjf",
+   "summary": "Next.js HTTP request deserialization can lead to DoS when using insecure React Server Components",
+   "published": "2026-01-28T15:38:01Z",
+   "modified": "2026-09-10T03:50:33.105717591Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.0.8"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.1.1-canary.0"
+        },
+        {
+         "fixed": "15.1.12"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.2.0-canary.0"
+        },
+        {
+         "fixed": "15.2.9"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.3.0-canary.0"
+        },
+        {
+         "fixed": "15.3.9"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.4.0-canary.0"
+        },
+        {
+         "fixed": "15.4.11"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.5.1-canary.0"
+        },
+        {
+         "fixed": "15.5.10"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.6.0-canary.0"
+        },
+        {
+         "fixed": "15.6.0-canary.61"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0-beta.0"
+        },
+        {
+         "fixed": "16.0.11"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.1.0-canary.0"
+        },
+        {
+         "fixed": "16.1.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-h64f-5h5j-jqjh": {
+   "id": "GHSA-h64f-5h5j-jqjh",
+   "summary": "Next.js has a Denial of Service in the Image Optimization API",
+   "aliases": [
+    "CVE-2026-44577"
+   ],
+   "published": "2026-05-11T15:56:05Z",
+   "modified": "2026-09-10T03:50:47.151545588Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "10.0.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-jmr7-xgp7-cmfj": {
+   "id": "GHSA-jmr7-xgp7-cmfj",
+   "summary": "fast-xml-parser affected by DoS through entity expansion in DOCTYPE (no expansion limit)",
+   "aliases": [
+    "CVE-2026-26278"
+   ],
+   "published": "2026-02-17T21:30:10Z",
+   "modified": "2026-09-10T03:50:35.274601096Z",
+   "affected": [
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.1.3"
+        },
+        {
+         "fixed": "4.5.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0"
+        },
+        {
+         "fixed": "5.3.6"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-jp2q-39xq-3w4g": {
+   "id": "GHSA-jp2q-39xq-3w4g",
+   "summary": "Entity Expansion Limits Bypassed When Set to Zero Due to JavaScript Falsy Evaluation in fast-xml-parser",
+   "aliases": [
+    "CVE-2026-33349"
+   ],
+   "published": "2026-03-19T19:13:13Z",
+   "modified": "2026-09-10T03:50:39.873055407Z",
+   "affected": [
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0-beta.3"
+        },
+        {
+         "fixed": "4.5.5"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0"
+        },
+        {
+         "fixed": "5.5.7"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-m7jm-9gc2-mpf2": {
+   "id": "GHSA-m7jm-9gc2-mpf2",
+   "summary": "fast-xml-parser has an entity encoding bypass via regex injection in DOCTYPE entity names",
+   "aliases": [
+    "CVE-2026-25896"
+   ],
+   "published": "2026-02-20T18:23:54Z",
+   "modified": "2026-09-10T03:50:35.317514651Z",
+   "affected": [
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0"
+        },
+        {
+         "fixed": "5.3.5"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "fast-xml-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/fast-xml-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.1.3"
+        },
+        {
+         "fixed": "4.5.4"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "CRITICAL"
+   }
+  },
+  "GHSA-m943-m63m-w62w": {
+   "id": "GHSA-m943-m63m-w62w",
+   "summary": "Nodemailer: A \";\" inside a quoted string or comment ends an address group early in addressparser, turning display text into a recipient",
+   "aliases": [
+    "CVE-2026-121425"
+   ],
+   "published": "2026-10-23T21:51:52Z",
+   "modified": "2026-11-04T02:56:08.716354379Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "10.1.4"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-m99w-x7hq-7vfj": {
+   "id": "GHSA-m99w-x7hq-7vfj",
+   "summary": "Next.js: Denial of Service in App Router using Server Actions",
+   "aliases": [
+    "CVE-2026-64641"
+   ],
+   "published": "2026-07-22T22:59:01Z",
+   "modified": "2026-09-10T03:50:52.718971454Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.5.21"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.11"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-mcj8-r9mp-w47p": {
+   "id": "GHSA-mcj8-r9mp-w47p",
+   "summary": "Next.js has cache poisoning in SSG/ISR rendering that leads to cross-user content substitution and persistent denial of service",
+   "aliases": [
+    "CVE-2026-94484"
+   ],
+   "published": "2026-10-07T20:31:13Z",
+   "modified": "2026-10-07T20:45:04.800999218Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.3.8"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.0.0"
+        },
+        {
+         "fixed": "15.5.27"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-mg66-mrh9-m8jx": {
+   "id": "GHSA-mg66-mrh9-m8jx",
+   "summary": "Next.js vulnerable to Denial of Service via connection exhaustion in applications using Cache Components",
+   "aliases": [
+    "CVE-2026-44579"
+   ],
+   "published": "2026-05-11T15:56:24Z",
+   "modified": "2026-09-10T03:51:06.389070018Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.0.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-mh99-v99m-4gvg": {
+   "id": "GHSA-mh99-v99m-4gvg",
+   "summary": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+   "aliases": [
+    "CVE-2026-14257"
+   ],
+   "published": "2026-07-24T21:53:14Z",
+   "modified": "2026-09-10T03:50:12.282849322Z",
+   "affected": [
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "5.0.8"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.0.3"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.0.0"
+        },
+        {
+         "fixed": "2.1.3"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.17"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-p293-qw3h-jr36": {
+   "id": "GHSA-p293-qw3h-jr36",
+   "summary": "Next.js: Unauthenticated Remote Code Execution on windows-hosted servers",
+   "aliases": [
+    "CVE-2026-75604"
+   ],
+   "published": "2026-09-08T20:51:40Z",
+   "modified": "2026-09-08T21:00:06.133833950Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.4.0"
+        },
+        {
+         "fixed": "15.5.24"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.3.3"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "CRITICAL"
+   }
+  },
+  "GHSA-p3m5-59mp-jv5r": {
+   "id": "GHSA-p3m5-59mp-jv5r",
+   "summary": "Next.js: Denial of Service in App Router using Server Actions",
+   "aliases": [
+    "CVE-2026-94482"
+   ],
+   "published": "2026-10-22T15:50:34Z",
+   "modified": "2026-10-22T16:00:09.130954454Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.5.28"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.4.1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-p498-v437-472g": {
+   "id": "GHSA-p498-v437-472g",
+   "summary": "humanfs: Recursive copy follows symlinked files and copies data from outside the source tree",
+   "published": "2026-09-02T14:27:16Z",
+   "modified": "2026-09-10T03:50:54.516902811Z",
+   "affected": [
+    {
+     "package": {
+      "name": "@humanfs/node",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/%40humanfs/node"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "0.16.8"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-p6gq-j5cr-w38f": {
+   "id": "GHSA-p6gq-j5cr-w38f",
+   "summary": "Nodemailer: Message-level raw option bypasses disableFileAccess/disableUrlAccess, enabling arbitrary file read and full-response SSRF in the delivered message",
+   "aliases": [
+    "CVE-2026-82659"
+   ],
+   "published": "2026-06-18T14:28:05Z",
+   "modified": "2026-09-10T03:51:09.280402513Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-p9j2-gv94-2wf4": {
+   "id": "GHSA-p9j2-gv94-2wf4",
+   "summary": "Next.js: Server-Side Request Forgery in rewrites via attacker-controlled destination hostname",
+   "aliases": [
+    "CVE-2026-64645"
+   ],
+   "published": "2026-07-22T23:02:23Z",
+   "modified": "2026-09-10T03:51:11.554671163Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "12.0.0"
+        },
+        {
+         "fixed": "15.5.21"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.11"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-pc58-hwjq-p385": {
+   "id": "GHSA-pc58-hwjq-p385",
+   "summary": "Next.js: Cross-client response injection and disclosure in self-hosted Next.js applications forwarding fetched responses",
+   "aliases": [
+    "CVE-2026-119348"
+   ],
+   "published": "2026-11-19T22:20:34Z",
+   "modified": "2026-11-19T22:45:06.189800429Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.4.5"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "15.5.29"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-q2hr-2g5m-vwhr": {
+   "id": "GHSA-q2hr-2g5m-vwhr",
+   "summary": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+   "aliases": [
+    "CVE-2026-102277"
+   ],
+   "published": "2026-09-29T23:45:39Z",
+   "modified": "2026-09-30T00:00:03.849541183Z",
+   "affected": [
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "5.0.12"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.0.9"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.0.0"
+        },
+        {
+         "fixed": "2.1.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.21"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-q4gf-8mx6-v5v3": {
+   "id": "GHSA-q4gf-8mx6-v5v3",
+   "summary": "Next.js has a Denial of Service with Server Components",
+   "published": "2026-04-10T15:35:47Z",
+   "modified": "2026-09-10T03:51:02.717818177Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.0.0"
+        },
+        {
+         "fixed": "15.5.15"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0-beta.0"
+        },
+        {
+         "fixed": "16.2.3"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-q8wf-6r8g-63ch": {
+   "id": "GHSA-q8wf-6r8g-63ch",
+   "summary": "Next.js: Denial of Service in the Image Optimization API using SVGs",
+   "aliases": [
+    "CVE-2026-64644"
+   ],
+   "published": "2026-07-22T23:02:05Z",
+   "modified": "2026-09-10T03:50:52.922204835Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "15.5.0"
+        },
+        {
+         "fixed": "15.5.21"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.11"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-qhr7-859c-m2p7": {
+   "id": "GHSA-qhr7-859c-m2p7",
+   "summary": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+   "aliases": [
+    "CVE-2026-102278"
+   ],
+   "published": "2026-09-29T23:45:17Z",
+   "modified": "2026-09-30T00:00:04.402763332Z",
+   "affected": [
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "5.0.11"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.0.8"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.0.0"
+        },
+        {
+         "fixed": "2.1.6"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.20"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-qx2v-qp2m-jg93": {
+   "id": "GHSA-qx2v-qp2m-jg93",
+   "summary": "PostCSS has XSS via Unescaped </style> in its CSS Stringify Output",
+   "aliases": [
+    "CVE-2026-41305"
+   ],
+   "published": "2026-04-24T15:31:42Z",
+   "modified": "2026-09-10T03:51:02.916463871Z",
+   "affected": [
+    {
+     "package": {
+      "name": "postcss",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/postcss"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.5.10"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-qxg6-89mg-rqv8": {
+   "id": "GHSA-qxg6-89mg-rqv8",
+   "summary": "Vitest: Code injection via unauthenticated manual mock registration",
+   "aliases": [
+    "CVE-2026-112949"
+   ],
+   "published": "2026-10-21T19:54:26Z",
+   "modified": "2026-10-21T20:01:39.911013327Z",
+   "affected": [
+    {
+     "package": {
+      "name": "@vitest/mocker",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/%40vitest/mocker"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.1.0-beta.7"
+        },
+        {
+         "fixed": "4.1.12"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "@vitest/mocker",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/%40vitest/mocker"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "5.0.0-beta.1"
+        },
+        {
+         "fixed": "5.0.3"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-r28c-9q8g-f849": {
+   "id": "GHSA-r28c-9q8g-f849",
+   "summary": "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure",
+   "aliases": [
+    "CVE-2026-73646"
+   ],
+   "published": "2026-07-24T16:24:55Z",
+   "modified": "2026-09-10T03:50:52.854537677Z",
+   "affected": [
+    {
+     "package": {
+      "name": "postcss",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/postcss"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.5.18"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-r7g4-qg5f-qqm2": {
+   "id": "GHSA-r7g4-qg5f-qqm2",
+   "summary": "Nodemailer: Improper TLS Certificate Validation in OAuth2 Token Fetch Enables Credential Interception",
+   "aliases": [
+    "CVE-2026-82662"
+   ],
+   "published": "2026-06-15T17:34:48Z",
+   "modified": "2026-10-05T23:00:05.741897723Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.0.8"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-r825-w8mm-5pxw": {
+   "id": "GHSA-r825-w8mm-5pxw",
+   "summary": "launch-editor: Editor CLI flag misinterpretation causing arbitrary command execution for some editors",
+   "aliases": [
+    "CVE-2026-112944"
+   ],
+   "published": "2026-10-20T19:51:52Z",
+   "modified": "2026-10-20T20:00:04.608907013Z",
+   "affected": [
+    {
+     "package": {
+      "name": "launch-editor",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/launch-editor"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "2.14.2"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.3.0"
+        },
+        {
+         "fixed": "8.3.3"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.2.0"
+        },
+        {
+         "fixed": "8.2.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.0.0"
+        },
+        {
+         "fixed": "8.1.6"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "7.0.0"
+        },
+        {
+         "fixed": "7.3.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "6.4.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite-plus",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite-plus"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-rf6f-7fwh-wjgh": {
+   "id": "GHSA-rf6f-7fwh-wjgh",
+   "summary": "Prototype Pollution via parse() in NodeJS flatted",
+   "aliases": [
+    "CVE-2026-33228"
+   ],
+   "published": "2026-03-19T17:43:54Z",
+   "modified": "2026-10-05T16:00:04.586755982Z",
+   "affected": [
+    {
+     "package": {
+      "name": "flatted",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/flatted"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.4.2"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-rgj7-g3m4-5g8c": {
+   "id": "GHSA-rgj7-g3m4-5g8c",
+   "summary": "sharp: Vulnerabilities in libheif: GHSA-g89c-p67h-r497 and GHSA-2jg2-4ch7-h545",
+   "aliases": [
+    "CVE-2026-114112"
+   ],
+   "published": "2026-09-08T21:25:11Z",
+   "modified": "2026-10-21T10:57:29.264848152Z",
+   "affected": [
+    {
+     "package": {
+      "name": "sharp",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/sharp"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "0.35.4"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-rgw5-rvv9-x895": {
+   "id": "GHSA-rgw5-rvv9-x895",
+   "summary": "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+   "aliases": [
+    "CVE-2026-69152"
+   ],
+   "published": "2026-08-03T16:35:32Z",
+   "modified": "2026-09-10T03:51:14.535270857Z",
+   "affected": [
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.18"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "2.0.0"
+        },
+        {
+         "fixed": "2.1.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.0.6"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "brace-expansion",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/brace-expansion"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "5.0.9"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-rj75-hqrm-r3gf": {
+   "id": "GHSA-rj75-hqrm-r3gf",
+   "summary": "PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion",
+   "aliases": [
+    "CVE-2026-104844"
+   ],
+   "published": "2026-10-05T22:53:54Z",
+   "modified": "2026-10-26T14:16:59.921540799Z",
+   "affected": [
+    {
+     "package": {
+      "name": "postcss-selector-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/postcss-selector-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "7.0.0"
+        },
+        {
+         "fixed": "7.1.6"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "postcss-selector-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/postcss-selector-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "6.1.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-rq7h-c2jc-7f22": {
+   "id": "GHSA-rq7h-c2jc-7f22",
+   "summary": "Vite: Files outside `server.fs.allow` could be served when project paths match system paths on non-Windows machine",
+   "aliases": [
+    "CVE-2026-112946"
+   ],
+   "published": "2026-10-21T16:47:42Z",
+   "modified": "2026-10-21T17:00:06.336868869Z",
+   "affected": [
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.3.0"
+        },
+        {
+         "fixed": "8.3.3"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.2.0"
+        },
+        {
+         "fixed": "8.2.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "8.0.0"
+        },
+        {
+         "fixed": "8.1.6"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "7.0.0"
+        },
+        {
+         "fixed": "7.3.7"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "6.4.4"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "vite-plus",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/vite-plus"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.1.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-v53p-9fqp-m79j": {
+   "id": "GHSA-v53p-9fqp-m79j",
+   "summary": "Nodemailer: Quadratic backtracking in the addressparser free-text fallback allows remote denial of service",
+   "aliases": [
+    "CVE-2026-100700"
+   ],
+   "published": "2026-09-29T23:43:36Z",
+   "modified": "2026-09-30T00:00:03.838265495Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "10.0.6"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-vfv6-92ff-j949": {
+   "id": "GHSA-vfv6-92ff-j949",
+   "summary": "Next.js vulnerable to cache poisoning via collisions in React Server Component cache-busting",
+   "aliases": [
+    "CVE-2026-44582"
+   ],
+   "published": "2026-05-11T15:56:48Z",
+   "modified": "2026-09-10T03:50:47.660786493Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "13.4.6"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "LOW"
+   }
+  },
+  "GHSA-vvjj-xcjg-gr5g": {
+   "id": "GHSA-vvjj-xcjg-gr5g",
+   "summary": "Nodemailer Vulnerable to SMTP Command Injection via CRLF in Transport name Option (EHLO/HELO) ",
+   "aliases": [
+    "CVE-2026-82853"
+   ],
+   "published": "2026-04-08T15:05:20Z",
+   "modified": "2026-09-10T03:51:03.476709040Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.0.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-w9m9-85wc-3x92": {
+   "id": "GHSA-w9m9-85wc-3x92",
+   "summary": "postcss-selector-parser allows denial of service through uncontrolled AST recursion",
+   "aliases": [
+    "CVE-2026-9358"
+   ],
+   "published": "2026-05-26T13:30:30Z",
+   "modified": "2026-09-10T03:50:47.767644603Z",
+   "affected": [
+    {
+     "package": {
+      "name": "postcss-selector-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/postcss-selector-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "6.1.0"
+        },
+        {
+         "fixed": "6.1.3"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "postcss-selector-parser",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/postcss-selector-parser"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "7.1.0"
+        },
+        {
+         "fixed": "7.1.3"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "LOW"
+   }
+  },
+  "GHSA-wfc6-r584-vfw7": {
+   "id": "GHSA-wfc6-r584-vfw7",
+   "summary": "Next.js vulnerable to cache poisoning in React Server Component responses",
+   "aliases": [
+    "CVE-2026-44576"
+   ],
+   "published": "2026-05-11T15:54:46Z",
+   "modified": "2026-09-10T03:50:47.913886310Z",
+   "affected": [
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "14.2.0"
+        },
+        {
+         "fixed": "15.5.16"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "next",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/next"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "16.0.0"
+        },
+        {
+         "fixed": "16.2.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-wmmp-3585-3rmp": {
+   "id": "GHSA-wmmp-3585-3rmp",
+   "summary": "Nodemailer: IDN/Punycode domain allow-list bypass leads to email delivery to an attacker-controlled domain",
+   "aliases": [
+    "CVE-2026-92598"
+   ],
+   "published": "2026-09-08T21:33:32Z",
+   "modified": "2026-09-17T11:56:00.274908066Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.1.0"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-wq5f-xc86-pv6w": {
+   "id": "GHSA-wq5f-xc86-pv6w",
+   "summary": "sharp : Vulnerability in librsvg dependency CVE-2026-96889",
+   "aliases": [
+    "CVE-2026-114111"
+   ],
+   "published": "2026-10-06T13:43:57Z",
+   "modified": "2026-10-21T10:57:27.441638733Z",
+   "affected": [
+    {
+     "package": {
+      "name": "sharp",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/sharp"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "0.35.5"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  },
+  "GHSA-wqvq-jvpq-h66f": {
+   "id": "GHSA-wqvq-jvpq-h66f",
+   "summary": "Nodemailer jsonTransport bypasses disableFileAccess and disableUrlAccess during message normalization",
+   "aliases": [
+    "CVE-2026-82660"
+   ],
+   "published": "2026-06-15T17:35:10Z",
+   "modified": "2026-09-10T03:50:51.064517834Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nodemailer",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nodemailer"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "8.0.9"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "MODERATE"
+   }
+  },
+  "GHSA-xwg4-73v4-xw9w": {
+   "id": "GHSA-xwg4-73v4-xw9w",
+   "summary": "nanoid: Integer Overflow or Wraparound",
+   "aliases": [
+    "CVE-2026-73086"
+   ],
+   "published": "2026-09-01T19:23:45Z",
+   "modified": "2026-09-01T19:30:08.615560716Z",
+   "affected": [
+    {
+     "package": {
+      "name": "nanoid",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nanoid"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.3.12"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "package": {
+      "name": "nanoid",
+      "ecosystem": "npm",
+      "purl": "pkg:npm/nanoid"
+     },
+     "ranges": [
+      {
+       "type": "SEMVER",
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "5.1.11"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "database_specific": {
+    "severity": "HIGH"
+   }
+  }
+ }
+}

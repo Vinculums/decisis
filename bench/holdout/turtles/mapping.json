@@ -1,0 +1,25 @@
+{
+ "repo": "turtles",
+ "repository": "rancher/turtles",
+ "commit": "be75f9a24befacfb5b1c571fb410a2e218f1f45e",
+ "license": "Apache-2.0",
+ "note": "Hand-made: each path below is copied from the quoted sentence of the ADR it is listed under; no path was added that the ADR does not name. Written before compare was run on the held-out tasks.",
+ "decisions": {
+  "docs/adr/0009-use-structured-proxy-types.md": [
+   {
+    "path": "./api/rancher",
+    "sentence": "the `Rancher` proxy types located under the `./api/rancher` directory"
+   }
+  ],
+  "docs/adr/0016-capi-version-pinning.md": [
+   {
+    "path": "internal/controllers/clusterctl/config.yaml",
+    "sentence": "Today, Turtles embeds a `clusterctl` configuration as `config.yaml` (see `internal/controllers/clusterctl/config.yaml`, embedded via `internal/controllers/clusterctl/config.go`"
+   },
+   {
+    "path": "internal/controllers/clusterctl/config.go",
+    "sentence": "Today, Turtles embeds a `clusterctl` configuration as `config.yaml` (see `internal/controllers/clusterctl/config.yaml`, embedded via `internal/controllers/clusterctl/config.go`"
+   }
+  ]
+ }
+}

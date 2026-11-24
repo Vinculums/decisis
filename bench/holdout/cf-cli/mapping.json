@@ -1,0 +1,81 @@
+{
+ "repo": "cf-cli",
+ "repository": "cloudfoundry/cli",
+ "commit": "5b69b945ed793811a1d5896ebe0238fb48389259",
+ "license": "Apache-2.0",
+ "note": "Hand-made: each path below is copied from the quoted sentence of the ADR it is listed under; no path was added that the ADR does not name. Written before compare was run on the held-out tasks.",
+ "decisions": {
+  "doc/adr/0007-integration-vs-command-test.md": [
+   {
+    "path": "integration/v7/isolated/create_org_command_test.go",
+    "sentence": "The integration tests' coverage (e.g. `integration/v7/isolated/create_org_command_test.go`) overlaps with the command tests' (`command/v7/create_org_command_test.go`)"
+   },
+   {
+    "path": "command/v7/create_org_command_test.go",
+    "sentence": "The integration tests' coverage (e.g. `integration/v7/isolated/create_org_command_test.go`) overlaps with the command tests' (`command/v7/create_org_command_test.go`)"
+   },
+   {
+    "path": "integration/v7/global/unbind_security_group_command_test.go",
+    "sentence": "from `integration/v7/global/unbind_security_group_command_test.go` (edited for readability)"
+   }
+  ],
+  "doc/adr/0010-v7-and-v8.md": [
+   {
+    "path": "bin/push.sh",
+    "sentence": "[`push.sh`](https://github.com/cloudfoundry/cli/blob/main/bin/push.sh) is a scripts which pushes the v7 commit"
+   }
+  ],
+  "doc/adr/0011-command-actor-api-architecture.md": [
+   {
+    "path": "command",
+    "sentence": "The \"command layer\" lives under the `command` directory."
+   },
+   {
+    "path": "command/v7",
+    "sentence": "The `command/v7` package contains one file/struct per V7 command"
+   },
+   {
+    "path": "action",
+    "sentence": "The \"actor layer\" lives under the `action` directory."
+   },
+   {
+    "path": "action/v7action",
+    "sentence": "The `action/v7action` package contains roughly one file per API resource"
+   },
+   {
+    "path": "api",
+    "sentence": "The \"API layer\" lives under the `api` directory."
+   },
+   {
+    "path": "api/cloudcontroller/ccv3",
+    "sentence": "The `api/cloudcontroller/ccv3` package contains one file per API resource with methods related to hitting CAPI V3 endpoints."
+   }
+  ],
+  "doc/adr/0012-de-version-v8-code-base.md": [
+   {
+    "path": "command/v7",
+    "sentence": "* command/v7 => command/ (just maybe putting all the commands in the root command folder)"
+   },
+   {
+    "path": "actor/v7action",
+    "sentence": "* actor/v7action => actor/ (putting all the actor files in the root actor path)"
+   },
+   {
+    "path": "actor/v7pushaction",
+    "sentence": "* actor/v7pushaction => actor/pushaction"
+   },
+   {
+    "path": "integration/v7",
+    "sentence": "* integration/v7 => integration/tests"
+   },
+   {
+    "path": "Makefile",
+    "sentence": "* Makefile ivi (integration versioned isolated) command => change to ii (integration isolated)"
+   },
+   {
+    "path": "cf/",
+    "sentence": "* cf/ legacy directory => maybe rename it to something like legacy-cf"
+   }
+  ]
+ }
+}

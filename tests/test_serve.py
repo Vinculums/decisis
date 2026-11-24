@@ -65,10 +65,10 @@ def boxes(monkeypatch, tmp_path):
     return root, made
 
 
-def test_the_server_lists_only_the_three_read_only_tools_with_the_cli_bounds():
+def test_the_server_lists_only_the_four_read_only_tools_with_the_cli_bounds():
     listed, _ = over_mcp(tools())
     by = {t.name: t for t in listed.tools}
-    assert sorted(by) == ["audit", "impact", "paths"]
+    assert sorted(by) == ["audit", "impact", "paths", "query"]
     assert all(t.annotations.read_only_hint and not t.annotations.destructive_hint for t in listed.tools)
     assert not by["audit"].annotations.open_world_hint
     hops = by["impact"].input_schema["properties"]["hops"]
@@ -82,7 +82,7 @@ def test_one_call_per_tool_gives_what_the_cli_gives(boxes, no_network, capsys):
     root, made = boxes
     _, (im, pa, au) = over_mcp(
         tools(IMPACT_SNAPSHOT, ROOT),
-        ("impact", {"code_paths": ["reports/export.py"]}),
+        ("impact", {"code_paths": ["reports/export.py"], "detail": "full"}),
         ("paths", {"source": "concept:demo-report-export", "target": "decision:demo-report-exports-finish-in-time", "hops": 2}),
         ("audit", {"lockfile": "fixtures/audit/demo-lockfile.json", "repo": "Demo"}),
     )
@@ -94,6 +94,102 @@ def test_one_call_per_tool_gives_what_the_cli_gives(boxes, no_network, capsys):
     assert au.structured_content["loaded"]["nodes"] > 0
     assert cli.main(["impact", str(IMPACT_SNAPSHOT), "reports/export.py"]) == 0
     assert json.loads(capsys.readouterr().out) == im.structured_content
+
+
+def test_the_query_tool_carries_the_snapshot_schema_and_the_caps():
+    t = tools(IMPACT_SNAPSHOT, ROOT)
+    listed, _ = over_mcp(t)
+    q = {x.name: x for x in listed.tools}["query"]
+    assert q.description.endswith(serve.cypher.describe(t.graph))
+    assert "  :ABOUT (3): Decision -> Concept (3)" in q.description and "500 rows and 1048576 bytes" in q.description
+    assert q.annotations.read_only_hint and q.annotations.idempotent_hint and not q.annotations.open_world_hint
+    props = q.input_schema["properties"]
+    assert q.input_schema["required"] == ["cypher"] and props["detail"]["enum"] == ["summary", "full"]
+    assert all(x.input_schema["properties"]["detail"]["default"] == "summary" for x in listed.tools)
+
+
+def test_query_over_mcp_answers_refuses_writes_and_cleans_up(boxes):
+    root, made = boxes
+    governed = ("MATCH p = (g)-[*1..3]->(c) WHERE c.code_ref CONTAINS $path AND (g:Decision OR g:Record) "
+                "RETURN DISTINCT g.id AS id ORDER BY id")
+    _, (ok, full, write, sub, bad_param, syntax) = over_mcp(
+        tools(IMPACT_SNAPSHOT, ROOT),
+        ("query", {"cypher": governed, "params": {"path": "storage/page_store.py"}}),
+        ("query", {"cypher": "UNWIND range(1, 600) AS x RETURN x", "detail": "full"}),
+        ("query", {"cypher": "MATCH (n) DETACH DELETE n"}),
+        ("query", {"cypher": "MATCH (n) CALL { WITH n SET n.x = 1 } RETURN n.id"}),
+        ("query", {"cypher": "RETURN 1 AS x", "params": {"bad-name": 1}}),
+        ("query", {"cypher": "MATCH (n RETURN n"}),
+    )
+    assert [r.is_error for r in (ok, full, write, sub, bad_param, syntax)] == [False, False, True, True, True, True]
+    got = ok.structured_content
+    assert got["detail"] == "summary" and got["row_count"] == 2
+    assert [r["id"] for r in got["rows"]] == ["decision:demo-oversized-pages-are-refused", "record:demo-page-size-check-review"]
+    assert len(full.structured_content["rows"]) == 500 and full.structured_content["cut"].startswith("500 of 600 rows")
+    assert "query: refused before running" in text_of(write) and "DETACH writes to the graph" in text_of(write)
+    assert "refused before running" in text_of(sub) and "params" in text_of(bad_param)
+    assert "parse error" in text_of(syntax)
+    assert len(made) == 3 and list(root.iterdir()) == []
+
+
+def sent(result) -> int:
+    return len(result.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8"))
+
+
+def test_what_the_server_sends_stays_under_the_byte_cap(boxes):
+    wide = "UNWIND range(1, 500) AS i RETURN i, [x IN range(1, 1000) | 0] AS xs"
+    _, (full, short, small) = over_mcp(tools(IMPACT_SNAPSHOT, ROOT), ("query", {"cypher": wide, "detail": "full"}),
+                                       ("query", {"cypher": wide}), ("query", {"cypher": "UNWIND range(1, 3) AS i RETURN i", "detail": "full"}))
+    assert not (full.is_error or short.is_error)
+    got = full.structured_content
+    assert sent(full) <= serve.MAX_SENT and json.loads(text_of(full)) == got
+    assert 0 < len(got["rows"]) < 348 and [r["i"] for r in got["rows"]] == list(range(1, len(got["rows"]) + 1))
+    assert got["row_count"] == 500 and "the response was shortened to stay under 1048576 bytes: rows" in got["cut"]
+    assert re.match(r"\d+ of 500 rows are shown: results stop at 500 rows", got["cut"])
+    assert sent(short) <= serve.MAX_SENT and len(short.structured_content["rows"]) == 10
+    assert "cut" not in small.structured_content
+
+
+def test_a_query_over_mcp_past_the_time_limit_is_an_error_result(boxes, monkeypatch, tmp_path):
+    root, made = boxes
+    monkeypatch.setenv("DECISIS_QUERY_TIMEOUT", "1")
+    _, (slow, fast) = over_mcp(tools(dense_snapshot(tmp_path / "dense.json"), ROOT),
+                               ("query", {"cypher": "MATCH p = (a)-[*1..6]-(b) RETURN count(p) AS c"}),
+                               ("query", {"cypher": "MATCH (n) RETURN count(n) AS c"}))
+    assert slow.is_error and "ran longer than 1 s" in text_of(slow)
+    assert not fast.is_error and fast.structured_content["rows"] == [{"c": 14}]
+    assert list(root.iterdir()) == []
+
+
+def test_the_audit_summary_is_short_and_full_is_the_cli_report(no_network, capsys):
+    _, (short, full) = over_mcp(tools(), ("audit", {"lockfile": "demo-lockfile.json", "repo": "Demo"}),
+                                ("audit", {"lockfile": "demo-lockfile.json", "repo": "Demo", "detail": "full"}))
+    assert cli.main(["audit", str(AUDIT_SNAPSHOT), str(AUDIT / "demo-lockfile.json"), "--repo", "Demo", "--osv-cache", str(CACHE)]) == 0
+    assert full.structured_content == json.loads(capsys.readouterr().out)
+    s, f = short.structured_content, full.structured_content
+    assert len(json.dumps(s)) * 2 < len(json.dumps(f))
+    assert (s["summary"], s["violations"], s["findings_count"], s["governing_count"]) == (f["summary"], f["violations"], len(f["findings"]),
+                                                                                           len(f["governing"]))
+    assert [x["package"] for x in s["findings"]] == [x["package"] for x in f["findings"]][:10]
+    assert {x["package"] for x in s["findings"] if x["violated"]} == {x["package"] for x in f["findings"]
+                                                                      if any(p["verdict"] == "violated" for p in x["policies"])}
+    assert "detail \"full\"" in s["note"] and "policies" not in s["findings"][0]
+
+
+def test_impact_and_paths_default_to_a_summary_and_give_the_cli_report_in_full(capsys):
+    t = tools(IMPACT_SNAPSHOT, ROOT)
+    args = {"source": "concept:demo-report-export", "target": "decision:demo-report-exports-finish-in-time"}
+    _, (im, im_full, pa, pa_full) = over_mcp(t, ("impact", {"code_paths": ["storage/page_store.py"]}),
+                                             ("impact", {"code_paths": ["storage/page_store.py"], "detail": "full"}),
+                                             ("paths", args), ("paths", {**args, "detail": "full"}))
+    entry = im.structured_content["impact"][0]
+    assert entry["governing_count"] == 4 and [g["id"] for g in entry["governing"]] == [g["id"] for g in
+                                                                                      im_full.structured_content["impact"][0]["governing"]]
+    assert "path" not in entry["governing"][0] and "detail" not in im_full.structured_content
+    assert cli.main(["impact", str(IMPACT_SNAPSHOT), "storage/page_store.py"]) == 0
+    assert json.loads(capsys.readouterr().out) == im_full.structured_content
+    assert pa.structured_content["path_count"] == len(pa_full.structured_content["paths"])
+    assert pa.structured_content["paths"] == pa_full.structured_content["paths"]
 
 
 def test_the_audit_over_mcp_matches_the_cli_audit(no_network, capsys):
@@ -200,7 +296,7 @@ def test_the_cli_serves_over_stdio(no_network):
                 result = await client.call_tool("impact", {"code_paths": ["reports/export.py"], "hops": 1})
                 return names, result
     names, result = anyio.run(drive)
-    assert names == ["audit", "impact", "paths"]
+    assert names == ["audit", "impact", "paths", "query"]
     assert not result.is_error and result.structured_content["hops"] == 1
 
 

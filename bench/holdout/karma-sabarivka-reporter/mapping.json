@@ -1,0 +1,9 @@
+{
+ "repo": "karma-sabarivka-reporter",
+ "repository": "kopach/karma-sabarivka-reporter",
+ "commit": "6fb805a9f27e3a15027e01a4fa56a80542d55ee2",
+ "license": "MIT",
+ "note": "Hand-made: each path below is copied from the quoted sentence of the ADR it is listed under; no path was added that the ADR does not name. Written before compare was run on the held-out tasks.",
+ "lockfile": "package-lock.json",
+ "decisions": {}
+}

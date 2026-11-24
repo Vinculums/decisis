@@ -1,0 +1,83 @@
+{
+ "meta": {
+  "source": "decisis init, then bench/holdout/build_inputs.py",
+  "repo": "karma-sabarivka-reporter",
+  "repository": "kopach/karma-sabarivka-reporter",
+  "commit": "6fb805a9f27e3a15027e01a4fa56a80542d55ee2",
+  "nodes": 4,
+  "edges": 0,
+  "problems": [
+   {
+    "file": "doc/adr/0001-documenting-architecture-decisions.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0002-typescript-as-project-language.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0003-high-test-coverage-thresholds.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0004-conventional-commits-format-for-commits.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   }
+  ]
+ },
+ "nodes": [
+  {
+   "id": "decision:karma-sabarivka-reporter-doc-adr-0001-documenting-architecture-decisions",
+   "kind": "decision",
+   "title": "1. Documenting architecture decisions",
+   "props": {
+    "source_file": "doc/adr/0001-documenting-architecture-decisions.md",
+    "status": "status: accepted on 2020-04-05",
+    "date": "2020-04-05",
+    "statement": "We will use Architecture Decision Records, as [described by Michael Nygard](http://thinkrelevance.com/blog/2011/11/15/documenting-architecture-decisions).",
+    "content_hash": "sha256:bd40e3350729d07cc80278e905a1beb907443e080f5593099e7fa1766d050524"
+   }
+  },
+  {
+   "id": "decision:karma-sabarivka-reporter-doc-adr-0002-typescript-as-project-language",
+   "kind": "decision",
+   "title": "2. TypeScript as project language",
+   "props": {
+    "source_file": "doc/adr/0002-typescript-as-project-language.md",
+    "status": "status: accepted on 2020-04-09",
+    "date": "2020-04-09",
+    "statement": "Use TypeScript as main and only programming language in this project",
+    "content_hash": "sha256:0edc6ca8e8a55bf357322034c56f8d4bfc0c868a05e6493767899294ea9f525f"
+   }
+  },
+  {
+   "id": "decision:karma-sabarivka-reporter-doc-adr-0003-high-test-coverage-thresholds",
+   "kind": "decision",
+   "title": "3. High test coverage thresholds",
+   "props": {
+    "source_file": "doc/adr/0003-high-test-coverage-thresholds.md",
+    "status": "status: accepted on 2020-04-09",
+    "date": "2020-04-09",
+    "statement": "We'll use 100% coverage threshold for all source code written in this project",
+    "content_hash": "sha256:b0a66c5ab4c6f6640b3a6f377f4bc5905430ebd8ad1b8824a7a087a82b93ad9e"
+   }
+  },
+  {
+   "id": "decision:karma-sabarivka-reporter-doc-adr-0004-conventional-commits-format-for-commits",
+   "kind": "decision",
+   "title": "4. Conventional Commits format for commits",
+   "props": {
+    "source_file": "doc/adr/0004-conventional-commits-format-for-commits.md",
+    "status": "status: accepted on 2020-06-25",
+    "date": "2020-06-25",
+    "statement": "Use [Conventional Commits](https://www.conventionalcommits.org) specification with [Conventional Changelog](https://github.com/conventional-changelog/conventional-changelog) set of tools because it ...",
+    "content_hash": "sha256:1ddffb5145e49a5c74f509a31cbefa0ed4effaa546b815633523cb31733289ff"
+   }
+  }
+ ],
+ "edges": []
+}

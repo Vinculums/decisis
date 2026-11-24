@@ -1,0 +1,68 @@
+{
+ "meta": {
+  "source": "decisis init, then bench/holdout/build_inputs.py",
+  "repo": "supabase-multitenant",
+  "repository": "supabase-multitenant/supabase-multitenant",
+  "commit": "96d6f94063eb1356649d710b21eb513e3e1fa415",
+  "nodes": 3,
+  "edges": 0,
+  "problems": [
+   {
+    "file": "docs/adr/0001-authjs.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0002-system-db.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0003-shared-infrastructure-plane.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   }
+  ]
+ },
+ "nodes": [
+  {
+   "id": "decision:supabase-multitenant-docs-adr-0001-authjs",
+   "kind": "decision",
+   "title": "ADR-0001 — Adopt Auth.js v5 + Prisma adapter (replace the bespoke session auth)",
+   "props": {
+    "source_file": "docs/adr/0001-authjs.md",
+    "statement": "Adopt **Auth.js v5** (`next-auth@beta`) with the **`@auth/prisma-adapter`**.",
+    "code_ref": [
+     "supabase-multitenant:prisma/schema.prisma",
+     "supabase-multitenant:src/app/api/auth",
+     "supabase-multitenant:src/lib/auth.ts"
+    ],
+    "content_hash": "sha256:5cead6a6a341d799d6a8c9e8a50226509cfc0ed16cc9661dbe7e74aff3c850a6"
+   }
+  },
+  {
+   "id": "decision:supabase-multitenant-docs-adr-0002-system-db",
+   "kind": "decision",
+   "title": "ADR-0002 — System DB topology: `supabase-multitenant-system-main-db`",
+   "props": {
+    "source_file": "docs/adr/0002-system-db.md",
+    "statement": "**Phase 1 → A.** The Prisma control-plane database is branded `supabase-multitenant-system-main-db`, gains a `managed_databases` registry, and holds admin/settings/users. Credentials for it are ...",
+    "content_hash": "sha256:c25938ff8118eebcf9e51eff36ec3764463133a5aa5f12ed736d084c8a7ab9e6"
+   }
+  },
+  {
+   "id": "decision:supabase-multitenant-docs-adr-0003-shared-infrastructure-plane",
+   "kind": "decision",
+   "title": "ADR-0003 — Shared infrastructure plane, per-tenant databases",
+   "props": {
+    "source_file": "docs/adr/0003-shared-infrastructure-plane.md",
+    "statement": "**Hoist the infrastructure that is not tenant-bound into a single shared plane. A new project provisions only its database and the services that cannot multiplex.**",
+    "code_ref": [
+     "supabase-multitenant:deploy/coolify"
+    ],
+    "content_hash": "sha256:c3a3be3af94a0809b4400bdff1bcc9fc3dcd952816563e46af6ebe7a827466c1"
+   }
+  }
+ ],
+ "edges": []
+}

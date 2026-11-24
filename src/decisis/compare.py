@@ -15,13 +15,31 @@ METHODS = ("A", "B", "C")
 GOVERNING = ("decision", "record")
 
 
+NO_ADVISORIES = {"fetched_at": "", "queries": {}, "vulns": {}}
+
+
 def load_inputs(root: Path, doc: dict) -> dict:
+    """The inputs of one repository. Without an audit section the repository has impact tasks only."""
     read = lambda p: (root / p).read_text(encoding="utf-8")
-    a, i = doc["inputs"]["audit"], doc["inputs"]["impact"]
+    a, i = doc["inputs"].get("audit"), doc["inputs"]["impact"]
     snaps = [co.load(read(p)) for p in i["snapshots"]]
+    impact_graph = Subgraph([n for s in snaps for n in s.nodes], [e for s in snaps for e in s.edges], {})
+    if a is None:
+        return {"repo": doc["repo"], "vinc": Subgraph([], [], {}), "lock": None, "cache": NO_ADVISORIES, "hops": int(i["hops"]),
+                "impact": impact_graph}
     return {"repo": doc["repo"], "vinc": co.load(read(a["snapshot"])), "lock": read(a["lockfile"]),
-            "cache": external.read_osv_cache(read(a["osv_cache"])), "hops": int(i["hops"]),
-            "impact": Subgraph([n for s in snaps for n in s.nodes], [e for s in snaps for e in s.edges], {})}
+            "cache": external.read_osv_cache(read(a["osv_cache"])), "hops": int(i["hops"]), "impact": impact_graph}
+
+
+def input_sets(root: Path, doc: dict) -> dict[str, dict]:
+    """Inputs by repository: one set for a task file with `repo` and `inputs`, one per entry of `repos` otherwise."""
+    if "repos" not in doc:
+        return {doc["repo"]: load_inputs(root, doc)}
+    return {name: load_inputs(root, {"repo": name, "inputs": spec}) for name, spec in doc["repos"].items()}
+
+
+def task_repo(doc: dict, task: dict) -> str:
+    return task.get("repo") or doc["repo"]
 
 
 def _step(s: str, rel: str, t: str) -> list[str]:
@@ -189,8 +207,9 @@ RUNNERS = {("audit", "A"): method_a_audit, ("audit", "B"): method_b_audit, ("aud
 def facts(inp: dict) -> set[tuple[str, str, str]]:
     out = {(e["source"], e["type"], e["target"]) for g in (inp["vinc"], inp["impact"]) for e in g.edges}
     out |= {(e["source"], e["type"], e["target"]) for e in audit.governance_links(inp["vinc"].nodes, inp["repo"])}
-    _, deps = external.parse_npm_lock(inp["lock"], inp["repo"])
-    out |= {(e["source"], e["type"], e["target"]) for e in deps}
+    if inp["lock"] is not None:
+        _, deps = external.parse_npm_lock(inp["lock"], inp["repo"])
+        out |= {(e["source"], e["type"], e["target"]) for e in deps}
     out |= {(pid, "AFFECTED_BY", f"adv:{vid}") for pid, vids in inp["cache"]["queries"].items() for vid in vids}
     return out
 
@@ -255,11 +274,12 @@ def _cmp(c: dict, b: dict) -> str:
 def run(root: Path, tasks_path: Path) -> dict:
     raw = tasks_path.read_bytes()
     doc = json.loads(raw)
-    inp = load_inputs(root, doc)
-    known = facts(inp)
+    sets = input_sets(root, doc)
+    known_by = {name: facts(inp) for name, inp in sets.items()}
     per_task, totals = [], {m: {"paths": [0, 0], "policy_links": [0, 0], "findings": [0, 0], "unsupported": [0, 0],
                                 "covered": [0, 0], "latency_ms": 0.0} for m in METHODS}
     for task in doc["tasks"]:
+        inp, known = sets[task_repo(doc, task)], known_by[task_repo(doc, task)]
         results = {}
         for m in METHODS:
             start = time.perf_counter()
@@ -272,7 +292,7 @@ def run(root: Path, tasks_path: Path) -> dict:
             for k in ("paths", "policy_links", "findings", "unsupported", "covered"):
                 totals[m][k] = [totals[m][k][0] + s[k][0], totals[m][k][1] + s[k][1]]
             totals[m]["latency_ms"] = round(totals[m]["latency_ms"] + elapsed, 1)
-        per_task.append({"id": task["id"], "kind": task["kind"], "subject": task["subject"], "connection": task["connection"],
+        per_task.append({"id": task["id"], **({"repo": task["repo"]} if "repo" in task else {}), "kind": task["kind"], "subject": task["subject"], "connection": task["connection"],
                          "graph_expected_to_help": task["graph_expected_to_help"], "c_vs_b": _cmp(results["C"], results["B"]),
                          "results": results})
     return {"tasks_file": tasks_path.name, "tasks_sha256": hashlib.sha256(raw).hexdigest(), "methods": doc["methods"],

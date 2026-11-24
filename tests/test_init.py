@@ -291,7 +291,8 @@ def madr_repo(tmp_path: Path, status: str) -> Path:
     return tmp_path
 
 
-@pytest.mark.parametrize("status", ["superseded by [ADR-0002](0002-use-postgres.md)", "superseded by ADR-0002", "Superseded by 0002-use-postgres"])
+@pytest.mark.parametrize("status", ["superseded by [ADR-0002](0002-use-postgres.md)", "superseded by ADR-0002", "Superseded by 0002-use-postgres",
+                                    "Superceded by ADR-0002", "SUPERCEDED BY [ADR-0002](0002-use-postgres.md)"])
 def test_a_madr_front_matter_status_that_says_superseded_by_makes_the_edge(tmp_path, status):
     snap = init.build(madr_repo(tmp_path, status))
     assert by_id(snap)["decision:docs-decisions-0001-use-mysql"]["props"]["status"] == "superseded"
@@ -304,6 +305,69 @@ def test_a_front_matter_superseded_by_that_matches_no_adr_is_reported(tmp_path):
     assert snap["edges"] == []
     assert snap["meta"]["problems"][-1] == {"file": "docs/decisions/0001-use-mysql.md", "action": "no edge",
                                             "reason": "it is superseded by ADR-0009, but no ADR file matches 'ADR-0009'"}
+
+
+def two_adrs(tmp_path: Path, old: str, new: str) -> dict:
+    d = tmp_path / "docs" / "adr"
+    d.mkdir(parents=True)
+    (d / "0001-old.md").write_text(old, encoding="utf-8")
+    (d / "0002-new.md").write_text(new, encoding="utf-8")
+    snap = init.build(tmp_path)
+    return {"status": {n["id"]: n["props"].get("status") for n in snap["nodes"]},
+            "edges": [(e["source"], e["type"], e["target"]) for e in snap["edges"]]}
+
+
+OLD, NEW = "decision:docs-adr-0001-old", "decision:docs-adr-0002-new"
+REPLACED = [(NEW, "SUPERSEDES", OLD)]
+
+
+@pytest.mark.parametrize("lines", [
+    "- **Status:** Accepted\n- **Date:** 2026-09-10\n- **Deciders:** Ana, Ben\n",
+    "* **Status**: Accepted\n* **Date**: 2026-09-10\n* **Deciders**: Ana, Ben\n",
+    "**Status:** Accepted\n**Date:** 2026-09-10\n**Deciders:** Ana, Ben\n",
+    "__Status:__ Accepted\n__Date__: 2026-09-10\n- Deciders: Ana, Ben\n",
+])
+def test_a_status_written_as_a_bold_list_item_or_line_is_read_like_a_plain_one(tmp_path, lines):
+    root = adr_repo(tmp_path, "code_ref: a.py\n", f"# A decision\n\n{lines}\n## Context\n\n- **Status:** proposed\n")
+    [node] = init.build(root)["nodes"]
+    assert {k: node["props"].get(k) for k in ("status", "date", "deciders")} == {"status": "accepted", "date": "2026-09-10", "deciders": ["Ana", "Ben"]}
+
+
+@pytest.mark.parametrize("old", [
+    "# Old\n\n- **Status:** superseded by [ADR-0002](0002-new.md)\n- **Date:** 2026-01-01\n",
+    "# Old\n\n* **Status**: Superseded by ADR-0002\n",
+    "# Old\n\n**Status:** Superceded by 0002-new\n",
+    "# Old\n\n**Status:** Superseded\n",
+])
+def test_a_bold_status_that_says_superseded_by_makes_the_edge_from_the_new_adr(tmp_path, old):
+    read = two_adrs(tmp_path, old, "---\nstatus: accepted\n---\n# New\n")
+    assert read["status"] == {OLD: "superseded", NEW: "accepted"}
+    assert read["edges"] == (REPLACED if "by" in old else [])
+
+
+@pytest.mark.parametrize("old,new", [
+    ("# Old\n\n## Status\n\nSuperceded by [2. New](0002-new.md)\n", "# New\n\n## Status\n\nAccepted\n"),
+    ("# Old\n\n## Status\n\nAccepted\n", "# New\n\n## Status\n\nAccepted\n\nSupercedes [1. Old](0001-old.md)\n"),
+    ("# Old\n\n## Status\n\nsuperceded by [2. New](0002-new.md)\n", "# New\n\n## Status\n\nAccepted\n\nSUPERCEDES [1. Old](0001-old.md)\n"),
+    ("# Old\n\nStatus: Superceded by ADR-0002\n", "---\nstatus: accepted\nsupersedes: [ADR-0001]\n---\n# New\n"),
+    ("---\nstatus: superceded by 0002-new\n---\n# Old\n", "# New\n\n**Status:** accepted\n"),
+])
+def test_superceded_and_supercedes_read_as_superseded_and_supersedes(tmp_path, old, new):
+    read = two_adrs(tmp_path, old, new)
+    assert read["status"][NEW] == "accepted"
+    assert read["edges"] == REPLACED
+    assert read["status"][OLD] == ("accepted" if "Accepted\n" in old else "superseded")
+
+
+def test_a_lone_superceded_status_reads_as_superseded_and_makes_no_edge(tmp_path):
+    read = two_adrs(tmp_path, "# Old\n\n## Status\n\nSuperceded\n", "---\nstatus: SUPERCEDED\n---\n# New\n")
+    assert read == {"status": {OLD: "superseded", NEW: "superseded"}, "edges": []}
+
+
+def test_front_matter_status_wins_over_a_bold_line_and_a_bold_line_over_the_status_section(tmp_path):
+    read = two_adrs(tmp_path, "---\nstatus: accepted\n---\n# Old\n\n- **Status:** proposed\n",
+                    "# New\n\n**Status:** accepted\n\n## Status\n\nRejected\n")
+    assert read["status"] == {OLD: "accepted", NEW: "accepted"}
 
 
 def impact_of(tmp_path: Path, snap: dict, *paths: str, repo: str | None = None) -> dict:
@@ -497,3 +561,9 @@ def test_init_runs_no_command_the_repository_config_names(tmp_path, key, value):
     subprocess.run(["git", "-C", str(root), "config", "core.untrackedCache", "true"], check=True)
     assert owned_by(init.build(root), "@x")["props"]["code_ref"] == [".github/", "src/"]
     assert not marker.exists()
+
+
+@pytest.mark.parametrize("line", ["Status: accepted", "- **Status:** accepted"])
+def test_a_status_line_inside_a_code_fence_is_not_the_status(line):
+    text = f"# Title\n\n```\n{line}\n```\n\n## Status\n\nrejected\n\n## Context\n"
+    assert init.markdown(text).preamble == {}
