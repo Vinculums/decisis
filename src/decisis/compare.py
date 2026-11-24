@@ -6,7 +6,7 @@ import time
 from collections import deque
 from pathlib import Path
 
-from . import audit, external, impact, semver
+from . import audit, external, impact, rules, semver
 from . import checkout as co
 from .queries import load as query
 from .sandbox import Subgraph, sandbox
@@ -43,7 +43,7 @@ def governing(vinc: Subgraph, repo: str) -> list[dict]:
         concept = link["target"]
         for e in vinc.edges:
             if e["target"] == concept and by_id.get(e["source"], {}).get("kind") == "decision":
-                out.append({"decision": e["source"], "via": concept, "rule": audit.rule_of(by_id[e["source"]]),
+                out.append({"decision": e["source"], "via": concept, "rule": rules.of(by_id[e["source"]]),
                             "evidence": [_step(link["source"], "DESCRIBED_BY", concept), _step(e["source"], e["type"], concept)]})
     return audit.fold(sorted(out, key=lambda d: (d["decision"], d["via"], d["evidence"])))
 
@@ -51,8 +51,8 @@ def governing(vinc: Subgraph, repo: str) -> list[dict]:
 def _policy_claims(pkg: str, adv: str, status: str, severity: str, dev: bool, gov: list[dict], path_steps: list[list[str]]) -> list[dict]:
     out = []
     for d in gov:
-        verdict = audit.judge(d, d["rule"], status, severity, dev)["verdict"]
-        out.append(_claim("policy_link", [pkg, adv, d["decision"], verdict], d["evidence"] + path_steps, d["decision"], adv))
+        for p in audit.policies(d, d["rule"], "advisory", {"status": status, "severity": severity}, dev):
+            out.append(_claim("policy_link", [pkg, adv, d["decision"], p["verdict"]], d["evidence"] + path_steps, d["decision"], adv))
     return out
 
 

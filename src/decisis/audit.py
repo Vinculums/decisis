@@ -3,14 +3,14 @@ from __future__ import annotations
 import json
 import re
 
-from . import external, inventory, semver
+from . import external, inventory, rules, semver
 from .queries import load as query
 from .sandbox import Limits, Subgraph, sandbox
 
 MAX_DEPTH = 16
 
-SEVERITY = ["LOW", "MODERATE", "MEDIUM", "HIGH", "CRITICAL"]
-
+SEVERITY = rules.SEVERITY
+ORDER = {"affected": 0, "unresolved": 1, "not_affected": 2}
 
 
 def governance_links(vinc_nodes: list[dict], repo: str) -> list[dict]:
@@ -22,16 +22,6 @@ def governance_links(vinc_nodes: list[dict], repo: str) -> list[dict]:
             out.append({"source": f"repo:{repo}", "target": n["id"], "type": "DESCRIBED_BY",
                         "evidence": f"{n['id']} has code_ref {ref}"})
     return out
-
-
-def rule_of(decision: dict) -> dict | None:
-    rule = (decision.get("props") or {}).get("rule")
-    if isinstance(rule, str):
-        try:
-            rule = json.loads(rule)
-        except json.JSONDecodeError:
-            return None
-    return rule if isinstance(rule, dict) and rule.get("advisory_severity_at_least") in SEVERITY else None
 
 
 def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories, filename: str = "package-lock.json",
@@ -55,15 +45,25 @@ def nothing_to_query(pkg_nodes: list[dict], filename: str) -> None:
                          f"({first['id']}: {first['props']['unresolved']})")
 
 
-def judge(governing: dict, rule: dict | None, status: str, severity: str, dev: bool) -> dict:
-    d = governing["decision"]
-    if rule is None:
-        return {"decision": d, "verdict": "relevant", "why": f"governs this repository through {governing['via']}; it states no machine-checkable rule"}
-    if rule.get("dependencies") == "shipped" and dev:
-        return {"decision": d, "verdict": "not_violated", "why": "reached only through development dependencies; the rule covers shipped ones"}
-    if status == "affected" and severity in SEVERITY and SEVERITY.index(severity) >= SEVERITY.index(rule["advisory_severity_at_least"]):
-        return {"decision": d, "verdict": "violated", "why": f"severity {severity} is at or above {rule['advisory_severity_at_least']}"}
-    return {"decision": d, "verdict": "not_violated", "why": f"status {status}, severity {severity}"}
+def _policy(d: str, verdict: str, why: str, rule: str | None, named: bool) -> dict:
+    return {"decision": d, "verdict": verdict, "why": why, **({"rule": rule} if named else {})}
+
+
+def policies(governing: dict, parsed: rules.Parsed, subject: str, facts: dict, dev: bool, named: bool = False) -> list[dict]:
+    d, via = governing["decision"], governing["via"]
+    if not parsed.stated:
+        return [_policy(d, "relevant", f"governs this repository through {via}; it states no machine-checkable rule", None, named)]
+    out = [_policy(d, "relevant", f"governs this repository through {via}; its rule cannot be checked: {p.reason}", p.kind, True)
+           for p in parsed.problems]
+    for rule in rules.judging(parsed, subject):
+        verdict, why = rules.verdict(rule, facts, dev)
+        out.append(_policy(d, verdict, why, rule.kind, named))
+    return out
+
+
+def ruled(graph: Subgraph, decisions: list[dict]) -> list[tuple[dict, rules.Parsed]]:
+    by_id = {n["id"]: n for n in graph.nodes}
+    return [(d, rules.of(by_id.get(d["decision"], {}))) for d in fold(decisions)]
 
 
 def fold(decisions: list[dict]) -> list[dict]:
@@ -76,7 +76,7 @@ def fold(decisions: list[dict]) -> list[dict]:
 
 def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dict]:
     by_id = {n["id"]: n for n in graph.nodes}
-    rules = [(d, rule_of(by_id.get(d["decision"], {}))) for d in fold(decisions)]
+    governing = ruled(graph, decisions)
     findings, seen = [], set()
     for row in rows:
         key = (row["package"], row["advisory"])
@@ -87,13 +87,58 @@ def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dic
         applies = semver.affects(pkg["version"], pkg["ecosystem"], pkg["name"], json.loads(adv["affected_json"]))
         status = {True: "affected", False: "not_affected", None: "unresolved"}[applies]
         sev = adv.get("severity", "UNKNOWN")
-        policies = [judge(d, rule, status, sev, bool(pkg.get("dev"))) for d, rule in rules]
-        findings.append({"package": row["package"], "advisory": row["advisory"], "severity": sev, "status": status,
+        facts = {"status": status, "severity": sev}
+        found = [p for d, parsed in governing for p in policies(d, parsed, "advisory", facts, bool(pkg.get("dev")))]
+        source = {"severity_source": adv["severity_source"]} if adv.get("severity_source") else {}
+        findings.append({"package": row["package"], "advisory": row["advisory"], "severity": sev, **source, "status": status,
                          "dev_only": bool(pkg.get("dev")), "path": row["path"], "source_url": adv.get("source_url"),
                          "fetched_at": adv.get("fetched_at"), "content_hash": adv.get("content_hash"),
-                         "advisory_summary": by_id[row["advisory"]].get("title") or "", "policies": policies})
-    order = {"affected": 0, "unresolved": 1, "not_affected": 2}
-    return sorted(findings, key=lambda f: (order[f["status"]], -SEVERITY.index(f["severity"]) if f["severity"] in SEVERITY else 0, len(f["path"])))
+                         "advisory_summary": by_id[row["advisory"]].get("title") or "", "policies": found})
+    return ordered(findings)
+
+
+def ordered(findings: list[dict]) -> list[dict]:
+    return sorted(findings, key=lambda f: (ORDER[f["status"]], -SEVERITY.index(f["severity"]) if f.get("severity") in SEVERITY else 0,
+                                           len(f["path"])))
+
+
+def status_of(governing: list[tuple[dict, rules.Parsed]], subject: str, facts: dict) -> str | None:
+    seen = {rules.outcome(r, facts)[0] for _, parsed in governing for r in rules.judging(parsed, subject)}
+    return "affected" if rules.MATCH in seen else "unresolved" if rules.UNKNOWN in seen else None
+
+
+def _subject_fields(subject: str, props: dict) -> dict:
+    if subject == "license":
+        return {"license_expression": props.get("license_expression") or "", "licenses": list(props.get("licenses") or [])}
+    return {"ecosystem": props.get("ecosystem") or "", "name": props.get("name") or "", "version": props.get("version") or ""}
+
+
+def package_finding(node: dict, subject: str, governing: list[tuple[dict, rules.Parsed]]) -> dict | None:
+    props = node["props"]
+    status = status_of(governing, subject, props)
+    if status is None:
+        return None
+    dev = bool(props.get("dev"))
+    found = [p for d, parsed in governing for p in policies(d, parsed, subject, props, dev, named=True)]
+    return {"kind": subject, "package": node["id"], **_subject_fields(subject, props), "status": status, "dev_only": dev,
+            "path": [], "source_system": props.get("source_system"), "fetched_at": props.get("fetched_at"), "policies": found}
+
+
+def package_findings(box, graph: Subgraph, decisions: list[dict], repo: str, depth: int) -> list[dict]:
+    governing = ruled(graph, decisions)
+    wanted = [s for s in rules.subjects() if s != "advisory" and any(rules.judging(p, s) for _, p in governing)]
+    packages = sorted((n for n in graph.nodes if n["kind"] == "Package"), key=lambda n: n["id"])
+    found = [f for n in packages for s in wanted if (f := package_finding(n, s, governing)) is not None]
+    if not found:
+        return []
+    paths: dict[str, list[str]] = {}
+    for r in box.query(query("package_paths", depth=depth), {"repo": f"repo:{repo}", "ids": sorted({f["package"] for f in found})}):
+        paths.setdefault(r["package"], r["path"])
+    return [{**f, "path": paths[f["package"]]} for f in found if f["package"] in paths]
+
+
+def rule_problems(graph: Subgraph, decisions: list[dict]) -> list[dict]:
+    return [{"decision": d["decision"], "rule": p.kind, "problem": p.reason} for d, parsed in ruled(graph, decisions) for p in parsed.problems]
 
 
 def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
@@ -102,11 +147,16 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
     counts = box.load(graph)
     rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
     decisions = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
-    findings = verify(rows, graph, decisions)
+    findings = ordered(verify(rows, graph, decisions) + package_findings(box, graph, decisions, repo, depth))
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
     return {"meta": graph.meta, "loaded": counts, "governing": decisions, "summary": summary,
             "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings,
-            "unresolved_packages": unresolved_packages(graph)}
+            "unresolved_packages": unresolved_packages(graph), **problems_of(graph, decisions)}
+
+
+def problems_of(graph: Subgraph, decisions: list[dict]) -> dict:
+    found = rule_problems(graph, decisions)
+    return {"rule_problems": found} if found else {}
 
 
 def unresolved_packages(graph: Subgraph) -> list[dict]:

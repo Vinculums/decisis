@@ -5,6 +5,7 @@ import io
 import json
 import urllib.request
 
+from . import cvss
 from .inventory.npm import parse_npm_lock
 from .inventory.shape import digest, now, package_id
 
@@ -90,16 +91,42 @@ def fetch_advisories(packages: list[dict], opener=urllib.request.urlopen, cache:
             hits[p["id"]] = [v["id"] for v in (r.get("vulns") or [])]
     fetched = fetched_at or now()
     nodes = []
-    for vid in sorted({v for vs in hits.values() for v in vs}):
+    vids = sorted({v for vs in hits.values() for v in vs})
+    for vid in vids:
         if vid not in cache:
             cache[vid] = _get(OSV_VULN.format(id=vid), opener)
+    for vid in vids:
         v = cache[vid]
-        sev = ((v.get("database_specific") or {}).get("severity") or "UNKNOWN").upper()
+        sev, source = severity_of(vid, v, cache)
         nodes.append({"id": f"adv:{vid}", "kind": "Advisory", "title": v.get("summary") or vid,
-                      "props": {"osv_id": vid, "severity": sev, "aliases": v.get("aliases") or [], "published": v.get("published") or "",
+                      "props": {"osv_id": vid, "severity": sev, **({"severity_source": source} if source else {}), "aliases": v.get("aliases") or [], "published": v.get("published") or "",
                                 "affected_json": json.dumps(v.get("affected") or [], sort_keys=True),
                                 "source_system": "osv", "source_ref": vid, "source_url": f"https://osv.dev/vulnerability/{vid}",
                                 "fetched_at": fetched, "content_hash": digest(v)}})
     edges = [{"source": pid, "target": f"adv:{vid}", "type": "AFFECTED_BY", "evidence": f"OSV returned {vid} for this name and version"}
              for pid, vids in sorted(hits.items()) for vid in vids]
     return nodes, edges
+
+
+def _own_severity(v: dict) -> str:
+    return str((v.get("database_specific") or {}).get("severity") or "").upper()
+
+
+def ghsa_aliases(vid: str, v: dict, records: dict) -> list[str]:
+    named = {a for a in v.get("aliases") or [] if isinstance(a, str) and a.startswith("GHSA-")}
+    back = {k for k, r in records.items() if k.startswith("GHSA-") and vid in ((r or {}).get("aliases") or [])}
+    return sorted(named | back)
+
+
+def severity_of(vid: str, v: dict, records: dict) -> tuple[str, str]:
+    if _own_severity(v):
+        return _own_severity(v), ""
+    alias = next((a for a in ghsa_aliases(vid, v, records) if _own_severity(records.get(a) or {})), None)
+    if alias:
+        return _own_severity(records[alias]), f"GHSA alias {alias} in the same OSV data"
+    vectors = {s.get("type"): s.get("score") for s in v.get("severity") or [] if isinstance(s, dict)}
+    score = cvss.base_score(vectors.get("CVSS_V3") or "")
+    if score is not None:
+        return cvss.band(score), f"CVSS v3 base score {score} of {vectors['CVSS_V3']}"
+    unscored = f"; {', '.join(sorted(vectors))} is not scored" if vectors else ""
+    return "UNKNOWN", f"no severity in the record, no GHSA alias with one in the OSV data and no CVSS v3 vector{unscored}"

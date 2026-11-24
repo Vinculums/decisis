@@ -2,13 +2,20 @@ from __future__ import annotations
 
 import json
 
-from . import audit, semver
+from . import audit, rules, semver
 from . import commit as wb
 from .queries import load as query
 from .sandbox import Limits, Sandbox, Subgraph
 
-def decisions(vinc: Subgraph) -> set[str]:
-    return {n["id"] for n in vinc.nodes if n["kind"] == "decision"}
+SUBJECT = {"licensed_under": "license", "uses_denied_package": "package"}
+
+
+def decisions(vinc: Subgraph) -> dict[str, dict]:
+    return {n["id"]: n for n in vinc.nodes if n["kind"] == "decision"}
+
+
+def subject(node: dict) -> str:
+    return SUBJECT.get(node["props"].get("predicate"), "advisory")
 
 
 def _name(node: dict) -> str:
@@ -16,7 +23,8 @@ def _name(node: dict) -> str:
 
 
 def _ends(node: dict) -> set[str]:
-    return {path[-2] for path in node["props"]["dependency_paths"] if len(path) > 1}
+    tail = 2 if subject(node) == "advisory" else 1
+    return {path[-tail] for path in node["props"]["dependency_paths"] if len(path) >= tail}
 
 
 def _package(name: str, version: str, facts: dict, ends: set[str]) -> dict | None:
@@ -30,14 +38,17 @@ def _own(node: dict, facts: dict) -> set[str]:
 
 
 def _facts(box, plan: dict, repo: str, depth: int) -> dict:
-    advisories = sorted({f"adv:{n['props']['value']}" for n in plan["nodes"]})
+    advisories = sorted({f"adv:{n['props']['value']}" for n in plan["nodes"] if subject(n) == "advisory"})
     names = sorted({_name(n) for n in plan["nodes"]})
     on_paths = sorted({x for n in plan["nodes"] for path in n["props"]["dependency_paths"] for x in path})
     packages = box.query(query("packages_named"), {"names": names}) + box.query(query("package_records"), {"ids": on_paths})
+    ends = sorted({x for n in plan["nodes"] if subject(n) != "advisory" for x in _ends(n)})
     return {"repo": f"repo:{repo}",
             "advisories": {r["advisory"]: r for r in box.query(query("advisory_records"), {"ids": advisories})},
             "packages": {r["package"]: r for r in packages},
-            "paths": {tuple(r["path"]) for r in box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})}}
+            "paths": {tuple(r["path"]) for r in box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})},
+            "package_paths": {tuple(r["path"]) for r in box.query(query("package_paths", depth=depth), {"repo": f"repo:{repo}", "ids": ends})}
+            if ends else set()}
 
 
 def _advisory(p: dict, record: dict | None) -> list[str]:
@@ -68,13 +79,66 @@ def _path(path: list[str], p: dict, own: set[str], facts: dict) -> list[str]:
         return [f"a dependency path does not run from {facts['repo']} to this record's package and advisory: {shown}"]
     if tuple(path) not in facts["paths"]:
         return [f"a dependency path is not in the sandbox graph: {shown}"]
-    dev = [bool((facts["packages"].get(x) or {}).get("dev")) for x in path[1:-1]]
+    return _scope(path[1:-1], p, facts, shown)
+
+
+def _scope(steps: list[str], p: dict, facts: dict, shown: str) -> list[str]:
+    dev = [bool((facts["packages"].get(x) or {}).get("dev")) for x in steps]
     if not (dev[-1] if p["scope"] == "development" else p["scope"] == "shipped" and not any(dev)):
         return [f"a dependency path does not match scope {p['scope']}: {shown}"]
     return []
 
 
-def check_record(node: dict, edges: list[dict], facts: dict, known: set[str]) -> dict:
+def _package_path(path: list[str], p: dict, own: set[str], facts: dict) -> list[str]:
+    shown = " -> ".join(path)
+    if len(path) < 2 or path[0] != facts["repo"] or path[-1] not in own:
+        return [f"a dependency path does not run from {facts['repo']} to this record's package: {shown}"]
+    if tuple(path) not in facts["package_paths"]:
+        return [f"a dependency path is not in the sandbox graph: {shown}"]
+    return _scope(path[1:], p, facts, shown)
+
+
+def _claimed(kind: str, name: str, version: str, pkg: dict, value: str) -> list[str]:
+    if kind == "license" and (pkg.get("license_expression") or "") != value:
+        return [f"{name} {version} is licensed {pkg.get('license_expression') or 'with no license'} in the inventory, not {value}"]
+    if kind == "package" and f"{pkg.get('ecosystem')}:{pkg.get('name')}" != value:
+        return [f"{name} {version} is {pkg.get('ecosystem')}:{pkg.get('name')} in the inventory, not {value}"]
+    return []
+
+
+def _forbids(decision: dict | None, kind: str, pkg: dict, dev: bool) -> bool:
+    judged = rules.judging(rules.of(decision or {}), kind)
+    return any(rules.verdict(r, pkg, dev)[0] == "violated" for r in judged)
+
+
+def _package_version(node: dict, version: str, facts: dict, decided: dict[str, dict]) -> list[str]:
+    p, name, kind = node["props"], _name(node), subject(node)
+    pkg = _package(name, version, facts, _ends(node))
+    if pkg is None:
+        return [f"{name} {version} is not a package in the lockfile"]
+    out = _claimed(kind, name, version, pkg, p["value"])
+    if pkg["package"] not in _ends(node):
+        out.append(f"no dependency path of this record reaches {name} {version}")
+    dev = p["scope"] == "development"
+    out += [f"{d} has no {kind} rule that {name} {version} violates" for d in p["violates"] if not _forbids(decided.get(d), kind, pkg, dev)]
+    return out
+
+
+def check_package_record(node: dict, edges: list[dict], facts: dict, decided: dict[str, dict]) -> dict:
+    p, own = node["props"], _own(node, facts)
+    problems = []
+    for version in p["versions"]:
+        problems += _package_version(node, version, facts, decided)
+    for path in p["dependency_paths"]:
+        problems += _package_path(path, p, own, facts)
+    problems += [f"{e['to']} is not a decision in the snapshot" for e in edges if e["to"] not in decided]
+    checks = len(p["versions"]) * (2 + len(p["violates"])) + len(p["dependency_paths"]) + len(edges)
+    return {"record": node["id"], "checks": checks, "problems": problems}
+
+
+def check_record(node: dict, edges: list[dict], facts: dict, known) -> dict:
+    if subject(node) != "advisory":
+        return check_package_record(node, edges, facts, known)
     p, name, own, ends = node["props"], _name(node), _own(node, facts), _ends(node)
     record = facts["advisories"].get(f"adv:{p['value']}")
     problems = _advisory(p, record)
@@ -87,7 +151,7 @@ def check_record(node: dict, edges: list[dict], facts: dict, known: set[str]) ->
     return {"record": node["id"], "checks": checks, "problems": problems}
 
 
-def check_plan(plan: dict, box, known: set[str], repo: str, depth: int = 8) -> list[dict]:
+def check_plan(plan: dict, box, known: dict[str, dict], repo: str, depth: int = 8) -> list[dict]:
     if not plan["nodes"]:
         return []
     facts = _facts(box, plan, repo, depth)
