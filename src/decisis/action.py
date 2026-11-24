@@ -2,9 +2,10 @@
 
 `main` reads the action's inputs from `DECISIS_*` variables and the pull request from the event payload, so no
 input or pull request text passes through a shell. The changed files are `git diff BASE...HEAD` with the base
-SHA from the payload. The reviewers given to `check` are the users whose latest review approves the pull
-request; requested reviewers are listed in the comment and not counted. The comment starts with `MARKER`; the
-first comment by `DECISIS_COMMENT_AUTHOR` that starts with it is updated, else a new one is created. Every
+SHA from the payload. The reviewers given to `check` are the users other than the author whose latest review
+approves the pull request; requested reviewers are listed in the comment and not counted. The comment starts
+with `MARKER`; the first comment by `DECISIS_COMMENT_AUTHOR` that starts with it is updated, else a new one is
+created. A pull request is a fork when its head repository is missing or is not the base repository. Every
 title, path and reason is escaped before it reaches Markdown, and the body is cut to fit GitHub's limit.
 The body is always written to the job summary; on a fork pull request, or when GitHub refuses the write,
 it is written only there.
@@ -45,6 +46,10 @@ class ReadOnly(Exception):
     pass
 
 
+class TooManyComments(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class Pull:
     repo: str
@@ -52,6 +57,7 @@ class Pull:
     base: str
     fork: bool
     requested: tuple[str, ...] = ()
+    author: str | None = None
 
 
 @dataclass
@@ -99,11 +105,10 @@ def pull_of(event: dict, repository: str) -> Pull | None:
         raise ValueError("the event payload gives no pull request number")
     base, head = pr.get("base") or {}, pr.get("head") or {}
     base_repo, head_repo = base.get("repo") or {}, head.get("repo")
-    fork = (not isinstance(head_repo, dict) or head_repo.get("fork") is True
-            or head_repo.get("full_name") != base_repo.get("full_name", repository))
+    fork = not isinstance(head_repo, dict) or head_repo.get("full_name") != base_repo.get("full_name", repository)
     owner = repository.split("/")[0]
     requested = handles(pr.get("requested_reviewers"), "login") + handles(pr.get("requested_teams"), "slug", owner + "/")
-    return Pull(repository, number, sha(base.get("sha")), fork, tuple(sorted(set(requested))))
+    return Pull(repository, number, sha(base.get("sha")), fork, tuple(sorted(set(requested))), gh.login(pr.get("user")))
 
 
 def text(value) -> str:
@@ -207,8 +212,8 @@ def graphs(o: Outcome) -> list[str]:
 
 def reviewers_line(o: Outcome, rows: int) -> list[str]:
     shown, _ = cut(o.approved, rows, "")
-    counted = ", ".join(code(h) for h in shown) or "none"
-    if len(o.approved) > len(shown):
+    counted = ", ".join(code(h) for h in shown) or ("none" if not o.approved else f"{len(o.approved)}, not listed")
+    if shown and len(o.approved) > len(shown):
         counted += f" and {len(o.approved) - len(shown)} more"
     line = f"Reviewers counted (latest review approves): {counted}."
     if o.pull.requested:
@@ -246,24 +251,25 @@ def body(o: Outcome) -> str:
         if len(out) <= MAX_BODY:
             return out
     tail = "\n\nThe comment was cut at GitHub's limit.\n"
-    return out[:MAX_BODY - len(tail)] + tail
+    return out[:MAX_BODY - len(tail)].rpartition("\n")[0] + tail
 
 
-def approvals(client: gh.Client, pull: Pull) -> list[str]:
-    latest: dict[str, str] = {}
+def approvals(client: gh.Client, pull: Pull) -> tuple[list[str], str | None]:
+    reviews, cut_note = [], None
     for review in client.pages(f"{gh.API}/repos/{pull.repo}/pulls/{pull.number}/reviews?per_page={gh.PER_PAGE}", gh.MAX_REVIEWS):
         if review is None:
+            cut_note = (f"Only the first {gh.MAX_REVIEWS:,} reviews were read; a later review is not counted, "
+                        "so a review rule may show a violation that a later approval would clear.")
             break
-        who, state = gh.login(review.get("user")), review.get("state")
-        if who and state in gh.REVIEW_STATES:
-            latest[who] = state
-    return sorted("@" + who for who, state in latest.items() if state == "APPROVED")
+        reviews.append(review)
+    return ["@" + who for who in gh.approvers(reviews, pull.author)], cut_note
 
 
 def existing(client: gh.Client, pull: Pull, author: str) -> int | None:
     for c in client.pages(f"{gh.API}/repos/{pull.repo}/issues/{pull.number}/comments?per_page={gh.PER_PAGE}", MAX_COMMENTS):
         if c is None:
-            return None
+            raise TooManyComments(f"the pull request has more than {MAX_COMMENTS:,} comments; decisis did not look further for its "
+                                  "own comment and did not post a new one")
         body_text, cid = c.get("body"), c.get("id")
         if gh.login(c.get("user")) == author and isinstance(body_text, str) and body_text.startswith(MARKER) \
                 and isinstance(cid, int) and not isinstance(cid, bool):
@@ -372,10 +378,12 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     fetch_base(root, pull.base)
     changed = check.changed_since(root, pull.base)
     client = gh.Client(gh.clean_token(env.get("DECISIS_TOKEN")), opener)
-    approved = approvals(client, pull)
+    approved, review_note = approvals(client, pull)
     report = check.run(graph, changed, root, approved, repo=repo, base=pull.base)
     found, lockfile = audited(env, graph, repo or pull.repo.split("/")[1])
     outcome = Outcome(report, pull, approved, version(), source, found, lockfile)
+    if review_note:
+        outcome.notes.append(review_note)
     if pull.fork:
         outcome.notes.append("This pull request comes from a fork, so its token cannot comment; the result is in the job summary.")
     text_body = body(outcome)
@@ -387,6 +395,9 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
             say(f"comment {link or 'written'}")
         except ReadOnly as e:
             say(f"{e}; the token cannot comment, so the result is only in the job summary")
+        except TooManyComments as e:
+            append(env.get("GITHUB_STEP_SUMMARY"), f"\n> {text(e)}.\n")
+            say(f"{e}; the result is only in the job summary")
     else:
         say("fork pull request; the result is in the job summary")
     violations = len(report["violations"]) + (found.get("violations", 0) if found else 0)

@@ -161,8 +161,34 @@ def test_the_latest_review_of_each_user_counts_and_only_an_approval_is_a_reviewe
     reviews = [{"user": {"login": "ana"}, "state": "APPROVED"}, {"user": {"login": "ana"}, "state": "CHANGES_REQUESTED"},
                {"user": {"login": "bob"}, "state": "COMMENTED"}, {"user": {"login": "bob"}, "state": "APPROVED"},
                {"user": {"login": "bob"}, "state": "COMMENTED"}, {"user": {"login": "carol"}, "state": "APPROVED"},
-               {"user": {"login": "carol"}, "state": "DISMISSED"}, {"user": {"login": "dan"}, "state": "COMMENTED"}, {"user": None}]
-    assert action.approvals(gh.Client(TOKEN, FakeGitHub(reviews)), pull()) == ["@bob"]
+               {"user": {"login": "carol"}, "state": "DISMISSED"}, {"user": {"login": "dan"}, "state": "COMMENTED"}, {"user": None},
+               {"user": {"login": "erin"}, "state": "APPROVED"}]
+    assert action.approvals(gh.Client(TOKEN, FakeGitHub(reviews)), pull(author="erin")) == (["@bob"], None)
+
+
+def test_reviews_past_the_cap_are_not_counted_and_the_comment_says_so(tmp_path, monkeypatch, no_network):
+    monkeypatch.setattr(gh, "MAX_REVIEWS", 2)
+    reviews = [{"user": {"login": "ana"}, "state": "COMMENTED"}, {"user": {"login": "bob"}, "state": "COMMENTED"},
+               {"user": {"login": "alice"}, "state": "APPROVED"}]
+    approved, note = action.approvals(gh.Client(TOKEN, FakeGitHub(reviews)), pull())
+    assert approved == [] and "Only the first 2 reviews were read" in note
+    root, base = shop(tmp_path)
+    fake = FakeGitHub(reviews)
+    assert action.main(environment(tmp_path, root, base), fake) == 0
+    (_, _, data), = fake.writes()
+    assert "Only the first 2 reviews were read" in data["body"]
+
+
+def test_past_the_comment_cap_no_new_comment_is_posted_and_the_summary_says_so(tmp_path, monkeypatch, capsys, no_network):
+    monkeypatch.setattr(action, "MAX_COMMENTS", 2)
+    others = [{"id": i, "user": {"login": "mallory"}, "body": "hi"} for i in range(3)]
+    with pytest.raises(action.TooManyComments):
+        action.post(gh.Client(TOKEN, FakeGitHub(pages=(others,))), pull(), action.MARKER)
+    root, base = shop(tmp_path)
+    fake = FakeGitHub(pages=(others,))
+    assert action.main(environment(tmp_path, root, base), fake) == 0
+    assert fake.writes() == []
+    assert "did not post a new one" in (tmp_path / "summary.md").read_text() and "did not post a new one" in capsys.readouterr().out
 
 
 def test_the_bots_marked_comment_is_found_across_pages_and_updated(no_network):
@@ -272,6 +298,13 @@ def test_a_missing_or_foreign_head_repository_is_a_fork():
         return action.pull_of({"pull_request": {"number": 7, "base": {"sha": "b" * 40, "repo": {"full_name": REPO}}, "head": {"repo": head}}}, REPO)
     assert of(None).fork and of({"full_name": "x/shop", "fork": True}).fork and of({"full_name": "x/shop"}).fork
     assert not of({"full_name": REPO, "fork": False}).fork
+
+
+def test_same_full_name_with_fork_true_is_not_a_fork():
+    payload = {"pull_request": {"number": 7, "user": {"login": "erin"}, "base": {"sha": "b" * 40, "repo": {"full_name": REPO, "fork": True}},
+                                "head": {"repo": {"full_name": REPO, "fork": True}}}}
+    found = action.pull_of(payload, REPO)
+    assert not found.fork and found.author == "erin"
 
 
 def steps(doc: dict) -> list[dict]:
