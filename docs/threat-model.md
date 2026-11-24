@@ -131,7 +131,8 @@ cleanup above removes it with the sandboxes inside. (`src/decisis/serve.py`; `te
 `test_the_audit_reads_only_under_the_root_and_refuses_an_escaping_symlink`, `test_the_audit_uses_the_network_only_when_allowed`,
 `test_check_refuses_a_path_outside_the_root_and_a_base_that_could_pass_for_an_option_before_git_runs`,
 `test_check_over_mcp_with_base_runs_git_through_the_hardened_helper_and_matches_the_cli`,
-`test_a_snapshot_that_fails_to_reload_leaves_the_previous_one_and_the_reply_says_why`.)
+`test_a_snapshot_that_fails_to_reload_leaves_the_previous_one_and_the_reply_says_why`,
+`test_a_reload_in_a_call_the_client_cancels_is_announced_by_the_next_call`.)
 
 **A read-only `query`.** The `query` command and tool refuse a write three ways, and each is tested without
 the others. The text check refuses `CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`, `FOREACH`, `LOAD CSV`,

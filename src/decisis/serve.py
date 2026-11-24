@@ -2,7 +2,8 @@
 
 Before each tool call the server compares the snapshot file's mtime and size with the copy it holds and reloads it
 when either changed; a file that fails to load leaves the previous copy in place and the reply says so. After a
-reload the query tool's schema is rebuilt and the server sends notifications/tools/list_changed.
+reload the query tool's schema is rebuilt and the server sends notifications/tools/list_changed from the first call
+that completes, so a reload inside a call the client cancelled is announced by the next one.
 Each tool call loads the snapshot into its own sandbox and deletes it before the reply. The sandboxes live
 in one private directory that the server removes when stdin closes or on SIGTERM or SIGINT, even while a call runs,
 and that records its owner so that decisis gc removes it after a SIGKILL. No tool writes,
@@ -313,6 +314,8 @@ class Live:
     def __init__(self, tools: Tools):
         self.tools = tools
         self.lock = threading.Lock()
+        self.reloads = 0
+        self.announced = 0
 
     def current(self) -> tuple[Tools, bool, str | None]:
         with self.lock:
@@ -326,7 +329,16 @@ class Live:
                 self.tools = replace(held, graph=co.load(held.snapshot.read_text(encoding="utf-8")), schema="", stamp=seen)
             except Exception as e:
                 return held, False, f"{type(e).__name__}: {e}"
+            self.reloads += 1
             return self.tools, True, None
+
+    def unannounced(self) -> int:
+        with self.lock:
+            return self.reloads if self.reloads > self.announced else 0
+
+    def announce(self, reload: int) -> None:
+        with self.lock:
+            self.announced = max(self.announced, reload)
 
 
 def reload_note(tools: Tools, why: str) -> str:
@@ -346,9 +358,9 @@ def respond(tools: Tools, name: str, arguments: dict | None, failed: str | None 
     return error(f"{message}\n\n{note}" if note else message)
 
 
-def outcome(live: Live, name: str, arguments: dict | None) -> tuple[types.CallToolResult, bool]:
-    tools, reloaded, failed = live.current()
-    return respond(tools, name, arguments, failed), reloaded
+def outcome(live: Live, name: str, arguments: dict | None) -> types.CallToolResult:
+    tools, _, failed = live.current()
+    return respond(tools, name, arguments, failed)
 
 
 class ReloadingServer(Server):
@@ -364,10 +376,12 @@ def build(tools: Tools) -> Server:
         return types.ListToolsResult(tools=tool_list(live.tools))
 
     async def on_call_tool(ctx, params: types.CallToolRequestParams) -> types.CallToolResult:
-        result, reloaded = await anyio.to_thread.run_sync(outcome, live, params.name, params.arguments, abandon_on_cancel=True)
-        if reloaded:
+        result = await anyio.to_thread.run_sync(outcome, live, params.name, params.arguments, abandon_on_cancel=True)
+        reload = live.unannounced()
+        if reload:
             await ctx.session.send_tool_list_changed()
             await bus.publish(ToolsListChanged())
+            live.announce(reload)
         return result
 
     return ReloadingServer("decisis", instructions=INSTRUCTIONS, on_list_tools=on_list_tools, on_call_tool=on_call_tool,

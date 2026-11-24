@@ -7,6 +7,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 import tomllib
 from pathlib import Path
@@ -740,3 +741,41 @@ def test_the_cli_server_reloads_a_changed_snapshot_over_stdio(tmp_path, no_netwo
     assert first.structured_content["rows"] == [{"c": nodes_in(IMPACT_SNAPSHOT)}]
     assert second.structured_content["rows"] == [{"c": nodes_in(CHECK_SNAPSHOT)}]
     assert capabilities.tools.list_changed is True and len(heard) == 1
+
+
+def test_a_reload_in_a_call_the_client_cancels_is_announced_by_the_next_call(tmp_path, monkeypatch):
+    path = held(tmp_path)
+    t = tools(path, ROOT, None)
+    gate, real, heard = threading.Event(), serve.co.load, []
+
+    async def handler(message):
+        if isinstance(message, types.ToolListChangedNotification):
+            heard.append(message)
+
+    def slow_load(text):
+        gate.wait(10)
+        return real(text)
+
+    async def drive():
+        async with Client(serve.build(t), mode="legacy", message_handler=handler) as client:
+            first = await client.call_tool(*COUNT)
+            monkeypatch.setattr(serve.co, "load", slow_load)
+            rewrite(path, CHECK_SNAPSHOT.read_bytes())
+            with anyio.move_on_after(0.5):
+                await client.call_tool(*COUNT)
+            gate.set()
+            with anyio.fail_after(10):
+                while serve.cypher.describe(serve.co.load(CHECK_SNAPSHOT.read_text(encoding="utf-8"))) not in query_description(
+                        await client.list_tools(cache_mode="bypass")):
+                    await anyio.sleep(0.05)
+            await anyio.wait_all_tasks_blocked()
+            unannounced = len(heard)
+            monkeypatch.setattr(serve.co, "load", real)
+            later = await client.call_tool(*COUNT)
+            again = await client.call_tool(*COUNT)
+            await anyio.wait_all_tasks_blocked()
+            return first, later, again, unannounced
+    first, later, again, unannounced = anyio.run(drive)
+    assert first.structured_content["rows"] == [{"c": nodes_in(IMPACT_SNAPSHOT)}]
+    assert later.structured_content["rows"] == again.structured_content["rows"] == [{"c": nodes_in(CHECK_SNAPSHOT)}]
+    assert unannounced == 0 and len(heard) == 1

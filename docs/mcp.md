@@ -72,7 +72,8 @@ compares the snapshot file's mtime and size with the copy it holds, and reloads 
 changed; the call is then answered from the new snapshot. After a reload the schema in the `query`
 tool's description is rebuilt, and the server sends `notifications/tools/list_changed` (on the
 2026-07-28 protocol, a `ToolsListChanged` event to clients listening with `subscriptions/listen`), so
-the client lists the tools again. If the new file fails to load, for example while it is still being
+the client lists the tools again. The announcement goes out from the first call that completes after the
+reload: a reload inside a call the client cancelled is announced by the next call. If the new file fails to load, for example while it is still being
 written, the server keeps the previous snapshot, answers from it, and says so: a reply carries
 `reload_failed` with the reason, and an error result ends with the same note. The next call tries again.
 To replace a snapshot without a failed reload in between, write the new file next to it and rename it
