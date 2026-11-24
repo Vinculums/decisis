@@ -9,6 +9,13 @@ created. A pull request is a fork when its head repository is missing or is not 
 title, path and reason is escaped before it reaches Markdown, and the body is cut to fit GitHub's limit.
 The body is always written to the job summary; on a fork pull request, or when GitHub refuses the write,
 it is written only there.
+
+`DECISIS_INVENTORY` holds one path or `auto` per line. A path is read as `decisis audit` reads it, and a path that
+cannot be audited stops the step. `auto` stands for the inventories in the root of the working directory: the
+files in `LOCKFILES`, any `requirements*.txt`, and `.github/workflows` when it holds a workflow. No other directory
+is searched. A found file is read only when it resolves inside the working directory, with its siblings bounded the
+same way; one that cannot be audited gets a section that says why and does not stop the step. Each inventory has
+its own audit section, and the audit violations of all of them are added to the check's.
 """
 from __future__ import annotations
 
@@ -27,6 +34,8 @@ from typing import Callable, Mapping
 from . import audit, check, codeowners, external, init, inventory, render
 from . import checkout as co
 from . import github as gh
+from .inventory import actions as workflows
+from .inventory.siblings import clean, directory_reader, directory_resolver
 from .sandbox import LimitExceeded
 
 MARKER = "<!-- decisis -->"
@@ -40,6 +49,10 @@ ESCAPED = frozenset("\\`*_{}[]()#+-!|~$:")
 JOINER = "⁠"
 TRUE = ("true", "yes", "1")
 FALSE = ("false", "no", "0", "")
+AUTO = "auto"
+WORKFLOWS = ".github/workflows"
+LOCKFILES = frozenset(("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "uv.lock", "poetry.lock",
+                       "Cargo.lock", "go.mod", "gradle.lockfile", "pom.xml", ".terraform.lock.hcl"))
 
 
 class ReadOnly(Exception):
@@ -60,6 +73,13 @@ class Pull:
     author: str | None = None
 
 
+@dataclass(frozen=True)
+class Audited:
+    inventory: str
+    report: dict | None = None
+    problem: str | None = None
+
+
 @dataclass
 class Outcome:
     report: dict
@@ -67,8 +87,7 @@ class Outcome:
     approved: list[str]
     version: str
     snapshot: str
-    audited: dict | None = None
-    inventory: str | None = None
+    audits: list[Audited] | None = None
     notes: list[str] = field(default_factory=list)
 
 
@@ -188,25 +207,27 @@ def audit_rows(report: dict) -> list[list[str]]:
     return out
 
 
-def audit_section(o: Outcome, rows: int) -> list[str]:
-    if o.audited is None:
-        return []
-    s = o.audited.get("summary") or {}
-    found = audit_rows(o.audited)
-    out = [f"#### Audit of {code(o.inventory)}", "",
-           text(f"{s.get('affected', 0)} affected, {s.get('unresolved', 0)} unresolved, {s.get('not_affected', 0)} not affected; "
-                f"{o.audited.get('violations', 0)} violation(s) of a decision."), ""]
-    shown, rest = cut(found, rows, "audit violations")
+def audit_section(a: Audited, rows: int) -> list[str]:
+    out = [f"#### Audit of {code(a.inventory)}", ""]
+    if a.report is None:
+        return out + [text(f"Not audited: {a.problem}"), ""]
+    s = a.report.get("summary") or {}
+    out += [text(f"{s.get('affected', 0)} affected, {s.get('unresolved', 0)} unresolved, {s.get('not_affected', 0)} not affected; "
+                 f"{a.report.get('violations', 0)} violation(s) of a decision."), ""]
+    shown, rest = cut(audit_rows(a.report), rows, "audit violations")
     if shown:
         out += table(["Package", "Advisory or rule", "Decision", "Why"], shown)
-    return out + rest + problems(o.audited.get("rule_problems") or [], rows)
+    return out + rest + problems(a.report.get("rule_problems") or [], rows)
+
+
+def audit_violations(audits: list[Audited] | None) -> int:
+    return sum(a.report.get("violations", 0) for a in audits or [] if a.report is not None)
 
 
 def graphs(o: Outcome) -> list[str]:
     governed = [r for r in o.report["impact"] if r.get("governing") or r.get("superseded")]
     out = ["<details><summary>Path graph</summary>", "", render.mermaid("check", {**o.report, "impact": governed})]
-    if o.audited is not None:
-        out += [render.mermaid("audit", o.audited)]
+    out += [render.mermaid("audit", a.report) for a in o.audits or [] if a.report is not None]
     return out + ["</details>", ""]
 
 
@@ -225,9 +246,8 @@ def reviewers_line(o: Outcome, rows: int) -> list[str]:
 
 def compose(o: Outcome, rows: int, graph: bool) -> str:
     r = o.report
-    audit_violations = o.audited.get("violations", 0) if o.audited else 0
     head = (f"**{len(r['governing'])} decision(s) touched, {len(r['violations'])} violation(s)"
-            + (f", {audit_violations} audit violation(s)" if o.audited is not None else "")
+            + (f", {audit_violations(o.audits)} audit violation(s)" if o.audits is not None else "")
             + f", {len(r['unresolved'])} that cannot be judged** in {len(r['changed'])} changed file(s) against {code(o.pull.base[:12])}.")
     lines = [MARKER, "### decisis", "", head, "", *reviewers_line(o, rows)]
     if (rows, graph) != ATTEMPTS[0]:
@@ -238,7 +258,8 @@ def compose(o: Outcome, rows: int, graph: bool) -> str:
     lines += decisions(r, rows)
     lines += results("Cannot be judged", r["unresolved"], rows)
     lines += problems(r.get("rule_problems") or [], rows)
-    lines += audit_section(o, rows)
+    for a in o.audits or []:
+        lines += audit_section(a, rows)
     if graph:
         lines += graphs(o)
     lines.append(f"<sub>decisis {text(o.version)}, snapshot {code(o.snapshot)}. This comment is updated on each run.</sub>")
@@ -332,16 +353,83 @@ def snapshot_of(env: Mapping[str, str], root: Path, repo: str | None) -> tuple[o
     return co.load(Path(path).read_text(encoding="utf-8")), path
 
 
-def audited(env: Mapping[str, str], graph, repo: str) -> tuple[dict | None, str | None]:
-    lockfile = env.get("DECISIS_INVENTORY", "").strip()
-    if not lockfile:
-        return None, None
+def reason(e: Exception) -> str:
+    return " ".join(str(e).split()) or type(e).__name__
+
+
+def lockfile(name: str) -> bool:
+    return name in LOCKFILES or (name.startswith("requirements") and name.endswith(".txt"))
+
+
+def workflow_in(root: Path) -> str | None:
+    folder = Path(directory_resolver(root, root)(WORKFLOWS))
+    if not folder.is_dir():
+        return None
+    read = directory_reader(root / WORKFLOWS, root)
+    for name in sorted(p.name for p in folder.iterdir() if p.name.endswith(workflows.SUFFIXES)):
+        try:
+            body = read(name)
+        except (ValueError, OSError):
+            continue
+        if body is not None and name not in workflows.ACTION_FILES and workflows.workflow(clean(body)):
+            return f"{WORKFLOWS}/{name}"
+    return None
+
+
+def found(root: Path) -> list[tuple[str, str | None, str | None]]:
+    out: list[tuple[str, str | None, str | None]] = [(name, name, None) for name in sorted(p.name for p in root.iterdir() if lockfile(p.name))]
+    try:
+        first = workflow_in(root)
+    except (ValueError, OSError) as e:
+        return out + [(WORKFLOWS, None, reason(e))]
+    return out + ([(WORKFLOWS, first, None)] if first else [])
+
+
+def audit_file(graph, path: Path, repo: str, advisories, root: Path | None = None) -> dict:
+    lock_text, siblings = inventory.load(path, root=root)
+    return audit.run(graph, lock_text, repo, advisories=advisories, filename=path.name, siblings=siblings)
+
+
+def audit_found(graph, root: Path, name: str, repo: str, advisories) -> dict:
+    real = Path(directory_resolver(root, root)(name))
+    if not real.is_file():
+        raise ValueError(f"{name} is not a file")
+    return audit_file(graph, root / name, repo, advisories, root)
+
+
+def audits(env: Mapping[str, str], graph, repo: str, root: Path) -> tuple[list[Audited] | None, bool]:
+    lines = [line.strip() for line in env.get("DECISIS_INVENTORY", "").splitlines() if line.strip()]
+    if not lines:
+        return None, False
     advisories = external.fetch_advisories
     cache = env.get("DECISIS_OSV_CACHE", "").strip()
     if cache:
         advisories = external.cached_advisories(external.read_osv_cache(Path(cache).read_text(encoding="utf-8")))
-    lock_text, siblings = inventory.load(Path(lockfile))
-    return audit.run(graph, lock_text, repo, advisories=advisories, filename=Path(lockfile).name, siblings=siblings), lockfile
+    out: list[Audited] = []
+    seen: set[Path] = set()
+    empty = False
+    for line in lines:
+        if line != AUTO:
+            if Path(line).resolve() not in seen:
+                seen.add(Path(line).resolve())
+                out.append(Audited(line, audit_file(graph, Path(line), repo, advisories)))
+            continue
+        here = found(root)
+        empty = empty or not here
+        for label, name, problem in here:
+            key = (root / (name or label)).resolve()
+            if key in seen:
+                continue
+            seen.add(key)
+            if problem is None:
+                try:
+                    out.append(Audited(label, audit_found(graph, root, name, repo, advisories)))
+                    continue
+                except (ValueError, OSError) as e:
+                    problem = reason(e)
+            out.append(Audited(label, problem=problem))
+            say(f"{label} was not audited: {problem}")
+    return out, empty
 
 
 def version() -> str:
@@ -380,10 +468,12 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     client = gh.Client(gh.clean_token(env.get("DECISIS_TOKEN")), opener)
     approved, review_note = approvals(client, pull)
     report = check.run(graph, changed, root, approved, repo=repo, base=pull.base)
-    found, lockfile = audited(env, graph, repo or pull.repo.split("/")[1])
-    outcome = Outcome(report, pull, approved, version(), source, found, lockfile)
+    done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root)
+    outcome = Outcome(report, pull, approved, version(), source, done)
     if review_note:
         outcome.notes.append(review_note)
+    if empty:
+        outcome.notes.append("inventory: auto found no inventory in the repository root, so it audited nothing there.")
     if pull.fork:
         outcome.notes.append("This pull request comes from a fork, so its token cannot comment; the result is in the job summary.")
     text_body = body(outcome)
@@ -400,7 +490,7 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
             say(f"{e}; the result is only in the job summary")
     else:
         say("fork pull request; the result is in the job summary")
-    violations = len(report["violations"]) + (found.get("violations", 0) if found else 0)
+    violations = len(report["violations"]) + audit_violations(done)
     append(env.get("GITHUB_OUTPUT"), f"violations={violations}\ncomment-url={link}\n")
     say(f"{len(report['governing'])} decision(s) touched, {violations} violation(s)")
     return 1 if violations and flag(env, "DECISIS_FAIL_ON_VIOLATION") else 0
