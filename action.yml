@@ -1,0 +1,107 @@
+name: decisis check
+description: Comment the decisions a pull request touches, the review and import rules it breaks, and a path graph.
+author: Vinculums
+branding:
+  icon: git-pull-request
+  color: blue
+
+inputs:
+  snapshot:
+    description: A decisis snapshot (JSON), relative to the workspace. Give this or init.
+    required: false
+    default: ""
+  init:
+    description: true builds the snapshot from the repository's ADRs, CODEOWNERS and postmortems with decisis init.
+    required: false
+    default: "false"
+  github-token:
+    description: Reads the reviews and writes the comment; needs pull-requests write and contents read.
+    required: false
+    default: ${{ github.token }}
+  inventory:
+    description: A lockfile or SBOM, relative to the workspace. When given, decisis audit runs too.
+    required: false
+    default: ""
+  osv-cache:
+    description: An OSV cache file for the audit; without it the audit asks api.osv.dev.
+    required: false
+    default: ""
+  repo:
+    description: The repository name the snapshot's code_ref values use (default for the audit, the repository's name).
+    required: false
+    default: ""
+  working-directory:
+    description: The repository the changed files are read from, relative to the workspace.
+    required: false
+    default: "."
+  fail-on-violation:
+    description: true fails the step when check or audit finds a violation.
+    required: false
+    default: "false"
+  decisis-version:
+    description: A decisis version to install from PyPI. Empty installs decisis from the action's own checkout, which is the release the action ref names.
+    required: false
+    default: ""
+  comment-author:
+    description: The login whose marked comment is updated; change it when github-token is not the workflow token.
+    required: false
+    default: github-actions[bot]
+  python-version:
+    description: The Python that runs decisis.
+    required: false
+    default: "3.12"
+
+outputs:
+  violations:
+    description: The number of check and audit violations.
+    value: ${{ steps.check.outputs.violations }}
+  comment-url:
+    description: The comment's URL, empty when the result went only to the job summary.
+    value: ${{ steps.check.outputs.comment-url }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      id: python
+      with:
+        python-version: ${{ inputs.python-version }}
+        update-environment: false
+    - name: Install decisis
+      id: install
+      shell: bash
+      env:
+        PYTHON: ${{ steps.python.outputs.python-path }}
+        DECISIS_VERSION: ${{ inputs.decisis-version }}
+        ACTION_PATH: ${{ github.action_path }}
+        VENV: ${{ runner.temp }}/decisis-venv
+      run: |
+        set -euo pipefail
+        if [ -n "$DECISIS_VERSION" ]; then
+          if ! [[ "$DECISIS_VERSION" =~ ^[0-9][0-9A-Za-z.+!-]*$ ]]; then
+            echo "decisis-version must be a version such as 0.1.1" >&2
+            exit 1
+          fi
+          source="decisis==$DECISIS_VERSION"
+        else
+          source="$ACTION_PATH"
+        fi
+        "$PYTHON" -I -m venv "$VENV"
+        if [ -x "$VENV/bin/python" ]; then py="$VENV/bin/python"; else py="$VENV/Scripts/python.exe"; fi
+        "$py" -I -m pip install --disable-pip-version-check -q "$source"
+        echo "python=$py" >> "$GITHUB_OUTPUT"
+    - name: Check the pull request
+      id: check
+      shell: bash
+      env:
+        PY: ${{ steps.install.outputs.python }}
+        DECISIS_SNAPSHOT: ${{ inputs.snapshot }}
+        DECISIS_INIT: ${{ inputs.init }}
+        DECISIS_INVENTORY: ${{ inputs.inventory }}
+        DECISIS_OSV_CACHE: ${{ inputs.osv-cache }}
+        DECISIS_REPO: ${{ inputs.repo }}
+        DECISIS_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        DECISIS_FAIL_ON_VIOLATION: ${{ inputs.fail-on-violation }}
+        DECISIS_COMMENT_AUTHOR: ${{ inputs.comment-author }}
+        DECISIS_TOKEN: ${{ inputs.github-token }}
+      run: '"$PY" -I -m decisis.action'

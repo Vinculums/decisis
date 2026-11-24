@@ -295,6 +295,65 @@ decisis audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo 
 decisis propose report.json fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --space demo-space --osv-cache fixtures/audit/osv-cache.json --out plan.json
 ```
 
+## Use it as a GitHub Action
+
+`action.yml` at the root of this repository is a composite action. On a pull request it installs decisis,
+reads a snapshot (or builds one with `init: true`), runs `check` on the files the pull request changes and
+`audit` when you give an inventory, and keeps one comment on the pull request up to date: the decisions the
+change touches, the violations, and a Mermaid path graph. The action is not on the Marketplace; refer to it
+by repository and commit.
+
+```yaml
+name: decisis
+on:
+  pull_request:
+permissions: {}
+jobs:
+  decisis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: Vinculums/decisis@<commit SHA>
+        with:
+          snapshot: decisions.json        # or init: true
+          inventory: package-lock.json    # optional: also run audit
+          fail-on-violation: false
+```
+
+| Input | Default | What it does |
+|---|---|---|
+| `snapshot` | none | a snapshot file, relative to the workspace; give this or `init` |
+| `init` | `false` | `true` builds the snapshot from the repository's ADRs, CODEOWNERS and postmortems |
+| `github-token` | `github.token` | reads the reviews and writes the comment |
+| `inventory` | none | a lockfile or SBOM; when given, `audit` runs too (with `osv-cache`, offline) |
+| `fail-on-violation` | `false` | `true` fails the step when `check` or `audit` finds a violation, after the comment is written |
+| `decisis-version` | the action's own checkout | a version to install from PyPI instead |
+| `repo`, `working-directory`, `osv-cache`, `comment-author`, `python-version` | | see `action.yml` |
+
+- The changed files are `git diff BASE...HEAD`, with the base commit from the event payload. Check out with
+  `fetch-depth: 0`; on a shallow checkout the action fetches the history it needs.
+- The reviewers that count for `review_required` are the users whose latest review approves the pull
+  request. Requested reviewers and teams are listed in the comment and do not count until they approve; a
+  team handle in a rule matches only a team handle, so an approval by a team member does not satisfy it.
+- The action needs only `contents: read` and `pull-requests: write`. Inputs reach Python as environment
+  variables, never through `${{ }}` in a shell script, and Python runs with `-I`, so a module in the pull
+  request's checkout cannot shadow decisis. Every title, path and reason in the comment is escaped, and
+  mentions are broken so a title cannot notify anyone.
+- On a pull request from a fork the token is read-only: the result goes to the job summary instead of a
+  comment. The job summary always holds a copy.
+- The comment stays under GitHub's 65,536-character limit: the graph is left out first, then the lists
+  are cut, and the comment says what was cut.
+- The outputs `violations` and `comment-url` are set for later steps.
+
+`.github/workflows/decisis.yml` runs the action from this checkout on this repository's own pull requests,
+with `fixtures/action/vinc.json` (synthetic decisions about decisis's own files) and the audit fixtures.
+
 ## Use it from an AI agent
 
 [`skills/decisis/SKILL.md`](https://github.com/Vinculums/decisis/blob/main/skills/decisis/SKILL.md) is a skill for a coding agent such as Claude Code. It
@@ -425,6 +484,10 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
   nearest `tsconfig.json` and its `extends`, without running the repository's code or its git hooks. An
   import computed at run time, a file the scanner cannot finish, and a specifier a plain text search finds
   where the scanner did not are `unresolved`, never clean; a superseded decision is not judged.
+- The action's comment, against a fake GitHub: a hostile decision title and file path reach it only as
+  escaped text, the body stays under GitHub's limit and says what it cut, the bot's own marked comment is
+  found across pages and updated (a marked comment by anyone else is left alone), only the latest approving
+  review of each user counts, and a fork or a refused write leaves the result in the job summary.
 - `commit` refuses a digest that does not match the plan as it stands, writes with `create_only`, and
   fails when a node, a property or an edge's type or direction does not come back.
 - A live run against a real Vinc space wrote and read back seven records with `create_only`, and a second
