@@ -208,11 +208,11 @@ def test_propose_turns_license_and_package_violations_into_records_the_checker_d
     plan, checked = plan_and_check(rep, vinc)
     assert [c["problems"] for c in checked] == [[]] * len(checked) and plan["digest"] == wb.digest(plan)
     by_id = {n["id"]: n for n in plan["nodes"]}
-    lic = by_id["record:shop-gpl-lib-shipped-license-gpl-3-0-only"]["props"]
+    lic = by_id["record:shop-npm-gpl-lib-shipped-license-gpl-3-0-only"]["props"]
     assert lic["predicate"] == "licensed_under" and lic["value"] == "GPL-3.0-only" and lic["violates"] == ["decision:no-gpl"]
     assert lic["rules"] == ["license_denied"] and lic["dependency_paths"] == [["repo:Shop", "pkg:npm/gpl-lib@1.0.0"]]
     assert lic["statement"] == "Shop ships gpl-lib 1.0.0, licensed GPL-3.0-only. Path: gpl-lib."
-    pkg = by_id["record:shop-event-stream-shipped-denied-package"]["props"]
+    pkg = by_id["record:shop-npm-event-stream-shipped-denied-package"]["props"]
     assert pkg["predicate"] == "uses_denied_package" and pkg["value"] == "npm:event-stream" and pkg["rules"] == ["package_denied"]
     assert {"package": "pkg:npm/mystery@1.0.0", "kind": "license", "why": "status unresolved: not recorded"} in plan["held"]
     assert "[licensed_under, shipped]" in wb.render(plan) and "[uses_denied_package, shipped]" in wb.render(plan)
@@ -241,6 +241,63 @@ def test_a_tampered_license_record_is_held_with_its_failed_check(tamper, problem
     assert any(problem in p for p in failed), failed
     assert len(plan["held"]) == 2 and not any(n["props"]["value"] in ("MIT", "GPL-3.0-only") for n in plan["nodes"]
                                               if n["props"]["predicate"] == "licensed_under" and "gpl-lib" in n["id"])
+
+
+BOM = {"bomFormat": "CycloneDX", "specVersion": "1.5",
+       "metadata": {"component": {"bom-ref": "root", "name": "shop", "version": "1.0.0"}},
+       "components": [{"bom-ref": "a", "name": "foo", "version": "1.0.0", "purl": "pkg:npm/foo@1.0.0",
+                       "licenses": [{"license": {"id": "GPL-3.0-only"}}]},
+                      {"bom-ref": "b", "name": "foo", "version": "1.0.0", "purl": "pkg:pypi/foo@1.0.0",
+                       "licenses": [{"license": {"id": "GPL-3.0-only"}}]}],
+       "dependencies": [{"ref": "root", "dependsOn": ["a", "b"]}]}
+
+
+def test_one_name_in_two_ecosystems_gives_one_record_each_and_both_are_kept():
+    vinc = snapshot(("decision:no-foo", {"package_denied": [{"ecosystem": "npm", "name": "foo"}, {"ecosystem": "PyPI", "name": "foo"}]}),
+                    ("decision:no-gpl", DENY_GPL))
+    text = json.dumps(BOM)
+    rep = audit.run(vinc, text, "Shop", advisories=no_advisories, filename="bom.cdx.json")
+    plan = wb.propose(rep, "Shop", "s", today="2026-11-25", lockfile_path="bom.cdx.json")
+    kept, checked = checker.rederive(plan, vinc, text, "Shop", no_advisories, filename="bom.cdx.json")
+    assert [c["problems"] for c in checked] == [[]] * 4 and kept["held"] == []
+    assert {(n["id"], n["props"]["ecosystem"], n["props"]["value"]) for n in kept["nodes"]} == {
+        ("record:shop-npm-foo-shipped-denied-package", "npm", "npm:foo"),
+        ("record:shop-pypi-foo-shipped-denied-package", "PyPI", "PyPI:foo"),
+        ("record:shop-npm-foo-shipped-license-gpl-3-0-only", "npm", "GPL-3.0-only"),
+        ("record:shop-pypi-foo-shipped-license-gpl-3-0-only", "PyPI", "GPL-3.0-only")}
+
+
+MIXED = {"name": "shop", "version": "1.0.0", "lockfileVersion": 3, "packages": {
+    "": {"name": "shop", "version": "1.0.0", "dependencies": {"a": "1.0.0"}, "devDependencies": {"tool": "1.0.0"}},
+    "node_modules/a": {"version": "1.0.0", "license": "MIT", "dependencies": {"b": "1.0.0"}},
+    "node_modules/b": {"version": "1.0.0", "license": "MIT", "dependencies": {"lib": "1.0.0"}},
+    "node_modules/tool": {"version": "1.0.0", "license": "MIT", "dev": True, "dependencies": {"lib": "1.0.0"}},
+    "node_modules/lib": {"version": "1.0.0", "license": "GPL-3.0-only"}}}
+SHIPPED_ROUTE = ["repo:Shop", "pkg:npm/a@1.0.0", "pkg:npm/b@1.0.0", "pkg:npm/lib@1.0.0"]
+
+
+def lib_advisory(packages):
+    node = {"id": "adv:GHSA-test-0001", "kind": "Advisory", "title": "bad lib",
+            "props": {"osv_id": "GHSA-test-0001", "severity": "HIGH", "aliases": [], "published": "",
+                      "affected_json": json.dumps([{"package": {"ecosystem": "npm", "name": "lib"}, "versions": ["1.0.0"]}]),
+                      "source_system": "osv", "source_ref": "GHSA-test-0001", "source_url": "https://osv.dev/vulnerability/GHSA-test-0001",
+                      "fetched_at": "2026-11-25T00:00:00Z", "content_hash": "x"}}
+    return [node], [{"source": p["id"], "target": node["id"], "type": "AFFECTED_BY", "evidence": "t"}
+                    for p in packages if p["props"].get("name") == "lib"]
+
+
+def test_a_shipped_package_also_reached_through_a_development_tool_keeps_its_shipped_route():
+    vinc = snapshot(("decision:no-high", {"advisory_severity_at_least": "HIGH"}), ("decision:no-gpl", DENY_GPL),
+                    ("decision:no-lib", {"package_denied": [{"ecosystem": "npm", "name": "lib"}]}))
+    text = json.dumps(MIXED)
+    rep = audit.run(vinc, text, "Shop", advisories=lib_advisory)
+    assert {(f.get("kind", "advisory"), tuple(f["path"]), f["dev_only"]) for f in rep["findings"]} == {
+        ("advisory", (*SHIPPED_ROUTE, "adv:GHSA-test-0001"), False), ("license", tuple(SHIPPED_ROUTE), False),
+        ("package", tuple(SHIPPED_ROUTE), False)}
+    plan = wb.propose(rep, "Shop", "s", today="2026-11-25")
+    kept, checked = checker.rederive(plan, vinc, text, "Shop", lib_advisory)
+    assert [c["problems"] for c in checked] == [[]] * 3 and kept["held"] == [] and len(kept["nodes"]) == 3
+    assert all(n["props"]["violates"] for n in kept["nodes"])
 
 
 def test_render_shows_license_and_package_findings_and_rule_problems():

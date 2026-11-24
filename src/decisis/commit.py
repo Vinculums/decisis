@@ -61,15 +61,18 @@ def _split(package: str) -> tuple[str, str]:
     return name, version
 
 
+def _purl_type(package: str) -> str:
+    return package.split(":", 1)[1].split("/", 1)[0]
+
+
 def _group(f: dict, repo: str, scope: str) -> tuple[str, dict]:
     name, _ = _split(f["package"])
     kind = f.get("kind", "advisory")
-    if kind == "license":
-        value = f.get("license_expression") or ""
-        return record_id(repo, name, scope, license_slug(value)), {"kind": kind, "name": name, "value": value, "scope": scope}
-    if kind == "package":
-        return record_id(repo, name, scope, "denied-package"), {"kind": kind, "name": name, "value": f"{f['ecosystem']}:{f['name']}",
-                                                                 "scope": scope}
+    if kind in PACKAGE_RECORD:
+        value = f.get("license_expression") or "" if kind == "license" else f"{f['ecosystem']}:{f['name']}"
+        suffix = license_slug(value) if kind == "license" else "denied-package"
+        return record_id(repo, f"{_purl_type(f['package'])}-{name}", scope, suffix), {
+            "kind": kind, "name": name, "ecosystem": f.get("ecosystem") or "", "value": value, "scope": scope}
     osv = f["advisory"].split(":", 1)[1]
     return record_id(repo, name, scope, osv), {"kind": kind, "name": name, "osv": osv, "scope": scope}
 
@@ -129,7 +132,7 @@ def package_record(rid: str, g: dict, found: list, verdicts: dict, repo: str, to
             "title": f"{repo} {scope} dependency {name} {', '.join(versions)} {title.format(value=value)}",
             "domain": DOMAIN, "valid_from": today,
             "props": {"entity": f"{repo}:{name}", "predicate": predicate, "value": value, "scope": scope,
-                      "versions": versions, "statement": package_claim(repo, name, versions, scope, what.format(value=value), paths),
+                      "ecosystem": g["ecosystem"], "versions": versions, "statement": package_claim(repo, name, versions, scope, what.format(value=value), paths),
                       "rules": sorted({p["rule"] for p in verdicts.values() if p.get("rule")}),
                       "dependency_paths": paths,
                       "violates": sorted(d for d, p in verdicts.items() if p["verdict"] == "violated"),

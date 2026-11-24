@@ -32,6 +32,35 @@ decisis demo --approve <digest>   # the person's approval; writes to the fake Vi
 an unattended demo. The run writes `demo/transcript.json`, `demo/expected_findings.json` and
 `demo/sample.rl` (a copy of the sandbox graph for inspection); the sandbox itself is deleted.
 
+## As an MCP server
+
+With the `mcp` extra, the same `impact`, `paths` and `audit` are MCP tools over stdio, on one snapshot
+fixed when the server starts. For Claude Code:
+
+```
+pip install "decisis[mcp]"
+claude mcp add decisis -- decisis serve --mcp --snapshot snapshot.json --osv-cache osv-cache.json
+```
+
+`claude mcp add --scope project ...` writes the same entry to `.mcp.json` in the project, to share it
+with the team:
+
+```json
+{
+  "mcpServers": {
+    "decisis": {
+      "command": "decisis",
+      "args": ["serve", "--mcp", "--snapshot", "snapshot.json", "--osv-cache", "osv-cache.json"]
+    }
+  }
+}
+```
+
+The tools are read only: there is no `propose` or `commit` tool, so the write path below stays a
+command the person sees. `audit` takes a lockfile path under the server's `--root`; it uses the network
+only when the server was started with `--allow-network` and has no `--osv-cache`. A refused input comes
+back as an error result that names the argument; fix the argument rather than retrying the same call.
+
 ## The procedure on real data
 
 1. Check out only what the task needs, with a read-only key:

@@ -27,13 +27,15 @@ def _ends(node: dict) -> set[str]:
     return {path[-tail] for path in node["props"]["dependency_paths"] if len(path) >= tail}
 
 
-def _package(name: str, version: str, facts: dict, ends: set[str]) -> dict | None:
-    found = [r for r in facts["packages"].values() if r["name"] == name and r["version"] == version]
+def _package(name: str, version: str, facts: dict, ends: set[str], ecosystem: str | None = None) -> dict | None:
+    found = [r for r in facts["packages"].values() if r["name"] == name and r["version"] == version
+             and (ecosystem is None or r["ecosystem"] == ecosystem)]
     return next((r for r in found if r["package"] in ends), found[0] if found else None)
 
 
 def _own(node: dict, facts: dict) -> set[str]:
-    rows = [_package(_name(node), v, facts, _ends(node)) for v in node["props"]["versions"]]
+    ecosystem = None if subject(node) == "advisory" else node["props"].get("ecosystem") or ""
+    rows = [_package(_name(node), v, facts, _ends(node), ecosystem) for v in node["props"]["versions"]]
     return {r["package"] for r in rows if r is not None}
 
 
@@ -113,9 +115,9 @@ def _forbids(decision: dict | None, kind: str, pkg: dict, dev: bool) -> bool:
 
 def _package_version(node: dict, version: str, facts: dict, decided: dict[str, dict]) -> list[str]:
     p, name, kind = node["props"], _name(node), subject(node)
-    pkg = _package(name, version, facts, _ends(node))
+    pkg = _package(name, version, facts, _ends(node), p.get("ecosystem") or "")
     if pkg is None:
-        return [f"{name} {version} is not a package in the lockfile"]
+        return [f"{p.get('ecosystem')} {name} {version} is not a package in the lockfile"]
     out = _claimed(kind, name, version, pkg, p["value"])
     if pkg["package"] not in _ends(node):
         out.append(f"no dependency path of this record reaches {name} {version}")

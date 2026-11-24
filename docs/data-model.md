@@ -134,6 +134,10 @@ CODEOWNERS line that owns no file) or `not read`.
 | `--repo NAME` | put `NAME:` before each code path that names no repository, so `impact --repo` and `audit --repo` match it; letters, digits, `-` and `_` |
 | `--adr-dir DIR` | read ADRs only from this directory, relative to `--repo-dir` (default: every one of `docs/adr`, `docs/decisions`, `adr`, `doc/adr` that exists) |
 | `--postmortem-dir DIR` | read postmortems only from this directory, relative to `--repo-dir` (default: `docs/postmortems`) |
+| `--github OWNER/REPO` | also read merged pull requests from this GitHub repository (below); without `--repo-dir`, read only them |
+| `--label NAME` | with `--github`: the label that selects a pull request (default: `decision`, any case) |
+| `--since DATE` | with `--github`: only pull requests merged on or after this date (UTC), such as `2026-01-31` |
+| `--limit N` | with `--github`: read at most N closed pull requests, most recently updated first (default 100, 1 to 5,000) |
 | `--out FILE` | where the snapshot goes; the command prints its counts and problems |
 
 Every `.md` file directly in those directories is read, except `README.md`, `index.md` and names that
@@ -211,6 +215,35 @@ text that matches no ADR is listed under `no edge`; a link to a file that is not
 `impact` follows the edge from the record to the decision, so a path that a decision names also lists the
 postmortems about it.
 
+### Merged pull requests become decisions
+
+With `--github OWNER/REPO`, `init` lists the repository's closed pull requests through the GitHub REST API,
+most recently updated first, and keeps each merged one that has the `--label` label or a `## Decision` or
+`## Decision Outcome` section with text in its description. HTML comments are dropped first, so a template's
+empty section selects nothing. It sends `GITHUB_TOKEN` when the variable is set; a public repository needs no
+token, at GitHub's lower limit for anonymous requests.
+
+| Field | From the pull request |
+|---|---|
+| `title` | its title |
+| `statement` | the text of its `## Decision` or `## Decision Outcome` section, left out when it has none |
+| `valid_from` | `merged_at`, as GitHub gives it (`2026-03-21T16:00:00Z`) |
+| `deciders` | `@` and the author's login, then each reviewer whose last review is `APPROVED`, sorted |
+| `code_ref` | each changed file from `/pulls/{n}/files`, with `--repo` before it as for ADRs |
+| `source` | `https://github.com/OWNER/REPO/pull/{n}` |
+| `content_hash` | `sha256:` and the hex digest of the number, title, description, merge time, merge commit, labels, author, files and reviews that were read |
+
+Its id is `decision:github-<owner>-<repo>-pr-<number>`, so it stays the same across runs and never meets an
+ADR's id. No fetch time is stored, so the same answers from GitHub give the same bytes.
+
+The listing follows GitHub's `Link` headers and stops at `--limit` closed pull requests, or at the first one
+last updated before `--since`; a stop at the limit is listed as `not read` on `github:OWNER/REPO`. GitHub
+lists at most 3,000 changed files of a pull request; a pull request at that cap is kept and listed. A rate
+limit (HTTP 429, or 403 with `x-ratelimit-remaining: 0` or `retry-after`) stops the read: the pull requests
+read before it stay in the snapshot, and the stop is listed as `not read` with GitHub's reset time. Any other
+error answer, an answer that is not JSON, and a redirect or `Link` to another host stop the command with exit
+code 1 and write nothing.
+
 ### The front matter subset
 
 Front matter is the block between a first line `---` and the next `---` or `...`. `init` reads a subset of
@@ -255,10 +288,12 @@ returns the same nodes and edges.
 | `uv.lock` | `uv-lockfile` | packages with an `editable`, `virtual`, `directory` or `path` source | `dependencies`, `optional-dependencies`, `dev-dependencies` | reached only through a dependency group |
 | `Cargo.lock` | `cargo-lockfile` | packages without a `source` (the workspace) | `dependencies` (`name`, `name version` or `name version (source)`) | always false; the lockfile does not mark it |
 | `go.mod` with `go.sum` | `go-modules` | the module | every `require`, after `replace`; `// indirect` is kept in the evidence | always false |
+| `gradle.lockfile`, `settings-gradle.lockfile` | `gradle-lockfile` | the build | the repository to every locked `group:artifact:version`, with its configurations in the evidence | every configuration is a test one (`test...`, `...Test...`), compile-only (`compileOnly`, `compileClasspath`) or an annotation processor (`annotationProcessor`, `kapt`, `ksp`) |
+| `pom.xml` | `maven-pom` | the project | the repository to every entry of `<dependencies>` (not profiles or plugins) | scope `test` or `provided` |
 
 Package props:
 
-- `ecosystem` is the OSV ecosystem (`npm`, `PyPI`, `crates.io`, `Go`; from an SBOM purl also `Maven`,
+- `ecosystem` is the OSV ecosystem (`npm`, `PyPI`, `crates.io`, `Go`, `Maven`; from an SBOM purl also
   `NuGet`, `RubyGems`, `Packagist`, `GitHub Actions`, `Debian:<n>` from `distro=debian-<n>`, `Alpine:v<x.y>`
   from `distro=alpine-<x.y...>`). A purl type with no such mapping gives `""`.
 - `name` is the name OSV uses: `@scope/name` for npm, the normalized name for PyPI, `group:artifact` for
@@ -284,6 +319,24 @@ For Go, `audit` is given `go.mod` and reads `go.sum` from the same directory. It
 module; a `replace` to another module uses that module and version. Modules that appear only in `go.sum`
 are not read: from Go 1.17, `go.mod` lists every module in the build.
 
+A Gradle lockfile lists `group:artifact:version=configurations` lines; `empty=` lines and comments are
+skipped, and any other line stops the run. It does not say which dependency brings in which, so every
+package hangs off the repository.
+
+A `pom.xml` is refused when it holds a DOCTYPE or an entity declaration, before it is parsed. A version
+is read when it is a literal or uses properties defined in the same file (`<properties>`, `project.version`,
+`project.groupId`, `project.parent.version` and the like, also nested), or when the file's own
+`<dependencyManagement>` gives it. Otherwise the package keeps its `group:artifact` name, gets version
+`""` and an `unresolved` reason: no version (with the parent and imported BOMs it would come from), a
+property the file does not define, properties that refer to each other in a loop or expand past 256
+characters, a version range, or
+`LATEST`/`RELEASE`. Transitive dependencies are not read.
+
+Both JVM readers give the same id and purl as a CycloneDX Maven component (`pkg:maven/<group>:<artifact>@<version>`,
+purl `pkg:maven/<group>/<artifact>@<version>`), and the report of either carries a `notes` entry saying that
+transitive dependencies are not resolved and pointing to `cyclonedx-gradle-plugin` or
+`cyclonedx-maven-plugin` for the full graph.
+
 Readers live in `src/decisis/inventory/`. Each one has `FORMAT`, `SIBLINGS` (files read from the same
 directory), `detect(text, filename)` and `read(text, filename, repo, siblings=None)` returning
 `(nodes, edges)`; `inventory.read` picks the first reader whose `detect` matches.
@@ -294,7 +347,13 @@ A finding is `affected` when the version is listed in the advisory, or falls in 
 `ECOSYSTEM` ranges. Range events are sorted by version before they are read. `SEMVER` ranges and the
 `ECOSYSTEM` ranges of npm, crates.io and Go are ordered as semantic versions (a leading `v` and build
 metadata are ignored; Go pseudo-versions order as pre-releases). PyPI `ECOSYSTEM` ranges are ordered by
-PEP 440 (epoch, release, pre, post, dev and local segments). A version at or above a range's `limit` is
+PEP 440 (epoch, release, pre, post, dev and local segments). Maven `ECOSYSTEM` ranges are ordered like
+Maven's `ComparableVersion`: the version is split into number and qualifier tokens at `.`, `-` and
+digit-letter changes, trailing zeros and empty qualifiers are dropped, and qualifiers order as
+`alpha` (`a1`) < `beta` (`b1`) < `milestone` (`m1`) < `rc` = `cr` < `snapshot` < release (`""`, `ga`,
+`final`, `release`) < `sp` < any other word, alphabetically. A qualifier sorts below a number and `-1`
+below `.1`, so `2.0.a` < `2-1` < `2.0.1` < `2.1`; a missing position counts as `0` or as the release
+qualifier. A version at or above a range's `limit` is
 not affected. A version that cannot be ordered, or an `ECOSYSTEM` range of another ecosystem, gives
 `unresolved`, never `affected`.
 
@@ -321,8 +380,9 @@ When the severity does not come from the record itself, the advisory node and ea
 package id such as `pkg:npm/lodash@4.17.15` to the list of advisory ids OSV returned for it) and `vulns`
 (an advisory id to the OSV record as `api.osv.dev/v1/vulns/<id>` returns it). A package or advisory the
 file does not hold stops the run. The keys follow the package ids, so a cache works for every ecosystem.
-`fixtures/audit/osv-cache.json` covers the demo lockfile and `fixtures/inventory/osv-cache.json` covers
-the examples in `fixtures/inventory/`.
+`fixtures/audit/osv-cache.json` covers the demo lockfile, `fixtures/inventory/osv-cache.json` covers
+the examples in `fixtures/inventory/`, and `fixtures/inventory/jvm/osv-cache.json` the Gradle and Maven
+examples next to it.
 
 ## The report and the plan
 
@@ -333,15 +393,15 @@ problem (`decision`, `rule`, the kind or null, and `problem`); the key is absent
 
 An advisory finding has `package`, `advisory`, `severity`, `severity_source` (only when the severity was
 derived, see [Severity](#severity)), `status` (`affected`, `not_affected`, `unresolved`), `dev_only`, `path`
-(ids from `repo:<name>` to the advisory), `source_url`, `fetched_at`, `content_hash`, `advisory_summary`
+(ids from `repo:<name>` to the advisory, see below), `source_url`, `fetched_at`, `content_hash`, `advisory_summary`
 and `policies`: one `decision`, `verdict` and `why` for each `advisory_severity_at_least` rule of each
 governing decision, one `relevant` policy for a decision without a rule, and one `relevant` policy with
 `rule` for each rule entry that cannot be read. A decision whose rules judge only licenses or packages adds
 no policy to an advisory finding.
 
 A license or package finding has `kind` (`license` or `package`), `package`, the facts it was judged on
-(`license_expression` and `licenses`, or `ecosystem`, `name` and `version`), `status`, `dev_only`, `path`
-(ids from `repo:<name>` to the package, the shortest within `--depth`), `source_system`, `fetched_at` of
+(`ecosystem`, `license_expression` and `licenses`, or `ecosystem`, `name` and `version`), `status`, `dev_only`, `path`
+(ids from `repo:<name>` to the package, see below), `source_system`, `fetched_at` of
 the inventory, and `policies`, each of which names its `rule` kind. Verdicts are `violated`,
 `not_violated`, `unresolved` (an unknown license) or `relevant`. `status` is `affected` when at least one
 rule of that kind matches the package, whatever its `dependencies` modifier says, and `unresolved` when
@@ -350,7 +410,7 @@ gives no finding, and a report whose decisions have no license or package rules 
 findings. A package that the repository does not reach within `--depth` gives no finding, as for advisories. Example:
 
 ```json
-{"kind": "license", "package": "pkg:npm/gpl-lib@1.0.0", "license_expression": "GPL-3.0-only",
+{"kind": "license", "package": "pkg:npm/gpl-lib@1.0.0", "ecosystem": "npm", "license_expression": "GPL-3.0-only",
  "licenses": ["GPL-3.0-only"], "status": "affected", "dev_only": false,
  "path": ["repo:Shop", "pkg:npm/gpl-lib@1.0.0"], "source_system": "npm-lockfile",
  "fetched_at": "2026-11-25T09:00:00Z",
@@ -358,7 +418,14 @@ findings. A package that the repository does not reach within `--depth` gives no
                "why": "license GPL-3.0-only cannot be used without a denied license (GPL-3.0-only)"}]}
 ```
 
-`unresolved_packages` lists each package that was not queried (`package`, `reason`).
+A finding's `path` is the shortest path within `--depth` that fits its scope: for a package that is not
+`dev_only`, the shortest path on which no package is a development dependency, so a shipped package that
+is also reached through a development tool keeps its shipped route. When no path fits, the shortest is
+kept.
+
+`unresolved_packages` lists each package that was not queried (`package`, `reason`). `notes` is a list
+of sentences about what the inventory format cannot show; only the Gradle and Maven readers add it, and
+the key is absent for other formats.
 
 `propose --out plan.json` writes `space`, `nodes` (records), `edges` (`relates_to` from a record to a
 decision, with the verdict as evidence), `held` (findings not recorded and why; a record that failed a
@@ -369,20 +436,20 @@ one record covers every version of a package in one scope with the same claim.
 | Finding | Record id | `predicate` | `value` |
 |---|---|---|---|
 | advisory | `record:<repo>-<package>-<shipped\|development>-<advisory>` | `affected_by_advisory` | the OSV id |
-| license | `record:<repo>-<package>-<scope>-license-<expression slug>` | `licensed_under` | the license expression |
-| package | `record:<repo>-<package>-<scope>-denied-package` | `uses_denied_package` | `<ecosystem>:<name>` |
+| license | `record:<repo>-<purl type>-<package>-<scope>-license-<expression slug>` | `licensed_under` | the license expression |
+| package | `record:<repo>-<purl type>-<package>-<scope>-denied-package` | `uses_denied_package` | `<ecosystem>:<name>` |
 
 An expression slug longer than 24 characters is cut to 16 and ends with 7 hex digits of the expression's SHA-256. Every
 record's props hold the claim (`entity`, `predicate`, `value`, `scope`, `versions`, `statement`), the
 evidence (`dependency_paths`, `measured_at`, `measured_ref`, `lockfile_hash`, `subject_path`) and
 `violates`. An advisory record adds `severity`, `source` (the OSV page), `advisory_fetched_at` and
-`advisory_content_hash`. A license or package record adds `rules` (the rule kinds behind its edges),
+`advisory_content_hash`. A license or package record adds `ecosystem` (so one name in two ecosystems gives two records), `rules` (the rule kinds behind its edges),
 `source` (the inventory path), `source_system` and `inventory_fetched_at`.
 
 Before the write set is shown, `propose` derives every record again from a fresh sandbox built from the
 snapshot and the inventory. For an advisory record it checks the advisory hash and severity, each version
 inside the advisory's ranges, each path and its scope, and each edge target. For a license or package
-record it checks that each version is a package in the inventory whose license expression (or ecosystem
+record it checks that each version is a package of the record's ecosystem in the inventory whose license expression (or ecosystem
 and name) is the record's `value`, that each path is in the graph and matches the scope, that each
 decision in `violates` has a rule of that kind the package violates, and each edge target.
 

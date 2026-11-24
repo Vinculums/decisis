@@ -77,12 +77,9 @@ def fold(decisions: list[dict]) -> list[dict]:
 def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dict]:
     by_id = {n["id"]: n for n in graph.nodes}
     governing = ruled(graph, decisions)
-    findings, seen = [], set()
-    for row in rows:
-        key = (row["package"], row["advisory"])
-        if key in seen:
-            continue
-        seen.add(key)
+    findings = []
+    for key, paths in grouped(rows, lambda r: (r["package"], r["advisory"])).items():
+        row = {"package": key[0], "advisory": key[1], "path": fitting(paths, graph_dev(by_id), bool(by_id[key[0]]["props"].get("dev")))}
         pkg, adv = by_id[row["package"]]["props"], by_id[row["advisory"]]["props"]
         applies = semver.affects(pkg["version"], pkg["ecosystem"], pkg["name"], json.loads(adv["affected_json"]))
         status = {True: "affected", False: "not_affected", None: "unresolved"}[applies]
@@ -97,6 +94,23 @@ def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dic
     return ordered(findings)
 
 
+def grouped(rows: list[dict], key) -> dict:
+    out: dict = {}
+    for r in rows:
+        out.setdefault(key(r), []).append(r["path"])
+    return out
+
+
+def graph_dev(by_id: dict[str, dict]):
+    return lambda nid: (by_id.get(nid) or {}).get("kind") == "Package" and bool(by_id[nid]["props"].get("dev"))
+
+
+def fitting(paths: list[list[str]], is_dev, dev_only: bool) -> list[str]:
+    if dev_only:
+        return paths[0]
+    return next((p for p in paths if not any(is_dev(x) for x in p[1:])), paths[0])
+
+
 def ordered(findings: list[dict]) -> list[dict]:
     return sorted(findings, key=lambda f: (ORDER[f["status"]], -SEVERITY.index(f["severity"]) if f.get("severity") in SEVERITY else 0,
                                            len(f["path"])))
@@ -109,7 +123,8 @@ def status_of(governing: list[tuple[dict, rules.Parsed]], subject: str, facts: d
 
 def _subject_fields(subject: str, props: dict) -> dict:
     if subject == "license":
-        return {"license_expression": props.get("license_expression") or "", "licenses": list(props.get("licenses") or [])}
+        return {"ecosystem": props.get("ecosystem") or "", "license_expression": props.get("license_expression") or "",
+                "licenses": list(props.get("licenses") or [])}
     return {"ecosystem": props.get("ecosystem") or "", "name": props.get("name") or "", "version": props.get("version") or ""}
 
 
@@ -131,10 +146,10 @@ def package_findings(box, graph: Subgraph, decisions: list[dict], repo: str, dep
     found = [f for n in packages for s in wanted if (f := package_finding(n, s, governing)) is not None]
     if not found:
         return []
-    paths: dict[str, list[str]] = {}
-    for r in box.query(query("package_paths", depth=depth), {"repo": f"repo:{repo}", "ids": sorted({f["package"] for f in found})}):
-        paths.setdefault(r["package"], r["path"])
-    return [{**f, "path": paths[f["package"]]} for f in found if f["package"] in paths]
+    rows = box.query(query("package_paths", depth=depth), {"repo": f"repo:{repo}", "ids": sorted({f["package"] for f in found})})
+    paths = grouped(rows, lambda r: r["package"])
+    dev = graph_dev({n["id"]: n for n in graph.nodes})
+    return [{**f, "path": fitting(paths[f["package"]], dev, f["dev_only"])} for f in found if f["package"] in paths]
 
 
 def rule_problems(graph: Subgraph, decisions: list[dict]) -> list[dict]:
@@ -165,7 +180,10 @@ def unresolved_packages(graph: Subgraph) -> list[dict]:
 
 
 def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories,
-        limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None) -> dict:
+        limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None,
+        root=None) -> dict:
     graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
-    with sandbox(limits=limits) as box:
-        return analyze(box, graph, repo, depth)
+    with sandbox(root, limits) as box:
+        report = analyze(box, graph, repo, depth)
+    notes = inventory.notes(lock_text, filename)
+    return {**report, "notes": notes} if notes else report

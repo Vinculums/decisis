@@ -68,8 +68,9 @@ sequenceDiagram
 4. `destroy()` removes the directory. The context manager calls it in a `finally`, so an exception in
    the task, a refused load or a stopped query still removes it.
 
-A directory is stale when its name is exactly `decisis-` and 32 hex digits, it is a real directory
-(not a symbolic link) owned by the current user, it is older than the grace period (10 minutes), its
+A directory is stale when its name is exactly `decisis-` or `decisis-serve-` and 32 hex digits (the
+second is the parent directory `decisis serve` makes with `owned_dir`, which records its owner the same
+way), it is a real directory (not a symbolic link) owned by the current user, it is older than the grace period (10 minutes), its
 `owner.json` is a regular file of the same user on the same host, and that process is gone: no process
 has the id, or on Linux the process with that id started at another time (the id was reused). A live
 process, an unreadable record or a missing record keeps the directory. Removal uses
