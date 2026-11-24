@@ -561,3 +561,9 @@ def test_init_runs_no_command_the_repository_config_names(tmp_path, key, value):
     subprocess.run(["git", "-C", str(root), "config", "core.untrackedCache", "true"], check=True)
     assert owned_by(init.build(root), "@x")["props"]["code_ref"] == [".github/", "src/"]
     assert not marker.exists()
+
+
+@pytest.mark.parametrize("line", ["Status: accepted", "- **Status:** accepted"])
+def test_a_status_line_inside_a_code_fence_is_not_the_status(line):
+    text = f"# Title\n\n```\n{line}\n```\n\n## Status\n\nrejected\n\n## Context\n"
+    assert init.markdown(text).preamble == {}

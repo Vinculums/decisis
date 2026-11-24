@@ -287,7 +287,7 @@ def markdown(text: str) -> Doc:
             continue
         if current is not None:
             sections[current].append(line)
-        elif title is not None and (m := PREAMBLE.match(line)):
+        elif not fence and title is not None and (m := PREAMBLE.match(line)):
             preamble.setdefault(m.group(2).lower(), m.group(3).strip())
     return Doc(title, preamble, sections, text)
 
