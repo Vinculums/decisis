@@ -248,6 +248,26 @@ def test_a_symlinked_owner_record_is_not_read(tmp_path, dead_pid):
 
 
 @sweeps
+def test_a_server_directory_is_swept_under_the_same_rules(tmp_path, dead_pid, monkeypatch):
+    serve = lambda pid, **kw: task_dir(tmp_path, pid, name=kw.pop("name", f"{sb.SERVE_PREFIX}{uuid.uuid4().hex}"), **kw)
+    stale = serve(dead_pid)
+    kept = [serve(os.getpid(), start=sb._start_time(os.getpid())), serve(dead_pid, age=10), serve(None), serve(dead_pid, host="elsewhere"),
+            serve(dead_pid, name="decisis-serve-notahexname"), serve(dead_pid, name=f"decisis-serve-{uuid.uuid4().hex}0"),
+            serve(dead_pid, name=f"decisis-serve-{uuid.uuid4().hex.upper()}"), serve(dead_pid, name=f"decisis-servo-{uuid.uuid4().hex}")]
+    link = tmp_path / f"{sb.SERVE_PREFIX}{uuid.uuid4().hex}"
+    link.symlink_to(serve(dead_pid, name="elsewhere"), target_is_directory=True)
+    (stale / "outside").symlink_to(kept[0], target_is_directory=True)
+    old = time.time() - 3600
+    os.utime(stale, (old, old))
+    assert sb.sweep(tmp_path) == [stale]
+    assert all(d.is_dir() for d in kept) and link.is_symlink() and (kept[0] / "task.rl").is_file()
+    theirs = serve(dead_pid)
+    real = os.getuid()
+    monkeypatch.setattr(sb.os, "getuid", lambda: real + 1)
+    assert sb.sweep(tmp_path) == [] and theirs.is_dir()
+
+
+@sweeps
 def test_gc_removes_stale_directories_on_demand_and_prints_them(tmp_path, dead_pid, capsys):
     stale = task_dir(tmp_path, dead_pid)
     live = task_dir(tmp_path, os.getpid())

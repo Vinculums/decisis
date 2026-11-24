@@ -37,8 +37,8 @@ parameters; hop and result bounds are substituted as integers (`paths --hops` 1 
 it too. The demo prints whether the removal happened and the tests assert the scratch root is empty.
 
 **Cleanup after a kill.** Each task directory holds `owner.json` with the process id, the process start
-time (Linux) and the host name. A new sandbox, and `decisis gc`, remove a `decisis-<32 hex>` directory
-under the same root only when it is a real directory owned by the current user, older than 10 minutes,
+time (Linux) and the host name, and so does the parent directory of an MCP server. A new sandbox, a new
+server and `decisis gc` remove a `decisis-<32 hex>` or `decisis-serve-<32 hex>` directory under the same root only when it is a real directory owned by the current user, older than 10 minutes,
 and its owner process is gone (on Linux, a reused process id is told apart by its start time). A live
 owner, another user's directory, a `decisis-*` entry that is a symbolic link, a directory under another
 root and a directory without a readable owner record (or with a process id outside 1 to 2^31 - 1) are left
@@ -83,9 +83,11 @@ any other tool name and any argument its schema does not list. Bounds are checke
 built; a code path with `..`, an absolute path or another repository's prefix is refused. `audit` reads a
 lockfile only when its resolved path, after symlinks, lies under `--root`, and uses the network only with
 `--allow-network` and no `--osv-cache`. Each call builds and deletes its own sandbox inside one private
-`decisis-serve-*` directory, which the server removes on SIGTERM, SIGINT or the end of stdin, even while a
-call is still running. (`src/decisis/serve.py`; `test_a_write_shaped_request_is_refused_and_nothing_is_written`,
+`decisis-serve-<32 hex>` directory, which the server removes on SIGTERM, SIGINT or the end of stdin, even while a
+call is still running; that directory records its owner like a task directory, so after a SIGKILL the
+cleanup above removes it with the sandboxes inside. (`src/decisis/serve.py`; `test_a_write_shaped_request_is_refused_and_nothing_is_written`,
 `test_a_server_stopped_during_a_slow_call_leaves_no_sandbox`,
+`test_gc_removes_the_directory_of_a_server_killed_with_sigkill_and_keeps_a_live_one`,
 `test_the_audit_reads_only_under_the_root_and_refuses_an_escaping_symlink`, `test_the_audit_uses_the_network_only_when_allowed`.)
 
 ## What it does not protect
@@ -94,8 +96,9 @@ call is still running. (`src/decisis/serve.py`; `test_a_write_shaped_request_is_
   is missing (macOS, Windows) the directory is on the disk under the system temporary directory. Data
   that must not touch a disk needs encrypted scratch storage with key destruction, which is not built.
 - **A crash or kill, until the next run.** A process killed with SIGKILL, or a machine that loses power,
-  skips the `finally` and leaves the directory behind until the next sandbox or `decisis gc` under the
-  same root removes it, at least 10 minutes later. On Windows nothing removes it; delete it by hand. A
+  skips the `finally` and leaves the directory behind (for `decisis serve`, its `decisis-serve-*` parent
+  with any sandbox inside) until the next sandbox, the next server or `decisis gc` under the same root
+  removes it, at least 10 minutes later. On Windows nothing removes it; delete it by hand. A
   directory left by decisis 0.1.1 or earlier has no owner record and is never removed automatically.
 - **The same user and root.** 0700 keeps out other users, not other processes of the same user or an
   administrator.
