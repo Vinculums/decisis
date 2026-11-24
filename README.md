@@ -15,7 +15,7 @@
 ![decisis demo: a dependency audit on synthetic data, from the decision to the advisory it breaks](https://raw.githubusercontent.com/Vinculums/decisis/main/docs/media/demo.gif)
 
 decisis (from *stare decisis*, "stand by what was decided") is a command-line tool and Python package.
-It takes the decisions a task needs, joins them with code paths and outside facts (an npm lockfile and
+It takes the decisions a task needs, joins them with code paths and outside facts (a lockfile or SBOM and
 OSV advisories) in a throwaway [Relate](https://github.com/relatedb/relate) graph, and finds the
 multi-hop path from a decision to the thing that breaks it. Every finding carries that path and its
 sources. The graph lives in a private temporary directory and is deleted when the task ends.
@@ -25,7 +25,7 @@ or from a [Vinc](https://vincs.io) space if you connect one. Nothing is written 
 person approves the exact write set by its digest.
 
 What it is not, today: a linter that reads your code, a vulnerability scanner for every ecosystem, or a
-place to store decisions. It reads npm lockfiles only, decisions come from a snapshot file or Vinc, and
+place to store decisions. It reads the lockfiles and SBOMs listed under [Inventory formats](#inventory-formats), decisions come from a snapshot file or Vinc, and
 the benchmark below is small and synthetic. [What is proven, and what is not built yet](#what-is-proven-and-what-is-not-built-yet)
 has the full list.
 
@@ -111,12 +111,32 @@ decisis audit my-snapshot.json package-lock.json --repo Shop --out report.json
 it breaks. With the demo lockfile and its cached advisories, three findings on shipped `lodash` break the
 decision above.
 
+### Inventory formats
+
+`audit` tells the format from the file's content and name:
+
+| Format | File | Development dependencies |
+|---|---|---|
+| npm lockfile v2 or v3 | `package-lock.json`, `npm-shrinkwrap.json` | `dev` in the lockfile |
+| CycloneDX JSON 1.4, 1.5, 1.6 | any name | a component with scope `excluded` or `cdx:npm:package:development` |
+| SPDX JSON 2.3 | any name | `DEV_DEPENDENCY_OF`, `TEST_DEPENDENCY_OF`, `BUILD_DEPENDENCY_OF`, `DEV_TOOL_OF` |
+| uv | `uv.lock` | dependency groups (`dev-dependencies`) |
+| Cargo | `Cargo.lock` | not marked in the lockfile; every crate counts as shipped |
+| Go modules | `go.mod`, with `go.sum` in the same directory | not marked; every module counts as shipped |
+
+For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
+line there. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, and for
+SBOMs also Maven, NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
+whose purl type has no OSV ecosystem stays in the graph and is listed under `unresolved_packages` in the
+report; it is not queried. `fixtures/inventory/` holds one small example of each format and an OSV cache
+that covers them all.
+
 ## How it works
 
 ```mermaid
 flowchart LR
     V[("decisions<br/>snapshot.json or Vinc")] -- "only what the task names" --> R
-    L["npm lockfile"] --> R
+    L["lockfile or SBOM"] --> R
     O["OSV advisories<br/>live or --osv-cache"] --> R
     R[("Relate file<br/>private 0700 temp dir<br/>read only while reasoning")] -- "bounded Cypher paths" --> F["findings with<br/>paths and sources"]
     F --> P["write set +<br/>approval digest"]
@@ -141,7 +161,7 @@ flowchart LR
 | `demo` | nothing | the whole procedure on synthetic data, against an in-process fake Vinc |
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
-| `audit <snapshot> <lockfile> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
+| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
 | `propose <report> --repo <name> --space <space>` | nothing; it only writes a file | the exact write set and its approval digest |
 | `compare` | nothing | the benchmark below |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
@@ -236,8 +256,8 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - Reasoning opens the file read only and a write is refused; an open writer locks out a second writer
   and any reader.
 - The task directory is private (0700), under `/dev/shm` when it is writable, and removed after the run.
-- The audit joins the snapshot, the lockfile (nested copies resolved) and OSV, checks the installed
-  version against the advisory ranges, and keeps each advisory's source URL, fetch time and content hash.
+- The audit joins the snapshot, the lockfile or SBOM (nested npm copies resolved) and OSV, checks the
+  installed version against the advisory ranges (semantic versions, and PEP 440 for PyPI), and keeps each advisory's source URL, fetch time and content hash.
 - `commit` refuses a digest that does not match the plan as it stands, writes with `create_only`, and
   fails when a node, a property or an edge's type or direction does not come back.
 - A live run against a real Vinc space wrote and read back seven records with `create_only`, and a second
@@ -247,7 +267,7 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 Future work, not built:
 
 - A Relate MCP server as the agent's read-only query surface; today the agent drives the CLI.
-- Ecosystems other than npm, and repository metadata beyond the lockfile.
+- pnpm, Yarn, Bun, Poetry, requirements.txt, Gradle and Maven inputs, and repository metadata beyond the inventory.
 - The demo's Checker (re-deriving each record) also in the `propose` path for real data.
 - Query time limits, a cap on imported graph size and on `audit --depth`; today `paths` and `impact` bound hops and results.
 - Encrypted scratch storage with key destruction for sensitive data (see `docs/threat-model.md`).

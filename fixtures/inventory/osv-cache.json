@@ -1,0 +1,3446 @@
+{
+ "fetched_at": "2026-11-24T15:25:34Z",
+ "queries": {
+  "pkg:cargo/libc@0.2.80": [],
+  "pkg:cargo/serde@1.0.130": [],
+  "pkg:cargo/smallvec@1.6.0": [
+   "GHSA-43w2-9j62-hq99",
+   "RUSTSEC-2021-0003"
+  ],
+  "pkg:cargo/time@0.1.43": [
+   "GHSA-wcg3-cvx6-7396",
+   "RUSTSEC-2020-0071"
+  ],
+  "pkg:cargo/winapi-i686-pc-windows-gnu@0.4.0": [],
+  "pkg:cargo/winapi-x86_64-pc-windows-gnu@0.4.0": [],
+  "pkg:cargo/winapi@0.3.9": [],
+  "pkg:golang/github.com/google/uuid@1.3.0": [],
+  "pkg:golang/github.com/gorilla/websocket@1.4.0": [
+   "GHSA-3xh2-74w9-5vxm",
+   "GHSA-w67g-5rqw-f597",
+   "GO-2020-0019",
+   "GO-2026-6278"
+  ],
+  "pkg:golang/golang.org/x/text@0.3.7": [
+   "GHSA-69ch-w2m2-3vjp",
+   "GO-2022-1059",
+   "GO-2026-5970",
+   "GO-2026-6629"
+  ],
+  "pkg:golang/gopkg.in/yaml.v3@3.0.0-20210107192922-496545a6307b": [
+   "GHSA-hp87-p4gw-j4gq",
+   "GO-2022-0603"
+  ],
+  "pkg:npm/@colors/colors@1.5.0": [],
+  "pkg:npm/debug@2.6.8": [
+   "GHSA-9vvw-cc9w-f27h",
+   "GHSA-gxpj-cx7g-858c"
+  ],
+  "pkg:npm/minimist@1.2.5": [
+   "GHSA-xvch-5gv4-984h"
+  ],
+  "pkg:npm/ms@2.0.0": [],
+  "pkg:npm/semver@7.5.1": [
+   "GHSA-c2qf-rxjj-qqgw"
+  ],
+  "pkg:pypi/certifi@2023.7.22": [
+   "GHSA-248v-346w-9cwc",
+   "GHSA-6q48-6c7w-9gw2",
+   "PYSEC-2024-230",
+   "PYSEC-2026-4320"
+  ],
+  "pkg:pypi/click@8.1.7": [],
+  "pkg:pypi/colorama@0.4.6": [],
+  "pkg:pypi/idna@3.6": [
+   "GHSA-65pc-fj4g-8rjx",
+   "GHSA-jjg7-2v4v-x38h",
+   "PYSEC-2024-60",
+   "PYSEC-2026-215"
+  ],
+  "pkg:pypi/iniconfig@2.0.0": [],
+  "pkg:pypi/itsdangerous@2.2.0": [],
+  "pkg:pypi/packaging@24.0": [],
+  "pkg:pypi/pluggy@1.5.0": [],
+  "pkg:pypi/pytest@8.2.0": [
+   "GHSA-6w46-j5rx-g56g",
+   "PYSEC-2026-1845"
+  ]
+ },
+ "vulns": {
+  "GHSA-248v-346w-9cwc": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2024/07/GHSA-248v-346w-9cwc/GHSA-248v-346w-9cwc.json"
+     },
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "certifi",
+      "purl": "pkg:pypi/certifi"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "2021.5.30"
+        },
+        {
+         "fixed": "2024.7.4"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "2021.10.8",
+      "2021.5.30",
+      "2022.12.7",
+      "2022.5.18",
+      "2022.5.18.1",
+      "2022.6.15",
+      "2022.6.15.1",
+      "2022.6.15.2",
+      "2022.9.14",
+      "2022.9.24",
+      "2023.11.17",
+      "2023.5.7",
+      "2023.7.22",
+      "2024.2.2",
+      "2024.6.2"
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2024-39689",
+    "PYSEC-2024-230"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-345"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2024-07-05T20:06:40Z",
+    "nvd_published_at": "2024-07-05T19:15:10Z",
+    "severity": "LOW"
+   },
+   "details": "Certifi 2024.07.04 removes root certificates from \"GLOBALTRUST\" from the root store. These are in the process of being removed from Mozilla's trust store.\n\nGLOBALTRUST's root certificates are being removed pursuant to an investigation which identified \"long-running and unresolved compliance issues\". Conclusions of Mozilla's investigation can be found [here]( https://groups.google.com/a/mozilla.org/g/dev-security-policy/c/XpknYMPO8dI).",
+   "id": "GHSA-248v-346w-9cwc",
+   "modified": "2026-09-10T03:50:15.994602411Z",
+   "published": "2024-07-05T20:06:40Z",
+   "references": [
+    {
+     "type": "WEB",
+     "url": "https://github.com/certifi/python-certifi/security/advisories/GHSA-248v-346w-9cwc"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-39689"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/certifi/python-certifi/commit/bd8153872e9c6fc98f4023df9c2deaffea2fa463"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/certifi/python-certifi"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pypa/advisory-database/tree/main/vulns/certifi/PYSEC-2024-230.yaml"
+    },
+    {
+     "type": "WEB",
+     "url": "https://groups.google.com/a/mozilla.org/g/dev-security-policy/c/XpknYMPO8dI"
+    },
+    {
+     "type": "WEB",
+     "url": "https://security.netapp.com/advisory/ntap-20241206-0001"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "summary": "Certifi removes GLOBALTRUST root certificate"
+  },
+  "GHSA-3xh2-74w9-5vxm": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2021/05/GHSA-3xh2-74w9-5vxm/GHSA-3xh2-74w9-5vxm.json"
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "github.com/gorilla/websocket",
+      "purl": "pkg:golang/github.com/gorilla/websocket"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.4.1"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2020-27813",
+    "GHSA-jf24-p9p9-4rjh",
+    "GO-2020-0019"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-190",
+     "CWE-400"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2021-05-18T20:56:17Z",
+    "nvd_published_at": "2020-12-02T01:15:12Z",
+    "severity": "HIGH"
+   },
+   "details": "An integer overflow vulnerability exists with the length of websocket frames received via a websocket connection. An attacker would use this flaw to cause a denial of service attack on an HTTP Server allowing websocket connections.",
+   "id": "GHSA-3xh2-74w9-5vxm",
+   "modified": "2023-11-08T04:03:22.368470Z",
+   "published": "2021-05-18T21:08:02Z",
+   "references": [
+    {
+     "type": "WEB",
+     "url": "https://github.com/gorilla/websocket/security/advisories/GHSA-jf24-p9p9-4rjh"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2020-27813"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/gorilla/websocket/pull/537"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/gorilla/websocket/commit/5b740c29263eb386f33f265561c8262522f19d37"
+    },
+    {
+     "type": "WEB",
+     "url": "https://bugzilla.redhat.com/show_bug.cgi?id=1902111"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/gorilla/websocket"
+    },
+    {
+     "type": "WEB",
+     "url": "https://lists.debian.org/debian-lts-announce/2021/01/msg00008.html"
+    },
+    {
+     "type": "WEB",
+     "url": "https://pkg.go.dev/vuln/GO-2020-0019"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "Integer overflow in github.com/gorilla/websocket"
+  },
+  "GHSA-43w2-9j62-hq99": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2022/05/GHSA-43w2-9j62-hq99/GHSA-43w2-9j62-hq99.json"
+     },
+     "package": {
+      "ecosystem": "crates.io",
+      "name": "smallvec",
+      "purl": "pkg:cargo/smallvec"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0.6.3"
+        },
+        {
+         "fixed": "0.6.14"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    },
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2022/05/GHSA-43w2-9j62-hq99/GHSA-43w2-9j62-hq99.json"
+     },
+     "package": {
+      "ecosystem": "crates.io",
+      "name": "smallvec",
+      "purl": "pkg:cargo/smallvec"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "1.0.0"
+        },
+        {
+         "fixed": "1.6.1"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2021-25900",
+    "RUSTSEC-2021-0003"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-787"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2022-06-17T00:20:48Z",
+    "nvd_published_at": "2021-01-26T18:16:00Z",
+    "severity": "CRITICAL"
+   },
+   "details": "A bug in the SmallVec::insert_many method caused it to allocate a buffer that was smaller than needed. It then wrote past the end of the buffer, causing a buffer overflow and memory corruption on the heap. This bug was only triggered if the iterator passed to insert_many yielded more items than the lower bound returned from its size_hint method.\n\nThe flaw was corrected in smallvec 0.6.14 and 1.6.1, by ensuring that additional space is always reserved for each item inserted. The fix also simplified the implementation of insert_many to use less unsafe code, so it is easier to verify its correctness.",
+   "id": "GHSA-43w2-9j62-hq99",
+   "modified": "2023-11-08T04:05:16.493284Z",
+   "published": "2022-05-24T17:40:21Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2021-25900"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/servo/rust-smallvec/issues/252"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/servo/rust-smallvec/commit/5757ac500d4e544485d796b542e4e589749c291b"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/servo/rust-smallvec/commit/9998ba0694a6b51aa6604748b00b6a98f0a0039e"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/servo/rust-smallvec"
+    },
+    {
+     "type": "WEB",
+     "url": "https://rustsec.org/advisories/RUSTSEC-2021-0003.html"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "Buffer overflow in SmallVec::insert_many"
+  },
+  "GHSA-65pc-fj4g-8rjx": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/05/GHSA-65pc-fj4g-8rjx/GHSA-65pc-fj4g-8rjx.json"
+     },
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "idna",
+      "purl": "pkg:pypi/idna"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.15"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "0.1",
+      "0.2",
+      "0.3",
+      "0.4",
+      "0.5",
+      "0.6",
+      "0.7",
+      "0.8",
+      "0.9",
+      "1.0",
+      "1.1",
+      "2.0",
+      "2.1",
+      "2.10",
+      "2.2",
+      "2.3",
+      "2.4",
+      "2.5",
+      "2.6",
+      "2.7",
+      "2.8",
+      "2.9",
+      "3.0",
+      "3.1",
+      "3.10",
+      "3.11",
+      "3.12",
+      "3.13",
+      "3.14",
+      "3.2",
+      "3.3",
+      "3.4",
+      "3.5",
+      "3.6",
+      "3.7",
+      "3.8",
+      "3.9"
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2026-45409",
+    "PYSEC-2026-215"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-1333"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2026-05-19T14:34:32Z",
+    "nvd_published_at": "2026-06-05T23:16:43Z",
+    "severity": "MODERATE"
+   },
+   "details": "This is the same issue as CVE-2024-3651, however the original remediation in 2024 was not a complete fix. Payloads such as `\"\\u0660\" * N` or `\"\\u30fb\" * N + \"\\u6f22\"` utilize the `valid_contexto` function prior to length rejection, and for high values of `N` will take a long time to process.\n\n### Impact\nA specially crafted argument to the `idna.encode()` function could consume significant resources. This may lead to a denial-of-service.\n\n### Patches\nStarting in version 3.14, the function rejects long inputs as soon as practicable prior to any further processing to minimize resource consumption. In version 3.15, this approach was extended to lesser used alternate functions (i.e. per-label conversions and codec support).\n\n### Workarounds\nDomain names cannot exceed 253 characters in length, if this length limit is enforced prior to passing the domain to the `idna.encode()` function it should no longer consume significant resources. This is triggered by arbitrarily large inputs that would not occur in normal usage, but may be passed to the library assuming there is no preliminary input validation by the higher-level application.",
+   "id": "GHSA-65pc-fj4g-8rjx",
+   "modified": "2026-09-10T03:50:45.700124422Z",
+   "published": "2026-05-19T14:34:32Z",
+   "references": [
+    {
+     "type": "WEB",
+     "url": "https://github.com/kjd/idna/security/advisories/GHSA-65pc-fj4g-8rjx"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-45409"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/kjd/idna"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pypa/advisory-database/tree/main/vulns/idna/PYSEC-2026-215.yaml"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+     "type": "CVSS_V3"
+    },
+    {
+     "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:L/SC:N/SI:N/SA:N",
+     "type": "CVSS_V4"
+    }
+   ],
+   "summary": "Internationalized Domain Names in Applications (IDNA): Specially crafted inputs to idna.encode() can bypass CVE-2024-3651 fix"
+  },
+  "GHSA-69ch-w2m2-3vjp": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2022/10/GHSA-69ch-w2m2-3vjp/GHSA-69ch-w2m2-3vjp.json"
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "golang.org/x/text",
+      "purl": "pkg:golang/golang.org/x/text"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "0.3.8"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2022-32149",
+    "GO-2022-1059"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-772"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2022-10-28T20:11:26Z",
+    "nvd_published_at": "2022-10-14T15:15:00Z",
+    "severity": "HIGH"
+   },
+   "details": "The BCP 47 tag parser has quadratic time complexity due to inherent aspects of its design. Since the parser is, by design, exposed to untrusted user input, this can be leveraged to force a program to consume significant time parsing Accept-Language headers. The parser cannot be easily rewritten to fix this behavior for various reasons. Instead the solution implemented in this CL is to limit the total complexity of tags passed into ParseAcceptLanguage by limiting the number of dashes in the string to 1000. This should be more than enough for the majority of real world use cases, where the number of tags being sent is likely to be in the single digits.\n\n### Specific Go Packages Affected\ngolang.org/x/text/language",
+   "id": "GHSA-69ch-w2m2-3vjp",
+   "modified": "2026-09-10T03:49:46.240531909Z",
+   "published": "2022-10-14T19:00:40Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2022-32149"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/golang/go/issues/56152"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/golang/text/commit/434eadcdbc3b0256971992e8c70027278364c72c"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/golang/text"
+    },
+    {
+     "type": "WEB",
+     "url": "https://go.dev/cl/442235"
+    },
+    {
+     "type": "WEB",
+     "url": "https://go.dev/issue/56152"
+    },
+    {
+     "type": "WEB",
+     "url": "https://groups.google.com/g/golang-announce/c/-hjNw559_tE/m/KlGTfid5CAAJ"
+    },
+    {
+     "type": "WEB",
+     "url": "https://pkg.go.dev/vuln/GO-2022-1059"
+    },
+    {
+     "type": "WEB",
+     "url": "https://security.netapp.com/advisory/ntap-20230203-0006"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "golang.org/x/text/language Denial of service via crafted Accept-Language header"
+  },
+  "GHSA-6q48-6c7w-9gw2": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/10/GHSA-6q48-6c7w-9gw2/GHSA-6q48-6c7w-9gw2.json"
+     },
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "certifi",
+      "purl": "pkg:pypi/certifi"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "2019.03.09"
+        },
+        {
+         "fixed": "2026.10.18"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "2019.11.28",
+      "2019.3.9",
+      "2019.6.16",
+      "2019.9.11",
+      "2020.11.8",
+      "2020.12.5",
+      "2020.4.5",
+      "2020.4.5.1",
+      "2020.4.5.2",
+      "2020.6.20",
+      "2021.10.8",
+      "2021.5.30",
+      "2022.12.7",
+      "2022.5.18",
+      "2022.5.18.1",
+      "2022.6.15",
+      "2022.6.15.1",
+      "2022.6.15.2",
+      "2022.9.14",
+      "2022.9.24",
+      "2023.11.17",
+      "2023.5.7",
+      "2023.7.22",
+      "2024.12.14",
+      "2024.2.2",
+      "2024.6.2",
+      "2024.7.4",
+      "2024.8.30",
+      "2025.1.31",
+      "2025.10.5",
+      "2025.11.12",
+      "2025.4.26",
+      "2025.6.15",
+      "2025.7.14",
+      "2025.7.9",
+      "2025.8.3",
+      "2026.1.4",
+      "2026.2.25",
+      "2026.4.22",
+      "2026.5.20",
+      "2026.6.17",
+      "2026.7.22"
+     ]
+    }
+   ],
+   "aliases": [
+    "PYSEC-2026-4320"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-295"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2026-10-20T19:35:05Z",
+    "nvd_published_at": null,
+    "severity": "CRITICAL"
+   },
+   "details": "Certifi versions before 2026.10.18 include the `emSign ECC Root CA - G3` root certificate in their bundled CA store. Eight eMudhra intermediate CA certificates that chain to this root have compromised private keys and the CA has revoked them. \n\nAn attacker with one of the compromised keys can issue valid-looking certificates for any hostname. If the attacker is also on-path, they can intercept or modify TLS traffic from clients that trust the certifi bundle. Examples include `requests`, `urllib3` and `pip`, and the Python.org macOS installer.\n\nCertifi 2026.10.18 removed all emSign roots from the bundle. Certifi 2026.10.19 restored the emSign roots that are not affected. Upgrade to 2026.10.19 or later, and rebuild container images that vendor certifi.",
+   "id": "GHSA-6q48-6c7w-9gw2",
+   "modified": "2026-10-26T16:15:35.371128995Z",
+   "published": "2026-10-20T19:35:05Z",
+   "references": [
+    {
+     "type": "WEB",
+     "url": "https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2"
+    },
+    {
+     "type": "WEB",
+     "url": "https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576"
+    },
+    {
+     "type": "WEB",
+     "url": "https://emudhra.we-have-a-problem.com"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/certifi/python-certifi"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N",
+     "type": "CVSS_V4"
+    }
+   ],
+   "summary": "certifi bundles emSign root CAs with compromised intermediate CA keys"
+  },
+  "GHSA-6w46-j5rx-g56g": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/01/GHSA-6w46-j5rx-g56g/GHSA-6w46-j5rx-g56g.json"
+     },
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "pytest",
+      "purl": "pkg:pypi/pytest"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.3"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "2.0.0",
+      "2.0.1",
+      "2.0.2",
+      "2.0.3",
+      "2.1.0",
+      "2.1.1",
+      "2.1.2",
+      "2.1.3",
+      "2.2.0",
+      "2.2.1",
+      "2.2.2",
+      "2.2.3",
+      "2.2.4",
+      "2.3.0",
+      "2.3.1",
+      "2.3.2",
+      "2.3.3",
+      "2.3.4",
+      "2.3.5",
+      "2.4.0",
+      "2.4.1",
+      "2.4.2",
+      "2.5.0",
+      "2.5.1",
+      "2.5.2",
+      "2.6.0",
+      "2.6.1",
+      "2.6.2",
+      "2.6.3",
+      "2.6.4",
+      "2.7.0",
+      "2.7.1",
+      "2.7.2",
+      "2.7.3",
+      "2.8.0",
+      "2.8.1",
+      "2.8.2",
+      "2.8.3",
+      "2.8.4",
+      "2.8.5",
+      "2.8.6",
+      "2.8.7",
+      "2.9.0",
+      "2.9.1",
+      "2.9.2",
+      "3.0.0",
+      "3.0.1",
+      "3.0.2",
+      "3.0.3",
+      "3.0.4",
+      "3.0.5",
+      "3.0.6",
+      "3.0.7",
+      "3.1.0",
+      "3.1.1",
+      "3.1.2",
+      "3.1.3",
+      "3.10.0",
+      "3.10.1",
+      "3.2.0",
+      "3.2.1",
+      "3.2.2",
+      "3.2.3",
+      "3.2.4",
+      "3.2.5",
+      "3.3.0",
+      "3.3.1",
+      "3.3.2",
+      "3.4.0",
+      "3.4.1",
+      "3.4.2",
+      "3.5.0",
+      "3.5.1",
+      "3.6.0",
+      "3.6.1",
+      "3.6.2",
+      "3.6.3",
+      "3.6.4",
+      "3.7.0",
+      "3.7.1",
+      "3.7.2",
+      "3.7.3",
+      "3.7.4",
+      "3.8.0",
+      "3.8.1",
+      "3.8.2",
+      "3.9.1",
+      "3.9.2",
+      "3.9.3",
+      "4.0.0",
+      "4.0.1",
+      "4.0.2",
+      "4.1.0",
+      "4.1.1",
+      "4.2.0",
+      "4.2.1",
+      "4.3.0",
+      "4.3.1",
+      "4.4.0",
+      "4.4.1",
+      "4.4.2",
+      "4.5.0",
+      "4.6.0",
+      "4.6.1",
+      "4.6.10",
+      "4.6.11",
+      "4.6.2",
+      "4.6.3",
+      "4.6.4",
+      "4.6.5",
+      "4.6.6",
+      "4.6.7",
+      "4.6.8",
+      "4.6.9",
+      "5.0.0",
+      "5.0.1",
+      "5.1.0",
+      "5.1.1",
+      "5.1.2",
+      "5.1.3",
+      "5.2.0",
+      "5.2.1",
+      "5.2.2",
+      "5.2.3",
+      "5.2.4",
+      "5.3.0",
+      "5.3.1",
+      "5.3.2",
+      "5.3.3",
+      "5.3.4",
+      "5.3.5",
+      "5.4.0",
+      "5.4.1",
+      "5.4.2",
+      "5.4.3",
+      "6.0.0",
+      "6.0.0rc1",
+      "6.0.1",
+      "6.0.2",
+      "6.1.0",
+      "6.1.1",
+      "6.1.2",
+      "6.2.0",
+      "6.2.1",
+      "6.2.2",
+      "6.2.3",
+      "6.2.4",
+      "6.2.5",
+      "7.0.0",
+      "7.0.0rc1",
+      "7.0.1",
+      "7.1.0",
+      "7.1.1",
+      "7.1.2",
+      "7.1.3",
+      "7.2.0",
+      "7.2.1",
+      "7.2.2",
+      "7.3.0",
+      "7.3.1",
+      "7.3.2",
+      "7.4.0",
+      "7.4.1",
+      "7.4.2",
+      "7.4.3",
+      "7.4.4",
+      "8.0.0",
+      "8.0.0rc1",
+      "8.0.0rc2",
+      "8.0.1",
+      "8.0.2",
+      "8.1.0",
+      "8.1.1",
+      "8.1.2",
+      "8.2.0",
+      "8.2.1",
+      "8.2.2",
+      "8.3.0",
+      "8.3.1",
+      "8.3.2",
+      "8.3.3",
+      "8.3.4",
+      "8.3.5",
+      "8.4.0",
+      "8.4.1",
+      "8.4.2",
+      "9.0.0",
+      "9.0.1",
+      "9.0.2"
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2025-71176",
+    "PYSEC-2026-1845"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-379"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2026-04-13T16:38:46Z",
+    "nvd_published_at": "2026-01-22T05:16:17Z",
+    "severity": "MODERATE"
+   },
+   "details": "pytest through 9.0.2 on UNIX relies on directories with the `/tmp/pytest-of-{user}` name pattern, which allows local users to cause a denial of service or possibly gain privileges.",
+   "id": "GHSA-6w46-j5rx-g56g",
+   "modified": "2026-09-10T03:50:32.768043789Z",
+   "published": "2026-01-22T06:30:29Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-71176"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pytest-dev/pytest/issues/13669"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pytest-dev/pytest/pull/14343"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pytest-dev/pytest/commit/95d8423bd24992deea5b9df32555fa1741679e2c"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/pytest-dev/pytes"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pytest-dev/pytest/releases/tag/9.0.3"
+    },
+    {
+     "type": "WEB",
+     "url": "https://www.openwall.com/lists/oss-security/2026/01/21/5"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:C/C:L/I:L/A:L",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "pytest has vulnerable tmpdir handling"
+  },
+  "GHSA-9vvw-cc9w-f27h": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2023/01/GHSA-9vvw-cc9w-f27h/GHSA-9vvw-cc9w-f27h.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "debug",
+      "purl": "pkg:npm/debug"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.1.0"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    },
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2023/01/GHSA-9vvw-cc9w-f27h/GHSA-9vvw-cc9w-f27h.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "debug",
+      "purl": "pkg:npm/debug"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "2.6.9"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2017-20165"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-1333"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2023-01-10T21:49:01Z",
+    "nvd_published_at": "2023-01-09T10:15:00Z",
+    "severity": "HIGH"
+   },
+   "details": "A vulnerability classified as problematic has been found in debug-js debug up to 3.0.x. This affects the function useColors of the file src/node.js. The manipulation of the argument str leads to inefficient regular expression complexity. Upgrading to version 3.1.0 is able to address this issue. The name of the patch is c38a0166c266a679c8de012d4eaccec3f944e685. It is recommended to upgrade the affected component. The identifier VDB-217665 was assigned to this vulnerability. The patch has been backported to the 2.6.x branch in version 2.6.9.",
+   "id": "GHSA-9vvw-cc9w-f27h",
+   "modified": "2023-11-08T03:59:17.780578Z",
+   "published": "2023-01-09T12:30:19Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2017-20165"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/pull/504"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/commit/c38a0166c266a679c8de012d4eaccec3f944e685"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/commit/f53962e944a87e6ca9bb622a2a12dffc22a9bb5a"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/debug-js/debug"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/releases/tag/2.6.9"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/releases/tag/3.1.0"
+    },
+    {
+     "type": "WEB",
+     "url": "https://vuldb.com/?ctiid.217665"
+    },
+    {
+     "type": "WEB",
+     "url": "https://vuldb.com/?id.217665"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "debug Inefficient Regular Expression Complexity vulnerability"
+  },
+  "GHSA-c2qf-rxjj-qqgw": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2023/06/GHSA-c2qf-rxjj-qqgw/GHSA-c2qf-rxjj-qqgw.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "semver",
+      "purl": "pkg:npm/semver"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "7.0.0"
+        },
+        {
+         "fixed": "7.5.2"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    },
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2023/06/GHSA-c2qf-rxjj-qqgw/GHSA-c2qf-rxjj-qqgw.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "semver",
+      "purl": "pkg:npm/semver"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "6.0.0"
+        },
+        {
+         "fixed": "6.3.1"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    },
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2023/06/GHSA-c2qf-rxjj-qqgw/GHSA-c2qf-rxjj-qqgw.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "semver",
+      "purl": "pkg:npm/semver"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "2.0.0-alpha"
+        },
+        {
+         "fixed": "5.7.2"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2022-25883"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-1333"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2023-06-22T16:52:56Z",
+    "nvd_published_at": "2023-06-21T05:15:09Z",
+    "severity": "HIGH"
+   },
+   "details": "Versions of the package semver before 7.5.2 on the 7.x branch, before 6.3.1 on the 6.x branch, and all other versions before 5.7.2 are vulnerable to Regular Expression Denial of Service (ReDoS) via the function new Range, when untrusted user data is provided as a range.",
+   "id": "GHSA-c2qf-rxjj-qqgw",
+   "modified": "2026-09-10T03:50:02.224637541Z",
+   "published": "2023-06-21T06:30:28Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2022-25883"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/pull/564"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/pull/585"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/pull/593"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/commit/2f8fd41487acf380194579ecb6f8b1bbfe116be0"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/commit/717534ee353682f3bcf33e60a8af4292626d4441"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/commit/928e56d21150da0413a3333a3148b20e741a920c"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/npm/node-semver"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/blob/main/classes/range.js#L97-L104"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/blob/main/classes/range.js%23L97-L104"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/blob/main/internal/re.js#L138"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/blob/main/internal/re.js#L160"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/blob/main/internal/re.js%23L138"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/npm/node-semver/blob/main/internal/re.js%23L160"
+    },
+    {
+     "type": "WEB",
+     "url": "https://security.netapp.com/advisory/ntap-20241025-0004"
+    },
+    {
+     "type": "WEB",
+     "url": "https://security.snyk.io/vuln/SNYK-JS-SEMVER-3247795"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "semver vulnerable to Regular Expression Denial of Service"
+  },
+  "GHSA-gxpj-cx7g-858c": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2018/08/GHSA-gxpj-cx7g-858c/GHSA-gxpj-cx7g-858c.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "debug",
+      "purl": "pkg:npm/debug"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "2.6.9"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    },
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2018/08/GHSA-gxpj-cx7g-858c/GHSA-gxpj-cx7g-858c.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "debug",
+      "purl": "pkg:npm/debug"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "3.0.0"
+        },
+        {
+         "fixed": "3.1.0"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    },
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2018/08/GHSA-gxpj-cx7g-858c/GHSA-gxpj-cx7g-858c.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "debug",
+      "purl": "pkg:npm/debug"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "3.2.0"
+        },
+        {
+         "fixed": "3.2.7"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    },
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2018/08/GHSA-gxpj-cx7g-858c/GHSA-gxpj-cx7g-858c.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "debug",
+      "purl": "pkg:npm/debug"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "4.0.0"
+        },
+        {
+         "fixed": "4.3.1"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2017-16137"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-400"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2020-06-16T21:38:18Z",
+    "nvd_published_at": null,
+    "severity": "LOW"
+   },
+   "details": "Affected versions of `debug` are vulnerable to regular expression denial of service when untrusted user input is passed into the `o` formatter. \n\nAs it takes 50,000 characters to block the event loop for 2 seconds, this issue is a low severity issue.\n\nThis was later re-introduced in version v3.2.0, and then repatched in versions 3.2.7 and 4.3.1.\n\n## Recommendation\n\nVersion 2.x.x: Update to version 2.6.9 or later.\nVersion 3.1.x: Update to version 3.1.0 or later.\nVersion 3.2.x: Update to version 3.2.7 or later.\nVersion 4.x.x: Update to version 4.3.1 or later.",
+   "id": "GHSA-gxpj-cx7g-858c",
+   "modified": "2026-09-10T03:47:07.070123052Z",
+   "published": "2018-08-09T20:18:07Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2017-16137"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/issues/797"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/visionmedia/debug/issues/501"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/visionmedia/debug/pull/504"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/commit/4e2150207c568adb9ead8f4c4528016081c88020"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/commit/71169065b5262f9858ac78cc0b688c84a438f290"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/commit/b6d12fdbc63b483e5c969da33ea6adc09946b5ac"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/debug-js/debug/commit/f53962e944a87e6ca9bb622a2a12dffc22a9bb5a"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/visionmedia/debug"
+    },
+    {
+     "type": "WEB",
+     "url": "https://lists.apache.org/thread.html/r8ba4c628fba7181af58817d452119481adce4ba92e889c643e4c7dd3@%3Ccommits.netbeans.apache.org%3E"
+    },
+    {
+     "type": "WEB",
+     "url": "https://lists.apache.org/thread.html/rb5ac16fad337d1f3bb7079549f97d8166d0ef3082629417c39f12d63@%3Cnotifications.netbeans.apache.org%3E"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "Regular Expression Denial of Service in debug"
+  },
+  "GHSA-hp87-p4gw-j4gq": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2022/05/GHSA-hp87-p4gw-j4gq/GHSA-hp87-p4gw-j4gq.json"
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "gopkg.in/yaml.v3",
+      "purl": "pkg:golang/gopkg.in/yaml.v3"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.0.1"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2022-28948",
+    "GO-2022-0603"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-502"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2022-05-25T20:17:24Z",
+    "nvd_published_at": "2022-05-19T20:15:00Z",
+    "severity": "HIGH"
+   },
+   "details": "An issue in the Unmarshal function in Go-Yaml v3 can cause a program to panic when attempting to deserialize invalid input.",
+   "id": "GHSA-hp87-p4gw-j4gq",
+   "modified": "2026-09-10T03:49:23.552237462Z",
+   "published": "2022-05-20T00:00:17Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2022-28948"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/go-yaml/yaml/issues/665"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/go-yaml/yaml/issues/666"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/go-yaml/yaml/commit/8f96da9f5d5eff988554c1aae1784627c4bf6754"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/go-yaml/yaml/commit/f6f7691b1fdeb513f56608cd2c32c51f8194bf51"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/go-yaml/yaml"
+    },
+    {
+     "type": "WEB",
+     "url": "https://security.netapp.com/advisory/ntap-20220923-0006"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "gopkg.in/yaml.v3 Denial of Service"
+  },
+  "GHSA-jjg7-2v4v-x38h": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2024/04/GHSA-jjg7-2v4v-x38h/GHSA-jjg7-2v4v-x38h.json"
+     },
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "idna",
+      "purl": "pkg:pypi/idna"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.7"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "0.1",
+      "0.2",
+      "0.3",
+      "0.4",
+      "0.5",
+      "0.6",
+      "0.7",
+      "0.8",
+      "0.9",
+      "1.0",
+      "1.1",
+      "2.0",
+      "2.1",
+      "2.10",
+      "2.2",
+      "2.3",
+      "2.4",
+      "2.5",
+      "2.6",
+      "2.7",
+      "2.8",
+      "2.9",
+      "3.0",
+      "3.1",
+      "3.2",
+      "3.3",
+      "3.4",
+      "3.5",
+      "3.6"
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2024-3651",
+    "PYSEC-2024-60"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-1333",
+     "CWE-400"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2024-04-11T21:32:40Z",
+    "nvd_published_at": "2024-07-07T18:15:09Z",
+    "severity": "MODERATE"
+   },
+   "details": "### Impact\nA specially crafted argument to the `idna.encode()` function could consume significant resources. This may lead to a denial-of-service.\n\n### Patches\nThe function has been refined to reject such strings without the associated resource consumption in version 3.7.\n\n### Workarounds\nDomain names cannot exceed 253 characters in length, if this length limit is enforced prior to passing the domain to the `idna.encode()` function it should no longer consume significant resources. This is triggered by arbitrarily large inputs that would not occur in normal usage, but may be passed to the library assuming there is no preliminary input validation by the higher-level application.\n\n### References\n* https://huntr.com/bounties/93d78d07-d791-4b39-a845-cbfabc44aadb",
+   "id": "GHSA-jjg7-2v4v-x38h",
+   "modified": "2026-09-10T03:50:12.774088619Z",
+   "published": "2024-04-11T21:32:40Z",
+   "references": [
+    {
+     "type": "WEB",
+     "url": "https://github.com/kjd/idna/security/advisories/GHSA-jjg7-2v4v-x38h"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-3651"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/kjd/idna/commit/1d365e17e10d72d0b7876316fc7b9ca0eebdd38d"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/kjd/idna"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pypa/advisory-database/tree/main/vulns/idna/PYSEC-2024-60.yaml"
+    },
+    {
+     "type": "WEB",
+     "url": "https://huntr.com/bounties/93d78d07-d791-4b39-a845-cbfabc44aadb"
+    },
+    {
+     "type": "WEB",
+     "url": "https://lists.debian.org/debian-lts-announce/2024/05/msg00006.html"
+    },
+    {
+     "type": "WEB",
+     "url": "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/4YQUPYH3SVZ5GFF2CDQ55FCM575AZTF2"
+    },
+    {
+     "type": "WEB",
+     "url": "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/F2S5E23N6E52S46KGNYTDFB75LOC4N4D"
+    },
+    {
+     "type": "WEB",
+     "url": "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/S5IDLLD2IKSIVRBSLB34WTSYGLMWUFWF"
+    },
+    {
+     "type": "WEB",
+     "url": "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/ULSC7HBJKXB3BZV367WM5BR6DFEC4Z43"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+     "type": "CVSS_V3"
+    },
+    {
+     "score": "CVSS:4.0/AV:L/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+     "type": "CVSS_V4"
+    }
+   ],
+   "summary": "Internationalized Domain Names in Applications (IDNA) vulnerable to denial of service from specially crafted inputs to idna.encode"
+  },
+  "GHSA-w67g-5rqw-f597": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2026/08/GHSA-w67g-5rqw-f597/GHSA-w67g-5rqw-f597.json"
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "github.com/gorilla/websocket",
+      "purl": "pkg:golang/github.com/gorilla/websocket"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.5.3"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "GO-2026-6278"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-338"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2026-08-24T21:00:54Z",
+    "nvd_published_at": null,
+    "severity": "MODERATE"
+   },
+   "details": "gorilla/websocket used `math/rand` (cryptographically weak pseudo-random number generator) to generate WebSocket frame mask keys prior to commit d67f4185. WebSocket masking keys MUST be unpredictable to prevent frame content injection attacks. math/rand produces deterministic output when seeded with a known value, enabling an attacker to predict or recover mask keys and inject content into WebSocket connections.\n\n**Type:** Use of Cryptographically Weak Pseudo-Random Number Generator\n**Fix:** Replaced math/rand with crypto/rand (commit d67f4185, released in v1.5.3)\n**Credit:** bounty-hunter v6.0 silent-fix detection",
+   "id": "GHSA-w67g-5rqw-f597",
+   "modified": "2026-09-10T03:50:54.128553228Z",
+   "published": "2026-08-24T21:00:54Z",
+   "references": [
+    {
+     "type": "WEB",
+     "url": "https://github.com/canolgun-commits/websocket/security/advisories/GHSA-w67g-5rqw-f597"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/gorilla/websocket/commit/d67f41855da42d7bccd9ef050c49f7e54e783b95"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/canolgun-commits/websocket"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/gorilla/websocket/releases/tag/v1.5.3"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N",
+     "type": "CVSS_V4"
+    }
+   ],
+   "summary": "Gorilla WebSocket Uses Cryptographically Weak PRNG for WebSocket Mask Key"
+  },
+  "GHSA-wcg3-cvx6-7396": {
+   "affected": [
+    {
+     "database_specific": {
+      "last_known_affected_version_range": "< 0.2.0",
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2021/08/GHSA-wcg3-cvx6-7396/GHSA-wcg3-cvx6-7396.json"
+     },
+     "package": {
+      "ecosystem": "crates.io",
+      "name": "time",
+      "purl": "pkg:cargo/time"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0.1.0"
+        },
+        {
+         "fixed": "0.2.23"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    },
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2021/08/GHSA-wcg3-cvx6-7396/GHSA-wcg3-cvx6-7396.json"
+     },
+     "package": {
+      "ecosystem": "crates.io",
+      "name": "time",
+      "purl": "pkg:cargo/time"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0.2.7"
+        },
+        {
+         "fixed": "0.2.23"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2020-26235",
+    "RUSTSEC-2020-0071"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-476"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2021-08-18T21:06:21Z",
+    "nvd_published_at": "2020-11-24T22:15:00Z",
+    "severity": "MODERATE"
+   },
+   "details": "### Impact\n\nUnix-like operating systems may segfault due to dereferencing a dangling pointer in specific circumstances. This requires an environment variable to be set in a different thread than the affected functions. This may occur without the user's knowledge, notably in a third-party library.\n\nThe affected functions from time 0.2.7 through 0.2.22 are:\n\n- `time::UtcOffset::local_offset_at`\n- `time::UtcOffset::try_local_offset_at`\n- `time::UtcOffset::current_local_offset`\n- `time::UtcOffset::try_current_local_offset`\n- `time::OffsetDateTime::now_local`\n- `time::OffsetDateTime::try_now_local`\n\nThe affected functions in time 0.1 (all versions) are:\n\n- `at`\n- `at_utc`\n- `now`\n\nNon-Unix targets (including Windows and wasm) are unaffected.\n\n### Patches\n\nIn some versions of `time`, the internal method that determines the local offset has been modified to always return `None` on the affected operating systems. This has the effect of returning an `Err` on the `try_*` methods and `UTC` on the non-`try_*` methods. In later versions, `time` will attempt to determine the number of threads running in the process. If the process is single-threaded, the call will proceed as its safety invariant is upheld.\n\nUsers and library authors with time in their dependency tree must perform `cargo update`, which will pull in the updated, unaffected code.\n\nUsers of time 0.1 do not have a patch and must upgrade to an unaffected version: time 0.2.23 or greater or the 0.3 series.\n\n### Workarounds\n\nLibrary authors must ensure that the program only has one running thread at the time of calling any affected method. Binary authors may do the same and/or ensure that no other thread is actively mutating the environment.\n\n### References\n\n[time-rs/time#293](https://github.com/time-rs/time/issues/293).",
+   "id": "GHSA-wcg3-cvx6-7396",
+   "modified": "2026-09-10T03:49:08.359875406Z",
+   "published": "2021-08-25T20:56:46Z",
+   "references": [
+    {
+     "type": "WEB",
+     "url": "https://github.com/time-rs/time/security/advisories/GHSA-wcg3-cvx6-7396"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2020-26235"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/time-rs/time/issues/293"
+    },
+    {
+     "type": "WEB",
+     "url": "https://crates.io/crates/time/0.2.23"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/time-rs/time"
+    },
+    {
+     "type": "WEB",
+     "url": "https://rustsec.org/advisories/RUSTSEC-2020-0071.html"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "Segmentation fault in time"
+  },
+  "GHSA-xvch-5gv4-984h": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2022/03/GHSA-xvch-5gv4-984h/GHSA-xvch-5gv4-984h.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "minimist",
+      "purl": "pkg:npm/minimist"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "1.0.0"
+        },
+        {
+         "fixed": "1.2.6"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    },
+    {
+     "database_specific": {
+      "source": "https://github.com/github/advisory-database/blob/main/advisories/github-reviewed/2022/03/GHSA-xvch-5gv4-984h/GHSA-xvch-5gv4-984h.json"
+     },
+     "package": {
+      "ecosystem": "npm",
+      "name": "minimist",
+      "purl": "pkg:npm/minimist"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "0.2.4"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2021-44906"
+   ],
+   "database_specific": {
+    "cwe_ids": [
+     "CWE-1321"
+    ],
+    "github_reviewed": true,
+    "github_reviewed_at": "2022-03-18T23:13:40Z",
+    "nvd_published_at": "2022-03-17T16:15:00Z",
+    "severity": "CRITICAL"
+   },
+   "details": "Minimist prior to 1.2.6 and 0.2.4 is vulnerable to Prototype Pollution via file `index.js`, function `setKey()` (lines 69-95).",
+   "id": "GHSA-xvch-5gv4-984h",
+   "modified": "2026-03-13T22:11:59.523514Z",
+   "published": "2022-03-18T00:01:09Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2021-44906"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/minimistjs/minimist/issues/11"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/substack/minimist/issues/164"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/minimistjs/minimist/pull/24"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/minimistjs/minimist/commit/34e20b8461118608703d6485326abbb8e35e1703"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/minimistjs/minimist/commit/bc8ecee43875261f4f17eb20b1243d3ed15e70eb"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/minimistjs/minimist/commit/c2b981977fa834b223b408cfb860f933c9811e4d"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/minimistjs/minimist/commit/ef9153fc52b6cea0744b2239921c5dcae4697f11"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/Marynk/JavaScript-vulnerability-detection/blob/main/minimist%20PoC.zip"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/minimistjs/minimist/commits/v0.2.4"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/substack/minimist"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/substack/minimist/blob/master/index.js#L69"
+    },
+    {
+     "type": "WEB",
+     "url": "https://security.netapp.com/advisory/ntap-20240621-0006"
+    },
+    {
+     "type": "WEB",
+     "url": "https://snyk.io/vuln/SNYK-JS-MINIMIST-559764"
+    },
+    {
+     "type": "WEB",
+     "url": "https://stackoverflow.com/questions/8588563/adding-custom-properties-to-a-function/20278068#20278068"
+    }
+   ],
+   "schema_version": "1.9.0",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "Prototype Pollution in minimist"
+  },
+  "GO-2020-0019": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://vuln.go.dev/ID/GO-2020-0019.json"
+     },
+     "ecosystem_specific": {
+      "imports": [
+       {
+        "path": "github.com/gorilla/websocket",
+        "symbols": [
+         "Conn.Close",
+         "Conn.NextReader",
+         "Conn.NextWriter",
+         "Conn.ReadJSON",
+         "Conn.ReadMessage",
+         "Conn.WriteControl",
+         "Conn.WriteJSON",
+         "Conn.WriteMessage",
+         "Conn.WritePreparedMessage",
+         "Conn.advanceFrame",
+         "Dialer.Dial",
+         "Dialer.DialContext",
+         "NewClient",
+         "NewPreparedMessage",
+         "ReadJSON",
+         "Subprotocols",
+         "Upgrade",
+         "Upgrader.Upgrade",
+         "WriteJSON",
+         "flateReadWrapper.Read",
+         "flateWriteWrapper.Close",
+         "flateWriteWrapper.Write",
+         "httpProxyDialer.Dial",
+         "messageReader.Read",
+         "messageWriter.Close",
+         "messageWriter.ReadFrom",
+         "messageWriter.Write",
+         "messageWriter.WriteString",
+         "netDialerFunc.Dial",
+         "proxy_direct.Dial",
+         "proxy_envOnce.Get",
+         "proxy_socks5.Dial",
+         "truncWriter.Write"
+        ]
+       }
+      ]
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "github.com/gorilla/websocket",
+      "purl": "pkg:golang/github.com/gorilla/websocket"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.4.1"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2020-27813",
+    "GHSA-3xh2-74w9-5vxm",
+    "GHSA-jf24-p9p9-4rjh"
+   ],
+   "credits": [
+    {
+     "name": "Max Justicz"
+    }
+   ],
+   "database_specific": {
+    "review_status": "REVIEWED",
+    "url": "https://pkg.go.dev/vuln/GO-2020-0019"
+   },
+   "details": "An attacker can craft malicious WebSocket frames that cause an integer overflow in a variable which tracks the number of bytes remaining. This may cause the server or client to get stuck attempting to read frames in a loop, which can be used as a denial of service vector.",
+   "id": "GO-2020-0019",
+   "modified": "2024-05-20T16:03:47Z",
+   "published": "2021-04-14T20:04:52Z",
+   "references": [
+    {
+     "type": "FIX",
+     "url": "https://github.com/gorilla/websocket/pull/537"
+    },
+    {
+     "type": "FIX",
+     "url": "https://github.com/gorilla/websocket/commit/5b740c29263eb386f33f265561c8262522f19d37"
+    }
+   ],
+   "schema_version": "1.7.3",
+   "summary": "Integer overflow in github.com/gorilla/websocket"
+  },
+  "GO-2022-0603": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://vuln.go.dev/ID/GO-2022-0603.json"
+     },
+     "ecosystem_specific": {
+      "imports": [
+       {
+        "path": "gopkg.in/yaml.v3",
+        "symbols": [
+         "Unmarshal"
+        ]
+       }
+      ]
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "gopkg.in/yaml.v3",
+      "purl": "pkg:golang/gopkg.in/yaml.v3"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.0.0-20220521103104-8f96da9f5d5e"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2022-28948",
+    "GHSA-hp87-p4gw-j4gq"
+   ],
+   "database_specific": {
+    "review_status": "REVIEWED",
+    "url": "https://pkg.go.dev/vuln/GO-2022-0603"
+   },
+   "details": "An issue in the Unmarshal function can cause a program to panic when attempting to deserialize invalid input.",
+   "id": "GO-2022-0603",
+   "modified": "2026-02-04T03:15:39.976408Z",
+   "published": "2022-08-22T18:00:47Z",
+   "references": [
+    {
+     "type": "FIX",
+     "url": "https://github.com/go-yaml/yaml/commit/8f96da9f5d5eff988554c1aae1784627c4bf6754"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/go-yaml/yaml/issues/666"
+    }
+   ],
+   "related": [
+    "CGA-c83p-wfx4-qxwj"
+   ],
+   "schema_version": "1.7.3",
+   "summary": "Panic in gopkg.in/yaml.v3"
+  },
+  "GO-2022-1059": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://vuln.go.dev/ID/GO-2022-1059.json"
+     },
+     "ecosystem_specific": {
+      "imports": [
+       {
+        "path": "golang.org/x/text/language",
+        "symbols": [
+         "MatchStrings",
+         "ParseAcceptLanguage"
+        ]
+       }
+      ]
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "golang.org/x/text",
+      "purl": "pkg:golang/golang.org/x/text"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "0.3.8"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2022-32149",
+    "GHSA-69ch-w2m2-3vjp"
+   ],
+   "credits": [
+    {
+     "name": "Adam Korczynski (ADA Logics)"
+    },
+    {
+     "name": "OSS-Fuzz"
+    }
+   ],
+   "database_specific": {
+    "review_status": "REVIEWED",
+    "url": "https://pkg.go.dev/vuln/GO-2022-1059"
+   },
+   "details": "An attacker may cause a denial of service by crafting an Accept-Language header which ParseAcceptLanguage will take significant time to parse.",
+   "id": "GO-2022-1059",
+   "modified": "2026-02-04T03:39:03.311488Z",
+   "published": "2022-10-11T18:16:24Z",
+   "references": [
+    {
+     "type": "REPORT",
+     "url": "https://go.dev/issue/56152"
+    },
+    {
+     "type": "FIX",
+     "url": "https://go.dev/cl/442235"
+    },
+    {
+     "type": "WEB",
+     "url": "https://groups.google.com/g/golang-announce/c/-hjNw559_tE/m/KlGTfid5CAAJ"
+    }
+   ],
+   "related": [
+    "CGA-wf56-6rqf-4crj"
+   ],
+   "schema_version": "1.7.3",
+   "summary": "Denial of service via crafted Accept-Language header in golang.org/x/text/language"
+  },
+  "GO-2026-5970": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://vuln.go.dev/ID/GO-2026-5970.json"
+     },
+     "ecosystem_specific": {
+      "imports": [
+       {
+        "path": "golang.org/x/text/unicode/norm",
+        "symbols": [
+         "Form.Append",
+         "Form.AppendString",
+         "Form.Bytes",
+         "Form.FirstBoundary",
+         "Form.FirstBoundaryInString",
+         "Form.IsNormal",
+         "Form.IsNormalString",
+         "Form.LastBoundary",
+         "Form.NextBoundary",
+         "Form.NextBoundaryInString",
+         "Form.Properties",
+         "Form.PropertiesString",
+         "Form.QuickSpan",
+         "Form.QuickSpanString",
+         "Form.Span",
+         "Form.SpanString",
+         "Form.String",
+         "Form.Transform",
+         "Iter.Init",
+         "Iter.InitString",
+         "Iter.Next",
+         "Iter.Seek",
+         "nextComposed",
+         "normReader.Read",
+         "normWriter.Write"
+        ]
+       }
+      ]
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "golang.org/x/text",
+      "purl": "pkg:golang/golang.org/x/text"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "0.39.0"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2026-56852"
+   ],
+   "credits": [
+    {
+     "name": "Viky Choi (\"vikychoi\" on GitHub)"
+    }
+   ],
+   "database_specific": {
+    "review_status": "REVIEWED",
+    "url": "https://pkg.go.dev/vuln/GO-2026-5970"
+   },
+   "details": "A norm.Iter can enter an infinite loop when handling input containing invalid UTF-8 bytes.",
+   "id": "GO-2026-5970",
+   "modified": "2026-11-23T21:12:29.269820156Z",
+   "published": "2026-07-14T17:29:56Z",
+   "references": [
+    {
+     "type": "REPORT",
+     "url": "https://go.dev/issue/80142"
+    },
+    {
+     "type": "FIX",
+     "url": "https://go.dev/cl/794100"
+    }
+   ],
+   "related": [
+    "RHSA-2026:40964",
+    "RHSA-2026:41020",
+    "RHSA-2026:42083",
+    "RHSA-2026:42230",
+    "RHSA-2026:42241",
+    "RHSA-2026:43015",
+    "RHSA-2026:43119",
+    "RHSA-2026:43311",
+    "RHSA-2026:43554",
+    "RHSA-2026:43581",
+    "RHSA-2026:43716",
+    "RHSA-2026:43797",
+    "RHSA-2026:43799",
+    "RHSA-2026:43801",
+    "RHSA-2026:43803",
+    "RHSA-2026:43852",
+    "RHSA-2026:43866",
+    "RHSA-2026:43873",
+    "RHSA-2026:43906",
+    "RHSA-2026:44151",
+    "RHSA-2026:44152",
+    "RHSA-2026:44162",
+    "RHSA-2026:44430",
+    "RHSA-2026:44451",
+    "RHSA-2026:44479",
+    "RHSA-2026:46953",
+    "RHSA-2026:46960",
+    "RHSA-2026:46988",
+    "RHSA-2026:48306",
+    "RHSA-2026:49317",
+    "RHSA-2026:49360",
+    "RHSA-2026:51065",
+    "RHSA-2026:52912",
+    "RHSA-2026:54364",
+    "RHSA-2026:54549",
+    "RHSA-2026:68334",
+    "RHSA-2026:68335",
+    "RHSA-2026:69258",
+    "RHSA-2026:70201",
+    "RHSA-2026:90330",
+    "RHSA-2026:92858",
+    "RHSA-2026:92859",
+    "RHSA-2026:92860",
+    "RHSA-2026:99824",
+    "RHSA-2026:99826",
+    "RHSA-2026:99827"
+   ],
+   "schema_version": "1.8.0",
+   "summary": "Infinite loop on invalid input in golang.org/x/text"
+  },
+  "GO-2026-6278": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://vuln.go.dev/ID/GO-2026-6278.json"
+     },
+     "ecosystem_specific": {
+      "imports": [
+       {
+        "path": "github.com/gorilla/websocket",
+        "symbols": [
+         "Conn.Close",
+         "Conn.NextReader",
+         "Conn.NextWriter",
+         "Conn.ReadJSON",
+         "Conn.ReadMessage",
+         "Conn.WriteControl",
+         "Conn.WriteJSON",
+         "Conn.WriteMessage",
+         "Conn.WritePreparedMessage",
+         "Dialer.Dial",
+         "Dialer.DialContext",
+         "NewClient",
+         "NewPreparedMessage",
+         "ReadJSON",
+         "Subprotocols",
+         "Upgrade",
+         "Upgrader.Upgrade",
+         "WriteJSON",
+         "flateReadWrapper.Read",
+         "flateWriteWrapper.Close",
+         "flateWriteWrapper.Write",
+         "httpProxyDialer.Dial",
+         "joinReader.Read",
+         "messageReader.Read",
+         "messageWriter.Close",
+         "messageWriter.ReadFrom",
+         "messageWriter.Write",
+         "messageWriter.WriteString",
+         "netDialerFunc.Dial",
+         "newMaskKey",
+         "proxy_direct.Dial",
+         "proxy_envOnce.Get",
+         "proxy_socks5.Dial",
+         "truncWriter.Write"
+        ]
+       }
+      ]
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "github.com/gorilla/websocket",
+      "purl": "pkg:golang/github.com/gorilla/websocket"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1.5.1"
+        },
+        {
+         "introduced": "1.5.3"
+        },
+        {
+         "fixed": "1.5.4-0.20240701034025-d67f41855da4"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "GHSA-w67g-5rqw-f597"
+   ],
+   "database_specific": {
+    "review_status": "REVIEWED",
+    "url": "https://pkg.go.dev/vuln/GO-2026-6278"
+   },
+   "details": "Gorilla WebSocket Uses Cryptographically Weak PRNG for WebSocket Mask Key in github.com/gorilla/websocket",
+   "id": "GO-2026-6278",
+   "modified": "2026-11-23T20:30:10.450913632Z",
+   "published": "2026-08-25T15:00:08Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://github.com/canolgun-commits/websocket/security/advisories/GHSA-w67g-5rqw-f597"
+    },
+    {
+     "type": "FIX",
+     "url": "https://github.com/gorilla/websocket/commit/d67f41855da42d7bccd9ef050c49f7e54e783b95"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/gorilla/websocket/releases/tag/v1.5.3"
+    }
+   ],
+   "schema_version": "1.9.2",
+   "summary": "Gorilla WebSocket Uses Cryptographically Weak PRNG for WebSocket Mask Key in github.com/gorilla/websocket"
+  },
+  "GO-2026-6629": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://vuln.go.dev/ID/GO-2026-6629.json"
+     },
+     "ecosystem_specific": {
+      "imports": [
+       {
+        "path": "golang.org/x/text/secure/precis",
+        "symbols": [
+         "Profile.Append",
+         "Profile.AppendCompareKey",
+         "Profile.Bytes",
+         "Profile.Compare",
+         "Profile.CompareKey",
+         "Profile.NewTransformer",
+         "Profile.String",
+         "Transformer.Bytes",
+         "Transformer.String",
+         "Transformer.Transform",
+         "nickAdditionalMapping.Transform"
+        ]
+       }
+      ]
+     },
+     "package": {
+      "ecosystem": "Go",
+      "name": "golang.org/x/text",
+      "purl": "pkg:golang/golang.org/x/text"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "0.41.0"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2026-56851"
+   ],
+   "credits": [
+    {
+     "name": "Omkhar Arasaratnam (GitHub: omkhar)"
+    }
+   ],
+   "database_specific": {
+    "review_status": "REVIEWED",
+    "url": "https://pkg.go.dev/vuln/GO-2026-6629"
+   },
+   "details": "The Nickname profile can panic with an out-of-bounds slice error when transforming crafted input into a short destination buffer.",
+   "id": "GO-2026-6629",
+   "modified": "2026-11-23T21:12:29.495073874Z",
+   "published": "2026-10-07T14:09:43Z",
+   "references": [
+    {
+     "type": "FIX",
+     "url": "https://go.dev/cl/793360"
+    },
+    {
+     "type": "REPORT",
+     "url": "https://go.dev/issue/80112"
+    }
+   ],
+   "related": [
+    "RHSA-2026:58472",
+    "RHSA-2026:62391",
+    "RHSA-2026:68717",
+    "RHSA-2026:68729",
+    "RHSA-2026:70031",
+    "RHSA-2026:70537",
+    "RHSA-2026:70670",
+    "RHSA-2026:70700",
+    "RHSA-2026:72496",
+    "RHSA-2026:72570",
+    "RHSA-2026:72750",
+    "RHSA-2026:73401",
+    "RHSA-2026:73522",
+    "RHSA-2026:73523",
+    "RHSA-2026:73524",
+    "RHSA-2026:74536",
+    "RHSA-2026:74861",
+    "RHSA-2026:74948",
+    "RHSA-2026:75151",
+    "RHSA-2026:76430",
+    "RHSA-2026:76448",
+    "RHSA-2026:76606",
+    "RHSA-2026:76677"
+   ],
+   "schema_version": "1.9.0",
+   "summary": "Panic parsing crafted input in x/text/secure/precis in golang.org/x/text"
+  },
+  "PYSEC-2024-230": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/pypa/advisory-database/blob/main/vulns/certifi/PYSEC-2024-230.yaml"
+     },
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "certifi",
+      "purl": "pkg:pypi/certifi"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "bd8153872e9c6fc98f4023df9c2deaffea2fa463"
+        }
+       ],
+       "repo": "https://github.com/certifi/python-certifi",
+       "type": "GIT"
+      },
+      {
+       "events": [
+        {
+         "introduced": "2021.5.30"
+        },
+        {
+         "fixed": "2024.7.4"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "2021.10.8",
+      "2021.5.30",
+      "2022.12.7",
+      "2022.5.18",
+      "2022.5.18.1",
+      "2022.6.15",
+      "2022.6.15.1",
+      "2022.6.15.2",
+      "2022.9.14",
+      "2022.9.24",
+      "2023.11.17",
+      "2023.5.7",
+      "2023.7.22",
+      "2024.2.2",
+      "2024.6.2",
+      "2024.06.02",
+      "2024.02.02",
+      "2023.07.22",
+      "2023.05.07",
+      "2022.12.07",
+      "2022.09.24",
+      "2022.09.14",
+      "2022.06.15.2",
+      "2022.06.15.1",
+      "2022.06.15",
+      "2022.05.18.1",
+      "2022.05.18",
+      "2021.10.08",
+      "2021.05.30",
+      "2020.12.05",
+      "2020.11.08",
+      "2020.06.20",
+      "2020.04.05.2",
+      "2020.04.05.1",
+      "2020.04.05",
+      "2019.11.28",
+      "2019.09.11",
+      "2019.06.16",
+      "2019.03.09",
+      "2018.11.29",
+      "2018.10.15",
+      "2018.08.24",
+      "2018.08.13",
+      "2018.04.16",
+      "2018.01.18",
+      "2017.11.05",
+      "2017.07.27.1",
+      "2017.04.17",
+      "2017.01.23",
+      "2016.09.26",
+      "2016.08.31",
+      "2016.08.08",
+      "2016.08.02",
+      "2016.02.28",
+      "2015.11.20.1",
+      "2015.11.20",
+      "2015.09.06.2",
+      "2015.09.06.1",
+      "2015.09.06",
+      "2015.04.28",
+      "v1.0.1",
+      "v1.0.0"
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2024-39689",
+    "GHSA-248v-346w-9cwc"
+   ],
+   "details": "Certifi is a curated collection of Root Certificates for validating the trustworthiness of SSL certificates while verifying the identity of TLS hosts. Certifi starting in 2021.05.30 and prior to 2024.07.4 recognized root certificates from `GLOBALTRUST`. Certifi 2024.07.04 removes root certificates from `GLOBALTRUST` from the root store. These are in the process of being removed from Mozilla's trust store. `GLOBALTRUST`'s root certificates are being removed pursuant to an investigation which identified \"long-running and unresolved compliance issues.\"",
+   "id": "PYSEC-2024-230",
+   "modified": "2026-06-10T17:14:18.786020835Z",
+   "published": "2024-07-05T19:15:10Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://github.com/certifi/python-certifi/security/advisories/GHSA-248v-346w-9cwc"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://security.netapp.com/advisory/ntap-20241206-0001/"
+    },
+    {
+     "type": "ARTICLE",
+     "url": "https://groups.google.com/a/mozilla.org/g/dev-security-policy/c/XpknYMPO8dI"
+    },
+    {
+     "type": "FIX",
+     "url": "https://github.com/certifi/python-certifi/commit/bd8153872e9c6fc98f4023df9c2deaffea2fa463"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://github.com/advisories/GHSA-248v-346w-9cwc"
+    }
+   ],
+   "schema_version": "1.7.5",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+     "type": "CVSS_V3"
+    }
+   ]
+  },
+  "PYSEC-2024-60": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/pypa/advisory-database/blob/main/vulns/idna/PYSEC-2024-60.yaml"
+     },
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "idna",
+      "purl": "pkg:pypi/idna"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "1d365e17e10d72d0b7876316fc7b9ca0eebdd38d"
+        }
+       ],
+       "repo": "https://github.com/kjd/idna",
+       "type": "GIT"
+      },
+      {
+       "events": [
+        {
+         "introduced": "0.1"
+        },
+        {
+         "fixed": "3.7"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "0.1",
+      "0.2",
+      "0.3",
+      "0.4",
+      "0.5",
+      "0.6",
+      "0.7",
+      "0.8",
+      "0.9",
+      "1.0",
+      "1.1",
+      "2.0",
+      "2.1",
+      "2.10",
+      "2.2",
+      "2.3",
+      "2.4",
+      "2.5",
+      "2.6",
+      "2.7",
+      "2.8",
+      "2.9",
+      "3.0",
+      "3.1",
+      "3.2",
+      "3.3",
+      "3.4",
+      "3.5",
+      "3.6",
+      "v3.3",
+      "v3.2",
+      "v3.1",
+      "v3.0",
+      "v2.10",
+      "v2.9",
+      "v2.8",
+      "v2.7",
+      "v2.6",
+      "v2.5",
+      "v2.4",
+      "v2.3",
+      "v2.2",
+      "v2.1",
+      "v2.0",
+      "v1.1",
+      "v1.0",
+      "v0.9",
+      "v0.8",
+      "v0.7",
+      "v0.6",
+      "v0.5",
+      "v0.4",
+      "v0.3",
+      "v0.2"
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2024-3651",
+    "GHSA-jjg7-2v4v-x38h"
+   ],
+   "details": "A vulnerability was identified in the kjd/idna library, specifically within the `idna.encode()` function, affecting version 3.6. The issue arises from the function's handling of crafted input strings, which can lead to quadratic complexity and consequently, a denial of service condition. This vulnerability is triggered by a crafted input that causes the `idna.encode()` function to process the input with considerable computational load, significantly increasing the processing time in a quadratic manner relative to the input size.",
+   "id": "PYSEC-2024-60",
+   "modified": "2026-06-10T17:01:21.102419358Z",
+   "published": "2024-07-07T18:15:00Z",
+   "references": [
+    {
+     "type": "EVIDENCE",
+     "url": "https://huntr.com/bounties/93d78d07-d791-4b39-a845-cbfabc44aadb"
+    },
+    {
+     "type": "FIX",
+     "url": "https://huntr.com/bounties/93d78d07-d791-4b39-a845-cbfabc44aadb"
+    },
+    {
+     "type": "FIX",
+     "url": "https://github.com/kjd/idna/commit/1d365e17e10d72d0b7876316fc7b9ca0eebdd38d"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://github.com/advisories/GHSA-jjg7-2v4v-x38h"
+    }
+   ],
+   "schema_version": "1.7.5",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+     "type": "CVSS_V3"
+    }
+   ]
+  },
+  "PYSEC-2026-1845": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/pypa/advisory-database/blob/main/vulns/pytest/PYSEC-2026-1845.yaml"
+     },
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "pytest",
+      "purl": "pkg:pypi/pytest"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "9.0.3"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "2.0.0",
+      "2.0.1",
+      "2.0.2",
+      "2.0.3",
+      "2.1.0",
+      "2.1.1",
+      "2.1.2",
+      "2.1.3",
+      "2.2.0",
+      "2.2.1",
+      "2.2.2",
+      "2.2.3",
+      "2.2.4",
+      "2.3.0",
+      "2.3.1",
+      "2.3.2",
+      "2.3.3",
+      "2.3.4",
+      "2.3.5",
+      "2.4.0",
+      "2.4.1",
+      "2.4.2",
+      "2.5.0",
+      "2.5.1",
+      "2.5.2",
+      "2.6.0",
+      "2.6.1",
+      "2.6.2",
+      "2.6.3",
+      "2.6.4",
+      "2.7.0",
+      "2.7.1",
+      "2.7.2",
+      "2.7.3",
+      "2.8.0",
+      "2.8.1",
+      "2.8.2",
+      "2.8.3",
+      "2.8.4",
+      "2.8.5",
+      "2.8.6",
+      "2.8.7",
+      "2.9.0",
+      "2.9.1",
+      "2.9.2",
+      "3.0.0",
+      "3.0.1",
+      "3.0.2",
+      "3.0.3",
+      "3.0.4",
+      "3.0.5",
+      "3.0.6",
+      "3.0.7",
+      "3.1.0",
+      "3.1.1",
+      "3.1.2",
+      "3.1.3",
+      "3.10.0",
+      "3.10.1",
+      "3.2.0",
+      "3.2.1",
+      "3.2.2",
+      "3.2.3",
+      "3.2.4",
+      "3.2.5",
+      "3.3.0",
+      "3.3.1",
+      "3.3.2",
+      "3.4.0",
+      "3.4.1",
+      "3.4.2",
+      "3.5.0",
+      "3.5.1",
+      "3.6.0",
+      "3.6.1",
+      "3.6.2",
+      "3.6.3",
+      "3.6.4",
+      "3.7.0",
+      "3.7.1",
+      "3.7.2",
+      "3.7.3",
+      "3.7.4",
+      "3.8.0",
+      "3.8.1",
+      "3.8.2",
+      "3.9.1",
+      "3.9.2",
+      "3.9.3",
+      "4.0.0",
+      "4.0.1",
+      "4.0.2",
+      "4.1.0",
+      "4.1.1",
+      "4.2.0",
+      "4.2.1",
+      "4.3.0",
+      "4.3.1",
+      "4.4.0",
+      "4.4.1",
+      "4.4.2",
+      "4.5.0",
+      "4.6.0",
+      "4.6.1",
+      "4.6.10",
+      "4.6.11",
+      "4.6.2",
+      "4.6.3",
+      "4.6.4",
+      "4.6.5",
+      "4.6.6",
+      "4.6.7",
+      "4.6.8",
+      "4.6.9",
+      "5.0.0",
+      "5.0.1",
+      "5.1.0",
+      "5.1.1",
+      "5.1.2",
+      "5.1.3",
+      "5.2.0",
+      "5.2.1",
+      "5.2.2",
+      "5.2.3",
+      "5.2.4",
+      "5.3.0",
+      "5.3.1",
+      "5.3.2",
+      "5.3.3",
+      "5.3.4",
+      "5.3.5",
+      "5.4.0",
+      "5.4.1",
+      "5.4.2",
+      "5.4.3",
+      "6.0.0",
+      "6.0.0rc1",
+      "6.0.1",
+      "6.0.2",
+      "6.1.0",
+      "6.1.1",
+      "6.1.2",
+      "6.2.0",
+      "6.2.1",
+      "6.2.2",
+      "6.2.3",
+      "6.2.4",
+      "6.2.5",
+      "7.0.0",
+      "7.0.0rc1",
+      "7.0.1",
+      "7.1.0",
+      "7.1.1",
+      "7.1.2",
+      "7.1.3",
+      "7.2.0",
+      "7.2.1",
+      "7.2.2",
+      "7.3.0",
+      "7.3.1",
+      "7.3.2",
+      "7.4.0",
+      "7.4.1",
+      "7.4.2",
+      "7.4.3",
+      "7.4.4",
+      "8.0.0",
+      "8.0.0rc1",
+      "8.0.0rc2",
+      "8.0.1",
+      "8.0.2",
+      "8.1.0",
+      "8.1.1",
+      "8.1.2",
+      "8.2.0",
+      "8.2.1",
+      "8.2.2",
+      "8.3.0",
+      "8.3.1",
+      "8.3.2",
+      "8.3.3",
+      "8.3.4",
+      "8.3.5",
+      "8.4.0",
+      "8.4.1",
+      "8.4.2",
+      "9.0.0",
+      "9.0.1",
+      "9.0.2"
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2025-71176",
+    "GHSA-6w46-j5rx-g56g"
+   ],
+   "details": "pytest through 9.0.2 on UNIX relies on directories with the `/tmp/pytest-of-{user}` name pattern, which allows local users to cause a denial of service or possibly gain privileges.",
+   "id": "PYSEC-2026-1845",
+   "modified": "2026-07-07T17:47:51.848748359Z",
+   "published": "2026-07-07T16:03:19.758250Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-71176"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pytest-dev/pytest/issues/13669"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pytest-dev/pytest/pull/14343"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pytest-dev/pytest/commit/95d8423bd24992deea5b9df32555fa1741679e2c"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/pytest-dev/pytes"
+    },
+    {
+     "type": "WEB",
+     "url": "https://github.com/pytest-dev/pytest/releases/tag/9.0.3"
+    },
+    {
+     "type": "WEB",
+     "url": "https://www.openwall.com/lists/oss-security/2026/01/21/5"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://pypi.org/project/pytest"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://github.com/advisories/GHSA-6w46-j5rx-g56g"
+    }
+   ],
+   "schema_version": "1.7.5",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:C/C:L/I:L/A:L",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "pytest has vulnerable tmpdir handling"
+  },
+  "PYSEC-2026-215": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/pypa/advisory-database/blob/main/vulns/idna/PYSEC-2026-215.yaml"
+     },
+     "ecosystem_specific": {},
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "idna",
+      "purl": "pkg:pypi/idna"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0"
+        },
+        {
+         "fixed": "3.15"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "0.1",
+      "0.2",
+      "0.3",
+      "0.4",
+      "0.5",
+      "0.6",
+      "0.7",
+      "0.8",
+      "0.9",
+      "1.0",
+      "1.1",
+      "2.0",
+      "2.1",
+      "2.10",
+      "2.2",
+      "2.3",
+      "2.4",
+      "2.5",
+      "2.6",
+      "2.7",
+      "2.8",
+      "2.9",
+      "3.0",
+      "3.1",
+      "3.10",
+      "3.11",
+      "3.12",
+      "3.13",
+      "3.14",
+      "3.2",
+      "3.3",
+      "3.4",
+      "3.5",
+      "3.6",
+      "3.7",
+      "3.8",
+      "3.9"
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2026-45409",
+    "GHSA-65pc-fj4g-8rjx"
+   ],
+   "details": "Internationalized Domain Names in Applications (IDNA) for Python provides support for Internationalized Domain Names in Applications (IDNA) and Unicode IDNA Compatibility Processing. In versions prior to 3.15, payloads such as `\"\\u0660\" * N` or `\"\\u30fb\" * N + \"\\u6f22\"` utilize the `valid_contexto` function prior to length rejection, and for high values of `N` will take a long time to process. This is the same issue as CVE-2024-3651, however the original remediation in 2024 was not a complete fix. A specially crafted argument to the `idna.encode()` function could consume significant resources. This may lead to a denial-of-service. Starting in version 3.14, the function rejects long inputs as soon as practicable prior to any further processing to minimize resource consumption. In version 3.15, this approach was extended to lesser used alternate functions (i.e. per-label conversions and codec support). A workaround is available. Domain names cannot exceed 253 characters in length. If this length limit is enforced prior to passing the domain to the `idna.encode()` function, it should no longer consume significant resources. This is triggered by arbitrarily large inputs that would not occur in normal usage, but may be passed to the library assuming there is no preliminary input validation by the higher-level application.",
+   "id": "PYSEC-2026-215",
+   "modified": "2026-06-16T16:15:04.639265054Z",
+   "published": "2026-06-05T23:16:43.343Z",
+   "references": [
+    {
+     "type": "ADVISORY",
+     "url": "https://github.com/kjd/idna/security/advisories/GHSA-65pc-fj4g-8rjx"
+    }
+   ],
+   "schema_version": "1.7.5",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+     "type": "CVSS_V3"
+    }
+   ]
+  },
+  "PYSEC-2026-4320": {
+   "affected": [
+    {
+     "database_specific": {
+      "source": "https://github.com/pypa/advisory-database/blob/main/vulns/certifi/PYSEC-2026-4320.yaml"
+     },
+     "package": {
+      "ecosystem": "PyPI",
+      "name": "certifi",
+      "purl": "pkg:pypi/certifi"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "2019.03.09"
+        },
+        {
+         "fixed": "2026.10.18"
+        }
+       ],
+       "type": "ECOSYSTEM"
+      }
+     ],
+     "versions": [
+      "2019.11.28",
+      "2019.3.9",
+      "2019.6.16",
+      "2019.9.11",
+      "2020.11.8",
+      "2020.12.5",
+      "2020.4.5",
+      "2020.4.5.1",
+      "2020.4.5.2",
+      "2020.6.20",
+      "2021.10.8",
+      "2021.5.30",
+      "2022.12.7",
+      "2022.5.18",
+      "2022.5.18.1",
+      "2022.6.15",
+      "2022.6.15.1",
+      "2022.6.15.2",
+      "2022.9.14",
+      "2022.9.24",
+      "2023.11.17",
+      "2023.5.7",
+      "2023.7.22",
+      "2024.12.14",
+      "2024.2.2",
+      "2024.6.2",
+      "2024.7.4",
+      "2024.8.30",
+      "2025.1.31",
+      "2025.10.5",
+      "2025.11.12",
+      "2025.4.26",
+      "2025.6.15",
+      "2025.7.14",
+      "2025.7.9",
+      "2025.8.3",
+      "2026.1.4",
+      "2026.2.25",
+      "2026.4.22",
+      "2026.5.20",
+      "2026.6.17",
+      "2026.7.22"
+     ]
+    }
+   ],
+   "aliases": [
+    "GHSA-6q48-6c7w-9gw2"
+   ],
+   "details": "Certifi versions before 2026.10.18 include the `emSign ECC Root CA - G3` root certificate in their bundled CA store. Eight eMudhra intermediate CA certificates that chain to this root have compromised private keys and the CA has revoked them. \n\nAn attacker with one of the compromised keys can issue valid-looking certificates for any hostname. If the attacker is also on-path, they can intercept or modify TLS traffic from clients that trust the certifi bundle. Examples include `requests`, `urllib3` and `pip`, and the Python.org macOS installer.\n\nCertifi 2026.10.18 removed all emSign roots from the bundle. Certifi 2026.10.19 restored the emSign roots that are not affected. Upgrade to 2026.10.19 or later, and rebuild container images that vendor certifi.",
+   "id": "PYSEC-2026-4320",
+   "modified": "2026-10-30T14:00:02.590922333Z",
+   "published": "2026-10-20T21:41:50.722083Z",
+   "references": [
+    {
+     "type": "WEB",
+     "url": "https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2"
+    },
+    {
+     "type": "WEB",
+     "url": "https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576"
+    },
+    {
+     "type": "WEB",
+     "url": "https://emudhra.we-have-a-problem.com"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://github.com/certifi/python-certifi"
+    },
+    {
+     "type": "PACKAGE",
+     "url": "https://pypi.org/project/certifi"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://github.com/advisories/GHSA-6q48-6c7w-9gw2"
+    }
+   ],
+   "schema_version": "1.9.2",
+   "severity": [
+    {
+     "score": "CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N",
+     "type": "CVSS_V4"
+    }
+   ],
+   "summary": "certifi bundles emSign root CAs with compromised intermediate CA keys"
+  },
+  "RUSTSEC-2020-0071": {
+   "affected": [
+    {
+     "database_specific": {
+      "categories": [
+       "code-execution",
+       "memory-corruption"
+      ],
+      "cvss": "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+      "informational": null,
+      "source": "https://github.com/rustsec/advisory-db/blob/osv/crates/RUSTSEC-2020-0071.json"
+     },
+     "ecosystem_specific": {
+      "affected_functions": null,
+      "affects": {
+       "arch": [],
+       "functions": [
+        "time::OffsetDateTime::now_local",
+        "time::OffsetDateTime::try_now_local",
+        "time::UtcOffset::current_local_offset",
+        "time::UtcOffset::local_offset_at",
+        "time::UtcOffset::try_current_local_offset",
+        "time::UtcOffset::try_local_offset_at",
+        "time::at",
+        "time::at_utc",
+        "time::now"
+       ],
+       "os": [
+        "linux",
+        "redox",
+        "solaris",
+        "android",
+        "ios",
+        "macos",
+        "netbsd",
+        "openbsd",
+        "freebsd"
+       ]
+      }
+     },
+     "package": {
+      "ecosystem": "crates.io",
+      "name": "time",
+      "purl": "pkg:cargo/time"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0.0.0-0"
+        },
+        {
+         "fixed": "0.2.0"
+        },
+        {
+         "introduced": "0.2.1-0"
+        },
+        {
+         "fixed": "0.2.1"
+        },
+        {
+         "introduced": "0.2.2-0"
+        },
+        {
+         "fixed": "0.2.2"
+        },
+        {
+         "introduced": "0.2.3-0"
+        },
+        {
+         "fixed": "0.2.3"
+        },
+        {
+         "introduced": "0.2.4-0"
+        },
+        {
+         "fixed": "0.2.4"
+        },
+        {
+         "introduced": "0.2.5-0"
+        },
+        {
+         "fixed": "0.2.5"
+        },
+        {
+         "introduced": "0.2.6-0"
+        },
+        {
+         "fixed": "0.2.6"
+        },
+        {
+         "introduced": "0.2.7-0"
+        },
+        {
+         "fixed": "0.2.23"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2020-26235",
+    "GHSA-wcg3-cvx6-7396"
+   ],
+   "database_specific": {
+    "license": "CC0-1.0"
+   },
+   "details": "### Impact\n\nThe affected functions set environment variables without synchronization. On Unix-like operating systems, this can crash in multithreaded programs. Programs may segfault due to dereferencing a dangling pointer if an environment variable is read in a different thread than the affected functions. This may occur without the user's knowledge, notably in the Rust standard library or third-party libraries.\n\nThe affected functions from time 0.2.7 through 0.2.22 are:\n\n- `time::UtcOffset::local_offset_at`\n- `time::UtcOffset::try_local_offset_at`\n- `time::UtcOffset::current_local_offset`\n- `time::UtcOffset::try_current_local_offset`\n- `time::OffsetDateTime::now_local`\n- `time::OffsetDateTime::try_now_local`\n\nThe affected functions in time 0.1 (all versions) are:\n\n- `time::at_utc`\n- `time::at`\n- `time::now`\n- `time::tzset`\n\nNon-Unix targets (including Windows and wasm) are unaffected.\n\n### Patches\n\nPending a proper fix, the internal method that determines the local offset has been modified to always return `None` on the affected operating systems. This has the effect of returning an `Err` on the `try_*` methods and `UTC` on the non-`try_*` methods.\n\nUsers and library authors with time in their dependency tree should perform `cargo update`, which will pull in the updated, unaffected code.\n\nUsers of time 0.1 do not have a patch and should upgrade to an unaffected version: time 0.2.23 or greater or the 0.3 series.\n\n### Workarounds\n\nA possible workaround for crates affected through the transitive dependency in `chrono`, is to avoid using the default `oldtime` feature dependency of the `chrono` crate by disabling its `default-features` and manually specifying the required features instead.\n\n#### Examples:\n\n`Cargo.toml`:  \n\n```toml\nchrono = { version = \"0.4\", default-features = false, features = [\"serde\"] }\n```\n\n```toml\nchrono = { version = \"0.4.22\", default-features = false, features = [\"clock\"] }\n```\n\nCommandline:  \n\n```bash\ncargo add chrono --no-default-features -F clock\n```\n\nSources:  \n - [chronotope/chrono#602 (comment)](https://github.com/chronotope/chrono/issues/602#issuecomment-1242149249)  \n - [vityafx/serde-aux#21](https://github.com/vityafx/serde-aux/issues/21)",
+   "id": "RUSTSEC-2020-0071",
+   "modified": "2026-02-04T02:31:56.682937Z",
+   "published": "2020-11-18T12:00:00Z",
+   "references": [
+    {
+     "type": "PACKAGE",
+     "url": "https://crates.io/crates/time"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://rustsec.org/advisories/RUSTSEC-2020-0071.html"
+    },
+    {
+     "type": "REPORT",
+     "url": "https://github.com/time-rs/time/issues/293"
+    }
+   ],
+   "related": [
+    "RUSTSEC-2020-0159"
+   ],
+   "schema_version": "1.7.3",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:L/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "Potential segfault in the time crate"
+  },
+  "RUSTSEC-2021-0003": {
+   "affected": [
+    {
+     "database_specific": {
+      "categories": [
+       "memory-corruption"
+      ],
+      "cvss": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "informational": null,
+      "source": "https://github.com/rustsec/advisory-db/blob/osv/crates/RUSTSEC-2021-0003.json"
+     },
+     "ecosystem_specific": {
+      "affected_functions": null,
+      "affects": {
+       "arch": [],
+       "functions": [
+        "smallvec::SmallVec::insert_many"
+       ],
+       "os": []
+      }
+     },
+     "package": {
+      "ecosystem": "crates.io",
+      "name": "smallvec",
+      "purl": "pkg:cargo/smallvec"
+     },
+     "ranges": [
+      {
+       "events": [
+        {
+         "introduced": "0.6.3"
+        },
+        {
+         "fixed": "0.6.14"
+        },
+        {
+         "introduced": "1.0.0"
+        },
+        {
+         "fixed": "1.6.1"
+        }
+       ],
+       "type": "SEMVER"
+      }
+     ]
+    }
+   ],
+   "aliases": [
+    "CVE-2021-25900",
+    "GHSA-43w2-9j62-hq99"
+   ],
+   "database_specific": {
+    "license": "CC0-1.0"
+   },
+   "details": "A bug in the `SmallVec::insert_many` method caused it to allocate a buffer that was smaller than needed.  It then wrote past the end of the buffer, causing a buffer overflow and memory corruption on the heap.\n\nThis bug was only triggered if the iterator passed to `insert_many` yielded more items than the lower bound returned from its `size_hint` method.\n \nThe flaw was corrected in smallvec 0.6.14 and 1.6.1, by ensuring that additional space is always reserved for each item inserted.  The fix also simplified the implementation of `insert_many` to use less unsafe code, so it is easier to verify its correctness.\n\nThank you to Yechan Bae ([@Qwaz](https://github.com/Qwaz)) and the Rust group at Georgia Tech\u2019s SSLab for finding and reporting this bug.",
+   "id": "RUSTSEC-2021-0003",
+   "modified": "2026-07-17T16:00:03.208176448Z",
+   "published": "2021-01-08T12:00:00Z",
+   "references": [
+    {
+     "type": "PACKAGE",
+     "url": "https://crates.io/crates/smallvec"
+    },
+    {
+     "type": "ADVISORY",
+     "url": "https://rustsec.org/advisories/RUSTSEC-2021-0003.html"
+    },
+    {
+     "type": "REPORT",
+     "url": "https://github.com/servo/rust-smallvec/issues/252"
+    }
+   ],
+   "schema_version": "1.7.5",
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+     "type": "CVSS_V3"
+    }
+   ],
+   "summary": "Buffer overflow in SmallVec::insert_many"
+  }
+ }
+}

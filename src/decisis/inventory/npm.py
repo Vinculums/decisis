@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+import json
+
+from .shape import digest, json_object, license_ids, make_purl, now, package_id
+
+FORMAT = "npm"
+SIBLINGS: tuple[str, ...] = ()
+
+
+def detect(text: str, filename: str) -> bool:
+    obj = json_object(text)
+    return obj is not None and "lockfileVersion" in obj
+
+
+def _resolve(packages: dict, from_path: str, dep: str) -> str | None:
+    base = from_path
+    while True:
+        cand = f"{base}/node_modules/{dep}" if base else f"node_modules/{dep}"
+        if cand in packages:
+            return cand
+        if not base:
+            return None
+        cut = base.rfind("/node_modules/")
+        base = base[:cut] if cut >= 0 else ""
+
+
+def _license(meta: dict) -> str:
+    value = meta.get("license")
+    return value if isinstance(value, str) else ""
+
+
+def _props(name: str, meta: dict, repo: str, path: str, fetched: str) -> dict:
+    lic = _license(meta)
+    return {"ecosystem": "npm", "name": name, "version": meta["version"], "dev": bool(meta.get("dev")),
+            "licenses": license_ids(lic), "license_expression": lic, "purl": make_purl("npm", name, meta["version"]),
+            "unresolved": "", "source_system": "npm-lockfile", "source_ref": f"{repo}:{path}", "fetched_at": fetched}
+
+
+def parse_npm_lock(text: str, repo: str, include_dev: bool = True) -> tuple[list[dict], list[dict]]:
+    lock = json.loads(text)
+    pkgs = lock.get("packages")
+    if not isinstance(pkgs, dict) or lock.get("lockfileVersion", 0) < 2:
+        raise ValueError("needs an npm lockfile v2 or v3 with a packages map")
+    fetched = now()
+    repo_id = f"repo:{repo}"
+    nodes = {repo_id: {"id": repo_id, "kind": "Repository", "title": repo,
+                       "props": {"source_system": "npm-lockfile", "source_ref": repo, "fetched_at": fetched, "content_hash": digest(lock)}}}
+    ids: dict[str, str] = {}
+    for path, meta in pkgs.items():
+        if not path or meta.get("link") or not meta.get("version"):
+            continue
+        if meta.get("dev") and not include_dev:
+            continue
+        name = meta.get("name") or path.rsplit("node_modules/", 1)[-1]
+        pid = package_id("npm", name, meta["version"])
+        ids[path] = pid
+        nodes.setdefault(pid, {"id": pid, "kind": "Package", "title": f"{name}@{meta['version']}",
+                               "props": _props(name, meta, repo, path, fetched)})
+    root = pkgs.get("", {})
+    direct = dict(root.get("dependencies") or {})
+    if include_dev:
+        direct.update(root.get("devDependencies") or {})
+    edges, seen = [], set()
+
+    def link(src: str, dst: str, why: str) -> None:
+        if (src, dst) not in seen:
+            seen.add((src, dst))
+            edges.append({"source": src, "target": dst, "type": "DEPENDS_ON", "evidence": why})
+
+    for dep in sorted(direct):
+        target = _resolve(pkgs, "", dep)
+        if target in ids:
+            link(repo_id, ids[target], f"{dep}: {direct[dep]}")
+    for path, pid in sorted(ids.items()):
+        meta = pkgs[path]
+        for dep in sorted({**(meta.get("dependencies") or {}), **(meta.get("optionalDependencies") or {})}):
+            target = _resolve(pkgs, path, dep)
+            if target in ids:
+                link(pid, ids[target], f"{path} requires {dep}")
+    return list(nodes.values()), edges
+
+
+def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
+    return parse_npm_lock(text, repo)

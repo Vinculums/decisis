@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import external, semver
+from . import external, inventory, semver
 from .queries import load as query
 from .sandbox import Subgraph, sandbox
 
@@ -32,8 +32,9 @@ def rule_of(decision: dict) -> dict | None:
     return rule if isinstance(rule, dict) and rule.get("advisory_severity_at_least") in SEVERITY else None
 
 
-def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories) -> Subgraph:
-    pkg_nodes, dep_edges = external.parse_npm_lock(lock_text, repo)
+def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories, filename: str = "package-lock.json",
+            siblings: dict[str, str] | None = None) -> Subgraph:
+    pkg_nodes, dep_edges = inventory.read(lock_text, filename, repo, siblings)
     adv_nodes, adv_edges = advisories(pkg_nodes)
     links = governance_links(vinc.nodes, repo)
     lock_hash = next((n["props"].get("content_hash") for n in pkg_nodes if n["kind"] == "Repository"), "")
@@ -91,10 +92,17 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
     findings = verify(rows, graph, decisions)
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
     return {"meta": graph.meta, "loaded": counts, "governing": decisions, "summary": summary,
-            "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings}
+            "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings,
+            "unresolved_packages": unresolved_packages(graph)}
 
 
-def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories) -> dict:
-    graph = compose(vinc, lock_text, repo, advisories)
+def unresolved_packages(graph: Subgraph) -> list[dict]:
+    return [{"package": n["id"], "reason": n["props"]["unresolved"]} for n in sorted(graph.nodes, key=lambda n: n["id"])
+            if n["kind"] == "Package" and (n.get("props") or {}).get("unresolved")]
+
+
+def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories, filename: str = "package-lock.json",
+        siblings: dict[str, str] | None = None) -> dict:
+    graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
     with sandbox() as box:
         return analyze(box, graph, repo, depth)

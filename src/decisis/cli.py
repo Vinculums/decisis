@@ -10,6 +10,7 @@ from . import compare
 from . import demo
 from . import external
 from . import impact
+from . import inventory
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
@@ -49,9 +50,9 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
     im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     im.add_argument("--format", choices=["json", "text"], default="json")
-    au = sub.add_parser("audit", help="join a Vinc snapshot, an npm lockfile and OSV advisories in a throwaway Relate graph")
+    au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
-    au.add_argument("lockfile")
+    au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, or go.mod (read with the go.sum next to it)")
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=int, default=8)
     au.add_argument("--out")
@@ -124,8 +125,9 @@ def run(a: argparse.Namespace) -> int:
         advisories = external.fetch_advisories
         if a.osv_cache:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
-        report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth,
-                           advisories=advisories)
+        text, siblings = inventory.load(Path(a.lockfile))
+        report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
+                           advisories=advisories, filename=Path(a.lockfile).name, siblings=siblings)
         text = json.dumps(report, ensure_ascii=False, indent=1)
         if a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")

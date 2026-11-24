@@ -1,6 +1,6 @@
 ---
 name: decisis
-description: Reason over a task's slice of a Vinc knowledge graph joined with external data (an npm lockfile and OSV advisories) in a throwaway Relate graph, then propose findings that a person approves before anything is written back. Use for a dependency or advisory audit, or to find which decisions govern a code path.
+description: Reason over a task's slice of a Vinc knowledge graph joined with external data (a lockfile or SBOM and OSV advisories) in a throwaway Relate graph, then propose findings that a person approves before anything is written back. Use for a dependency or advisory audit, or to find which decisions govern a code path.
 ---
 
 # Reason in a sandbox with decisis
