@@ -1,0 +1,240 @@
+{
+ "meta": {
+  "source": "decisis init, then bench/holdout/build_inputs.py",
+  "repo": "cf-cli",
+  "repository": "cloudfoundry/cli",
+  "commit": "5b69b945ed793811a1d5896ebe0238fb48389259",
+  "nodes": 12,
+  "edges": 0,
+  "problems": [
+   {
+    "file": "doc/adr/0001-record-architecture-decisions.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0002-develop-v6-and-v7-on-master-simultaneously.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0003-resource-matching-implementation.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0004-v7-push-refactor.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0005-v7-push-transforms-manifest-before-applying.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0006-implement-v7-start-client-side-with-only-existing-v3-endpoints.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0007-integration-vs-command-test.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0008-swap-traffic-controller-for-log-cache.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0009-log-cache-clock-issues.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0010-v7-and-v8.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0011-command-actor-api-architecture.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0012-de-version-v8-code-base.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   }
+  ]
+ },
+ "nodes": [
+  {
+   "id": "decision:cf-cli-doc-adr-0001-record-architecture-decisions",
+   "kind": "decision",
+   "title": "1. Record architecture decisions",
+   "props": {
+    "source_file": "doc/adr/0001-record-architecture-decisions.md",
+    "status": "accepted",
+    "date": "2018-09-25",
+    "statement": "We will use Architecture Decision Records, as [described by Michael Nygard](http://thinkrelevance.com/blog/2011/11/15/documenting-architecture-decisions).",
+    "content_hash": "sha256:cd3dbeb474c9ec7314958458cd9c7ffb1ae435c597e56450c3e4a9b0317c5cf7"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0002-develop-v6-and-v7-on-master-simultaneously",
+   "kind": "decision",
+   "title": "2. Develop v6 and v7 on main simultaneously",
+   "props": {
+    "source_file": "doc/adr/0002-develop-v6-and-v7-on-master-simultaneously.md",
+    "status": "accepted",
+    "date": "2018-09-25",
+    "statement": "_The change that we're proposing or have agreed to implement._",
+    "content_hash": "sha256:a549f7978561dcbd96dad073d035a026bbc6baa9962054ba48d6cbd359a9001b"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0003-resource-matching-implementation",
+   "kind": "decision",
+   "title": "3. Resource Matching Implementation",
+   "props": {
+    "source_file": "doc/adr/0003-resource-matching-implementation.md",
+    "status": "accepted",
+    "date": "2019-03-22",
+    "statement": "_The change that we're proposing or have agreed to implement._",
+    "content_hash": "sha256:617fc14af195a70a0898f8f8d44011da38d2cc164a4f7f83f3404a600ee65ffe"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0004-v7-push-refactor",
+   "kind": "decision",
+   "title": "4. V7 `cf push` Refactor",
+   "props": {
+    "source_file": "doc/adr/0004-v7-push-refactor.md",
+    "status": "accepted",
+    "date": "2019-07-02",
+    "statement": "_The change that we're proposing or have agreed to implement._",
+    "content_hash": "sha256:9863ebd5db9eeff42a7a0c0e3b43140595b6195b000c3b8aaf5a1e94249ac24d"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0005-v7-push-transforms-manifest-before-applying",
+   "kind": "decision",
+   "title": "5. V7 `cf push` Transforms Manifest Before Applying",
+   "props": {
+    "source_file": "doc/adr/0005-v7-push-transforms-manifest-before-applying.md",
+    "status": "accepted",
+    "date": "2019-09-16",
+    "statement": "> _The change that we're proposing or have agreed to implement._",
+    "content_hash": "sha256:1aa0d8ae6f83f5533f405d7d6d8d36daf7f57120578f37f6341729e0e83ef25f"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0006-implement-v7-start-client-side-with-only-existing-v3-endpoints",
+   "kind": "decision",
+   "title": "ADR 6: Implementing start Command Client-side",
+   "props": {
+    "source_file": "doc/adr/0006-implement-v7-start-client-side-with-only-existing-v3-endpoints.md",
+    "status": "accepted",
+    "statement": "We will implement staging unstaged packages during a `cf start` command on the CLI side using the following steps.",
+    "content_hash": "sha256:90afb52024211ac1d676dc63dcfd86bb4d5f1b9173545c58a06e1ee667deaccc"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0007-integration-vs-command-test",
+   "kind": "decision",
+   "title": "ADR 7: Test Coverage: Integration vs. Command",
+   "props": {
+    "source_file": "doc/adr/0007-integration-vs-command-test.md",
+    "status": "proposed",
+    "statement": "We want to separate [black box](https://en.wikipedia.org/wiki/Black-box_testing) and [white box](https://en.wikipedia.org/wiki/White-box_testing) testing, where black box testing (functionality of an ...",
+    "code_ref": [
+     "cf-cli:command/v7/create_org_command_test.go",
+     "cf-cli:integration/v7/global/unbind_security_group_command_test.go",
+     "cf-cli:integration/v7/isolated/create_org_command_test.go"
+    ],
+    "content_hash": "sha256:a5ba8df39d81c445bfb038dfcca5af3ca496c6c1622f19b7deff0e8872101f2a"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0008-swap-traffic-controller-for-log-cache",
+   "kind": "decision",
+   "title": "8. Swap Traffic Controller for Log Cache",
+   "props": {
+    "source_file": "doc/adr/0008-swap-traffic-controller-for-log-cache.md",
+    "status": "accepted",
+    "date": "2020-04-09",
+    "statement": "_The change that we're proposing or have agreed to implement._",
+    "content_hash": "sha256:76c7f30f5d0fab4e145b1ab4f4ddf20cc0637444affd9d8022671a58a02ef3c1"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0009-log-cache-clock-issues",
+   "kind": "decision",
+   "title": "9. Log Cache and Clock Issues",
+   "props": {
+    "source_file": "doc/adr/0009-log-cache-clock-issues.md",
+    "status": "accepted",
+    "date": "2020-04-08",
+    "statement": "_The change that we're proposing or have agreed to implement._",
+    "content_hash": "sha256:73e940a88087923a43c7172e09b9e2da0f28fea76832b687b104f1fa9ec60cdc"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0010-v7-and-v8",
+   "kind": "decision",
+   "title": "10. Synchronizing V7 and V8 (Main) code",
+   "props": {
+    "source_file": "doc/adr/0010-v7-and-v8.md",
+    "status": "submitted",
+    "date": "2020-06-04",
+    "statement": "_The change that we're proposing or have agreed to implement._",
+    "code_ref": [
+     "cf-cli:bin/push.sh"
+    ],
+    "content_hash": "sha256:6c8ef64e66558ca429b2d92ad75fbec40c17cb93628cfdeab7f26eae96187576"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0011-command-actor-api-architecture",
+   "kind": "decision",
+   "title": "11. Rules for organizing `command`, `actor`, and `api` code",
+   "props": {
+    "source_file": "doc/adr/0011-command-actor-api-architecture.md",
+    "status": "submitted",
+    "date": "2020-07-28",
+    "statement": "We decided that we needed to come up with a **stricter set of rules** that we could overlay onto the current architecture to help us resolve these questions so we don't need to keep revisiting them.",
+    "code_ref": [
+     "cf-cli:action",
+     "cf-cli:action/v7action",
+     "cf-cli:api",
+     "cf-cli:api/cloudcontroller/ccv3",
+     "cf-cli:command",
+     "cf-cli:command/v7"
+    ],
+    "content_hash": "sha256:a220bf18f54087c150b04a6b3404510d29a9fd38803398f43255ccc8c3d34884"
+   }
+  },
+  {
+   "id": "decision:cf-cli-doc-adr-0012-de-version-v8-code-base",
+   "kind": "decision",
+   "title": "1. De-version the V8 Code Base",
+   "props": {
+    "source_file": "doc/adr/0012-de-version-v8-code-base.md",
+    "status": "accepted",
+    "statement": "PR Accepted, pending implementation",
+    "code_ref": [
+     "cf-cli:Makefile",
+     "cf-cli:actor/v7action",
+     "cf-cli:actor/v7pushaction",
+     "cf-cli:cf",
+     "cf-cli:command/v7",
+     "cf-cli:integration/v7"
+    ],
+    "content_hash": "sha256:2e6952767e64125c2518716d63b1f9ca239a2ceb7936c387c2790b5a340f8858"
+   }
+  }
+ ],
+ "edges": []
+}

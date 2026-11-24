@@ -1,0 +1,309 @@
+{
+ "meta": {
+  "source": "decisis init, then bench/holdout/build_inputs.py",
+  "repo": "weave-gitops",
+  "repository": "weaveworks/weave-gitops",
+  "commit": "936e848c4e001355fccdfee61c0d54e4a9917183",
+  "nodes": 16,
+  "edges": 1,
+  "problems": [
+   {
+    "file": "doc/adr/0001-record-architecture-decisions.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0002-api-definitions-grpc.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0003-cli-using-noun-verb-format.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0004-no-repo-creation.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0005-wego-core-auth-strategy.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0006-when-to-use-wego-weave-gitops-and-weave-gitops.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0007-embedding-weave-gitops-core.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0008-api-service.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0009-v1-architecture.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0010-leaf-cluster-auth-strategy.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0011-cli-verb-noun.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0012-acceptance-testing.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0013-acceptance-testing-strategy.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0014-k8s-client-api-fairness-and-rate-limits.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0015-current-api-authentication-strategy.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "doc/adr/0016-release-ordering.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   }
+  ]
+ },
+ "nodes": [
+  {
+   "id": "decision:weave-gitops-doc-adr-0001-record-architecture-decisions",
+   "kind": "decision",
+   "title": "1. Record architecture decisions",
+   "props": {
+    "source_file": "doc/adr/0001-record-architecture-decisions.md",
+    "status": "accepted",
+    "date": "2021-06-24",
+    "statement": "We will use Architecture Decision Records, as [described by Michael Nygard](http://thinkrelevance.com/blog/2011/11/15/documenting-architecture-decisions).",
+    "content_hash": "sha256:67c230f68ac994225be05638fd2bba868a269d9f7a6bbd31a2cdc5ddbdf09df0"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0002-api-definitions-grpc",
+   "kind": "decision",
+   "title": "2. api-definitions-grpc",
+   "props": {
+    "source_file": "doc/adr/0002-api-definitions-grpc.md",
+    "status": "proposed",
+    "date": "2021-06-24",
+    "statement": "TLDR; Use protobufs for everything!",
+    "code_ref": [
+     "weave-gitops:buf.gen.yaml",
+     "weave-gitops:buf.yaml",
+     "weave-gitops:pkg/protos"
+    ],
+    "content_hash": "sha256:2b4b3e8e662d6ebe9dd27f2a66020b44a88082353f8df352204c672bf7c69b96"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0003-cli-using-noun-verb-format",
+   "kind": "decision",
+   "title": "3. CLI using noun verb format",
+   "props": {
+    "source_file": "doc/adr/0003-cli-using-noun-verb-format.md",
+    "status": "superceded by",
+    "date": "2021-07-09",
+    "statement": "The CLI commands will be in the noun verb format.",
+    "content_hash": "sha256:82e9c5a5dcec8d8ab522d9614bf01c71f5fa80b7388b75332a461549683fc636"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0004-no-repo-creation",
+   "kind": "decision",
+   "title": "4. No repo creation",
+   "props": {
+    "source_file": "doc/adr/0004-no-repo-creation.md",
+    "status": "proposed",
+    "date": "2021-07-06",
+    "statement": "Weave gitops will require the user to have created the git repository on their Git server before running commands which need us to push changes to that repository.",
+    "content_hash": "sha256:ccb9438d502044b83cd624b7e9f0bae121c4dcc04f530851ddd9a128a28c22a3"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy",
+   "kind": "decision",
+   "title": "5. Weave GitOps Core Auth Strategy",
+   "props": {
+    "source_file": "doc/adr/0005-wego-core-auth-strategy.md",
+    "status": "~accepted~",
+    "date": "2021-07-22",
+    "statement": "Implement the flow(s) defined in the \"Design\" section",
+    "content_hash": "sha256:56a43bce66b0f4d3449c9eaae10fd61d154655d919c218a58de8f7ec1a21c655"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0006-when-to-use-wego-weave-gitops-and-weave-gitops",
+   "kind": "decision",
+   "title": "6. When to use wego, weave-gitops, and Weave GitOps",
+   "props": {
+    "source_file": "doc/adr/0006-when-to-use-wego-weave-gitops-and-weave-gitops.md",
+    "status": "accepted",
+    "date": "2021-07-26",
+    "statement": "### Weave GitOps Use in all user-facing documentation, except when presenting actual CLI commands the user can execute. It should be spelled out and follow this capitalization `Weave GitOps`.",
+    "content_hash": "sha256:b25e580e10837a93421d307904bc1ad5495a62c93da44c3d05c7ab65999e7b1c"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0007-embedding-weave-gitops-core",
+   "kind": "decision",
+   "title": "7. Embedding Weave GitOps Core",
+   "props": {
+    "source_file": "doc/adr/0007-embedding-weave-gitops-core.md",
+    "status": "accepted",
+    "date": "2021-08-12",
+    "statement": "Implement the functionality described in the Design section.",
+    "code_ref": [
+     "weave-gitops:index.js",
+     "weave-gitops:package.json"
+    ],
+    "content_hash": "sha256:c9a23beb5753cf268d81a2dc5ce58a2aaf4f54225aca362ea0623fdadc9d0227"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0008-api-service",
+   "kind": "decision",
+   "title": "7. API service",
+   "props": {
+    "source_file": "doc/adr/0008-api-service.md",
+    "status": "proposed",
+    "date": "2021-08-10",
+    "statement": "The proposal consists of extracting the API related to applications, which we will call `wego-api`, execute it within the cluster through using deployment and expose it through a service. The ...",
+    "content_hash": "sha256:3c1af680358aa0298320c75a5c0b8df02032217f49cef6ea7023bbc6093fea83"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0009-v1-architecture",
+   "kind": "decision",
+   "title": "9. v1 Architecture",
+   "props": {
+    "source_file": "doc/adr/0009-v1-architecture.md",
+    "status": "accepted",
+    "date": "2021-10-07",
+    "statement": "We have decided to go with an approach that we are calling \"Hexagonal Lite\". Much of the proposal consists of using the underlaying pricipals of Hexagonal Architecture without trying to exactly match ...",
+    "content_hash": "sha256:2033adfa8421e4ce6a0b0edf326eeaccf31317f9c7236826e0d4db2c441bbb63"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0010-leaf-cluster-auth-strategy",
+   "kind": "decision",
+   "title": "10. Leaf Cluster Auth Strategy",
+   "props": {
+    "source_file": "doc/adr/0010-leaf-cluster-auth-strategy.md",
+    "status": "accepted",
+    "date": "2021-11-10",
+    "statement": "The change that we're proposing or have agreed to implement.",
+    "content_hash": "sha256:298259a8a0b7dafe3fd213a5bbaf492413a3150a1c65ca96e59dc285c992522b"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0011-cli-verb-noun",
+   "kind": "decision",
+   "title": "11. CLI verb noun",
+   "props": {
+    "source_file": "doc/adr/0011-cli-verb-noun.md",
+    "status": "accepted",
+    "date": "2021-12-03",
+    "statement": "Update the Weave GitOps CLI to have a verb-noun syntax. E.g., `gitops add app`.",
+    "content_hash": "sha256:fae697ddd1e5e8cc005e42f1a3cd80ebf88a1a3908867d0bc82bd0f31a1d92dc"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0012-acceptance-testing",
+   "kind": "decision",
+   "title": "0012. Acceptance Testing in Weave GitOps Core - Immediate Action",
+   "props": {
+    "source_file": "doc/adr/0012-acceptance-testing.md",
+    "status": "proposed",
+    "statement": "As part of the Clear the Way initiative we will not be rewriting or reimplementing any acceptance or end-to-end test. Rather, additional time was invested in integration and unit tests. As the ...",
+    "content_hash": "sha256:5eaf91357e1e8627ff2901da174fde322a815abc5193a9ee769550448fbfb209"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0013-acceptance-testing-strategy",
+   "kind": "decision",
+   "title": "0013. Acceptance Testing Strategy / Philosophy",
+   "props": {
+    "source_file": "doc/adr/0013-acceptance-testing-strategy.md",
+    "status": "proposed",
+    "statement": "The purpose of this decision is **not** to set a series of rules that must be followed in future testing development. Rather it attempts to capture a set of preferences with how the team will ...",
+    "content_hash": "sha256:d3cd52b5e03aa9c56c90203882cf757962efa9ed7875e42800a248d833cd4146"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0014-k8s-client-api-fairness-and-rate-limits",
+   "kind": "decision",
+   "title": "0014. Kubernetes Client API Fairness and Rate Limits",
+   "props": {
+    "source_file": "doc/adr/0014-k8s-client-api-fairness-and-rate-limits.md",
+    "status": "proposed",
+    "statement": "The purpose of this decision is to 1. Set a proper value of QPS for Weave GitOps Core to work with Kubernetes 1.23. (QPS=50) 2. Set a proper value of Burst for Weave GitOps Core to work with ...",
+    "content_hash": "sha256:a5f7cd8c6303b7800215a1f0f77e78232911f2071abf0a5a390d361573c24676"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy",
+   "kind": "decision",
+   "title": "0015. A description of the current API authentication strategy",
+   "props": {
+    "source_file": "doc/adr/0015-current-api-authentication-strategy.md",
+    "status": "accepted",
+    "code_ref": [
+     "weave-gitops:cmd/gitops-server/cmd/cmd.go",
+     "weave-gitops:core/clustermngr/clustermngr.go",
+     "weave-gitops:core/clustersmngr",
+     "weave-gitops:pkg/server/auth",
+     "weave-gitops:pkg/server/auth/auth.go",
+     "weave-gitops:pkg/server/auth/server.go"
+    ],
+    "content_hash": "sha256:7c5b414eaea740e34c118182330b3c9755025c17154c4bafb622b45492890eeb"
+   }
+  },
+  {
+   "id": "decision:weave-gitops-doc-adr-0016-release-ordering",
+   "kind": "decision",
+   "title": "0016. Change release ordering to only publish GitHub release when container image is available",
+   "props": {
+    "source_file": "doc/adr/0016-release-ordering.md",
+    "status": "proposed",
+    "statement": "Change release ordering to ensure that we only publish the GitHub release after the container image is published.",
+    "code_ref": [
+     "weave-gitops:.github/workflows/helm.yaml",
+     "weave-gitops:.github/workflows/release.yaml"
+    ],
+    "content_hash": "sha256:06d0fbaa239ac163df1023a30760bd47f844635688d02b0c2429c68b38689f97"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "source": "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy",
+   "target": "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy",
+   "type": "SUPERSEDES",
+   "evidence": "doc/adr/0005-wego-core-auth-strategy.md says it is superseded by ./0015-current-api-authentication-strategy.md"
+  }
+ ]
+}

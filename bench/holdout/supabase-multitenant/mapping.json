@@ -1,0 +1,30 @@
+{
+ "repo": "supabase-multitenant",
+ "repository": "supabase-multitenant/supabase-multitenant",
+ "commit": "96d6f94063eb1356649d710b21eb513e3e1fa415",
+ "license": "MIT",
+ "note": "Hand-made: each path below is copied from the quoted sentence of the ADR it is listed under; no path was added that the ADR does not name. Written before compare was run on the held-out tasks.",
+ "lockfile": "package-lock.json",
+ "decisions": {
+  "docs/adr/0001-authjs.md": [
+   {
+    "path": "src/lib/auth.ts",
+    "sentence": "**Supersedes:** the bespoke session system in `src/lib/auth.ts` + `users`/`sessions` tables"
+   },
+   {
+    "path": "src/app/api/auth",
+    "sentence": "`src/app/api/auth/{login,logout,register,registration-status}` — bcryptjs"
+   },
+   {
+    "path": "prisma/schema.prisma",
+    "sentence": "`prisma/schema.prisma` — `User`, `Session`, `PasswordResetToken`"
+   }
+  ],
+  "docs/adr/0003-shared-infrastructure-plane.md": [
+   {
+    "path": "deploy/coolify/",
+    "sentence": "**Related:** #103 (host-a-new-app flow), #115 (Coolify template), `deploy/coolify/`"
+   }
+  ]
+ }
+}
