@@ -1,0 +1,16 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - &checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - run: make dist
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - *checkout
+      - uses: tj-actions/changed-files@0e58ed8671d6b60d0890c21b07f8835ace038e67

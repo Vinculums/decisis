@@ -303,7 +303,7 @@ def test_the_mcp_audit_reads_the_same_package_json_files_as_the_cli(fmt):
     pytest.importorskip("jsonschema")
     from decisis import serve
     tools = serve.load_tools(VINC, FILES[fmt].parent, CACHE)
-    rep = tools.call("audit", {"lockfile": "yarn.lock", "repo": "Demo"})
+    rep = tools.call("audit", {"lockfile": "yarn.lock", "repo": "Demo", "detail": "full"})
     hit = next(f for f in rep["findings"] if f["package"] == "pkg:npm/minimist@1.2.5")
     assert hit["path"] == MINIMIST
     assert all(f["dev_only"] for f in rep["findings"] if f["package"] == "pkg:npm/semver@7.5.1")

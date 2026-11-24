@@ -75,6 +75,8 @@ kinds and may add the modifier `dependencies`:
 | `license_denied` | a list of SPDX license ids | each package | the package's license expression cannot be met without a listed license |
 | `license_allowed` | a list of SPDX license ids | each package | the package's license expression cannot be met with listed licenses only |
 | `package_denied` | a list of `{"ecosystem", "name", "versions"}` (`versions` optional) | each package | the package has that ecosystem and name, and, when `versions` is given, one of those versions |
+| `package_allowed` | a list of `{"ecosystem", "name"}` | each package of an ecosystem the list names | the package's name is not in the list for its ecosystem |
+| `pinned_to_commit` | `true` | each `GitHub Actions` package | the ref is not a full 40-character lowercase commit SHA (a tag or a branch) |
 | `review_required` | `{"paths": [globs], "reviewers": [handles]}` | each changed file (`check`) | a `paths` glob covers the file and none of `reviewers` is among the reviewers given |
 | `imports_forbidden` | `{"from": [globs], "to": [globs]}` | each import of a changed file (`check`) | a `from` glob covers the file and the import resolves to a file a `to` glob covers |
 
@@ -86,6 +88,9 @@ development dependencies is `not_violated` for that rule. Examples:
 [{"license_denied": ["GPL-3.0-only", "AGPL-3.0-only"], "dependencies": "shipped"},
  {"package_denied": [{"ecosystem": "npm", "name": "event-stream", "versions": ["3.3.6"]},
                      {"ecosystem": "PyPI", "name": "pycrypto"}]}]
+[{"pinned_to_commit": true},
+ {"package_allowed": [{"ecosystem": "GitHub Actions", "name": "actions/checkout"},
+                      {"ecosystem": "Terraform", "name": "hashicorp/aws"}]}]
 ```
 
 License expressions are read as SPDX expressions with `AND`, `OR`, `WITH` and parentheses; operators are
@@ -146,12 +151,28 @@ normalized). `versions` is a list of exact versions, as in an OSV record's `vers
 version matches when it is the same string, or when it orders equal under the package's ecosystem (`v1.0.0`
 and `1.0.0` for npm, `6.0` and `6.0.0` for PyPI). Without `versions` every version is denied.
 
+`package_allowed` is an allowlist per ecosystem: a package of an ecosystem the list does not name is
+`not_violated`, so one rule can allow a set of GitHub actions without judging npm packages. Names are
+compared as for `package_denied`; GitHub Actions names are compared without regard to case, and a Terraform
+provider name without a host (`hashicorp/aws`) means `registry.terraform.io/hashicorp/aws`.
+`pinned_to_commit` judges only `GitHub Actions` packages. A workflow `uses:` that names no action keeps the
+`GitHub Actions` ecosystem with an empty version, and the two kinds judge it by what it is: a local `./`
+action is `not_violated` by both (it is in the repository and read at the workflow's commit); a
+`docker://` image is `unresolved` under both (a digest pin is not checked, and an allowlist names actions);
+a `uses:` built from an expression, or one that is not a name, is `unresolved` under both, never
+`not_violated`.
+
 A rule that cannot be read is never dropped: an unknown kind, a value of the wrong shape, a `dependencies`
 other than `shipped` or `all`, an empty list, or a string that is not JSON gives a policy with verdict
 `relevant` and the reason in `why`, on every finding the decision governs, and an entry in the report's
 `rule_problems`. Other entries of the same rule are still judged. Kinds are entries of the table `KINDS` in
-`src/decisis/rules.py`: each names what it judges (`advisory`, `license`, `package`, `review` or `import`),
-how its value is read, and how one package, file or import is judged.
+`src/decisis/rules.py`: each names the findings it judges (`advisory`, `license`, `package` for
+`package_denied`, `allowlist` for `package_allowed`, `pin` for `pinned_to_commit`, and `review` or `import` for the
+`check` kinds), how its value is read,
+and how one package, file or import is judged. A finding's `kind` is that subject, and `propose` turns an `affected`
+`package`, `allowlist` or `pin` finding into a record with the predicate `uses_denied_package`,
+`uses_unlisted_package` or `not_pinned_to_commit` and the value `<ecosystem>:<name>`, which the checker
+judges again against the decision's rules.
 
 Edge types `checkout` keeps from Vinc: `ABOUT`, `RELATED_TO`, `PREREQUISITE_OF`, `DERIVES_FROM`,
 `INHERITS_FROM`, `SUPERSEDES`, `CONNECTS_VIA`, `RETURNS_TO`. A record's edge that Vinc returns as
@@ -354,15 +375,20 @@ returns the same nodes and edges.
 | `yarn.lock` v1 | `yarn-lockfile` | the root `package.json`; each workspace `package.json` is a `Workspace` | the `package.json` fields, then each entry's `dependencies` and `optionalDependencies` by `name@range`; v1 does not record peers | reached only through `devDependencies` |
 | `yarn.lock` Berry | `yarn-berry-lockfile` | the `workspace:.` entry; every other `workspace:` entry is a `Workspace` | each entry's `dependencies` by descriptor, `dependenciesMeta` optional, `peerDependencies` to the locked package of that name | a workspace dependency listed only under `devDependencies` of its `package.json` |
 | `bun.lock` | `bun-lockfile` | workspace `""`; every other workspace is a `Workspace` | workspaces' four dependency fields, and each package's `dependencies`, `optionalDependencies` and `peerDependencies`, resolved through nested keys such as `debug/ms` | reached only through `devDependencies` |
+| GitHub Actions workflows (`*.yml`, `*.yaml` with top-level `on` and `jobs`) and `action.yml` | `github-actions-workflow` | the repository | the repository to each `uses:` of `jobs.<id>.steps[]`, of `jobs.<id>` (a reusable workflow) and of an `action.yml`'s `runs.steps[]`, with the file, job and step in the evidence | always false |
+| `.terraform.lock.hcl` | `terraform-lockfile` | the repository | the repository to each `provider` block, with its `constraints` in the evidence | always false |
 
 Package props:
 
-- `ecosystem` is the OSV ecosystem (`npm`, `PyPI`, `crates.io`, `Go`, `Maven`; from an SBOM purl also
+- `ecosystem` is the OSV ecosystem (`npm`, `PyPI`, `crates.io`, `Go`, `Maven`, `GitHub Actions`, and
+  `Terraform`, which OSV does not have; from an SBOM purl also
   `NuGet`, `RubyGems`, `Packagist`, `GitHub Actions`, `Debian:<n>` from `distro=debian-<n>`, `Alpine:v<x.y>`
   from `distro=alpine-<x.y...>`). A purl type with no such mapping gives `""`.
 - `name` is the name OSV uses: `@scope/name` for npm, the normalized name for PyPI, `group:artifact` for
-  Maven, the module path for Go.
-- `version` is the resolved version; Go versions drop the leading `v` (the `purl` keeps it).
+  Maven, the module path for Go, `owner/repo` for a GitHub action (also for `owner/repo/path@ref`), and
+  the full provider address for Terraform (`registry.terraform.io/hashicorp/aws`).
+- `version` is the resolved version; Go versions drop the leading `v` (the `purl` keeps it). A GitHub
+  action keeps its ref as written (`v4`, `v4.1.0`, `main` or a commit SHA).
 - `licenses` is the list of SPDX ids in the license expression, empty when the inventory gives none
   (`uv.lock`, `Cargo.lock` and `go.mod` do not). `license_expression` keeps the expression as written.
 - `purl` is the package URL without qualifiers.
@@ -383,7 +409,20 @@ An SBOM component without a purl gets the id `pkg:unknown/<name>@<version>`, eco
 `unresolved` `the inventory gives no purl`, with its CPE when it has one. An SBOM package that nothing
 depends on is linked from the repository with the evidence `listed in the SBOM with no dependency on it`.
 `audit` refuses an inventory that lists no packages, or none that can be queried at OSV, instead of
-reporting it clean.
+reporting it clean. A Terraform lock file is the exception: its reader sets `ADVISORIES = False`, since
+OSV has no Terraform ecosystem, and its providers are judged against rules only.
+
+A workflow `uses:` that is a local `./` path, a `docker://` image, built from an expression (`${{ ... }}`)
+or not an `owner/repo[/path]@ref` name (such as `../x@v1`) gets the id `pkg:unknown/<uses>@`, ecosystem
+`GitHub Actions`, an empty version and an `unresolved` reason. An action's `name` is `owner/repo` in lower
+case, as GitHub matches it, and its id and purl use that name; the evidence keeps the `uses:` as written.
+OSV tells case apart and stores some names in mixed case, so OSV is asked under the spelling it stores
+(see the OSV cache below), and the package gets `osv_index`, which says which spellings were asked, or
+that the name is not in OSV's list and so has no advisory. A workflow file
+that is not valid YAML, or has neither `jobs` nor `runs.steps`, gets the id `pkg:unknown/<file>@` with the
+parser's message as the reason, and the other workflows are still read. So does a workflow beside it that
+cannot be read: not UTF-8, or a symbolic link that leads outside the root. Every Terraform provider has the
+`unresolved` reason that OSV has no Terraform ecosystem.
 
 The `Repository` node has `inventory_notes`, a list of strings, when the reader saw a gap in what the
 inventory covers: a requirements file lists direct dependencies only, an include was not followed, a
@@ -427,9 +466,16 @@ transitive dependencies are not resolved and pointing to `cyclonedx-gradle-plugi
 Readers live in `src/decisis/inventory/`. Each one has `FORMAT`, `SIBLINGS` (files read from the same
 directory), `detect(text, filename)` and `read(text, filename, repo, siblings=None)` returning
 `(nodes, edges)`; `inventory.read` picks the first reader whose `detect` matches. A reader may also have
-`sibling_names(read, resolve)`, which names the files to read in place of `SIBLINGS`: the Yarn reader
-returns the root `package.json` and the `package.json` of each directory its `workspaces` globs match
-(outside `node_modules`). `inventory.gather` reads them with the same bounded reader as every other
+`sibling_names(read, resolve, listing, filename)`, which names the files to read in place of `SIBLINGS`:
+the Yarn reader returns the root `package.json` and the `package.json` of each directory its `workspaces`
+globs match (outside `node_modules`), and the GitHub Actions reader returns every other `*.yml` and
+`*.yaml` file in the workflow's directory (at most 256; none for an `action.yml`). `listing` lists a
+directory relative to the inventory under the same root as the reader; `inventory.load` passes one, and
+a caller that does not (such as `serve --mcp`) gets only the file it names. Of those files, the ones with
+top-level `on` and `jobs` are read as workflows. A file a reader names but that cannot be read (not
+UTF-8, or outside the root) is kept in `Siblings.unread` with the reason; the GitHub Actions reader lists
+such a workflow under `unresolved_packages`, and for every other format `inventory.read` adds an
+`inventory_notes` entry, so no named file is dropped without a word. `inventory.gather` reads them with the same bounded reader as every other
 sibling, so the CLI reads them only under the repository root and `serve --mcp` only under its `--root`;
 a match that leads outside is skipped. Every inventory is read as strict UTF-8 with a leading BOM
 removed; a file that is not UTF-8 is refused. A binary `bun.lockb`, told by its name or its
@@ -458,7 +504,11 @@ digit-letter changes, trailing zeros and empty qualifiers are dropped, and quali
 `alpha` (`a1`) < `beta` (`b1`) < `milestone` (`m1`) < `rc` = `cr` < `snapshot` < release (`""`, `ga`,
 `final`, `release`) < `sp` < any other word, alphabetically. A qualifier sorts below a number and `-1`
 below `.1`, so `2.0.a` < `2-1` < `2.0.1` < `2.1`; a missing position counts as `0` or as the release
-qualifier. A version at or above a range's `limit` is
+qualifier. `GitHub Actions` `ECOSYSTEM` ranges are ordered as semantic versions, with the ref read as a
+version (`v4.1.0` is `4.1.0`). A major or minor tag (`v4`, `v4.1`) moves to each new release under it,
+so it is read as the span from `4.0.0` up to the next major (or minor): it is `affected` or not when no range
+event falls inside the span, and `unresolved` otherwise. A branch or commit SHA cannot be ordered and is
+`affected` only when the record's `versions` lists it. A version at or above a range's `limit` is
 not affected. A version that cannot be ordered, or an `ECOSYSTEM` range of another ecosystem, gives
 `unresolved`, never `affected`.
 
@@ -485,8 +535,19 @@ When the severity does not come from the record itself, the advisory node and ea
 package id such as `pkg:npm/lodash@4.17.15` to the list of advisory ids OSV returned for it) and `vulns`
 (an advisory id to the OSV record as `api.osv.dev/v1/vulns/<id>` returns it). A package or advisory the
 file does not hold stops the run. The keys follow the package ids, so a cache works for every ecosystem.
+OSV returns nothing for a GitHub Actions query with a version, so `audit` asks for those by name only.
+OSV also matches names with case, so `audit` first reads which names OSV stores from OSV's export
+`https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip`: once per run, only when
+the inventory has GitHub Actions packages, read up to 64 MiB, at most 100,000 records of at most 4 MiB
+each, every record parsed as JSON. Each action is asked under every spelling OSV stores for its
+lower-case name; a name OSV does not store is not queried. The cache keys are the id without the
+version, in OSV's spelling (`pkg:githubactions/Azure/setup-kubectl`), and the `AFFECTED_BY` evidence
+says the version is compared by decisis. A cache holds that list as `names`: an ecosystem to
+`{"fetched_at", "names"}`. A cached run with GitHub Actions packages and no `names` entry for them stops
+with the same refusal as a missing query.
 `fixtures/audit/osv-cache.json` covers the demo lockfile, `fixtures/inventory/osv-cache.json` covers
-the examples in `fixtures/inventory/`, and `fixtures/inventory/jvm/osv-cache.json` the Gradle and Maven
+the examples in `fixtures/inventory/`, `fixtures/inventory/ci/osv-cache.json` the workflows and
+Terraform lock file in `fixtures/inventory/ci/` (real records of `tj-actions/changed-files`), and `fixtures/inventory/jvm/osv-cache.json` the Gradle and Maven
 examples next to it.
 
 ## The report and the plan
