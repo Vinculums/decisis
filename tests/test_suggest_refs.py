@@ -202,4 +202,33 @@ def test_a_file_name_that_is_not_utf8_is_left_out_and_the_snapshot_is_still_writ
     assert cli.main(["init", "--repo-dir", str(repo), "--suggest-refs", "--out", str(out)]) == 0
     snap = json.loads(out.read_text(encoding="utf-8"))
     assert decision(snap, "0001-x.md")["code_ref"] == ["src/y.go"]
-    assert {"file": ".", "reason": "1 file name is not UTF-8; --suggest-refs does not search them", "action": init.NOT_READ} in snap["meta"]["problems"]
+    assert {"file": ".", "reason": "1 file name is not UTF-8; --suggest-refs never suggests them", "action": init.NOT_READ} in snap["meta"]["problems"]
+
+
+def odd_dir(repo: Path, name: str) -> Path:
+    odd = repo / name
+    try:
+        odd.mkdir(parents=True)
+    except (OSError, UnicodeEncodeError):
+        pytest.skip("the file system refuses a name that is not UTF-8")
+    return odd
+
+
+def test_a_name_that_is_not_utf8_still_counts_toward_the_match_limit(tmp_path):
+    repo = write(tmp_path / "repo", {"docs/adr/0001-x.md": "# Use x\n\nWe keep `x.go`.\n",
+                                     **{f"{d}/x.go": "" for d in "abcde"}})
+    (odd_dir(repo, "f\udcff") / "x.go").write_text("", encoding="utf-8")
+    snap = init.build(repo, suggest_refs=True)
+    assert "code_ref" not in decision(snap, "0001-x.md")
+    assert any("`x.go` matches 6 paths, more than 5" in p["reason"] for p in snap["meta"]["problems"])
+
+
+def test_a_directory_whose_only_file_is_not_utf8_is_still_suggested(tmp_path):
+    repo = write(tmp_path / "repo", {"docs/adr/0001-x.md": "# Use pkg\n\nThe code is in `pkg/`.\n"})
+    (repo / "pkg").mkdir()
+    try:
+        (repo / "pkg" / "\udcff.go").write_text("", encoding="utf-8")
+    except (OSError, UnicodeEncodeError):
+        pytest.skip("the file system refuses a name that is not UTF-8")
+    snap = init.build(repo, suggest_refs=True)
+    assert decision(snap, "0001-x.md")["code_ref"] == ["pkg/"]

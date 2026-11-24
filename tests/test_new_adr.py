@@ -121,3 +121,31 @@ def test_an_adr_dir_through_a_symlink_loop_is_refused_with_a_clear_error(tmp_pat
     (root / "l1").symlink_to("l2")
     (root / "l2").symlink_to("l1")
     assert "--adr-dir l1/sub cannot be resolved" in refused(capsys, "Loop", "--repo-dir", str(root), "--adr-dir", "l1/sub")
+
+
+def test_an_adr_dir_that_is_a_dangling_link_is_refused_with_a_clear_error(tmp_path, capsys):
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "adr").symlink_to("missing")
+    assert "cannot use adr as the ADR directory" in refused(capsys, "Dangling", "--repo-dir", str(root), "--adr-dir", "adr")
+    assert not (root / "missing").exists()
+
+
+def test_a_write_that_fails_after_the_file_is_created_leaves_no_file(tmp_path, capsys, monkeypatch):
+    root = tmp_path / "repo"
+    adr = root / "docs" / "adr"
+    adr.mkdir(parents=True)
+    real = Path.open
+
+    def failing(self, *args, **kwargs):
+        f = real(self, *args, **kwargs)
+        if self.parent == adr:
+            def write(_):
+                raise OSError(27, "File too large")
+            f.write = write
+        return f
+
+    monkeypatch.setattr(Path, "open", failing)
+    err = refused(capsys, "Partial", "--repo-dir", str(root))
+    assert "File too large; nothing was kept" in err
+    assert list(adr.iterdir()) == []

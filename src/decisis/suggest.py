@@ -86,10 +86,9 @@ def repository_files(root: Path) -> tuple[list[str], list[tuple[str, str]]]:
     if files is None:
         files = walk(root, ignored(root, notes))
     files = [f for f in files if not SKIP_DIRS.intersection(f.split("/")[:-1])]
-    named = [f for f in files if utf8(f)]
-    if len(named) < len(files):
-        notes.append((".", f"{count(len(files) - len(named), 'file name')} {'is' if len(files) - len(named) == 1 else 'are'} not UTF-8; --suggest-refs does not search them"))
-        files = named
+    odd = sum(not utf8(f) for f in files)
+    if odd:
+        notes.append((".", f"{count(odd, 'file name')} {'is' if odd == 1 else 'are'} not UTF-8; --suggest-refs never suggests them"))
     if len(files) > owners.MAX_FILES:
         raise TooLarge(f"the repository has {len(files)} files, more than the {owners.MAX_FILES} --suggest-refs searches")
     return files, notes
@@ -234,7 +233,8 @@ def suggest(index: Index, body: str, base: str = "") -> Suggested:
                 found.skipped.setdefault(token, f"`{token}` matches {count(paths)}, more than {MAX_MATCHES}")
                 continue
             for p in paths:
-                found.refs.setdefault(index.ref(p), sentence)
+                if utf8(p):
+                    found.refs.setdefault(index.ref(p), sentence)
     return found
 
 

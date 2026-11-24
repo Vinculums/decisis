@@ -119,13 +119,22 @@ def write(repo_dir: str | Path, title: str, adr_dir: str | None = None, code_ref
     if fm.get("code_ref", []) != refs or fm.get("rule") != stated:
         raise ValueError("the new ADR would not read back with the same code refs and rule")
     folder = directory(root, adr_dir)
+    shown = folder.relative_to(root).as_posix()
     try:
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / next_name(folder, title)
-        with path.open("x", encoding="utf-8", newline="\n") as f:
-            f.write(text)
+    except OSError as e:
+        raise ValueError(f"cannot use {shown} as the ADR directory: {e.strerror or e}") from None
+    try:
+        f = path.open("x", encoding="utf-8", newline="\n")
     except FileExistsError:
         raise ValueError(f"{path.relative_to(root).as_posix()} already exists; nothing was written") from None
     except OSError as e:
-        raise ValueError(f"cannot write the new ADR in {folder.relative_to(root).as_posix()}: {e.strerror or e}") from None
+        raise ValueError(f"cannot write the new ADR in {shown}: {e.strerror or e}") from None
+    try:
+        with f:
+            f.write(text)
+    except OSError as e:
+        path.unlink(missing_ok=True)
+        raise ValueError(f"cannot write the new ADR in {shown}: {e.strerror or e}; nothing was kept") from None
     return path
