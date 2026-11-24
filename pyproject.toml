@@ -54,6 +54,7 @@ packages = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: runs for minutes; skipped unless DECISIS_SLOW=1 or -m slow selects it"]
 
 [tool.setuptools.package-data]
 decisis = ["queries/*.cypher"]

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from decisis import compare
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +73,7 @@ def test_each_repository_loads_on_its_own_and_one_without_a_lockfile_has_no_audi
     assert all(inp["repo"] == name for name, inp in sets.items())
 
 
+@pytest.mark.slow
 def test_the_committed_held_out_results_are_what_the_command_gives():
     result = compare.run(ROOT, TASKS)
     committed = json.loads((HOLDOUT / "results.json").read_text(encoding="utf-8"))
