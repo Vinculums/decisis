@@ -303,6 +303,20 @@ def test_audit_follows_requirements_includes_through_the_server_root_check(tmp_p
     assert report["inventory_notes"][0].startswith("requirements.txt line 13 includes ../outside.txt, which was not followed")
 
 
+def test_audit_follows_an_include_above_the_inventory_while_it_stays_under_the_root(tmp_path, no_network):
+    root = tmp_path / "root"
+    (root / "sub").mkdir(parents=True)
+    (root / "sub" / "requirements.txt").write_text("\ufeff-r ../base.txt\n-r d/requirements.txt\n-r ../../secret.txt\n"
+                                                   "certifi==2023.7.22\n", encoding="utf-8")
+    (root / "base.txt").write_text("\ufeffidna==3.6\n", encoding="utf-8")
+    (root / "sub" / "d").symlink_to(".")
+    (tmp_path / "secret.txt").write_text("click==8.1.7\n", encoding="utf-8")
+    t = tools(AUDIT_SNAPSHOT, root, FIX / "inventory" / "osv-cache.json")
+    report = t.call("audit", {"lockfile": "sub/requirements.txt", "repo": "Demo"})
+    assert report["meta"]["packages"] == 2
+    assert report["inventory_notes"][0].startswith("requirements.txt line 3 includes ../../secret.txt, which was not followed")
+
+
 def test_audit_does_not_read_a_go_sum_outside_the_root(tmp_path, no_network):
     (tmp_path / "go.mod").write_text((FIX / "inventory" / "go" / "go.mod").read_text(encoding="utf-8"), encoding="utf-8")
     outside = tmp_path.parent / f"{tmp_path.name}-outside.sum"

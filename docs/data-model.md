@@ -284,12 +284,16 @@ inventory covers: a requirements file lists direct dependencies only, an include
 local project or constraints file was not read, or a `poetry.lock` does not say which packages are
 development ones.
 
-A reader gets the files it needs next to the inventory as `siblings`. `inventory.load(path)` reads the
-fixed names a reader lists (`go.sum`, `pyproject.toml`) and keeps a reader function for other files,
-such as `-r` includes. The function takes a path relative to the inventory's directory and returns the
-text, or nothing when the file does not exist; it refuses absolute paths, `..`, and symbolic links that
-lead outside the directory. A caller can pass its own function, as the MCP server does with its root
-check: `inventory.load(path, reader)` or `inventory.gather(text, filename, reader)`.
+A reader gets the files it needs next to the inventory as `siblings`. `inventory.load(path, root=None)`
+reads the fixed names a reader lists (`go.sum`, `pyproject.toml`) and keeps a reader function for other
+files, such as `-r` includes, and a resolve function that names the real file. Both take a path relative
+to the inventory's directory. They refuse absolute paths and any path, symbolic links included, that
+resolves outside the root: `root`, or else the nearest directory above the inventory that holds a `.git`
+entry (found without running git), or else the inventory's directory. The CLI sets it with `--root`. The
+reader returns nothing when the file does not exist. Includes are keyed by the resolved file, so a loop
+through a symbolic link ends, and they are followed 64 levels deep. A leading UTF-8 byte order mark is
+dropped from the inventory and every file read beside it. A caller can pass its own functions, as the
+MCP server does with its `--root` check: `inventory.gather(text, filename, reader, resolve)`.
 
 For Go, `audit` is given `go.mod` and reads `go.sum` from the same directory. It stops when there is no
 `go.sum`, or when a required module version has no line in it. A `replace` to a local path drops the

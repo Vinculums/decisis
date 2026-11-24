@@ -25,6 +25,8 @@ from .sandbox import sandbox
 
 MAX_LIMIT = 100
 VIEWS = {"mermaid": render.mermaid, "html": render.html}
+ROOT_HELP = ("files next to the inventory (go.sum, pyproject.toml, -r includes) are read only under this directory "
+             "(default: the nearest directory above the inventory that holds .git, else the inventory's directory)")
 
 
 def bounded(lo: int, hi: int):
@@ -91,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--out", help="write the JSON report here; with --format mermaid or html the view still goes to stdout")
     au.add_argument("--format", choices=["json", *VIEWS], default="json")
     au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
+    au.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
     pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
     pr.add_argument("snapshot", help="the snapshot the audit read")
@@ -102,6 +105,7 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("--ref", help="the commit the lockfile was read at, for measured_ref")
     pr.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"the audit's --depth, for the dependency paths (1 to {audit.MAX_DEPTH})")
     pr.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
+    pr.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
     cm = sub.add_parser("commit", help="write an approved write set to Vinc and read it back (needs a full key)")
     cm.add_argument("plan")
     cm.add_argument("--approve", required=True, help="the approval digest printed by propose")
@@ -168,7 +172,7 @@ def run(a: argparse.Namespace) -> int:
     if a.cmd == "demo":
         return demo.run(Path(a.out), a.fixtures, approve=a.approve, yes=a.yes)[0]
     if a.cmd == "propose":
-        lock_text, siblings = inventory.load(Path(a.lockfile))
+        lock_text, siblings = inventory.load(Path(a.lockfile), root=a.root)
         plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
                           lockfile_path=a.lockfile_path or subject_file(lock_text, Path(a.lockfile)), ref=a.ref)
         advisories = external.fetch_advisories
@@ -203,7 +207,7 @@ def run(a: argparse.Namespace) -> int:
         advisories = external.fetch_advisories
         if a.osv_cache:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
-        text, siblings = inventory.load(Path(a.lockfile))
+        text, siblings = inventory.load(Path(a.lockfile), root=a.root)
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
                            advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings)
         text = json.dumps(report, ensure_ascii=False, indent=1)

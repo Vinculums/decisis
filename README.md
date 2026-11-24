@@ -155,10 +155,16 @@ For Poetry, a `poetry.lock` that marks no package as development and has no `pyp
 is read with every package shipped, and the report says the dev split is unknown. A requirements file
 gives packages only for `name==version` pins; every other line (a range, no version, a URL) is listed
 under `unresolved_packages` with the line and the reason, and no version is guessed. `-r` includes are
-followed only under the requirements file's directory, and each file is read once. A requirements file
+followed only inside the repository, and each file is read once. A requirements file
 lists direct dependencies only, so the report says the packages they depend on were not seen and
 recommends a lockfile or an SBOM. Such notes are in the report's `inventory_notes`. Python names are
 normalized as in PEP 503 and queried under the PyPI ecosystem.
+
+Files next to the inventory (`go.sum`, `pyproject.toml`, `-r` includes) are read only inside the
+repository: the nearest directory above the inventory that holds a `.git` entry, found without running
+git, or the inventory's own directory when there is none. `--root DIR` sets it. Paths that lead outside,
+symbolic links included, are not read. Includes are followed 64 levels deep, and a leading UTF-8 byte order
+mark is dropped from every file.
 
 ## How it works
 

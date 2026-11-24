@@ -192,7 +192,7 @@ def test_requirements_names_are_normalized_like_pep_503():
     assert pkgs == {"pkg:pypi/foo-bar-baz@1.0", "pkg:pypi/zope-interface@6.0"}
 
 
-def test_requirements_includes_are_followed_only_under_the_inventory_directory(tmp_path):
+def test_requirements_includes_are_followed_only_inside_the_repository(tmp_path):
     repo = tmp_path / "repo"
     write(repo, {"requirements.txt": "-r sub/dev.txt\n-r ../outside.txt\n-r /etc/hosts\n-r link.txt\n-r missing.txt\n"
                                      "-r https://example.com/r.txt\ncertifi==2023.7.22\n",
@@ -202,15 +202,86 @@ def test_requirements_includes_are_followed_only_under_the_inventory_directory(t
     pkgs = packages(repo / "requirements.txt")
     assert set(pkgs) == {"pkg:pypi/certifi@2023.7.22", "pkg:pypi/pytest@8.2.0", "pkg:pypi/idna@3.6"}
     got = notes(repo / "requirements.txt")
-    assert got[:2] == ["requirements.txt line 2 includes ../outside.txt, which was not followed: audit reads includes only under "
-                       "the inventory's directory",
-                       "requirements.txt line 3 includes /etc/hosts, which was not followed: audit reads includes only under the "
-                       "inventory's directory"]
-    assert got[2] == "requirements.txt line 4 includes link.txt, which was not followed: 'link.txt' leads outside the inventory's directory"
+    assert got[0] == f"requirements.txt line 2 includes ../outside.txt, which was not followed: '../outside.txt' leads outside {repo}"
+    assert got[1] == ("requirements.txt line 3 includes /etc/hosts, which was not followed: audit reads includes only by a relative "
+                      "path inside the repository")
+    assert got[2] == f"requirements.txt line 4 includes link.txt, which was not followed: 'link.txt' leads outside {repo}"
     assert got[3] == "requirements.txt line 5 includes missing.txt, which does not exist"
     assert got[4].startswith("requirements.txt line 6 includes https://example.com/r.txt, which was not followed")
     assert got[5:] == [DIRECT_ONLY]
     assert evidence(repo / "requirements.txt")[("repo:Demo", "pkg:pypi/idna@3.6")] == "base.txt line 1: idna==3.6"
+
+
+def nested_repo(tmp_path: Path, git: str = "dir") -> Path:
+    repo = tmp_path / "repo"
+    write(repo, {"requirements/dev.txt": "-r ../requirements.txt\npytest==8.2.0\n", "requirements.txt": "certifi==2023.7.22\n"})
+    if git == "dir":
+        (repo / ".git").mkdir()
+    elif git == "file":
+        (repo / ".git").write_text("gitdir: /nowhere\n", encoding="utf-8")
+    write(tmp_path, {"outside.txt": "click==8.1.7\n"})
+    return repo
+
+
+@pytest.mark.parametrize("git", ["dir", "file"])
+def test_an_include_above_the_inventory_is_followed_up_to_the_repository_holding_git(tmp_path, git):
+    repo = nested_repo(tmp_path, git)
+    assert inventory.siblings.repository_root(repo / "requirements") == repo.resolve()
+    pkgs = packages(repo / "requirements" / "dev.txt")
+    assert set(pkgs) == {"pkg:pypi/pytest@8.2.0", "pkg:pypi/certifi@2023.7.22"}
+    assert evidence(repo / "requirements" / "dev.txt")[("repo:Demo", "pkg:pypi/certifi@2023.7.22")] == \
+        "../requirements.txt line 1: certifi==2023.7.22"
+
+
+def test_without_git_the_boundary_is_the_inventory_directory_and_root_sets_it(tmp_path, capsys, no_network):
+    repo = nested_repo(tmp_path, git="none")
+    dev = repo / "requirements" / "dev.txt"
+    assert set(packages(dev)) == {"pkg:pypi/pytest@8.2.0"}
+    assert notes(dev)[0].startswith("dev.txt line 1 includes ../requirements.txt, which was not followed")
+    text, siblings = inventory.load(dev, root=repo)
+    assert "pkg:pypi/certifi@2023.7.22" in {n["id"] for n in inventory.read(text, "dev.txt", "Demo", siblings)[0]}
+    out = tmp_path / "report.json"
+    assert cli.main(["audit", str(VINC), str(dev), "--repo", "Demo", "--osv-cache", str(CACHE), "--root", str(repo),
+                     "--out", str(out)]) == 0
+    assert json.loads(out.read_text(encoding="utf-8"))["meta"]["packages"] == 2
+    with pytest.raises(ValueError, match="is not under the root"):
+        inventory.load(dev, root=tmp_path / "elsewhere")
+
+
+def test_a_directory_symlink_back_to_itself_ends_the_include_loop(tmp_path):
+    repo = tmp_path / "repo"
+    write(repo, {"requirements.txt": "-r d/requirements.txt\n-r d/d/d/base.txt\ncertifi==2023.7.22\n", "base.txt": "idna==3.6\n"})
+    (repo / "d").symlink_to(".")
+    assert set(packages(repo / "requirements.txt")) == {"pkg:pypi/certifi@2023.7.22", "pkg:pypi/idna@3.6"}
+    assert notes(repo / "requirements.txt") == [DIRECT_ONLY]
+
+
+def test_a_long_include_chain_stops_with_a_note_instead_of_crashing(tmp_path, capsys, no_network):
+    chain = {f"r{i}.txt": f"-r r{i + 1}.txt\npkg{i}==1.0\n" for i in range(400)}
+    write(tmp_path, {**chain, "requirements.txt": "-r r0.txt\ncertifi==2023.7.22\n"})
+    pkgs = packages(tmp_path / "requirements.txt")
+    assert len(pkgs) == 1 + 64 and "pkg:pypi/pkg63@1.0" in pkgs and "pkg:pypi/pkg64@1.0" not in pkgs
+    assert notes(tmp_path / "requirements.txt")[0] == ("r63.txt line 1 includes r64.txt, which was not followed: "
+                                                       "includes are followed 64 levels deep")
+
+
+def test_a_byte_order_mark_is_dropped_from_the_inventory_and_its_includes(tmp_path, capsys, no_network):
+    bom = "\ufeff"
+    write(tmp_path, {"requirements.txt": bom + "certifi==2023.7.22\n-r base.txt\n", "base.txt": bom + "idna==3.6\n"})
+    assert set(packages(tmp_path / "requirements.txt")) == {"pkg:pypi/certifi@2023.7.22", "pkg:pypi/idna@3.6"}
+    text = (tmp_path / "requirements.txt").read_text(encoding="utf-8")
+    assert {n["id"] for n in inventory.read(text, "requirements.txt", "Demo", {"base.txt": bom + "idna==3.6\n"})[0]} >= \
+        {"pkg:pypi/certifi@2023.7.22", "pkg:pypi/idna@3.6"}
+    plain = report(REQS)["summary"]
+    for name in ("requirements.txt", "base.txt"):
+        write(tmp_path / "marked", {name: bom + (REQS.parent / name).read_text(encoding="utf-8")})
+    marked = report(tmp_path / "marked" / "requirements.txt")["summary"]
+    assert marked == plain and plain["affected"] > 0
+    write(tmp_path / "poetry", {"poetry.lock": bom + POETRY.read_text(encoding="utf-8"),
+                                "pyproject.toml": bom + (POETRY.parent / "pyproject.toml").read_text(encoding="utf-8")})
+    assert set(packages(tmp_path / "poetry" / "poetry.lock")) == set(packages(POETRY))
+    assert {k for k, p in packages(tmp_path / "poetry" / "poetry.lock").items() if p["dev"]} == \
+        {k for k, p in packages(POETRY).items() if p["dev"]}
 
 
 def test_the_sibling_reader_refuses_parent_absolute_and_escaping_paths(tmp_path):

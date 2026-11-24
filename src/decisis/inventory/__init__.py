@@ -4,14 +4,14 @@ from pathlib import Path
 from types import ModuleType
 
 from . import cargo, cyclonedx, gomod, npm, poetry, requirements, spdx, uv
-from .siblings import Reader, Siblings, directory_reader
+from .siblings import Reader, Resolver, Siblings, clean, directory_reader, directory_resolver
 
 READERS: dict[str, ModuleType] = {m.FORMAT: m for m in (npm, cyclonedx, spdx, uv, cargo, gomod, poetry, requirements)}
 FORMATS = "an npm package-lock.json, CycloneDX JSON 1.4 to 1.6, SPDX JSON 2.3, uv.lock, Cargo.lock, go.mod with go.sum next to it, poetry.lock, or a pip requirements file"
 
 
 def detect(text: str, filename: str) -> str:
-    base = Path(filename).name
+    base, text = Path(filename).name, clean(text)
     for name, reader in READERS.items():
         if reader.detect(text, base):
             return name
@@ -19,6 +19,7 @@ def detect(text: str, filename: str) -> str:
 
 
 def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
+    text = clean(text)
     name = detect(text, filename)
     nodes, edges = READERS[name].read(text, Path(filename).name, repo, siblings)
     if not any(n["kind"] == "Package" for n in nodes):
@@ -26,18 +27,20 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
     return nodes, edges
 
 
-def gather(text: str, filename: str, reader: Reader) -> Siblings:
-    out = Siblings(reader=reader)
+def gather(text: str, filename: str, reader: Reader, resolve: Resolver | None = None) -> Siblings:
+    out = Siblings(reader=reader, resolve=resolve)
     for name in READERS[detect(text, Path(filename).name)].SIBLINGS:
         try:
             found = reader(name)
         except ValueError:
             continue
         if found is not None:
-            out[name] = found
+            out[name] = clean(found)
     return out
 
 
-def load(path: Path, reader: Reader | None = None) -> tuple[str, Siblings]:
-    text = path.read_text(encoding="utf-8")
-    return text, gather(text, path.name, reader or directory_reader(path.parent))
+def load(path: Path, reader: Reader | None = None, root: Path | None = None) -> tuple[str, Siblings]:
+    text = clean(path.read_text(encoding="utf-8"))
+    if reader is not None:
+        return text, gather(text, path.name, reader)
+    return text, gather(text, path.name, directory_reader(path.parent, root), directory_resolver(path.parent, root))

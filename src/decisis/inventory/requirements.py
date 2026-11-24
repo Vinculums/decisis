@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from .. import pep440
 from .shape import Inventory, make_purl, package_id, pypi_name, text_digest
-from .siblings import fetch, relative
+from .siblings import fetch, identity, relative
 
 FORMAT = "requirements"
 SIBLINGS: tuple[str, ...] = ()
@@ -18,6 +18,7 @@ EDITABLE = re.compile(r"^(?:-e|--editable)(?:\s*=\s*|\s+)(\S+)$")
 REQUIREMENT = re.compile(r"^(?P<name>[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\s*(?:\[(?P<extras>[^\]]*)\])?\s*(?P<rest>.*)$")
 SPECIFIER = re.compile(r"^\s*(~=|===|==|!=|<=|>=|<|>)\s*([^\s,;()]+)\s*$")
 EGG = re.compile(r"#egg=([A-Za-z0-9][A-Za-z0-9._-]*)")
+MAX_DEPTH = 64
 
 
 @dataclass
@@ -121,16 +122,16 @@ class Reader:
         self.lines: list[Line] = []
         self.notes: list[str] = []
 
-    def file(self, name: str, text: str) -> None:
-        self.seen.add(name)
+    def file(self, name: str, text: str, key: str, depth: int = 0) -> None:
+        self.seen.add(key)
         self.texts.append(text)
         for number, line in logical_lines(text):
-            self.line(name, number, line)
+            self.line(name, number, line, depth)
 
-    def line(self, name: str, number: int, text: str) -> None:
+    def line(self, name: str, number: int, text: str, depth: int) -> None:
         include, constraint, editable = INCLUDE.match(text), CONSTRAINT.match(text), EDITABLE.match(text)
         if include:
-            self.include(name, number, include[1])
+            self.include(name, number, include[1], depth + 1)
         elif constraint:
             self.notes.append(f"{name} line {number} names the constraints file {constraint[1]}; constraints files are not read")
         elif editable and local(editable[1]) or not editable and local(text):
@@ -139,23 +140,28 @@ class Reader:
         elif editable or not text.startswith("-"):
             self.lines.append(requirement(name, number, text))
 
-    def include(self, name: str, number: int, target: str) -> None:
-        path = None if "://" in target else relative(name, target)
+    def include(self, name: str, number: int, target: str, depth: int) -> None:
+        path = None if "://" in target or target.startswith("file:") else relative(name, target)
         if path is None:
             self.notes.append(f"{name} line {number} includes {target}, which was not followed: "
-                              "audit reads includes only under the inventory's directory")
+                              "audit reads includes only by a relative path inside the repository")
             return
-        if path in self.seen:
+        if depth > MAX_DEPTH:
+            self.notes.append(f"{name} line {number} includes {target}, which was not followed: "
+                              f"includes are followed {MAX_DEPTH} levels deep")
             return
         try:
-            text = fetch(self.siblings, path)
+            key = identity(self.siblings, path)
+            text = None if key in self.seen else fetch(self.siblings, path)
         except ValueError as e:
             self.notes.append(f"{name} line {number} includes {target}, which was not followed: {e}")
+            return
+        if key in self.seen:
             return
         if text is None:
             self.notes.append(f"{name} line {number} includes {target}, which does not exist")
             return
-        self.file(path, text)
+        self.file(path, text, key, depth)
 
 
 def pkg(line: Line) -> dict:
@@ -188,7 +194,14 @@ def build(reader: Reader, filename: str, repo: str) -> Inventory:
     return inv
 
 
+def top_key(siblings: dict[str, str] | None, filename: str) -> str:
+    try:
+        return identity(siblings, filename)
+    except ValueError:
+        return filename
+
+
 def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
     reader = Reader(siblings)
-    reader.file(filename, text)
+    reader.file(filename, text, top_key(siblings, filename))
     return build(reader, filename, repo).result()
