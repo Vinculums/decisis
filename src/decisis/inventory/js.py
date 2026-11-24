@@ -4,8 +4,7 @@ import json
 import re
 from pathlib import Path
 
-import yaml
-
+from .. import yamltext
 from .shape import make_purl, package_id
 
 FIELDS = (("dependencies", "", False), ("optionalDependencies", " (optional)", False),
@@ -13,14 +12,10 @@ FIELDS = (("dependencies", "", False), ("optionalDependencies", " (optional)", F
 ORPHAN = "listed in the lockfile with no dependency on it"
 NAME = re.compile(r"(@[^/@:]+/)?[^/@:]+")
 REGISTRY_VERSION = re.compile(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]*)?")
-LOADER = getattr(yaml, "CBaseLoader", yaml.BaseLoader)
 
 
 def yaml_tree(text: str, filename: str) -> dict:
-    try:
-        doc = yaml.load(text, Loader=LOADER)
-    except yaml.YAMLError as e:
-        raise ValueError(f"{filename} is not valid YAML: {e}") from None
+    doc = yamltext.load(text, filename)
     if not isinstance(doc, dict):
         raise ValueError(f"{filename} is not a YAML mapping")
     return doc
@@ -72,12 +67,12 @@ def _json(text: str, name: str):
         raise ValueError(f"{name} is not valid JSON ({e.msg} at line {e.lineno})") from None
 
 
-def manifest_names(folder: Path) -> tuple[str, ...]:
-    root = folder / "package.json"
-    if not root.is_file():
+def manifest_names(folder: Path, read) -> tuple[str, ...]:
+    root = read("package.json")
+    if root is None:
         return ()
     names = ["package.json"]
-    for pattern in workspace_globs(_json(root.read_text(encoding="utf-8"), "package.json")):
+    for pattern in workspace_globs(_json(root, "package.json")):
         for path in sorted(folder.glob(f"{pattern.rstrip('/')}/package.json")):
             rel = path.relative_to(folder)
             if "node_modules" not in rel.parts and rel.as_posix() not in names:

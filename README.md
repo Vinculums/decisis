@@ -258,7 +258,7 @@ evidence, and a write path that needs a person's digest.
 
 `decisis serve --mcp` gives an agent the same `impact`, `paths` and `audit` as MCP tools over stdio, on
 one snapshot fixed when the server starts. It needs the optional `mcp` extra; the base install keeps
-`relate-db` as its only dependency. For Claude Code:
+`relate-db` and `PyYAML` as its only dependencies. For Claude Code:
 
 ```
 pip install "decisis[mcp]"

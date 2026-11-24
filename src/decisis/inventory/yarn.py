@@ -19,8 +19,8 @@ def detect(text: str, filename: str) -> bool:
     return filename == "yarn.lock" or V1 in text[:300] or re.search(r"^__metadata:\s*$", text, re.M) is not None
 
 
-def sibling_names(folder: Path) -> tuple[str, ...]:
-    return manifest_names(folder)
+def sibling_names(folder: Path, read) -> tuple[str, ...]:
+    return manifest_names(folder, read)
 
 
 def _pair(body: str, n: int, filename: str) -> tuple[str, str]:
@@ -84,13 +84,19 @@ def _manifest_edges(inv: Inventory, found: dict[str, dict], resolve) -> None:
                 inv.depends(f"workspace:{path}", target, f"{manifest_label(path)} requires {dep} {spec}{note}", dev)
 
 
+def _v1_name(spec: str) -> str:
+    name, wanted = split_spec(spec)
+    return split_spec(wanted[4:])[0] if wanted.startswith("npm:") else name
+
+
 def _read_v1(text: str, filename: str, repo: str, siblings: dict[str, str] | None):
     entries = parse_v1(text, filename)
+    names = {spec: _v1_name(spec) for spec in entries}
     inv = Inventory(repo, "yarn-lockfile", text_digest(text))
     for spec, entry in sorted(entries.items()):
-        name, wanted = split_spec(spec)
+        wanted = split_spec(spec)[1]
         source = str(entry.get("resolved", "")) if V1_FOREIGN.match(wanted) else ""
-        inv.add((name, entry.get("version", "")), npm_package(name, str(entry.get("version", "")), source),
+        inv.add((names[spec], entry.get("version", "")), npm_package(names[spec], str(entry.get("version", "")), source),
                 f"{repo}:{filename}#{spec}")
     found = manifests(siblings)
     workspaces = _workspace_keys(inv, found, filename)
@@ -99,11 +105,11 @@ def _read_v1(text: str, filename: str, repo: str, siblings: dict[str, str] | Non
         if dep in workspaces:
             return workspaces[dep]
         entry = entries.get(f"{dep}@{spec}")
-        return None if entry is None else (dep, entry.get("version", ""))
+        return None if entry is None else (names[f"{dep}@{spec}"], entry.get("version", ""))
 
     _manifest_edges(inv, found, resolve)
     for spec, entry in sorted(entries.items()):
-        name = split_spec(spec)[0]
+        name = names[spec]
         for field, note in (("dependencies", ""), ("optionalDependencies", " (optional)")):
             for dep, wanted in sorted(mapping(entry.get(field)).items()):
                 target = resolve(dep, wanted)

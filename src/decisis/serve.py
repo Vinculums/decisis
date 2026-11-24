@@ -124,13 +124,15 @@ class Tools:
                          filename=name, siblings=siblings)
 
     def siblings(self, raw: str, text: str, name: str) -> dict[str, str]:
-        out = {}
-        for sibling in inventory.READERS[inventory.detect(text, name)].SIBLINGS:
+        folder = PurePosixPath(raw).parent
+
+        def read(sibling: str) -> str | None:
             try:
-                out[sibling] = read_under(self.root, str(PurePosixPath(raw).parent / sibling))
+                return read_under(self.root, str(folder / sibling))
             except Refused:
-                continue
-        return out
+                return None
+        base = Path(raw) if Path(raw).is_absolute() else self.root / raw
+        return inventory.siblings(text, name, base.parent, read)
 
     def advisories(self):
         if self.osv_cache is not None:

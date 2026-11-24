@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 from .js import ORPHAN, manifest_label, mapping, npm_package, requirements, split_spec
 from .shape import Inventory, text_digest
@@ -9,6 +10,7 @@ from .shape import Inventory, text_digest
 FORMAT = "bun"
 SIBLINGS: tuple[str, ...] = ()
 BINARY = "bun-lockfile-format"
+MAGIC = BINARY.encode()
 TRAILING_COMMA = re.compile(r'("(?:[^"\\]|\\.)*")|,(\s*[}\]])')
 PACKAGE_FIELDS = (("dependencies", ""), ("optionalDependencies", " (optional)"), ("peerDependencies", " (peer)"))
 
@@ -27,10 +29,26 @@ def _loads(text: str):
         return None
 
 
+def refusal(filename: str) -> str:
+    return (f"{filename} is Bun's binary lockfile, which audit cannot read; run `bun install --save-text-lockfile` "
+            "to write bun.lock next to it and audit that file")
+
+
+def _head(path: Path) -> bytes:
+    if not path.is_file():
+        return b""
+    with path.open("rb") as f:
+        return f.read(len(MAGIC) + 32)
+
+
+def refuse_binary(path: Path) -> None:
+    if path.name.endswith(".lockb") or MAGIC in _head(path):
+        raise ValueError(refusal(path.name))
+
+
 def _parse(text: str, filename: str) -> dict:
     if filename.endswith(".lockb") or BINARY in text[:200]:
-        raise ValueError(f"{filename} is Bun's binary lockfile, which audit cannot read; run `bun install --save-text-lockfile` "
-                         "to write bun.lock next to it and audit that file")
+        raise ValueError(refusal(filename))
     doc = _loads(text)
     if not isinstance(doc, dict) or not isinstance(doc.get("packages"), dict):
         raise ValueError(f"{filename} is not a Bun text lockfile (JSON with workspaces and packages)")

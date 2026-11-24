@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -30,12 +31,21 @@ def notes(text: str, filename: str) -> list[str]:
     return list(getattr(READERS[detect(text, filename)], "NOTES", ()))
 
 
+def siblings(text: str, filename: str, folder: Path, read: Callable[[str], str | None]) -> dict[str, str]:
+    reader = READERS[detect(text, filename)]
+    names = reader.sibling_names(folder, read) if hasattr(reader, "sibling_names") else reader.SIBLINGS
+    found = {n: read(n) for n in names}
+    return {n: t for n, t in found.items() if t is not None}
+
+
+def read_beside(folder: Path) -> Callable[[str], str | None]:
+    def read(name: str) -> str | None:
+        path = folder / name
+        return path.read_text(encoding="utf-8") if path.is_file() else None
+    return read
+
+
 def load(path: Path) -> tuple[str, dict[str, str]]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        text = path.read_bytes().decode("utf-8", errors="replace")
-    reader = READERS[detect(text, path.name)]
-    names = reader.sibling_names(path.parent) if hasattr(reader, "sibling_names") else reader.SIBLINGS
-    siblings = {n: (path.parent / n).read_text(encoding="utf-8") for n in names if (path.parent / n).is_file()}
-    return text, siblings
+    bun.refuse_binary(path)
+    text = path.read_text(encoding="utf-8")
+    return text, siblings(text, path.name, path.parent, read_beside(path.parent))

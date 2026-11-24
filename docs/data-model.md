@@ -305,15 +305,22 @@ transitive dependencies are not resolved and pointing to `cyclonedx-gradle-plugi
 Readers live in `src/decisis/inventory/`. Each one has `FORMAT`, `SIBLINGS` (files read from the same
 directory), `detect(text, filename)` and `read(text, filename, repo, siblings=None)` returning
 `(nodes, edges)`; `inventory.read` picks the first reader whose `detect` matches. A reader may also have
-`sibling_names(folder)`, which names the files to read in place of `SIBLINGS`: the Yarn reader returns the
-root `package.json` and the `package.json` of each directory its `workspaces` globs match (outside
-`node_modules`).
+`sibling_names(folder, read)`, which names the files to read in place of `SIBLINGS`: the Yarn reader
+returns the root `package.json` and the `package.json` of each directory its `workspaces` globs match
+(outside `node_modules`). `inventory.siblings` reads them through one `read(name)` callback: the CLI reads
+files next to the lockfile, and `serve --mcp` reads them only under its `--root`. Every inventory is read
+as strict UTF-8; a file that is not is refused. A binary `bun.lockb`, told by its name or its
+`bun-lockfile-format` header, is refused with the command that writes `bun.lock`.
 
 The pnpm, Yarn and Bun readers give each package the npm ecosystem and the id the npm reader gives the
-same name and version, `pkg:npm/<name>@<version>`. A version that is not a registry version (a git,
+same name and version, `pkg:npm/<name>@<version>`. An npm alias (`foo@npm:minimist@1.2.5`) gets the id of
+the package it names. A version that is not a registry version (a git,
 tarball, file or link source) keeps its node and is `unresolved`. pnpm and Yarn Berry lockfiles are read
-with PyYAML's `BaseLoader`, which builds only mappings, lists and strings, so no value turns into a
-boolean, number or object.
+through `decisis.yamltext` with PyYAML's `BaseLoader`, which builds only mappings, lists and strings, so no
+value turns into a boolean, number or object. Before anything is built, the event stream is scanned: a
+lockfile larger than 64 MiB, nested deeper than 64 levels, or with any YAML anchor or alias is refused, so
+an alias bomb never expands. `yamltext.load(..., aliases=True)` allows aliases for other YAML (such as
+GitHub workflows) up to 100,000 expanded nodes.
 
 ## Versions
 

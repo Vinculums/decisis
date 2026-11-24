@@ -142,13 +142,15 @@ def test_propose_holds_a_path_that_skips_the_workspace(tmp_path, capsys, no_netw
     assert code == 1 and held["failed"] == [f"a dependency path is not in the sandbox graph: {' -> '.join(f['path'])}"]
 
 
-@pytest.mark.parametrize("data", [b"#!/usr/bin/env bun\nbun-lockfile-format-v0\n\x02\x00\xff\xfe\x9c", b"\x00\xff"])
-def test_a_binary_bun_lockb_is_refused_with_the_command_that_writes_the_text_lockfile(tmp_path, capsys, data):
-    lockb = tmp_path / "bun.lockb"
+@pytest.mark.parametrize("name,data", [("bun.lockb", b"#!/usr/bin/env bun\nbun-lockfile-format-v0\n\x02\x00\xff\xfe\x9c"),
+                                       ("bun.lockb", b"\x00\xff"), ("lock.bin", b"#!/usr/bin/env bun\nbun-lockfile-format-v0\n\xff")])
+def test_a_binary_bun_lockb_is_refused_with_the_command_that_writes_the_text_lockfile(tmp_path, capsys, name, data):
+    lockb = tmp_path / name
     lockb.write_bytes(data)
-    text, _ = inventory.load(lockb)
     with pytest.raises(ValueError, match=r"run `bun install --save-text-lockfile`"):
-        inventory.read(text, "bun.lockb", "Demo")
+        inventory.load(lockb)
+    with pytest.raises(ValueError, match=r"run `bun install --save-text-lockfile`"):
+        inventory.read("#!/usr/bin/env bun\nbun-lockfile-format-v0\n", "bun.lockb", "Demo")
     with pytest.raises(SystemExit):
         cli.main(["audit", str(VINC), str(lockb), "--repo", "Demo", "--osv-cache", str(CACHE)])
     assert "bun install --save-text-lockfile" in capsys.readouterr().err
@@ -229,3 +231,80 @@ def test_bun_resolves_a_nested_package_before_the_hoisted_one():
 
 def test_yaml_scalars_stay_strings():
     assert js.yaml_tree("on: yes\nversion: 1.10\nn: ~\n", "x.yaml") == {"on": "yes", "version": "1.10", "n": "~"}
+
+
+ALIAS_LOCKS = {
+    "npm": ("package-lock.json", json.dumps({"lockfileVersion": 3, "packages": {
+        "": {"dependencies": {"foo": "npm:minimist@1.2.5"}}, "node_modules/foo": {"name": "minimist", "version": "1.2.5"}}})),
+    "yarn-v1": ("yarn.lock", '# yarn lockfile v1\n\n\n"foo@npm:minimist@1.2.5":\n  version "1.2.5"\n'
+                '  resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.5.tgz#67d66014b66a6a8aaa0c083c5fd58df4e4e97602"\n'),
+    "yarn-berry": ("yarn.lock", '__metadata:\n  version: 8\n\n"demo@workspace:.":\n  version: 0.0.0-use.local\n  resolution: "demo@workspace:."\n'
+                   '  dependencies:\n    foo: "npm:minimist@1.2.5"\n\n"foo@npm:minimist@1.2.5":\n  version: 1.2.5\n'
+                   '  resolution: "minimist@npm:1.2.5"\n  languageName: node\n  linkType: hard\n'),
+    "pnpm-v6": ("pnpm-lock.yaml", "lockfileVersion: '6.0'\n\ndependencies:\n  foo:\n    specifier: npm:minimist@1.2.5\n"
+                "    version: /minimist@1.2.5\n\npackages:\n\n  /minimist@1.2.5:\n    resolution: {integrity: sha512-x}\n    dev: false\n"),
+    "pnpm-v9": ("pnpm-lock.yaml", "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      foo:\n"
+                "        specifier: npm:minimist@1.2.5\n        version: minimist@1.2.5\n\npackages:\n\n  minimist@1.2.5:\n"
+                "    resolution: {integrity: sha512-x}\n\nsnapshots:\n\n  minimist@1.2.5: {}\n"),
+    "bun": ("bun.lock", '{\n  "lockfileVersion": 1,\n  "workspaces": {\n    "": {\n      "name": "demo",\n      "dependencies": {\n'
+            '        "foo": "npm:minimist@1.2.5",\n      },\n    },\n  },\n  "packages": {\n'
+            '    "foo": ["minimist@1.2.5", "", {}, "sha512-x"],\n  }\n}\n'),
+}
+
+
+@pytest.mark.parametrize("fmt", sorted(ALIAS_LOCKS))
+def test_an_npm_alias_has_the_id_of_the_package_it_names(fmt):
+    name, text = ALIAS_LOCKS[fmt]
+    nodes, edges = inventory.read(text, name, "Demo")
+    assert [n["id"] for n in nodes if n["kind"] == "Package"] == ["pkg:npm/minimist@1.2.5"]
+    assert ("repo:Demo", "pkg:npm/minimist@1.2.5") in {(e["source"], e["target"]) for e in edges}
+
+
+def laughs(head: str, tail: str) -> str:
+    rows = ['a0: &a0 ["lol","lol","lol","lol","lol","lol","lol","lol","lol","lol"]']
+    rows += [f"a{i}: &a{i} [" + ",".join([f"*a{i - 1}"] * 10) + "]" for i in range(1, 10)]
+    return head + "\n".join(rows) + "\n" + tail
+
+
+@pytest.mark.parametrize("name,text", [
+    ("pnpm-lock.yaml", laughs("", "lockfileVersion: *a9\n")),
+    ("yarn.lock", laughs("__metadata:\n  version: 8\n", '"x@npm:1.0.0":\n  version: 1.0.0\n  resolution: *a9\n')),
+])
+def test_a_lockfile_with_a_yaml_anchor_is_refused_before_anything_expands(name, text):
+    with pytest.raises(ValueError, match="uses a YAML anchor or alias"):
+        inventory.read(text, name, "Demo")
+
+
+def test_aliases_are_allowed_only_when_asked_and_only_within_the_budget():
+    from decisis import yamltext
+    small = "base: &b {runs-on: ubuntu-latest}\njob: *b\n"
+    with pytest.raises(ValueError, match="anchor or alias"):
+        yamltext.load(small, "ci.yml")
+    assert yamltext.load(small, "ci.yml", aliases=True) == {"base": {"runs-on": "ubuntu-latest"}, "job": {"runs-on": "ubuntu-latest"}}
+    with pytest.raises(ValueError, match="more than 100000 YAML nodes"):
+        yamltext.load(laughs("", ""), "ci.yml", aliases=True)
+    with pytest.raises(ValueError, match="deeper than 64 levels"):
+        yamltext.load("[" * 80 + "]" * 80, "ci.yml", aliases=True)
+
+
+def test_a_lockfile_that_is_not_utf8_is_refused_not_audited_clean(tmp_path, capsys, no_network):
+    lock = tmp_path / "package-lock.json"
+    lock.write_bytes((ROOT / "fixtures" / "audit" / "demo-lockfile.json").read_bytes().replace(b'"lodash"', b'"lod\xffsh"', 1))
+    with pytest.raises(UnicodeDecodeError):
+        inventory.load(lock)
+    with pytest.raises(SystemExit):
+        cli.main(["audit", str(VINC), str(lock), "--repo", "Demo", "--osv-cache", str(ROOT / "fixtures" / "audit" / "osv-cache.json")])
+    assert "can't decode" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("fmt", ["yarn-v1", "yarn-berry"])
+def test_the_mcp_audit_reads_the_same_package_json_files_as_the_cli(fmt):
+    pytest.importorskip("mcp")
+    pytest.importorskip("jsonschema")
+    from decisis import serve
+    tools = serve.load_tools(VINC, FILES[fmt].parent, CACHE)
+    rep = tools.call("audit", {"lockfile": "yarn.lock", "repo": "Demo"})
+    hit = next(f for f in rep["findings"] if f["package"] == "pkg:npm/minimist@1.2.5")
+    assert hit["path"] == MINIMIST
+    assert all(f["dev_only"] for f in rep["findings"] if f["package"] == "pkg:npm/semver@7.5.1")
+    assert rep["summary"] == report(fmt)["summary"]
