@@ -350,3 +350,171 @@ def test_an_approval_withdrawn_after_a_flood_of_reviews_is_not_counted(tmp_path,
     action.main(environment(tmp_path, root, base), fake)
     (_, _, data), = fake.writes()
     assert "payments-need-a-payments-review" in data["body"]
+
+
+WORKFLOW = "on: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n"
+DEMO_LOCK = ROOT / "fixtures" / "audit" / "demo-lockfile.json"
+
+
+def osv_cache(tmp_path: Path) -> Path:
+    cache = json.loads((ROOT / "fixtures" / "audit" / "osv-cache.json").read_text(encoding="utf-8"))
+    cache["queries"]["pkg:pypi/requests@2.31.0"] = []
+    cache["names"] = {"GitHub Actions": {"fetched_at": cache["fetched_at"], "names": []}}
+    path = tmp_path / "osv-cache.json"
+    path.write_text(json.dumps(cache))
+    return path
+
+
+def audit_env(tmp_path: Path, root: Path, base: str, inventory: str, **extra) -> dict:
+    return environment(tmp_path, root, base, DECISIS_SNAPSHOT=str(ROOT / "fixtures" / "action" / "vinc.json"), DECISIS_REPO="Demo",
+                       DECISIS_INVENTORY=inventory, DECISIS_OSV_CACHE=str(osv_cache(tmp_path)), **extra)
+
+
+def outputs(tmp_path: Path) -> dict:
+    return dict(line.split("=", 1) for line in (tmp_path / "output.txt").read_text().splitlines())
+
+
+def sections(body: str) -> list[str]:
+    return re.findall(r"^#### Audit of <code>(.*)</code>$", body, re.M)
+
+
+def one_lockfile_violations(tmp_path: Path, root: Path, base: str) -> int:
+    lone = tmp_path / "lone"
+    lone.mkdir()
+    env = audit_env(lone, root, base, str(DEMO_LOCK))
+    assert action.main(env, FakeGitHub()) == 0
+    return int(outputs(lone)["violations"])
+
+
+def test_inventory_auto_finds_the_known_names_in_the_root_and_nothing_else(tmp_path):
+    root = tmp_path / "repo"
+    (root / ".github" / "workflows").mkdir(parents=True)
+    names = sorted(action.LOCKFILES | {"requirements.txt", "requirements-dev.txt"})
+    for name in names + ["package.json", "dev-requirements.txt", "notes.txt", "lockfile.json"]:
+        (root / name).write_text("x\n")
+    for nested in ("fixtures/package-lock.json", "vendor/lib/Cargo.lock", "web/yarn.lock", "fixtures/.github/workflows/ci.yml"):
+        (root / nested).parent.mkdir(parents=True, exist_ok=True)
+        (root / nested).write_text(WORKFLOW)
+    assert action.found(root) == [(n, n, None) for n in names]
+    (root / ".github" / "workflows" / "a.yml").write_text("name: not a workflow\n")
+    (root / ".github" / "workflows" / "ci.yml").write_text(WORKFLOW)
+    assert action.found(root)[-1] == (".github/workflows", ".github/workflows/ci.yml", None)
+
+
+def test_inventory_auto_audits_every_found_inventory_in_its_own_section_and_sums_the_violations(tmp_path, no_network):
+    root, base = shop(tmp_path)
+    shutil.copy(DEMO_LOCK, root / "package-lock.json")
+    shutil.copy(DEMO_LOCK, root / "npm-shrinkwrap.json")
+    (root / "requirements-dev.txt").write_text("requests==2.31.0\n")
+    (root / ".github" / "workflows").mkdir(parents=True)
+    (root / ".github" / "workflows" / "ci.yml").write_text(WORKFLOW)
+    (root / "fixtures").mkdir()
+    (root / "fixtures" / "package-lock.json").write_text("not json\n")
+    (root / "vendor" / "lib").mkdir(parents=True)
+    (root / "vendor" / "lib" / "yarn.lock").write_text("not a lockfile\n")
+    one = one_lockfile_violations(tmp_path, root, base)
+    assert one > 0
+    fake = FakeGitHub()
+    assert action.main(audit_env(tmp_path, root, base, "auto", DECISIS_FAIL_ON_VIOLATION="true"), fake) == 1
+    (_, _, data), = fake.writes()
+    summary = (tmp_path / "summary.md").read_text()
+    assert summary == data["body"]
+    assert sections(summary) == ["npm\\-shrinkwrap.json", "package\\-lock.json", "requirements\\-dev.txt", ".github/workflows"]
+    assert "fixtures" not in "".join(sections(summary)) and "vendor" not in summary and "Not audited" not in summary
+    assert f"{2 * one} audit violation(s)" in summary
+    assert summary.count("```mermaid") == 5
+    assert int(outputs(tmp_path)["violations"]) == 2 * one
+
+
+def test_found_files_that_lead_outside_the_root_are_not_read(tmp_path, no_network):
+    root, base = shop(tmp_path)
+    outside = tmp_path / "outside"
+    (outside / "workflows").mkdir(parents=True)
+    shutil.copy(DEMO_LOCK, outside / "package-lock.json")
+    (outside / "workflows" / "ci.yml").write_text(WORKFLOW)
+    (outside / "go.sum").write_text("secret go.sum\n")
+    (root / "package-lock.json").symlink_to(outside / "package-lock.json")
+    (root / ".github").symlink_to(outside)
+    (root / "locks").mkdir()
+    shutil.copy(DEMO_LOCK, root / "locks" / "demo.json")
+    (root / "npm-shrinkwrap.json").symlink_to(root / "locks" / "demo.json")
+    (root / "go.mod").write_text("module example.com/m\n\ngo 1.22\n\nrequire example.com/dep v1.0.0\n")
+    (root / "go.sum").symlink_to(outside / "go.sum")
+    one = one_lockfile_violations(tmp_path, root, base)
+    fake = FakeGitHub()
+    assert action.main(audit_env(tmp_path, root, base, "auto"), fake) == 0
+    summary = (tmp_path / "summary.md").read_text()
+    assert sections(summary) == ["go.mod", "npm\\-shrinkwrap.json", "package\\-lock.json", ".github/workflows"]
+    go, shrinkwrap, lock, flows = summary.split("#### Audit of ")[1:]
+    assert "Not audited" in lock and "leads outside" in lock
+    assert "Not audited" in flows and "leads outside" in flows
+    assert "Not audited" not in shrinkwrap and "Not audited" in go and "go.sum" in go and "secret" not in summary
+    assert int(outputs(tmp_path)["violations"]) == one
+
+
+def test_inventory_auto_that_finds_nothing_says_so_and_does_not_fail(tmp_path, no_network):
+    root, base = shop(tmp_path)
+    (root / "web" / "package-lock.json").write_text(DEMO_LOCK.read_text())
+    (root / ".github" / "workflows").mkdir(parents=True)
+    (root / ".github" / "workflows" / "README.md").write_text("no workflow here\n")
+    fake = FakeGitHub()
+    assert action.main(audit_env(tmp_path, root, base, "auto", DECISIS_FAIL_ON_VIOLATION="true"), fake) == 0
+    (_, _, data), = fake.writes()
+    assert "found no inventory in the repository root" in data["body"] and sections(data["body"]) == []
+    assert "0 audit violation(s)" in data["body"]
+    assert outputs(tmp_path)["violations"] == "0"
+
+
+def test_one_explicit_inventory_is_audited_as_before(tmp_path, no_network):
+    root, base = shop(tmp_path)
+    shutil.copy(DEMO_LOCK, root / "package-lock.json")
+    lock = str(DEMO_LOCK)
+    fake = FakeGitHub()
+    assert action.main(audit_env(tmp_path, root, base, lock, DECISIS_FAIL_ON_VIOLATION="true"), fake) == 1
+    (_, _, data), = fake.writes()
+    assert sections(data["body"]) == [action.text(lock)]
+    assert data["body"].count("```mermaid") == 2 and "found no inventory" not in data["body"]
+    violations = int(outputs(tmp_path)["violations"])
+    assert violations > 0 and f"{violations} audit violation(s)" in data["body"]
+    missing = audit_env(tmp_path, root, base, str(root / "missing.json"))
+    assert action.main(missing, FakeGitHub()) == 2
+
+
+def test_several_paths_one_per_line_each_get_a_section(tmp_path, no_network):
+    root, base = shop(tmp_path)
+    shutil.copy(DEMO_LOCK, root / "package-lock.json")
+    (root / "web" / "requirements.txt").write_text("requests==2.31.0\n")
+    one = one_lockfile_violations(tmp_path, root, base)
+    paths = f"{root / 'package-lock.json'}\n\n  {root / 'web' / 'requirements.txt'}  \nauto\n"
+    fake = FakeGitHub()
+    assert action.main(audit_env(tmp_path, root, base, paths), fake) == 0
+    (_, _, data), = fake.writes()
+    assert sections(data["body"]) == [action.text(root / "package-lock.json"), action.text(root / "web" / "requirements.txt")]
+    assert int(outputs(tmp_path)["violations"]) == one
+
+
+def test_an_explicit_inventory_that_is_a_symlink_loop_stops_the_step_with_the_error(tmp_path, no_network):
+    root, base = shop(tmp_path)
+    (root / "loop.json").symlink_to("loop.json")
+    fake = FakeGitHub()
+    assert action.main(audit_env(tmp_path, root, base, str(root / "loop.json")), fake) == 2
+    assert fake.writes() == []
+    summary = (tmp_path / "summary.md").read_text()
+    assert summary.startswith("decisis could not check this pull request") and "symbolic links" in summary
+
+
+@pytest.mark.parametrize("loop", ["package-lock.json", ".github"])
+def test_a_symlink_loop_that_auto_finds_gets_a_section_and_the_comment_is_written(tmp_path, loop, no_network):
+    root, base = shop(tmp_path)
+    shutil.copy(DEMO_LOCK, root / "npm-shrinkwrap.json")
+    (root / loop).symlink_to(loop)
+    one = one_lockfile_violations(tmp_path, root, base)
+    fake = FakeGitHub()
+    assert action.main(audit_env(tmp_path, root, base, "auto"), fake) == 0
+    (_, _, data), = fake.writes()
+    label = {"package-lock.json": "package\\-lock.json", ".github": ".github/workflows"}[loop]
+    assert sections(data["body"]) == ["npm\\-shrinkwrap.json", label]
+    shown = data["body"].split(f"#### Audit of <code>{label}</code>")[1]
+    assert "Not audited" in shown and "symbolic link loop" in shown
+    assert (tmp_path / "summary.md").read_text() == data["body"]
+    assert int(outputs(tmp_path)["violations"]) == one
