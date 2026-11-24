@@ -77,7 +77,7 @@ def help_commands(capsys) -> list[str]:
     except SystemExit as e:
         assert e.code == 0
     usage = capsys.readouterr().out
-    return re.search(r"\{([a-z,]+)\}", usage).group(1).split(",")
+    return re.search(r"\{([a-z,-]+)\}", usage).group(1).split(",")
 
 
 def test_every_subcommand_in_the_help_has_a_row_in_the_readme_commands_table(capsys):

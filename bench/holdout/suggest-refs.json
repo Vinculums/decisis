@@ -1,0 +1,211 @@
+{
+ "command": "python bench/holdout/score_suggest_refs.py CLONES --out bench/holdout/suggest-refs.json --table bench/holdout/suggest-refs.md",
+ "tool": "decisis init --suggest-refs",
+ "in_sample": "In-sample, not a held-out result: the matching rules of `--suggest-refs` (link and GitHub URL targets, only words with a `/` in fenced code blocks, bare words only at the root, the ADR's own directory skipped) were chosen after looking at these five repositories.",
+ "repositories": [
+  {
+   "repo": "cf-cli",
+   "repository": "cloudfoundry/cli",
+   "commit": "5b69b945ed793811a1d5896ebe0238fb48389259",
+   "suggested": 18,
+   "mapped": 16,
+   "matched": 13,
+   "precision": 0.722,
+   "recall": 0.812,
+   "not_in_mapping": [
+    {
+     "adr": "doc/adr/0002-develop-v6-and-v7-on-master-simultaneously.md",
+     "path": "main.go",
+     "sentence": "The main.go file can either be copied as two separate packages or as a single file that relies on go build flags to determine the version."
+    },
+    {
+     "adr": "doc/adr/0011-command-actor-api-architecture.md",
+     "path": "actor",
+     "sentence": "Rules for organizing `command`, `actor`, and `api` code"
+    },
+    {
+     "adr": "doc/adr/0011-command-actor-api-architecture.md",
+     "path": "resources",
+     "sentence": "It lives in the `resources` directory."
+    },
+    {
+     "adr": "doc/adr/0012-de-version-v8-code-base.md",
+     "path": "actor",
+     "sentence": "actor/v7action => actor/ (putting all the actor files in the root actor path)"
+    },
+    {
+     "adr": "doc/adr/0012-de-version-v8-code-base.md",
+     "path": "command",
+     "sentence": "command/v7 => command/ (just maybe putting all the commands in the root command folder)"
+    }
+   ],
+   "not_suggested": [
+    {
+     "adr": "doc/adr/0011-command-actor-api-architecture.md",
+     "path": "action",
+     "in_repository": false
+    },
+    {
+     "adr": "doc/adr/0011-command-actor-api-architecture.md",
+     "path": "action/v7action",
+     "in_repository": false
+    },
+    {
+     "adr": "doc/adr/0012-de-version-v8-code-base.md",
+     "path": "Makefile",
+     "in_repository": true
+    }
+   ],
+   "skipped_tokens": []
+  },
+  {
+   "repo": "karma-sabarivka-reporter",
+   "repository": "kopach/karma-sabarivka-reporter",
+   "commit": "6fb805a9f27e3a15027e01a4fa56a80542d55ee2",
+   "suggested": 0,
+   "mapped": 0,
+   "matched": 0,
+   "precision": null,
+   "recall": null,
+   "not_in_mapping": [],
+   "not_suggested": [],
+   "skipped_tokens": []
+  },
+  {
+   "repo": "supabase-multitenant",
+   "repository": "supabase-multitenant/supabase-multitenant",
+   "commit": "96d6f94063eb1356649d710b21eb513e3e1fa415",
+   "suggested": 4,
+   "mapped": 4,
+   "matched": 4,
+   "precision": 1.0,
+   "recall": 1.0,
+   "not_in_mapping": [],
+   "not_suggested": [],
+   "skipped_tokens": []
+  },
+  {
+   "repo": "turtles",
+   "repository": "rancher/turtles",
+   "commit": "be75f9a24befacfb5b1c571fb410a2e218f1f45e",
+   "suggested": 6,
+   "mapped": 3,
+   "matched": 2,
+   "precision": 0.333,
+   "recall": 0.667,
+   "not_in_mapping": [
+    {
+     "adr": "docs/adr/0009-publish-chart-to-rancher-charts.md",
+     "path": "charts/rancher-turtles-providers/Chart.yaml",
+     "sentence": "`cert-manager` defines a `kubeVersion` field in `Chart.yaml` which would force us to annotate the chart."
+    },
+    {
+     "adr": "docs/adr/0009-publish-chart-to-rancher-charts.md",
+     "path": "charts/rancher-turtles/Chart.yaml",
+     "sentence": "`cert-manager` defines a `kubeVersion` field in `Chart.yaml` which would force us to annotate the chart."
+    },
+    {
+     "adr": "docs/adr/0011-v1-to-v3-migration.md",
+     "path": "api/rancher/management/v3",
+     "sentence": "[ADR #10](./0010-migrate-to-v3-cluster-resource.md) outlines manual migration steps, a user may want to perform to adopt rancher generated `management/v3` cluster definitions created for `provisioning/v1` clusters."
+    },
+    {
+     "adr": "docs/adr/0011-v1-to-v3-migration.md",
+     "path": "api/rancher/provisioning/v1",
+     "sentence": "[ADR #10](./0010-migrate-to-v3-cluster-resource.md) outlines manual migration steps, a user may want to perform to adopt rancher generated `management/v3` cluster definitions created for `provisioning/v1` clusters."
+    }
+   ],
+   "not_suggested": [
+    {
+     "adr": "docs/adr/0016-capi-version-pinning.md",
+     "path": "internal/controllers/clusterctl/config.yaml",
+     "in_repository": false
+    }
+   ],
+   "skipped_tokens": []
+  },
+  {
+   "repo": "weave-gitops",
+   "repository": "weaveworks/weave-gitops",
+   "commit": "936e848c4e001355fccdfee61c0d54e4a9917183",
+   "suggested": 17,
+   "mapped": 13,
+   "matched": 9,
+   "precision": 0.529,
+   "recall": 0.692,
+   "not_in_mapping": [
+    {
+     "adr": "doc/adr/0002-api-definitions-grpc.md",
+     "path": "api",
+     "sentence": "The two lint exceptions mean that the `.proto` can be in `/api` rather than in a deep subtree of the directory."
+    },
+    {
+     "adr": "doc/adr/0007-embedding-weave-gitops-core.md",
+     "path": ".npmrc",
+     "sentence": "Installing an NPM package from GitHub packages will require users to create an `.npmrc` file with the following entry (from the GitHub packages docs):"
+    },
+    {
+     "adr": "doc/adr/0007-embedding-weave-gitops-core.md",
+     "path": "ui/components/Timestamp.tsx",
+     "sentence": "import _Timestamp from \"./components/Timestamp.tsx\";"
+    },
+    {
+     "adr": "doc/adr/0007-embedding-weave-gitops-core.md",
+     "path": "website/src/components/CoreFeatures/index.js",
+     "sentence": "The Weave GitOps Core repository will contain an `index.js` file that will define the public API for including WeGO UI components in other projects."
+    },
+    {
+     "adr": "doc/adr/0007-embedding-weave-gitops-core.md",
+     "path": "website/src/components/EnterpriseFeatures/index.js",
+     "sentence": "The Weave GitOps Core repository will contain an `index.js` file that will define the public API for including WeGO UI components in other projects."
+    },
+    {
+     "adr": "doc/adr/0007-embedding-weave-gitops-core.md",
+     "path": "website/src/components/HomepageFeatures/index.js",
+     "sentence": "The Weave GitOps Core repository will contain an `index.js` file that will define the public API for including WeGO UI components in other projects."
+    },
+    {
+     "adr": "doc/adr/0007-embedding-weave-gitops-core.md",
+     "path": "website/src/pages/archives/index.js",
+     "sentence": "The Weave GitOps Core repository will contain an `index.js` file that will define the public API for including WeGO UI components in other projects."
+    },
+    {
+     "adr": "doc/adr/0007-embedding-weave-gitops-core.md",
+     "path": "website/src/pages/index.js",
+     "sentence": "The Weave GitOps Core repository will contain an `index.js` file that will define the public API for including WeGO UI components in other projects."
+    }
+   ],
+   "not_suggested": [
+    {
+     "adr": "doc/adr/0002-api-definitions-grpc.md",
+     "path": "pkg/protos",
+     "in_repository": false
+    },
+    {
+     "adr": "doc/adr/0007-embedding-weave-gitops-core.md",
+     "path": "index.js",
+     "in_repository": false
+    },
+    {
+     "adr": "doc/adr/0015-current-api-authentication-strategy.md",
+     "path": "core/clustermngr/clustermngr.go",
+     "in_repository": false
+    },
+    {
+     "adr": "doc/adr/0016-release-ordering.md",
+     "path": ".github/workflows/helm.yaml",
+     "in_repository": false
+    }
+   ],
+   "skipped_tokens": []
+  }
+ ],
+ "total": {
+  "repo": "total",
+  "suggested": 45,
+  "mapped": 36,
+  "matched": 28,
+  "precision": 0.622,
+  "recall": 0.778
+ }
+}
