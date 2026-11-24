@@ -76,8 +76,8 @@ carries them. `--osv-cache` replays a saved set of advisories and refuses the ne
   (the skill tells the agent to stop and show the write set); the full key is the real authority.
 - **Whether a finding is true.** The audit checks versions against the advisory's ranges and the
   decision's rule, but OSV data can be wrong or late. A content hash records what was read; it does not
-  authenticate OSV. In the demo a Checker re-derives each record before approval; `propose` on real data
-  does not run that step yet.
+  authenticate OSV. `propose` and the demo re-derive each record from the snapshot, the lockfile and OSV
+  before the digest is shown, which catches an edited report but not wrong OSV data.
 - **Text in outside data.** Advisory summaries and lockfile fields are stored as data and never run as
   queries, but an agent that reads them can still be misled by what they say.
 - **Resource limits.** `paths` and `impact` bound hops and result counts; `audit --depth` is an integer

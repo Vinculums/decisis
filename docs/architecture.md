@@ -19,6 +19,7 @@ sequenceDiagram
     A->>R: read-only connections run bounded Cypher
     R-->>A: paths, findings with sources
     A->>R: delete the directory
+    A->>R: propose: re-derive each record in a fresh graph, then delete it
     A->>A: propose: write set + digest
     A->>V: commit --approve digest (full key): create_only, read back
 ```
@@ -35,8 +36,9 @@ sequenceDiagram
 | `src/decisis/audit.py` | Composes the snapshot, the lockfile and the advisories into one graph, adds `DESCRIBED_BY` from the repository to each Vinc node whose `code_ref` names it, runs the dependency and governance queries, and judges each finding against each governing decision. |
 | `src/decisis/impact.py` | Answers "this code path changes; what governs it": matches `code_ref`, `subject_path` and `also_touches` against the queried paths, keeps only the edges that carry governance (`CARRIES`), orients them from the governing node to the governed one, and walks back from the matching nodes. |
 | `src/decisis/commit.py` | `propose` turns `affected` findings into record nodes and `relates_to` edges, with a digest over the space, nodes and edges. `commit` checks the digest, writes with `create_only` and an operation id derived from the digest, and reads every node and edge back. |
+| `src/decisis/checker.py` | The Checker that `propose` and the demo share: `check_plan` re-derives each record from a loaded sandbox (advisory hash, version in range, dependency path, decision target), `withhold` moves a failed record and its edges to `held` and recomputes the digest, and `rederive` builds the fresh sandbox `propose` checks in. |
 | `src/decisis/fake_vinc.py` | An in-process stand-in for Vinc's `vinc_node`, `vinc_graph` and `vinc_ingest`, used by the demo and the tests. It stores a record's edge the way Vinc returns it (`ATTACHES_TO` with a role). |
-| `src/decisis/demo.py` | The judge demo: the whole procedure against the fake Vinc and the fixtures, with a Checker step (`check_plan`) and a transcript. |
+| `src/decisis/demo.py` | The judge demo: the whole procedure against the fake Vinc and the fixtures, with a Checker step (`checker.check_plan`) and a transcript. |
 | `src/decisis/compare.py` | The A/B/C benchmark over `bench/tasks.json`. |
 | `src/decisis/queries/*.cypher` | The Cypher the commands run. Hop and result bounds are substituted as integers; every other value is a query parameter. |
 
@@ -89,10 +91,12 @@ so an edited plan needs a new approval. It skips ids that already exist, writes 
 every property, and checks out each record again to confirm each edge with its type and direction. Any
 difference makes the exit code non-zero and is listed under `problems`.
 
-In the demo a Checker runs between `propose` and approval: for each record it compares the advisory hash
-with the cached OSV record, checks each version against the advisory's ranges, finds each dependency
-path in the sandbox, and confirms each linked decision is in the checkout. The `propose` command for real
-data does not run that step yet.
+Before it prints the digest, `propose` runs a Checker. It builds a fresh sandbox from the snapshot, the
+lockfile and OSV (or `--osv-cache`), and for each record compares the advisory hash with the OSV record in
+that graph, checks each version against the advisory's ranges, finds each dependency path, and confirms
+each `relates_to` target is a decision in the snapshot. A record that fails any check is left out with its
+edges and listed under `held` with the failed checks, the digest covers only what is left, and `propose`
+exits non-zero. The demo runs the same `checker.check_plan` in its own sandbox.
 
 ## The comparison
 
