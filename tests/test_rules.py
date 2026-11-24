@@ -76,8 +76,9 @@ def test_a_rule_is_a_mapping_a_list_of_mappings_or_a_json_string():
 
 
 def test_every_kind_is_one_entry_in_the_table():
-    assert sorted(rules.KINDS) == ["advisory_severity_at_least", "license_allowed", "license_denied", "package_denied"]
-    assert rules.subjects() == ["advisory", "license", "package"]
+    assert sorted(rules.KINDS) == ["advisory_severity_at_least", "license_allowed", "license_denied", "package_allowed", "package_denied",
+                                  "pinned_to_commit"]
+    assert rules.subjects() == ["advisory", "allowlist", "license", "package", "pin"]
 
 
 @pytest.mark.parametrize("raw, kind, reason", [

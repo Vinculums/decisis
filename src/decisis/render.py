@@ -137,6 +137,11 @@ def paths_graph(report: dict) -> Graph:
     return g
 
 
+RULE_FINDINGS = {"package": "denied package", "allowlist": "outside the allowlist", "pin": "not pinned to a commit"}
+RULE_TITLES = {"package": "a package a decision denies", "allowlist": "outside a decision's allowlist",
+               "pin": "not pinned to the full commit SHA a decision requires"}
+
+
 def violated(finding: dict) -> bool:
     return any(p.get("verdict") == "violated" for p in finding.get("policies", []))
 
@@ -148,8 +153,8 @@ def target(finding: dict) -> str:
 def detail(finding: dict) -> str:
     if finding.get("kind") == "license":
         return f"license {finding.get('license_expression') or 'unknown'}"
-    if finding.get("kind") == "package":
-        return "denied package"
+    if finding.get("kind") in RULE_FINDINGS:
+        return RULE_FINDINGS[finding["kind"]]
     return finding.get("severity") or ""
 
 
@@ -267,7 +272,7 @@ def finding_rows(f: dict) -> list[tuple[str, str]]:
     if f.get("kind") == "license":
         return [("license", esc(f.get("license_expression") or "none given"))] + tail + [
             ("source", esc(f.get("source_system"))), ("fetched at", esc(f.get("fetched_at")))]
-    if f.get("kind") == "package":
+    if f.get("kind") in RULE_FINDINGS:
         return [("package", esc(f"{f.get('ecosystem')}:{f.get('name')} {f.get('version')}"))] + tail + [
             ("source", esc(f.get("source_system"))), ("fetched at", esc(f.get("fetched_at")))]
     severity = [("severity", esc(f.get("severity")))]
@@ -291,8 +296,8 @@ def policy_table(policies: list[dict]) -> str:
 def finding_title(f: dict) -> str:
     if f.get("kind") == "license":
         return f"{f['package']} is licensed {f.get('license_expression') or 'with no license the inventory gives'}"
-    if f.get("kind") == "package":
-        return f"{f['package']} is a package a decision denies"
+    if f.get("kind") in RULE_FINDINGS:
+        return f"{f['package']} is {RULE_TITLES[f['kind']]}"
     return f.get("advisory_summary") or ""
 
 

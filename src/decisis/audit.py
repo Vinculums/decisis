@@ -27,7 +27,8 @@ def governance_links(vinc_nodes: list[dict], repo: str) -> list[dict]:
 def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories, filename: str = "package-lock.json",
             siblings: dict[str, str] | None = None) -> Subgraph:
     pkg_nodes, dep_edges = inventory.read(lock_text, filename, repo, siblings)
-    nothing_to_query(pkg_nodes, filename)
+    if inventory.advisories(lock_text, filename):
+        nothing_to_query(pkg_nodes, filename)
     adv_nodes, adv_edges = advisories(pkg_nodes)
     links = governance_links(vinc.nodes, repo)
     lock_hash = next((n["props"].get("content_hash") for n in pkg_nodes if n["kind"] == "Repository"), "")

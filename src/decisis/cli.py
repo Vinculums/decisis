@@ -86,7 +86,8 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
     au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
-    au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, or go.mod (read with the go.sum next to it)")
+    au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, go.mod (read with the go.sum next to it), "
+                    "a GitHub Actions workflow (read with the workflows next to it), action.yml, .terraform.lock.hcl, or another format in the README")
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"longest dependency chain to follow (1 to {audit.MAX_DEPTH})")
     au.add_argument("--out", help="write the JSON report here; with --format mermaid or html the view still goes to stdout")

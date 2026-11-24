@@ -17,6 +17,8 @@ VERDICT = {MATCH: "violated", CLEAR: "not_violated", UNKNOWN: "unresolved"}
 SHIPPED_ONLY = "reached only through development dependencies; the rule covers shipped ones"
 _TOKEN = re.compile(r"\s*(\(|\)|[^\s()]+)")
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+:-]*$")
+COMMIT = re.compile(r"[0-9a-f]{40}")
+PINNED = "GitHub Actions"
 
 
 @dataclass(frozen=True)
@@ -203,11 +205,51 @@ def _package_denied(value: tuple, facts: dict) -> tuple[str, str]:
     return MATCH, f"{shown} is denied ({which})"
 
 
+def _allowed_spec(spec) -> dict:
+    if not isinstance(spec, dict) or set(spec) != {"ecosystem", "name"} or not all(isinstance(spec[k], str) and spec[k] for k in spec):
+        raise ValueError("package_allowed must be a non-empty list of {ecosystem, name} mappings")
+    return {"ecosystem": spec["ecosystem"], "name": spec["name"]}
+
+
+def _allowlist(value) -> tuple:
+    if not isinstance(value, list) or not value:
+        raise ValueError("package_allowed must be a non-empty list of {ecosystem, name} mappings")
+    return tuple(_allowed_spec(spec) for spec in value)
+
+
+def _package_allowed(value: tuple, facts: dict) -> tuple[str, str]:
+    ecosystem = facts.get("ecosystem") or ""
+    shown = f"{ecosystem} {facts.get('name')} {facts.get('version')}"
+    named = [spec for spec in value if spec["ecosystem"].lower() == ecosystem.lower()]
+    if not named:
+        return CLEAR, f"the allowlist names no {ecosystem or 'package without an ecosystem'} packages"
+    if any(semver.same_package(spec["ecosystem"], spec["name"], facts) for spec in named):
+        return CLEAR, f"{shown} is on the allowlist"
+    return MATCH, f"{shown} is not on the allowlist of {ecosystem} packages ({', '.join(spec['name'] for spec in named)})"
+
+
+def _pin(value) -> tuple:
+    if value is not True:
+        raise ValueError(f"pinned_to_commit must be true, not {value!r}")
+    return (True,)
+
+
+def _pinned(value: tuple, facts: dict) -> tuple[str, str]:
+    ecosystem, name, version = facts.get("ecosystem") or "", facts.get("name"), facts.get("version") or ""
+    if ecosystem.lower() != PINNED.lower():
+        return CLEAR, f"pinned_to_commit covers {PINNED} only, not {ecosystem or 'a package without an ecosystem'}"
+    if COMMIT.fullmatch(version):
+        return CLEAR, f"{name} is pinned to commit {version}"
+    return MATCH, f"{name} is pinned to {version!r}, not to a full 40-character commit SHA"
+
+
 KINDS: dict[str, Kind] = {
     "advisory_severity_at_least": Kind("advisory", _severity, _advisory),
     "license_denied": Kind("license", _license_list("license_denied"), _license_denied),
     "license_allowed": Kind("license", _license_list("license_allowed"), _license_allowed),
     "package_denied": Kind("package", _packages, _package_denied),
+    "package_allowed": Kind("allowlist", _allowlist, _package_allowed),
+    "pinned_to_commit": Kind("pin", _pin, _pinned),
 }
 
 

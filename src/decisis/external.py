@@ -12,6 +12,7 @@ from .inventory.shape import digest, now, package_id
 OSV_BATCH = "https://api.osv.dev/v1/querybatch"
 OSV_VULN = "https://api.osv.dev/v1/vulns/{id}"
 BATCH = 500
+NAME_ONLY = ("GitHub Actions",)
 
 
 class NetworkRefused(RuntimeError):
@@ -56,7 +57,7 @@ def cache_opener(cache: dict):
         if url == OSV_BATCH and req.data:
             results = []
             for q in json.loads(req.data)["queries"]:
-                pid = package_id(q["package"]["ecosystem"], q["package"]["name"], q["version"])
+                pid = query_id(q)
                 if pid not in cache["queries"]:
                     raise NetworkRefused(f"{pid} is not in the OSV cache, and a cached run does not use the network")
                 results.append({"vulns": [{"id": v} for v in cache["queries"][pid]]})
@@ -73,6 +74,16 @@ def cached_advisories(cache: dict):
     return functools.partial(fetch_advisories, opener=cache_opener(cache), cache=dict(cache["vulns"]), fetched_at=cache["fetched_at"])
 
 
+def query_id(q: dict) -> str:
+    pid = package_id(q["package"]["ecosystem"], q["package"]["name"], q.get("version", ""))
+    return pid if "version" in q else pid.removesuffix("@")
+
+
+def osv_query(props: dict) -> dict:
+    q = {"package": {"ecosystem": props["ecosystem"], "name": props["name"]}}
+    return q if props["ecosystem"] in NAME_ONLY else {**q, "version": props["version"]}
+
+
 def queryable(node: dict) -> bool:
     props = node.get("props") or {}
     return node.get("kind") == "Package" and bool(props.get("ecosystem")) and bool(props.get("version")) and not props.get("unresolved")
@@ -85,7 +96,7 @@ def fetch_advisories(packages: list[dict], opener=urllib.request.urlopen, cache:
     hits: dict[str, list[str]] = {}
     for i in range(0, len(pkgs), BATCH):
         chunk = pkgs[i:i + BATCH]
-        queries = [{"package": {"ecosystem": p["props"]["ecosystem"], "name": p["props"]["name"]}, "version": p["props"]["version"]} for p in chunk]
+        queries = [osv_query(p["props"]) for p in chunk]
         reply = _post(OSV_BATCH, {"queries": queries}, opener)
         for p, r in zip(chunk, reply.get("results", [])):
             hits[p["id"]] = [v["id"] for v in (r.get("vulns") or [])]
@@ -103,7 +114,8 @@ def fetch_advisories(packages: list[dict], opener=urllib.request.urlopen, cache:
                                 "affected_json": json.dumps(v.get("affected") or [], sort_keys=True),
                                 "source_system": "osv", "source_ref": vid, "source_url": f"https://osv.dev/vulnerability/{vid}",
                                 "fetched_at": fetched, "content_hash": digest(v)}})
-    edges = [{"source": pid, "target": f"adv:{vid}", "type": "AFFECTED_BY", "evidence": f"OSV returned {vid} for this name and version"}
+    asked = {p["id"]: "name; decisis compares the version" if p["props"]["ecosystem"] in NAME_ONLY else "name and version" for p in pkgs}
+    edges = [{"source": pid, "target": f"adv:{vid}", "type": "AFFECTED_BY", "evidence": f"OSV returned {vid} for this {asked[pid]}"}
              for pid, vids in sorted(hits.items()) for vid in vids]
     return nodes, edges
 
