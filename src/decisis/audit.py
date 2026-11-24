@@ -106,7 +106,11 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
     return {"meta": graph.meta, "loaded": counts, "governing": decisions, "summary": summary,
             "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings,
-            "unresolved_packages": unresolved_packages(graph)}
+            "unresolved_packages": unresolved_packages(graph), "inventory_notes": inventory_notes(graph, repo)}
+
+
+def inventory_notes(graph: Subgraph, repo: str) -> list[str]:
+    return next((list(n["props"].get("inventory_notes") or []) for n in graph.nodes if n["id"] == f"repo:{repo}"), [])
 
 
 def unresolved_packages(graph: Subgraph) -> list[dict]:
@@ -120,5 +124,5 @@ def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=ex
     graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
     with sandbox(root, limits) as box:
         report = analyze(box, graph, repo, depth)
-    notes = inventory.notes(lock_text, filename)
-    return {**report, "notes": notes} if notes else report
+    extra = [n for n in inventory.notes(lock_text, filename) if n not in report["inventory_notes"]]
+    return {**report, "inventory_notes": report["inventory_notes"] + extra}
