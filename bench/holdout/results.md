@@ -1,8 +1,8 @@
 | Method | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
 |---|---|---|---|---|---|---|
-| A | 19/44 | 19/28 | 0/14 | 4/42 | 4/42 | 1.8 |
-| B | 26/44 | 19/28 | 14/14 | 5/64 | 25/64 | 144.3 |
-| C | 35/44 | 19/28 | 14/14 | 0/68 | 30/68 | 300939.5 |
+| A | 19/44 | 19/28 | 0/14 | 4/42 | 4/42 | 1.4 |
+| B | 26/44 | 19/28 | 14/14 | 5/64 | 25/64 | 83.7 |
+| C | 35/44 | 19/28 | 14/14 | 0/68 | 30/68 | 5836.0 |
 
 | Task | Graph expected to help | A paths, links, unsupported | B paths, links, unsupported | C paths, links, unsupported | C against B |
 |---|---|---|---|---|---|

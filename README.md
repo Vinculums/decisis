@@ -503,9 +503,9 @@ connected chain of edges that exist in the inputs.
 
 | Method | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
 |---|---|---|---|---|---|---|
-| A | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.5 |
-| B | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.6 |
-| C | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 287.3 |
+| A | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.6 |
+| B | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.8 |
+| C | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 225.9 |
 
 Against B, C is better on 2 tasks, the same on 7 and worse on none. It helped where a connection spans
 sources: a vulnerable package reached only through a shared transitive dependency, and a decision two
@@ -548,12 +548,12 @@ the same as for the synthetic set.
 
 | Method | Set | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
 |---|---|---|---|---|---|---|---|
-| A | synthetic | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.5 |
-| A | held-out | 19/44 | 19/28 | 0/14 | 4/42 | 4/42 | 1.8 |
-| B | synthetic | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.6 |
-| B | held-out | 26/44 | 19/28 | 14/14 | 5/64 | 25/64 | 144.3 |
-| C | synthetic | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 287.3 |
-| C | held-out | 35/44 | 19/28 | 14/14 | 0/68 | 30/68 | 300939.5 |
+| A | synthetic | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.6 |
+| A | held-out | 19/44 | 19/28 | 0/14 | 4/42 | 4/42 | 1.4 |
+| B | synthetic | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.8 |
+| B | held-out | 26/44 | 19/28 | 14/14 | 5/64 | 25/64 | 83.7 |
+| C | synthetic | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 225.9 |
+| C | held-out | 35/44 | 19/28 | 14/14 | 0/68 | 30/68 | 5836.0 |
 
 Against B on the held-out set, C is better on 8 tasks, the same on 22 and worse on none. Per-task numbers are
 in `bench/holdout/results.md`, every claim in `bench/holdout/results.json`. Where C did not beat A or B, or
@@ -580,9 +580,9 @@ won for a reason other than the graph:
 - **Evidence coverage is low for every method on impact: C 30/68, B 25/64, A 4/42.** Each method makes the same
   38 zero-hop impact claims, which have no edge to cite, and a claim with no evidence counts as uncovered. The only
   impact claims A and B have covered are the 4 ADR 5 claims above, which are wrong.
-- **C is far slower: 300.9 s against 0.1 s for B.** Each audit task takes 14 to 43 s to build the graph for a
-  lockfile of 700 to 1,250 packages and query paths up to eight hops. This run was on a shared machine under load
-  (load average about 55 on 16 cores); the first run of the same C code took 204.6 s, 9 to 28 s per audit task.
+- **C is slower: 5.8 s against 0.1 s for B.** Each audit task takes 0.4 to 0.7 s to build the graph for a
+  lockfile of 700 to 1,250 packages and query paths up to eight hops. The first run, before the loader built
+  edges by internal id, took 204.6 s, 9 to 28 s per audit task; C's claims are the same in both runs.
 - **The audit policy logic is untested here.** No held-out ADR states a machine-checkable dependency rule or
   names an affected package, and an `init` snapshot links no decision to the repository, so the audit tasks
   expect no policy links and every method returns none.

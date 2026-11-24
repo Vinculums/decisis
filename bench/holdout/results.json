@@ -37,7 +37,7 @@
       0,
       4
      ],
-     "latency_ms": 0.2,
+     "latency_ms": 0.1,
      "claims": [
       {
        "type": "path",
@@ -147,7 +147,7 @@
       0,
       4
      ],
-     "latency_ms": 111.1,
+     "latency_ms": 78.6,
      "claims": [
       {
        "type": "path",
@@ -353,7 +353,7 @@
       0,
       6
      ],
-     "latency_ms": 17.9,
+     "latency_ms": 10.4,
      "claims": [
       {
        "type": "path",
@@ -514,7 +514,7 @@
       0,
       2
      ],
-     "latency_ms": 17.4,
+     "latency_ms": 11.9,
      "claims": [
       {
        "type": "path",
@@ -645,7 +645,7 @@
       0,
       2
      ],
-     "latency_ms": 13.6,
+     "latency_ms": 12.0,
      "claims": [
       {
        "type": "path",
@@ -806,7 +806,7 @@
       0,
       4
      ],
-     "latency_ms": 17.0,
+     "latency_ms": 9.4,
      "claims": [
       {
        "type": "path",
@@ -952,7 +952,7 @@
       0,
       2
      ],
-     "latency_ms": 25.8,
+     "latency_ms": 12.4,
      "claims": [
       {
        "type": "path",
@@ -1083,7 +1083,7 @@
       0,
       2
      ],
-     "latency_ms": 24.1,
+     "latency_ms": 12.8,
      "claims": [
       {
        "type": "path",
@@ -1182,7 +1182,7 @@
       0,
       0
      ],
-     "latency_ms": 20.5,
+     "latency_ms": 10.6,
      "claims": []
     }
    }
@@ -1265,7 +1265,7 @@
       0,
       0
      ],
-     "latency_ms": 19.5,
+     "latency_ms": 10.3,
      "claims": []
     }
    }
@@ -1356,7 +1356,7 @@
       2,
       4
      ],
-     "latency_ms": 0.0,
+     "latency_ms": 0.1,
      "claims": [
       {
        "type": "path",
@@ -1412,7 +1412,7 @@
       0,
       2
      ],
-     "latency_ms": 16.9,
+     "latency_ms": 9.8,
      "claims": [
       {
        "type": "path",
@@ -1575,7 +1575,7 @@
       0,
       2
      ],
-     "latency_ms": 15.3,
+     "latency_ms": 9.1,
      "claims": [
       {
        "type": "path",
@@ -1666,7 +1666,7 @@
       0,
       2
      ],
-     "latency_ms": 0.1,
+     "latency_ms": 0.0,
      "claims": [
       {
        "type": "path",
@@ -1706,7 +1706,7 @@
       0,
       2
      ],
-     "latency_ms": 12.1,
+     "latency_ms": 8.2,
      "claims": [
       {
        "type": "path",
@@ -1797,7 +1797,7 @@
       0,
       2
      ],
-     "latency_ms": 0.1,
+     "latency_ms": 0.0,
      "claims": [
       {
        "type": "path",
@@ -1837,7 +1837,7 @@
       0,
       2
      ],
-     "latency_ms": 15.1,
+     "latency_ms": 8.4,
      "claims": [
       {
        "type": "path",
@@ -1936,7 +1936,7 @@
       0,
       0
      ],
-     "latency_ms": 21.3,
+     "latency_ms": 10.8,
      "claims": []
     }
    }
@@ -2051,7 +2051,7 @@
       0,
       2
      ],
-     "latency_ms": 14.5,
+     "latency_ms": 5.9,
      "claims": [
       {
        "type": "path",
@@ -2182,7 +2182,7 @@
       0,
       2
      ],
-     "latency_ms": 19.0,
+     "latency_ms": 7.1,
      "claims": [
       {
        "type": "path",
@@ -2313,7 +2313,7 @@
       0,
       2
      ],
-     "latency_ms": 15.6,
+     "latency_ms": 7.4,
      "claims": [
       {
        "type": "path",
@@ -2444,7 +2444,7 @@
       0,
       2
      ],
-     "latency_ms": 15.5,
+     "latency_ms": 7.5,
      "claims": [
       {
        "type": "path",
@@ -2543,7 +2543,7 @@
       0,
       0
      ],
-     "latency_ms": 15.1,
+     "latency_ms": 7.2,
      "claims": []
     }
    }
@@ -2626,7 +2626,7 @@
       0,
       0
      ],
-     "latency_ms": 14.2,
+     "latency_ms": 5.9,
      "claims": []
     }
    }
@@ -2685,7 +2685,7 @@
       2,
       2
      ],
-     "latency_ms": 7.4,
+     "latency_ms": 3.5,
      "claims": [
       {
        "type": "finding",
@@ -2728,7 +2728,7 @@
       2,
       2
      ],
-     "latency_ms": 14236.2,
+     "latency_ms": 470.5,
      "claims": [
       {
        "type": "finding",
@@ -2806,7 +2806,7 @@
       4,
       4
      ],
-     "latency_ms": 6.2,
+     "latency_ms": 2.7,
      "claims": [
       {
        "type": "finding",
@@ -2869,7 +2869,7 @@
       4,
       4
      ],
-     "latency_ms": 14219.1,
+     "latency_ms": 418.0,
      "claims": [
       {
        "type": "finding",
@@ -2967,7 +2967,7 @@
       4,
       4
      ],
-     "latency_ms": 3.7,
+     "latency_ms": 2.9,
      "claims": [
       {
        "type": "finding",
@@ -3030,7 +3030,7 @@
       4,
       4
      ],
-     "latency_ms": 15492.2,
+     "latency_ms": 463.6,
      "claims": [
       {
        "type": "finding",
@@ -3128,7 +3128,7 @@
       4,
       4
      ],
-     "latency_ms": 25.3,
+     "latency_ms": 11.7,
      "claims": [
       {
        "type": "finding",
@@ -3191,7 +3191,7 @@
       4,
       4
      ],
-     "latency_ms": 42626.9,
+     "latency_ms": 647.7,
      "claims": [
       {
        "type": "finding",
@@ -3289,7 +3289,7 @@
       1,
       1
      ],
-     "latency_ms": 25.9,
+     "latency_ms": 10.4,
      "claims": [
       {
        "type": "finding",
@@ -3323,7 +3323,7 @@
       2,
       2
      ],
-     "latency_ms": 42506.1,
+     "latency_ms": 602.8,
      "claims": [
       {
        "type": "finding",
@@ -3403,7 +3403,7 @@
       1,
       2
      ],
-     "latency_ms": 14.9,
+     "latency_ms": 8.8,
      "claims": [
       {
        "type": "finding",
@@ -3447,7 +3447,7 @@
       3,
       3
      ],
-     "latency_ms": 43257.9,
+     "latency_ms": 573.9,
      "claims": [
       {
        "type": "finding",
@@ -3539,7 +3539,7 @@
       1,
       1
      ],
-     "latency_ms": 15.9,
+     "latency_ms": 13.1,
      "claims": [
       {
        "type": "finding",
@@ -3573,7 +3573,7 @@
       2,
       2
      ],
-     "latency_ms": 31146.1,
+     "latency_ms": 594.2,
      "claims": [
       {
        "type": "finding",
@@ -3630,7 +3630,7 @@
       0,
       0
      ],
-     "latency_ms": 0.1,
+     "latency_ms": 0.0,
      "claims": []
     },
     "B": {
@@ -3654,7 +3654,7 @@
       1,
       1
      ],
-     "latency_ms": 18.3,
+     "latency_ms": 9.2,
      "claims": [
       {
        "type": "finding",
@@ -3688,7 +3688,7 @@
       2,
       2
      ],
-     "latency_ms": 30000.3,
+     "latency_ms": 563.2,
      "claims": [
       {
        "type": "finding",
@@ -3745,7 +3745,7 @@
       0,
       0
      ],
-     "latency_ms": 0.1,
+     "latency_ms": 0.0,
      "claims": []
     },
     "B": {
@@ -3769,7 +3769,7 @@
       2,
       2
      ],
-     "latency_ms": 11.3,
+     "latency_ms": 9.1,
      "claims": [
       {
        "type": "finding",
@@ -3812,7 +3812,7 @@
       4,
       4
      ],
-     "latency_ms": 32605.7,
+     "latency_ms": 595.5,
      "claims": [
       {
        "type": "finding",
@@ -3894,7 +3894,7 @@
       0,
       0
      ],
-     "latency_ms": 0.1,
+     "latency_ms": 0.0,
      "claims": []
     },
     "B": {
@@ -3918,7 +3918,7 @@
       1,
       1
      ],
-     "latency_ms": 14.7,
+     "latency_ms": 11.7,
      "claims": [
       {
        "type": "finding",
@@ -3952,7 +3952,7 @@
       3,
       3
      ],
-     "latency_ms": 34407.5,
+     "latency_ms": 650.9,
      "claims": [
       {
        "type": "finding",
@@ -4018,7 +4018,7 @@
     4,
     42
    ],
-   "latency_ms": 1.8
+   "latency_ms": 1.4
   },
   "B": {
    "paths": [
@@ -4041,7 +4041,7 @@
     25,
     64
    ],
-   "latency_ms": 144.3
+   "latency_ms": 83.7
   },
   "C": {
    "paths": [
@@ -4064,7 +4064,7 @@
     30,
     68
    ],
-   "latency_ms": 300939.5
+   "latency_ms": 5836.0
   }
  },
  "c_vs_b": {
