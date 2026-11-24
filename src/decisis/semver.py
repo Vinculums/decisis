@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from . import pep440
+from . import maven, pep440
 from .inventory.shape import pypi_name
 
 _V = re.compile(r"^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$")
@@ -18,7 +18,7 @@ def parse(v: str) -> tuple:
     return (int(m[1]), int(m[2] or 0), int(m[3] or 0), 0 if pre else 1, pre_key)
 
 
-ORDER = {"npm": parse, "crates.io": parse, "go": parse, "pypi": pep440.key}
+ORDER = {"npm": parse, "crates.io": parse, "go": parse, "pypi": pep440.key, "maven": maven.key}
 
 
 def order(ecosystem: str):

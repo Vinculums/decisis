@@ -548,13 +548,18 @@ def merge(tree: Tree, readers: tuple[Reader, ...]) -> tuple[list[dict], list[dic
         found, links = reader(tree)
         for node in found:
             if node["id"] in nodes:
-                tree.problem(node["props"]["source_file"], f"its id {node['id']} is already taken by {nodes[node['id']]['props']['source_file']}")
+                tree.problem(origin(node), f"its id {node['id']} is already taken by {origin(nodes[node['id']])}")
                 continue
             nodes[node["id"]] = node
         for e in links:
             edges.setdefault((e["source"], e["type"], e["target"]), e)
     kept = [e for _, e in sorted(edges.items()) if e["source"] in nodes and e["target"] in nodes]
     return [nodes[k] for k in sorted(nodes)], kept
+
+
+def origin(node: dict) -> str:
+    props = node.get("props") or {}
+    return props.get("source_file") or props.get("source") or node["id"]
 
 
 def dump(snapshot: dict) -> str:

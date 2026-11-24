@@ -3,10 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from types import ModuleType
 
-from . import bun, cargo, cyclonedx, gomod, npm, pnpm, spdx, uv, yarn
+from . import bun, cargo, cyclonedx, gomod, gradle, npm, pnpm, pom, spdx, uv, yarn
 
-READERS: dict[str, ModuleType] = {m.FORMAT: m for m in (npm, cyclonedx, spdx, uv, cargo, gomod, pnpm, yarn, bun)}
-FORMATS = "an npm package-lock.json, CycloneDX JSON 1.4 to 1.6, SPDX JSON 2.3, uv.lock, Cargo.lock, go.mod with go.sum next to it, pnpm-lock.yaml, yarn.lock, or bun.lock"
+READERS: dict[str, ModuleType] = {m.FORMAT: m for m in (npm, cyclonedx, spdx, uv, cargo, gomod, gradle, pom, pnpm, yarn, bun)}
+FORMATS = ("an npm package-lock.json, CycloneDX JSON 1.4 to 1.6, SPDX JSON 2.3, uv.lock, Cargo.lock, go.mod with go.sum next to it, "
+           "gradle.lockfile, a Maven pom.xml, pnpm-lock.yaml, yarn.lock, or bun.lock")
 
 
 def detect(text: str, filename: str) -> str:
@@ -23,6 +24,10 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
     if not any(n["kind"] == "Package" for n in nodes):
         raise ValueError(f"{Path(filename).name or 'the inventory'} ({name}) lists no packages, so there is nothing to audit")
     return nodes, edges
+
+
+def notes(text: str, filename: str) -> list[str]:
+    return list(getattr(READERS[detect(text, filename)], "NOTES", ()))
 
 
 def load(path: Path) -> tuple[str, dict[str, str]]:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -10,6 +12,7 @@ from . import checker
 from . import compare
 from . import demo
 from . import external
+from . import github as gh
 from . import impact
 from . import init
 from . import inventory
@@ -56,11 +59,16 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("seeds", nargs="+")
     c.add_argument("--depth", type=int, default=1)
     c.add_argument("--out", required=True)
-    ini = sub.add_parser("init", help="build a snapshot from a repository's ADRs, CODEOWNERS and postmortems")
-    ini.add_argument("--repo-dir", default=".", help="the repository to read (default: the current directory)")
+    ini = sub.add_parser("init", help="build a snapshot from a repository's ADRs, CODEOWNERS and postmortems, and merged pull requests")
+    ini.add_argument("--repo-dir", help="the repository to read (default: the current directory, or none with --github)")
     ini.add_argument("--repo", help="the repository name to put before each code path, for example Shop")
     ini.add_argument("--adr-dir", help=f"read ADRs only from this directory, relative to --repo-dir (default: {', '.join(init.ADR_DIRS)})")
     ini.add_argument("--postmortem-dir", help=f"read postmortems only from this directory, relative to --repo-dir (default: {', '.join(init.POSTMORTEM_DIRS)})")
+    ini.add_argument("--github", metavar="OWNER/REPO", help="also read merged pull requests from GitHub, with GITHUB_TOKEN when it is set")
+    ini.add_argument("--label", help="with --github: select pull requests with this label (default: decision) or a ## Decision section")
+    ini.add_argument("--since", help="with --github: read pull requests merged on or after this date, for example 2026-01-31")
+    ini.add_argument("--limit", type=bounded(1, gh.MAX_LIMIT), metavar="N",
+                     help=f"with --github: read at most N closed pull requests, most recently updated first (default {gh.DEFAULT_LIMIT}, at most {gh.MAX_LIMIT})")
     ini.add_argument("--out", required=True)
     p = sub.add_parser("paths", help="load a snapshot into a throwaway Relate file and list paths between two ids")
     p.add_argument("snapshot")
@@ -113,13 +121,29 @@ def main(argv: list[str] | None = None) -> int:
                     help=f"leave directories younger than this (default {sb.GRACE_SECONDS})")
     for s in (p, im, au, pr):
         limit_flags(s)
+    sv = sub.add_parser("serve", help="serve impact, paths and audit to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
+    sv.add_argument("--mcp", action="store_true", required=True, help="speak MCP over stdin and stdout")
+    sv.add_argument("--snapshot", type=Path, required=True, help="the JSON snapshot every tool call reads")
+    sv.add_argument("--osv-cache", type=Path, metavar="FILE", help="audit reads OSV advisories from this file and never from the network")
+    sv.add_argument("--allow-network", action="store_true", help="let audit ask api.osv.dev when there is no --osv-cache")
+    sv.add_argument("--root", type=Path, default=Path("."), help="audit reads lockfiles only under this directory (default: the current one)")
     a = ap.parse_args(argv)
     try:
         return run(a)
     except ValueError as e:
         ap.error(str(e))
-    except (external.NetworkRefused, external.NetworkFailed, sb.LimitExceeded) as e:
+    except (external.NetworkRefused, external.NetworkFailed, gh.GitHubFailed, sb.LimitExceeded) as e:
         ap.exit(1, f"{ap.prog}: error: {e}\n")
+
+
+def serve(a: argparse.Namespace) -> int:
+    try:
+        from . import serve as mcp_server
+    except ModuleNotFoundError as e:
+        if (e.name or "").split(".")[0] not in ("mcp", "jsonschema", "anyio"):
+            raise
+        raise ValueError("serve --mcp needs the mcp extra: pip install 'decisis[mcp]'") from None
+    return mcp_server.main(mcp_server.load_tools(a.snapshot, a.root, a.osv_cache, a.allow_network))
 
 
 def subject_file(text: str, path: Path) -> str:
@@ -127,6 +151,8 @@ def subject_file(text: str, path: Path) -> str:
 
 
 def run(a: argparse.Namespace) -> int:
+    if a.cmd == "serve":
+        return serve(a)
     if a.cmd == "gc":
         return gc(a.root or sb.default_root(), a.grace)
     if a.cmd == "compare":
@@ -193,7 +219,7 @@ def run(a: argparse.Namespace) -> int:
             sys.stdout.write(text + "\n")
         return 0
     if a.cmd == "init":
-        snapshot = init.build(a.repo_dir, a.repo, adr_dir=a.adr_dir, postmortem_dir=a.postmortem_dir)
+        snapshot = init.build(a.repo_dir or ".", a.repo, *init_readers(a), adr_dir=a.adr_dir, postmortem_dir=a.postmortem_dir)
         Path(a.out).write_text(init.dump(snapshot), encoding="utf-8")
         meta = snapshot["meta"]
         print(json.dumps({"out": a.out, "nodes": meta["nodes"], "edges": meta["edges"], "problems": meta["problems"]}, ensure_ascii=False, indent=1))
@@ -214,6 +240,22 @@ def run(a: argparse.Namespace) -> int:
     json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
     sys.stdout.write("\n")
     return 0
+
+
+def init_readers(a: argparse.Namespace) -> tuple:
+    if a.github is None:
+        if a.label is not None or a.since is not None or a.limit is not None:
+            raise ValueError("--label, --since and --limit go with --github")
+        return ()
+    if a.repo_dir is None and (a.adr_dir is not None or a.postmortem_dir is not None):
+        raise ValueError("with --github, --adr-dir and --postmortem-dir need --repo-dir")
+    if a.label is not None and not a.label.strip():
+        raise ValueError("--label must name a label")
+    gh.repository(a.github)
+    since = gh.since_date(a.since) if a.since is not None else None
+    pulls = functools.partial(gh.read_pulls, repo=a.github, token=gh.clean_token(os.environ.get("GITHUB_TOKEN")),
+                              label=(a.label or "decision").strip(), since=since, limit=a.limit or gh.DEFAULT_LIMIT)
+    return (*init.READERS, pulls) if a.repo_dir is not None else (pulls,)
 
 
 def gc(root: Path, grace: int) -> int:
