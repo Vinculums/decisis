@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .. import yamltext
 from .shape import make_purl, package_id
+from .siblings import clean
 
 FIELDS = (("dependencies", "", False), ("optionalDependencies", " (optional)", False),
           ("peerDependencies", " (peer)", False), ("devDependencies", " (dev)", True))
@@ -67,12 +68,27 @@ def _json(text: str, name: str):
         raise ValueError(f"{name} is not valid JSON ({e.msg} at line {e.lineno})") from None
 
 
-def manifest_names(folder: Path, read) -> tuple[str, ...]:
-    root = read("package.json")
+def _read(read, name: str) -> str | None:
+    try:
+        text = read(name)
+    except ValueError:
+        return None
+    return None if text is None else clean(text)
+
+
+def _folder(resolve) -> Path | None:
+    try:
+        return Path(resolve(".")) if resolve is not None else None
+    except ValueError:
+        return None
+
+
+def manifest_names(read, resolve=None) -> tuple[str, ...]:
+    root = _read(read, "package.json")
     if root is None:
         return ()
-    names = ["package.json"]
-    for pattern in workspace_globs(_json(root, "package.json")):
+    names, folder = ["package.json"], _folder(resolve)
+    for pattern in workspace_globs(_json(root, "package.json")) if folder is not None else []:
         for path in sorted(folder.glob(f"{pattern.rstrip('/')}/package.json")):
             rel = path.relative_to(folder)
             if "node_modules" not in rel.parts and rel.as_posix() not in names:

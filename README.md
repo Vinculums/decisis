@@ -142,6 +142,8 @@ decision above.
 | Go modules | `go.mod`, with `go.sum` in the same directory | not marked; every module counts as shipped |
 | Gradle lockfile | `gradle.lockfile`, `settings-gradle.lockfile` | every configuration that locks it is a test, compile-only or annotation processor one |
 | Maven POM | `pom.xml` | scope `test` or `provided` |
+| Poetry, lock-version 1.x and 2.x | `poetry.lock`, with `pyproject.toml` in the same directory when present | `category = "dev"` (1.x), `groups` without `main` (2.1), or the non-main groups in `pyproject.toml` |
+| pip requirements | `requirements*.txt` | not marked; every package counts as shipped |
 | pnpm lockfile v6 or v9 | `pnpm-lock.yaml` | an importer's `devDependencies`; v6 also `dev: true` |
 | Yarn v1 and Yarn Berry (2 and later) | `yarn.lock`, with the root `package.json` and the workspaces' `package.json` files next to it | `devDependencies` in the `package.json` files |
 | Bun text lockfile | `bun.lock` | a workspace's `devDependencies` |
@@ -167,6 +169,21 @@ defined in the same file, and lists a version from a parent, an imported BOM, a 
 saying that transitive dependencies are not resolved. For the full graph, generate CycloneDX JSON with
 `cyclonedx-gradle-plugin` or `cyclonedx-maven-plugin` and audit that instead; the HTML view shows the
 notes above the findings.
+
+For Poetry, a `poetry.lock` that marks no package as development and has no `pyproject.toml` next to it
+is read with every package shipped, and the report says the dev split is unknown. A requirements file
+gives packages only for `name==version` pins; every other line (a range, no version, a URL) is listed
+under `unresolved_packages` with the line and the reason, and no version is guessed. `-r` includes are
+followed only inside the repository, and each file is read once. A requirements file
+lists direct dependencies only, so the report says the packages they depend on were not seen and
+recommends a lockfile or an SBOM. Such notes are in the report's `inventory_notes`. Python names are
+normalized as in PEP 503 and queried under the PyPI ecosystem.
+
+Files next to the inventory (`go.sum`, `pyproject.toml`, `-r` includes, the `package.json` files of Yarn
+workspaces) are read only inside the repository: the nearest directory above the inventory that holds a
+`.git` entry, found without running git, or the inventory's own directory when there is none. `--root DIR` sets it. Paths that lead outside,
+symbolic links included, are not read. Includes are followed 64 levels deep, and a leading UTF-8 byte order
+mark is dropped from every file.
 
 ## How it works
 

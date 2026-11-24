@@ -308,3 +308,26 @@ def test_the_mcp_audit_reads_the_same_package_json_files_as_the_cli(fmt):
     assert hit["path"] == MINIMIST
     assert all(f["dev_only"] for f in rep["findings"] if f["package"] == "pkg:npm/semver@7.5.1")
     assert rep["summary"] == report(fmt)["summary"]
+
+
+def test_the_mcp_audit_refuses_a_binary_bun_lockb_before_reading_it(tmp_path):
+    pytest.importorskip("mcp")
+    pytest.importorskip("jsonschema")
+    from decisis import serve
+    (tmp_path / "bun.lockb").write_bytes(b"#!/usr/bin/env bun\nbun-lockfile-format-v0\n\x02\x00\xff\xfe")
+    tools = serve.load_tools(VINC, tmp_path, CACHE)
+    with pytest.raises(serve.Refused, match=r"run `bun install --save-text-lockfile`"):
+        tools.call("audit", {"lockfile": "bun.lockb", "repo": "Demo"})
+
+
+def test_a_yarn_workspace_that_leads_outside_the_root_is_not_read(tmp_path):
+    repo, outside = tmp_path / "repo", tmp_path / "outside"
+    (repo / ".git").mkdir(parents=True)
+    (outside / "evil").mkdir(parents=True)
+    (outside / "evil" / "package.json").write_text('{"name": "evil", "dependencies": {"minimist": "1.2.5"}}', encoding="utf-8")
+    (repo / "packages").mkdir()
+    (repo / "packages" / "evil").symlink_to(outside / "evil", target_is_directory=True)
+    (repo / "package.json").write_text('{"name": "demo", "workspaces": ["packages/*"]}', encoding="utf-8")
+    (repo / "yarn.lock").write_text(ALIAS_LOCKS["yarn-v1"][1], encoding="utf-8")
+    _, siblings = inventory.load(repo / "yarn.lock")
+    assert sorted(siblings) == ["package.json"]

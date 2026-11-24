@@ -41,8 +41,12 @@ def _head(path: Path) -> bytes:
         return f.read(len(MAGIC) + 32)
 
 
+def binary(path: Path) -> bool:
+    return path.name.endswith(".lockb") or MAGIC in _head(path)
+
+
 def refuse_binary(path: Path) -> None:
-    if path.name.endswith(".lockb") or MAGIC in _head(path):
+    if binary(path):
         raise ValueError(refusal(path.name))
 
 

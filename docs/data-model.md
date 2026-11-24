@@ -192,16 +192,20 @@ token, at GitHub's lower limit for anonymous requests.
 | `source` | `https://github.com/OWNER/REPO/pull/{n}` |
 | `content_hash` | `sha256:` and the hex digest of the number, title, description, merge time, merge commit, labels, author, files and reviews that were read |
 
-Its id is `decision:github-<owner>-<repo>-pr-<number>`, so it stays the same across runs and never meets an
-ADR's id. No fetch time is stored, so the same answers from GitHub give the same bytes.
+Its id is `decision:github-<owner>-<repo>-<key>-pr-<number>`, where `<key>` is the first 8 hex digits of the
+SHA-256 of `owner/repo` in lower case, so it stays the same across runs, never meets an ADR's id, and differs
+between repositories whose names slug alike (`a-b/c` and `a/b-c`, `foo.bar` and `foo_bar`). No fetch time is stored, so the same answers from GitHub give the same bytes.
 
 The listing follows GitHub's `Link` headers and stops at `--limit` closed pull requests, or at the first one
 last updated before `--since`; a stop at the limit is listed as `not read` on `github:OWNER/REPO`. GitHub
-lists at most 3,000 changed files of a pull request; a pull request at that cap is kept and listed. A rate
+lists at most 3,000 changed files of a pull request; a pull request at that cap is kept and listed. `init`
+reads at most 1,000 reviews of a pull request; one with more is kept and listed as `not read`, since its
+`deciders` can miss an approval. A changed file whose path has a colon (`C:/win`, `a:b/c.py`) is left out of
+`code_ref` and listed as `skipped`, because a `code_ref` reads what comes before a colon as a repository. A rate
 limit (HTTP 429, or 403 with `x-ratelimit-remaining: 0` or `retry-after`) stops the read: the pull requests
 read before it stay in the snapshot, and the stop is listed as `not read` with GitHub's reset time. Any other
-error answer, an answer that is not JSON, and a redirect or `Link` to another host stop the command with exit
-code 1 and write nothing.
+error answer, a broken or cut-off answer, an answer that is not JSON or is nested too deeply to read, and a
+redirect or `Link` to another host stop the command with exit code 1 and write nothing.
 
 ### The front matter subset
 
@@ -250,6 +254,8 @@ returns the same nodes and edges.
 | `go.mod` with `go.sum` | `go-modules` | the module | every `require`, after `replace`; `// indirect` is kept in the evidence | always false |
 | `gradle.lockfile`, `settings-gradle.lockfile` | `gradle-lockfile` | the build | the repository to every locked `group:artifact:version`, with its configurations in the evidence | every configuration is a test one (`test...`, `...Test...`), compile-only (`compileOnly`, `compileClasspath`) or an annotation processor (`annotationProcessor`, `kapt`, `ksp`) |
 | `pom.xml` | `maven-pom` | the project | the repository to every entry of `<dependencies>` (not profiles or plugins) | scope `test` or `provided` |
+| `poetry.lock` 1.x or 2.x, with `pyproject.toml` when present | `poetry-lockfile` | the project in `pyproject.toml`; without it, packages that nothing in the lock requires | `[package.dependencies]`; from the repository, `tool.poetry` dependencies, dev-dependencies and groups, and `project` dependencies, optional dependencies and `dependency-groups` | `category` other than `main` (1.x), `groups` without `main` (2.1), or reached only through a non-main group in `pyproject.toml`; with none of these, false and noted |
+| `requirements*.txt` | `pip-requirements` | the file and the files it includes with `-r` | the repository to each requirement line; no transitive edges | always false |
 | `pnpm-lock.yaml` v6 or v9 | `pnpm-lockfile` | importer `.`; every other importer is a `Workspace` | importers' `dependencies`, `optionalDependencies` and `devDependencies` (`link:` goes to a workspace); each package's `dependencies` and `optionalDependencies` (v9: `snapshots`), a name in its `peerDependencies` marked peer | reached only through `devDependencies`; v6 `dev: true` |
 | `yarn.lock` v1 | `yarn-lockfile` | the root `package.json`; each workspace `package.json` is a `Workspace` | the `package.json` fields, then each entry's `dependencies` and `optionalDependencies` by `name@range`; v1 does not record peers | reached only through `devDependencies` |
 | `yarn.lock` Berry | `yarn-berry-lockfile` | the `workspace:.` entry; every other `workspace:` entry is a `Workspace` | each entry's `dependencies` by descriptor, `dependenciesMeta` optional, `peerDependencies` to the locked package of that name | a workspace dependency listed only under `devDependencies` of its `package.json` |
@@ -273,11 +279,33 @@ Package props:
   one package id more than once, one production instance makes it shipped; it is development only when
   every instance is marked development and nothing shipped reaches it.
 
+A requirements line that is not a `name==version` pin gets the id `pkg:pypi/<name>@` with an empty
+`version` and an `unresolved` that names the file, the line and what it gives; a direct URL or path
+without a name gets `pkg:unknown/<target>@`. A ranged line for a name that another line pins links to
+that pin instead. `-r` includes are read through the sibling reader (below). A Poetry package from a
+`directory`, `file`, `url` or `git` source is unresolved.
+
 An SBOM component without a purl gets the id `pkg:unknown/<name>@<version>`, ecosystem `""` and
 `unresolved` `the inventory gives no purl`, with its CPE when it has one. An SBOM package that nothing
 depends on is linked from the repository with the evidence `listed in the SBOM with no dependency on it`.
 `audit` refuses an inventory that lists no packages, or none that can be queried at OSV, instead of
 reporting it clean.
+
+The `Repository` node has `inventory_notes`, a list of strings, when the reader saw a gap in what the
+inventory covers: a requirements file lists direct dependencies only, an include was not followed, a
+local project or constraints file was not read, or a `poetry.lock` does not say which packages are
+development ones.
+
+A reader gets the files it needs next to the inventory as `siblings`. `inventory.load(path, root=None)`
+reads the fixed names a reader lists (`go.sum`, `pyproject.toml`) and keeps a reader function for other
+files, such as `-r` includes, and a resolve function that names the real file. Both take a path relative
+to the inventory's directory. They refuse absolute paths and any path, symbolic links included, that
+resolves outside the root: `root`, or else the nearest directory above the inventory that holds a `.git`
+entry (found without running git), or else the inventory's directory. The CLI sets it with `--root`. The
+reader returns nothing when the file does not exist. Includes are keyed by the resolved file, so a loop
+through a symbolic link ends, and they are followed 64 levels deep. A leading UTF-8 byte order mark is
+dropped from the inventory and every file read beside it. A caller can pass its own functions, as the
+MCP server does with its `--root` check: `inventory.gather(text, filename, reader, resolve)`.
 
 For Go, `audit` is given `go.mod` and reads `go.sum` from the same directory. It stops when there is no
 `go.sum`, or when a required module version has no line in it. A `replace` to a local path drops the
@@ -305,12 +333,14 @@ transitive dependencies are not resolved and pointing to `cyclonedx-gradle-plugi
 Readers live in `src/decisis/inventory/`. Each one has `FORMAT`, `SIBLINGS` (files read from the same
 directory), `detect(text, filename)` and `read(text, filename, repo, siblings=None)` returning
 `(nodes, edges)`; `inventory.read` picks the first reader whose `detect` matches. A reader may also have
-`sibling_names(folder, read)`, which names the files to read in place of `SIBLINGS`: the Yarn reader
+`sibling_names(read, resolve)`, which names the files to read in place of `SIBLINGS`: the Yarn reader
 returns the root `package.json` and the `package.json` of each directory its `workspaces` globs match
-(outside `node_modules`). `inventory.siblings` reads them through one `read(name)` callback: the CLI reads
-files next to the lockfile, and `serve --mcp` reads them only under its `--root`. Every inventory is read
-as strict UTF-8; a file that is not is refused. A binary `bun.lockb`, told by its name or its
-`bun-lockfile-format` header, is refused with the command that writes `bun.lock`.
+(outside `node_modules`). `inventory.gather` reads them with the same bounded reader as every other
+sibling, so the CLI reads them only under the repository root and `serve --mcp` only under its `--root`;
+a match that leads outside is skipped. Every inventory is read as strict UTF-8 with a leading BOM
+removed; a file that is not UTF-8 is refused. A binary `bun.lockb`, told by its name or its
+`bun-lockfile-format` header, is refused with the command that writes `bun.lock`, by the CLI and by
+`serve --mcp` before either reads it as text.
 
 The pnpm, Yarn and Bun readers give each package the npm ecosystem and the id the npm reader gives the
 same name and version, `pkg:npm/<name>@<version>`. An npm alias (`foo@npm:minimist@1.2.5`) gets the id of
@@ -355,9 +385,10 @@ node they reach the repository through), `summary` (counts by status), `violatio
 finding has `package`, `advisory`, `severity`, `status` (`affected`, `not_affected`, `unresolved`),
 `dev_only`, `path` (ids from `repo:<name>` to the advisory), `source_url`, `fetched_at`, `content_hash`,
 `advisory_summary` and `policies` (one `decision`, `verdict` and `why` per governing decision).
-`unresolved_packages` lists each package that was not queried (`package`, `reason`). `notes` is a list
-of sentences about what the inventory format cannot show; only the Gradle and Maven readers add it, and
-the key is absent for other formats.
+`unresolved_packages` lists each package that was not queried (`package`, `reason`), and
+`inventory_notes` lists sentences on what the inventory does not cover, from the reader (an include not followed,
+a dev split that is unknown) or from its format (the Gradle and Maven readers do not resolve transitive
+dependencies); it is empty when there are none.
 
 `propose --out plan.json` writes `space`, `nodes` (records), `edges` (`relates_to` from a record to a
 decision, with the verdict as evidence), `held` (findings not recorded and why; a record that failed a re-derivation check has `record` and `failed`, the list of

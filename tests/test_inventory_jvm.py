@@ -227,22 +227,22 @@ def test_log4j_core_2_14_1_is_an_affected_finding_in_both_formats(fmt):
 
 @pytest.mark.parametrize("fmt,plugin", [("gradle", "cyclonedx-gradle-plugin"), ("pom", "cyclonedx-maven-plugin")])
 def test_the_report_notes_that_transitive_dependencies_are_not_resolved(fmt, plugin):
-    notes = report(fmt)["notes"]
+    notes = report(fmt)["inventory_notes"]
     assert len(notes) == 1 and "transitive dependencies are not resolved" in notes[0] and plugin in notes[0] and "CycloneDX" in notes[0]
 
 
-def test_other_formats_carry_no_notes_key():
+def test_other_formats_carry_an_empty_inventory_notes_list():
     text = (VINC.parent.parent / "inventory" / "Cargo.lock").read_text(encoding="utf-8")
     cache = external.read_osv_cache((VINC.parent.parent / "inventory" / "osv-cache.json").read_text(encoding="utf-8"))
     rep = audit.run(co.load(VINC.read_text(encoding="utf-8")), text, "Demo", advisories=external.cached_advisories(cache), filename="Cargo.lock")
-    assert "notes" not in rep
+    assert "notes" not in rep and rep["inventory_notes"] == []
 
 
 @pytest.mark.parametrize("fmt", sorted(FILES))
 def test_the_cli_audits_both_formats_offline_and_the_html_shows_the_note(fmt, no_network, capsys):
     assert cli.main(["audit", str(VINC), str(FILES[fmt]), "--repo", "Demo", "--osv-cache", str(CACHE)]) == 0
     rep = json.loads(capsys.readouterr().out)
-    assert rep["summary"]["affected"] > 0 and rep["meta"]["packages"] == len(packages(fmt)) and rep["notes"]
+    assert rep["summary"]["affected"] > 0 and rep["meta"]["packages"] == len(packages(fmt)) and rep["inventory_notes"]
     assert cli.main(["audit", str(VINC), str(FILES[fmt]), "--repo", "Demo", "--osv-cache", str(CACHE), "--format", "html"]) == 0
     page = capsys.readouterr().out
     assert "<h2>Notes</h2>" in page and "transitive dependencies are not resolved" in page

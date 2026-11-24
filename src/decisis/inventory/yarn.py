@@ -19,8 +19,8 @@ def detect(text: str, filename: str) -> bool:
     return filename == "yarn.lock" or V1 in text[:300] or re.search(r"^__metadata:\s*$", text, re.M) is not None
 
 
-def sibling_names(folder: Path, read) -> tuple[str, ...]:
-    return manifest_names(folder, read)
+def sibling_names(read, resolve=None) -> tuple[str, ...]:
+    return manifest_names(read, resolve)
 
 
 def _pair(body: str, n: int, filename: str) -> tuple[str, str]:
