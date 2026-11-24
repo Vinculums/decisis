@@ -15,7 +15,7 @@
 ![decisis demo: a dependency audit on synthetic data, from the decision to the advisory it breaks](https://raw.githubusercontent.com/Vinculums/decisis/main/docs/media/demo.gif)
 
 decisis (from *stare decisis*, "stand by what was decided") is a command-line tool and Python package.
-It takes the decisions a task needs, joins them with code paths and outside facts (an npm lockfile and
+It takes the decisions a task needs, joins them with code paths and outside facts (a lockfile or SBOM and
 OSV advisories) in a throwaway [Relate](https://github.com/relatedb/relate) graph, and finds the
 multi-hop path from a decision to the thing that breaks it. Every finding carries that path and its
 sources. The graph lives in a private temporary directory and is deleted when the task ends.
@@ -25,7 +25,7 @@ or from a [Vinc](https://vincs.io) space if you connect one. Nothing is written 
 person approves the exact write set by its digest.
 
 What it is not, today: a linter that reads your code, a vulnerability scanner for every ecosystem, or a
-place to store decisions. It reads npm lockfiles only, decisions come from a snapshot file or Vinc, and
+place to store decisions. It reads the lockfiles and SBOMs listed under [Inventory formats](#inventory-formats), decisions come from a snapshot file or Vinc, and
 the benchmark below is small and synthetic. [What is proven, and what is not built yet](#what-is-proven-and-what-is-not-built-yet)
 has the full list.
 
@@ -67,7 +67,16 @@ decision:no-high-advisories-in-shipped-dependencies -ABOUT-> concept:demo-app <-
 The rule lives in the team's decisions, the dependency chain in the lockfile and the advisory in OSV;
 no single source holds the connection.
 
-**2. Use your own decisions.** Write a snapshot: one JSON file of nodes and edges. This one has an app,
+**2. Use your own decisions.** If the repository keeps ADRs (MADR or Nygard), a CODEOWNERS file or
+postmortems, build the snapshot from them and ask what governs a file:
+
+```bash
+decisis init --repo-dir . --repo Shop --out snapshot.json
+decisis impact snapshot.json src/payments/retry.py --repo Shop --format text
+```
+
+`init` prints what it could not read and why; [`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md#a-snapshot-from-a-repository-init)
+lists the front matter keys and headings it reads. Or write a snapshot by hand: one JSON file of nodes and edges. This one has an app,
 a checkout flow, one decision and one incident record ([`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md) has
 every field):
 
@@ -111,12 +120,33 @@ decisis audit my-snapshot.json package-lock.json --repo Shop --out report.json
 it breaks. With the demo lockfile and its cached advisories, three findings on shipped `lodash` break the
 decision above.
 
+### Inventory formats
+
+`audit` tells the format from the file's content and name:
+
+| Format | File | Development dependencies |
+|---|---|---|
+| npm lockfile v2 or v3 | `package-lock.json`, `npm-shrinkwrap.json` | `dev` in the lockfile |
+| CycloneDX JSON 1.4, 1.5, 1.6 | any name | a component with scope `excluded` or `cdx:npm:package:development` |
+| SPDX JSON 2.3 | any name | `DEV_DEPENDENCY_OF`, `TEST_DEPENDENCY_OF`, `BUILD_DEPENDENCY_OF`, `DEV_TOOL_OF` |
+| uv | `uv.lock` | dependency groups (`dev-dependencies`) |
+| Cargo | `Cargo.lock` | not marked in the lockfile; every crate counts as shipped |
+| Go modules | `go.mod`, with `go.sum` in the same directory | not marked; every module counts as shipped |
+
+For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
+line there. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, and for
+SBOMs also Maven, NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
+without a purl, or whose purl type has no OSV ecosystem, stays in the graph and is listed under
+`unresolved_packages` in the report; it is not queried. An inventory with no packages, or none that can
+be queried, is refused. `fixtures/inventory/` holds one small example of each format and an OSV cache
+that covers them all.
+
 ## How it works
 
 ```mermaid
 flowchart LR
     V[("decisions<br/>snapshot.json or Vinc")] -- "only what the task names" --> R
-    L["npm lockfile"] --> R
+    L["lockfile or SBOM"] --> R
     O["OSV advisories<br/>live or --osv-cache"] --> R
     R[("Relate file<br/>private 0700 temp dir<br/>read only while reasoning")] -- "bounded Cypher paths" --> F["findings with<br/>paths and sources"]
     F --> P["write set +<br/>approval digest"]
@@ -140,16 +170,25 @@ flowchart LR
 | Command | Needs | What it does |
 |---|---|---|
 | `demo` | nothing | the whole procedure on synthetic data, against an in-process fake Vinc |
+| `init --out <file>` | nothing | a snapshot from the repository's ADRs, CODEOWNERS and postmortems |
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
-| `audit <snapshot> <lockfile> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
-| `propose <report> <snapshot> <lockfile> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
+| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
+| `propose <report> <snapshot> <lockfile or SBOM> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
 | `compare` | nothing | the benchmark below |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
+| `gc` | nothing | removes task directories that a killed run left behind, and prints them |
 
-Useful flags: `impact --hops N --format text`, `paths --hops N --limit N`, `audit --osv-cache FILE --depth N`,
-`propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
+Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `impact --hops N --format text`, `paths --hops N --limit N`,
+`audit --osv-cache FILE --depth N`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
+
+Limits: `paths`, `impact`, `audit` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
+anything, and stop any query that runs longer than 60 seconds; the task directory is removed either way
+and the command exits with 1. Raise a limit with `--max-nodes`, `--max-edges` or `--query-timeout`, or with
+`DECISIS_MAX_NODES`, `DECISIS_MAX_EDGES` or `DECISIS_QUERY_TIMEOUT`, up to 1,000,000 nodes, 5,000,000 edges
+and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --hops` 1 to 6 and `paths --limit`
+1 to 100.
 `impact`, `paths` and `audit` print JSON (`impact --format text` reads better for people); `demo`, `propose`
 and `compare` print text. `decisis <command> --help` lists the rest.
 
@@ -285,8 +324,16 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - Reasoning opens the file read only and a write is refused; an open writer locks out a second writer
   and any reader.
 - The task directory is private (0700), under `/dev/shm` when it is writable, and removed after the run.
-- The audit joins the snapshot, the lockfile (nested copies resolved) and OSV, checks the installed
-  version against the advisory ranges, and keeps each advisory's source URL, fetch time and content hash.
+- A graph over the node or edge cap is refused before anything is written, a query over the time limit
+  is stopped, and in both cases the task directory is removed and the command exits non-zero.
+- Each task directory records its owner process. On Linux and macOS a new sandbox, or `decisis gc`,
+  removes `decisis-*` directories under the same root whose owner is gone; it leaves another user's
+  directory, a live run's directory, a `decisis-*` entry that is a symbolic link, and anything a symbolic
+  link inside a task directory points to. A root that is itself a symbolic link is followed and used as
+  the root.
+- The audit joins the snapshot, the lockfile or SBOM (nested npm copies resolved) and OSV, checks the
+  installed version against the advisory ranges (semantic versions, and PEP 440 for PyPI), and keeps each
+  advisory's source URL, fetch time and content hash.
 - `propose` re-derives each record in a fresh graph built from the snapshot, the lockfile and OSV: the
   advisory's content hash and severity, each version as a lockfile package inside the advisory's ranges,
   each dependency path from the repository to the record's own package and advisory, the record's scope
@@ -301,8 +348,8 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 Future work, not built:
 
 - A Relate MCP server as the agent's read-only query surface; today the agent drives the CLI.
-- Ecosystems other than npm, and repository metadata beyond the lockfile.
-- Query time limits, a cap on imported graph size and on `audit --depth`; today `paths` and `impact` bound hops and results.
+- pnpm, Yarn, Bun, Poetry, requirements.txt, Gradle and Maven inputs, and repository metadata beyond the inventory.
+- Removing stale task directories on Windows; there `decisis gc` says so and removes nothing.
 - Encrypted scratch storage with key destruction for sensitive data (see `docs/threat-model.md`).
 - A held-out benchmark set, and real repositories, to test whether the comparison holds.
 

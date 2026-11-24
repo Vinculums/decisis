@@ -1,17 +1,41 @@
 from __future__ import annotations
 
+import atexit
+import builtins
+import json
 import os
+import pickle
+import queue
+import re
 import shutil
+import signal
+import socket
+import stat
+import subprocess
+import sys
 import tempfile
+import threading
+import time
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Mapping
 
 import relate
 
 TMPFS = Path("/dev/shm")
+TASK_DIR = re.compile(r"decisis-[0-9a-f]{32}")
+OWNER = "owner.json"
+GRACE_SECONDS = 600
+MAX_PID = 2**31 - 1
+
+MAX_NODES = 50_000
+MAX_EDGES = 250_000
+QUERY_SECONDS = 60
+CEILING_NODES = 1_000_000
+CEILING_EDGES = 5_000_000
+CEILING_SECONDS = 3600
 
 
 @dataclass(frozen=True)
@@ -19,6 +43,56 @@ class Subgraph:
     nodes: list[dict]
     edges: list[dict]
     meta: dict = field(default_factory=dict)
+
+
+class LimitExceeded(Exception):
+    pass
+
+
+class TooLarge(LimitExceeded):
+    pass
+
+
+class QueryTimeout(LimitExceeded):
+    pass
+
+
+@dataclass(frozen=True)
+class Limits:
+    max_nodes: int = MAX_NODES
+    max_edges: int = MAX_EDGES
+    query_seconds: float = QUERY_SECONDS
+
+    @classmethod
+    def resolve(cls, max_nodes: int | None = None, max_edges: int | None = None, query_seconds: int | None = None,
+                env: Mapping[str, str] = os.environ) -> Limits:
+        return cls(_pick(max_nodes, env, "DECISIS_MAX_NODES", MAX_NODES, CEILING_NODES),
+                   _pick(max_edges, env, "DECISIS_MAX_EDGES", MAX_EDGES, CEILING_EDGES),
+                   _pick(query_seconds, env, "DECISIS_QUERY_TIMEOUT", QUERY_SECONDS, CEILING_SECONDS))
+
+
+def _pick(value: int | None, env: Mapping[str, str], name: str, default: int, ceiling: int) -> int:
+    if value is None:
+        text = env.get(name, "").strip()
+        if not text:
+            return default
+        try:
+            value = int(text)
+        except ValueError:
+            raise ValueError(f"{name}={text!r} is not a whole number") from None
+    if not 1 <= value <= ceiling:
+        raise ValueError(f"{name} must be between 1 and {ceiling}, not {value}")
+    return value
+
+
+def check_size(graph: Subgraph, limits: Limits) -> None:
+    over = []
+    if len(graph.nodes) > limits.max_nodes:
+        over.append(f"{len(graph.nodes)} nodes, over the cap of {limits.max_nodes} (raise it with --max-nodes or DECISIS_MAX_NODES, at most {CEILING_NODES})")
+    if len(graph.edges) > limits.max_edges:
+        over.append(f"{len(graph.edges)} edges, over the cap of {limits.max_edges} (raise it with --max-edges or DECISIS_MAX_EDGES, at most {CEILING_EDGES})")
+    if over:
+        raise TooLarge("the graph to load has " + "; and ".join(over) + "; nothing was written")
 
 
 def default_root() -> Path:
@@ -43,15 +117,21 @@ def _mismatch(graph: Subgraph, got: dict) -> str:
 
 
 class Sandbox:
-    def __init__(self, root: Path | None = None):
-        self.dir = (root or default_root()) / f"decisis-{uuid.uuid4().hex}"
+    def __init__(self, root: Path | None = None, limits: Limits | None = None):
+        self.limits = limits or Limits.resolve()
+        root = root or default_root()
+        _quiet_sweep(root)
+        self.dir = root / f"decisis-{uuid.uuid4().hex}"
         self.dir.mkdir(mode=0o700)
+        _write_owner(self.dir)
         self.path = self.dir / "task.rl"
         self.loaded = False
 
     def load(self, graph: Subgraph) -> dict:
         if self.loaded:
             raise RuntimeError("a sandbox is loaded once; build a new one for a new task")
+        check_size(graph, self.limits)
+        _warm()
         con = relate.connect(str(self.path))
         try:
             for kind in sorted({n["kind"] for n in graph.nodes}):
@@ -74,23 +154,245 @@ class Sandbox:
     def query(self, cypher: str, params: dict | None = None) -> list[dict]:
         if not self.loaded:
             raise RuntimeError("load the sandbox before querying it")
-        con = relate.connect(str(self.path), read_only=True)
-        try:
-            return con.execute(cypher, params or {}).fetchall()
-        finally:
-            con.close()
+        reply = _ask((str(self.path), cypher, params or {}), self.limits.query_seconds)
+        if reply[0] == "error":
+            _reraise(*reply[1:])
+        return reply[1]
 
     def destroy(self) -> None:
         shutil.rmtree(self.dir, ignore_errors=True)
 
 
 @contextmanager
-def sandbox(root: Path | None = None) -> Iterator[Sandbox]:
-    box = Sandbox(root)
+def sandbox(root: Path | None = None, limits: Limits | None = None) -> Iterator[Sandbox]:
+    box = Sandbox(root, limits)
     try:
         yield box
     finally:
         box.destroy()
+
+
+_shared: list = []
+_lock = threading.Lock()
+
+
+def _warm() -> None:
+    if _lock.acquire(blocking=False):
+        try:
+            if not _shared:
+                _shared.append(_Worker())
+        finally:
+            _lock.release()
+
+
+def _ask(job: tuple, seconds: float) -> tuple:
+    with _lock:
+        worker = _shared.pop() if _shared else None
+        if worker is None or worker.proc.poll() is not None:
+            worker = _Worker()
+        try:
+            reply = worker.ask(job, seconds)
+        except BaseException:
+            worker.proc.kill()
+            worker.stop()
+            raise
+        _shared.append(worker)
+        return reply
+
+
+def _stop_shared() -> None:
+    while _shared:
+        _shared.pop().stop()
+
+
+atexit.register(_stop_shared)
+
+BOOT = "import pickle, sys; sys.path[:] = pickle.load(sys.stdin.buffer); from decisis.sandbox import _serve; _serve()"
+
+
+class _Worker:
+    def __init__(self):
+        self.proc = subprocess.Popen([sys.executable, "-I", "-c", BOOT], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        self._send(sys.path)
+
+    def _send(self, obj) -> None:
+        pickle.dump(obj, self.proc.stdin)
+        self.proc.stdin.flush()
+
+    def _receive(self, box: list) -> None:
+        try:
+            box.append(pickle.load(self.proc.stdout))
+        except Exception:
+            pass
+
+    def ask(self, job: tuple, seconds: float) -> tuple:
+        box: list = []
+        reader = threading.Thread(target=self._receive, args=(box,), daemon=True)
+        try:
+            self._send(job)
+        except OSError as e:
+            self.stop()
+            raise RuntimeError(f"the query process is gone: {e}") from None
+        reader.start()
+        reader.join(seconds)
+        if reader.is_alive():
+            self.proc.kill()
+            reader.join(10)
+            self.stop()
+            raise QueryTimeout(f"the query ran longer than {seconds:g} s and was stopped; raise the limit with --query-timeout "
+                               f"or DECISIS_QUERY_TIMEOUT, at most {CEILING_SECONDS} s")
+        if not box:
+            self.stop()
+            raise RuntimeError("the query process ended without an answer")
+        return box[0]
+
+    def stop(self) -> None:
+        try:
+            self.proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            self.proc.wait(5)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            self.proc.wait()
+        self.proc.stdout.close()
+
+
+def _serve() -> None:
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    out = os.fdopen(os.dup(1), "wb")
+    os.dup2(2, 1)
+    jobs: queue.Queue = queue.Queue()
+    threading.Thread(target=_read_jobs, args=(jobs,), daemon=True).start()
+    while True:
+        out.write(_reply(*jobs.get()))
+        out.flush()
+
+
+def _read_jobs(jobs: queue.Queue) -> None:
+    try:
+        while True:
+            jobs.put(pickle.load(sys.stdin.buffer))
+    except Exception:
+        pass
+    os._exit(0)
+
+
+def _reply(path: str, cypher: str, params: dict) -> bytes:
+    try:
+        return pickle.dumps(_answer(path, cypher, params))
+    except Exception as e:
+        return pickle.dumps(("error", "builtins", "TypeError", f"the query result cannot be returned: {e}"))
+
+
+def _answer(path: str, cypher: str, params: dict) -> tuple:
+    try:
+        con = relate.connect(path, read_only=True)
+        try:
+            return ("rows", con.execute(cypher, params).fetchall())
+        finally:
+            con.close()
+    except Exception as e:
+        return ("error", type(e).__module__, type(e).__name__, str(e))
+
+
+def _reraise(module: str, name: str, text: str) -> None:
+    home = relate if module.split(".")[0] == "relate" else builtins
+    cls = getattr(home, name, None)
+    if isinstance(cls, type) and issubclass(cls, Exception):
+        raise cls(text)
+    raise RuntimeError(f"{name}: {text}")
+
+
+def _start_time(pid: int) -> str | None:
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
+    except (OSError, ValueError):
+        return None
+    fields = text.rsplit(")", 1)[-1].split()
+    return fields[19] if len(fields) > 19 else None
+
+
+def _write_owner(path: Path) -> None:
+    owner = {"pid": os.getpid(), "start": _start_time(os.getpid()), "host": socket.gethostname(), "created": time.time()}
+    fd = os.open(path / OWNER, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(owner, f)
+
+
+def can_sweep() -> bool:
+    return hasattr(os, "getuid") and shutil.rmtree.avoids_symlink_attacks
+
+
+def _quiet_sweep(root: Path) -> None:
+    try:
+        sweep(root)
+    except Exception:
+        pass
+
+
+def sweep(root: Path, grace: float = GRACE_SECONDS, errors: list | None = None) -> list[Path]:
+    if not can_sweep():
+        return []
+    try:
+        entries = [Path(e.path) for e in os.scandir(root)]
+    except OSError:
+        return []
+    removed = []
+    for path in entries:
+        try:
+            if _stale(path, grace):
+                shutil.rmtree(path)
+                removed.append(path)
+        except Exception as e:
+            if errors is not None:
+                errors.append((path, f"{type(e).__name__}: {e}"))
+    return removed
+
+
+def _stale(path: Path, grace: float) -> bool:
+    if not TASK_DIR.fullmatch(path.name):
+        return False
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or time.time() - st.st_mtime < grace:
+        return False
+    owner = _read_owner(path)
+    return owner is not None and owner.get("host") == socket.gethostname() and not _alive(owner)
+
+
+def _read_owner(path: Path) -> dict | None:
+    try:
+        fd = os.open(path / OWNER, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid():
+            return None
+        owner = json.loads(os.read(fd, 4096))
+    except (OSError, ValueError):
+        return None
+    finally:
+        os.close(fd)
+    if not isinstance(owner, dict) or type(owner.get("pid")) is not int or not 0 < owner["pid"] <= MAX_PID:
+        return None
+    return owner
+
+
+def _alive(owner: dict) -> bool:
+    pid = owner["pid"]
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except (OSError, OverflowError, ValueError):
+        return True
+    start = owner.get("start")
+    return start is None or _start_time(pid) in (None, start)
 
 
 def _label(name: str) -> str:

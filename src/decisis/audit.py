@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import re
 
-from . import external, semver
+from . import external, inventory, semver
 from .queries import load as query
-from .sandbox import Subgraph, sandbox
+from .sandbox import Limits, Subgraph, sandbox
+
+MAX_DEPTH = 16
 
 SEVERITY = ["LOW", "MODERATE", "MEDIUM", "HIGH", "CRITICAL"]
 
@@ -32,8 +34,10 @@ def rule_of(decision: dict) -> dict | None:
     return rule if isinstance(rule, dict) and rule.get("advisory_severity_at_least") in SEVERITY else None
 
 
-def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories) -> Subgraph:
-    pkg_nodes, dep_edges = external.parse_npm_lock(lock_text, repo)
+def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories, filename: str = "package-lock.json",
+            siblings: dict[str, str] | None = None) -> Subgraph:
+    pkg_nodes, dep_edges = inventory.read(lock_text, filename, repo, siblings)
+    nothing_to_query(pkg_nodes, filename)
     adv_nodes, adv_edges = advisories(pkg_nodes)
     links = governance_links(vinc.nodes, repo)
     lock_hash = next((n["props"].get("content_hash") for n in pkg_nodes if n["kind"] == "Repository"), "")
@@ -41,6 +45,14 @@ def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch
     meta = {**vinc.meta, "nodes": len(nodes), "edges": len(edges), "repo": repo, "lockfile_hash": lock_hash, "packages": sum(1 for n in pkg_nodes if n["kind"] == "Package"),
             "advisories": len(adv_nodes), "governance_links": len(links)}
     return Subgraph(nodes, edges, meta)
+
+
+def nothing_to_query(pkg_nodes: list[dict], filename: str) -> None:
+    pkgs = [n for n in pkg_nodes if n["kind"] == "Package"]
+    if not any(external.queryable(n) for n in pkgs):
+        first = pkgs[0]
+        raise ValueError(f"none of the {len(pkgs)} packages in {filename} can be queried at OSV, so there is nothing to audit "
+                         f"({first['id']}: {first['props']['unresolved']})")
 
 
 def judge(governing: dict, rule: dict | None, status: str, severity: str, dev: bool) -> dict:
@@ -85,16 +97,26 @@ def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dic
 
 
 def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
+    if not 1 <= depth <= MAX_DEPTH:
+        raise ValueError(f"depth must be between 1 and {MAX_DEPTH}")
     counts = box.load(graph)
     rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
     decisions = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
     findings = verify(rows, graph, decisions)
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
     return {"meta": graph.meta, "loaded": counts, "governing": decisions, "summary": summary,
-            "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings}
+            "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings,
+            "unresolved_packages": unresolved_packages(graph)}
 
 
-def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories, root=None) -> dict:
-    graph = compose(vinc, lock_text, repo, advisories)
-    with sandbox(root) as box:
+def unresolved_packages(graph: Subgraph) -> list[dict]:
+    return [{"package": n["id"], "reason": n["props"]["unresolved"]} for n in sorted(graph.nodes, key=lambda n: n["id"])
+            if n["kind"] == "Package" and (n.get("props") or {}).get("unresolved")]
+
+
+def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories,
+        limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None,
+        root=None) -> dict:
+    graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
+    with sandbox(root, limits) as box:
         return analyze(box, graph, repo, depth)

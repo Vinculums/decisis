@@ -21,7 +21,7 @@ from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
-from . import audit, external, impact
+from . import audit, external, impact, inventory
 from . import checkout as co
 from .cli import MAX_LIMIT
 from .queries import load as query
@@ -61,7 +61,7 @@ SCHEMAS = {
     "audit": {
         "type": "object",
         "properties": {
-            "lockfile": {**TEXT, "description": "an npm lockfile (v2 or v3) under the server's root"},
+            "lockfile": {**TEXT, "description": "a lockfile or SBOM under the server's root (the formats audit reads)"},
             "repo": {**TEXT, "description": "repository name as it appears in Vinc code_ref, for example Vinc"},
             "depth": {"type": "integer", "minimum": 1, "maximum": MAX_DEPTH, "default": 8,
                       "description": f"longest dependency path to follow (1 to {MAX_DEPTH})"},
@@ -75,7 +75,7 @@ DESCRIPTIONS = {
     "impact": "List the decisions, records and concepts in the snapshot that govern one or more code paths, "
               "each with its edge path and the evidence on each edge.",
     "paths": "List bounded paths between two node ids in the snapshot.",
-    "audit": "Join the snapshot, an npm lockfile and OSV advisories, and report the advisories the repository reaches "
+    "audit": "Join the snapshot, a lockfile or SBOM and OSV advisories, and report the advisories the repository reaches "
              "and the decisions they break. Reads advisories from the server's OSV cache, or from api.osv.dev only "
              "when the server was started with --allow-network.",
 }
@@ -118,7 +118,19 @@ class Tools:
     def audit(self, args: dict) -> dict:
         advisories = self.advisories()
         lock_text = read_under(self.root, args["lockfile"])
-        return audit.run(self.graph, lock_text, args["repo"], args.get("depth", 8), advisories=advisories, root=self.scratch)
+        name = PurePosixPath(args["lockfile"]).name
+        siblings = self.siblings(args["lockfile"], lock_text, name)
+        return audit.run(self.graph, lock_text, args["repo"], args.get("depth", 8), advisories=advisories, root=self.scratch,
+                         filename=name, siblings=siblings)
+
+    def siblings(self, raw: str, text: str, name: str) -> dict[str, str]:
+        out = {}
+        for sibling in inventory.READERS[inventory.detect(text, name)].SIBLINGS:
+            try:
+                out[sibling] = read_under(self.root, str(PurePosixPath(raw).parent / sibling))
+            except Refused:
+                continue
+        return out
 
     def advisories(self):
         if self.osv_cache is not None:

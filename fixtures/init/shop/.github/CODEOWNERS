@@ -1,0 +1,10 @@
+# Each line is a path and its owners; the last matching line applies.
+*                        @shop/platform
+/src/payments/           @shop/payments
+/src/logging/**          @shop/platform @ana
+docs/                    @shop/docs
+/src/payments/retry.py   @ben
+/src/payments/           @shop/payments-core
+/package-lock.json       security@shop.example
+/src/session/            platform-team
+/src/[ab]/              @shop/x

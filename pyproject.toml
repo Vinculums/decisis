@@ -42,8 +42,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = [
-    "decisis", "decisis.queries", "decisis.bench", "vinc_relate",
+    "decisis", "decisis.inventory", "decisis.queries", "decisis.bench", "vinc_relate",
     "decisis.fixtures", "decisis.fixtures.audit", "decisis.fixtures.compare", "decisis.fixtures.demo", "decisis.fixtures.impact",
+    "decisis.fixtures.inventory", "decisis.fixtures.inventory.go",
 ]
 
 [tool.setuptools.package-dir]
@@ -61,4 +62,6 @@ decisis = ["queries/*.cypher"]
 "decisis.fixtures.compare" = ["*.json"]
 "decisis.fixtures.demo" = ["*.json"]
 "decisis.fixtures.impact" = ["*.json"]
+"decisis.fixtures.inventory" = ["*.json", "*.lock"]
+"decisis.fixtures.inventory.go" = ["go.mod", "go.sum"]
 "decisis.bench" = ["tasks.json"]

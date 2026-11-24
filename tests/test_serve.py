@@ -57,8 +57,8 @@ def boxes(monkeypatch, tmp_path):
     made = []
     real = sb.Sandbox.__init__
 
-    def init(self, r=None):
-        real(self, r)
+    def init(self, r=None, limits=None):
+        real(self, r, limits)
         made.append(self.dir)
     monkeypatch.setattr(sb, "default_root", lambda: root)
     monkeypatch.setattr(sb.Sandbox, "__init__", init)
@@ -278,3 +278,21 @@ def test_a_server_stopped_during_a_slow_call_leaves_no_sandbox(stop, code, tmp_p
     finally:
         p.kill()
         p.wait()
+
+
+@pytest.mark.parametrize("inventory", ["go/go.mod", "cyclonedx.json", "uv.lock"])
+def test_audit_reads_every_inventory_format_and_go_sum_only_from_under_the_root(inventory, no_network):
+    t = tools(AUDIT_SNAPSHOT, FIX / "inventory", FIX / "inventory" / "osv-cache.json")
+    report = t.call("audit", {"lockfile": inventory, "repo": "Demo"})
+    assert report["summary"]["affected"] >= 1
+    assert all(f["package"].startswith("pkg:") for f in report["findings"])
+
+
+def test_audit_does_not_read_a_go_sum_outside_the_root(tmp_path, no_network):
+    (tmp_path / "go.mod").write_text((FIX / "inventory" / "go" / "go.mod").read_text(encoding="utf-8"), encoding="utf-8")
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.sum"
+    outside.write_text((FIX / "inventory" / "go" / "go.sum").read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "go.sum").symlink_to(outside)
+    t = tools(AUDIT_SNAPSHOT, tmp_path, FIX / "inventory" / "osv-cache.json")
+    with pytest.raises(Exception, match="go.sum"):
+        t.call("audit", {"lockfile": "go.mod", "repo": "Demo"})

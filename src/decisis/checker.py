@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import json
 
-from . import audit, external, semver
+from . import audit, semver
 from . import commit as wb
 from .queries import load as query
-from .sandbox import Sandbox, Subgraph
-
-ECOSYSTEM = "npm"
-
+from .sandbox import Limits, Sandbox, Subgraph
 
 def decisions(vinc: Subgraph) -> set[str]:
     return {n["id"] for n in vinc.nodes if n["kind"] == "decision"}
@@ -18,17 +15,28 @@ def _name(node: dict) -> str:
     return node["props"]["entity"].split(":", 1)[1]
 
 
-def _own(node: dict) -> set[str]:
-    return {external.package_id(ECOSYSTEM, _name(node), v) for v in node["props"]["versions"]}
+def _ends(node: dict) -> set[str]:
+    return {path[-2] for path in node["props"]["dependency_paths"] if len(path) > 1}
+
+
+def _package(name: str, version: str, facts: dict, ends: set[str]) -> dict | None:
+    found = [r for r in facts["packages"].values() if r["name"] == name and r["version"] == version]
+    return next((r for r in found if r["package"] in ends), found[0] if found else None)
+
+
+def _own(node: dict, facts: dict) -> set[str]:
+    rows = [_package(_name(node), v, facts, _ends(node)) for v in node["props"]["versions"]]
+    return {r["package"] for r in rows if r is not None}
 
 
 def _facts(box, plan: dict, repo: str, depth: int) -> dict:
     advisories = sorted({f"adv:{n['props']['value']}" for n in plan["nodes"]})
-    packages = sorted(set().union(*(_own(n) for n in plan["nodes"]),
-                                  *(set(path) for n in plan["nodes"] for path in n["props"]["dependency_paths"])))
+    names = sorted({_name(n) for n in plan["nodes"]})
+    on_paths = sorted({x for n in plan["nodes"] for path in n["props"]["dependency_paths"] for x in path})
+    packages = box.query(query("packages_named"), {"names": names}) + box.query(query("package_records"), {"ids": on_paths})
     return {"repo": f"repo:{repo}",
             "advisories": {r["advisory"]: r for r in box.query(query("advisory_records"), {"ids": advisories})},
-            "packages": {r["package"]: r for r in box.query(query("package_records"), {"ids": packages})},
+            "packages": {r["package"]: r for r in packages},
             "paths": {tuple(r["path"]) for r in box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})}}
 
 
@@ -44,12 +52,12 @@ def _advisory(p: dict, record: dict | None) -> list[str]:
 
 
 def _version(name: str, version: str, record: dict | None, facts: dict, ends: set[str]) -> list[str]:
-    pid, out = external.package_id(ECOSYSTEM, name, version), []
-    if pid not in facts["packages"]:
+    pkg, out = _package(name, version, facts, ends), []
+    if pkg is None:
         out.append(f"{name} {version} is not a package in the lockfile")
-    if record is None or semver.affects(version, ECOSYSTEM, name, json.loads(record["affected_json"])) is not True:
+    if pkg is None or record is None or semver.affects(version, pkg["ecosystem"], name, json.loads(record["affected_json"])) is not True:
         out.append(f"{name} {version} is not inside the advisory's affected ranges")
-    if pid not in ends:
+    if pkg is None or pkg["package"] not in ends:
         out.append(f"no dependency path of this record reaches {name} {version}")
     return out
 
@@ -67,9 +75,8 @@ def _path(path: list[str], p: dict, own: set[str], facts: dict) -> list[str]:
 
 
 def check_record(node: dict, edges: list[dict], facts: dict, known: set[str]) -> dict:
-    p, name, own = node["props"], _name(node), _own(node)
+    p, name, own, ends = node["props"], _name(node), _own(node, facts), _ends(node)
     record = facts["advisories"].get(f"adv:{p['value']}")
-    ends = {path[-2] for path in p["dependency_paths"] if len(path) > 1}
     problems = _advisory(p, record)
     for version in p["versions"]:
         problems += _version(name, version, record, facts, ends)
@@ -100,9 +107,10 @@ def withhold(plan: dict, checked: list[dict]) -> dict:
 
 
 def rederive(plan: dict, vinc: Subgraph, lock_text: str, repo: str, advisories, depth: int = 8,
-             root=None) -> tuple[dict, list[dict]]:
-    graph = audit.compose(vinc, lock_text, repo, advisories)
-    box = Sandbox(root)
+             root=None, limits: Limits | None = None, filename: str = "package-lock.json",
+             siblings: dict[str, str] | None = None) -> tuple[dict, list[dict]]:
+    graph = audit.compose(vinc, lock_text, repo, advisories, filename, siblings)
+    box = Sandbox(root, limits)
     try:
         box.load(graph)
         checked = check_plan(plan, box, decisions(vinc), repo, depth)
