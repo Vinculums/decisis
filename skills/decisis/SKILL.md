@@ -13,6 +13,7 @@ back to Vinc.
 
 - "Which advisories does this repository reach, and which of our decisions do they break?" (`audit`)
 - "This code path changes; which decisions and records govern it?" (`impact`)
+- "Does this change set lack a required reviewer or make an import a decision forbids?" (`check`, exits 1 on a violation)
 - "How are these two nodes connected?" (`paths`)
 
 Do not use it to edit the graph by hand. It writes only through `commit`, and only with the digest
@@ -68,7 +69,8 @@ back as an error result that names the argument; fix the argument rather than re
    Pick seeds that the task names (the repository's concept, the decision in question); keep `--depth` at 1 or 2.
 2. Reason in the sandbox:
    `decisis audit snapshot.json package-lock.json --repo <name as in code_ref> --out report.json`
-   (add `--osv-cache <file>` to stay offline), or `decisis impact snapshot.json <path> --format text`.
+   (add `--osv-cache <file>` to stay offline), `decisis impact snapshot.json <path> --format text`, or
+   `decisis check snapshot.json --base origin/main --reviewers <handle>... --format text`.
 3. Propose: `decisis propose report.json snapshot.json package-lock.json --repo <name> --space <space id> --out plan.json`
    (with the same `--osv-cache <file>` as the audit, if any). It re-derives each record from the snapshot, the
    lockfile and OSV, holds back any record that fails, and prints the exact write set and an approval digest.
