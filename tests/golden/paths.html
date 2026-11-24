@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paths: record:tls-advisory-example to concept:service-api</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--line:#d1d9e0;--card:#f6f8fa;--bad:#b91c1c;--badbg:#fdecec;--accent:#1d4ed8}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--line:#3d444d;--card:#151b23;--bad:#f87171;--badbg:#2d1214;--accent:#7aa2ff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:60rem;margin:0 auto;padding:1rem}
+h1{font-size:1.4rem;overflow-wrap:anywhere}
+h2{font-size:1.1rem;margin-top:1.5rem;overflow-wrap:anywhere}
+code{font:0.9em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:0.2rem 0.8rem;margin:0.5rem 0}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
+ul.items{list-style:none;padding:0}
+.item{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:0.75rem;margin:0.75rem 0}
+.item.violated{border-color:var(--bad);background:var(--badbg)}
+.badge{font-size:0.8em;border:1px solid var(--line);border-radius:4px;padding:0 0.3rem;color:var(--muted)}
+.badge.bad{border-color:var(--bad);color:var(--bad);font-weight:600}
+.title{font-weight:600}
+.steps{padding-left:1.4rem}
+.rel{color:var(--accent);font-size:0.85em}
+.evidence,.none{color:var(--muted)}
+.chain{overflow-wrap:anywhere}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{border-top:1px solid var(--line);padding:0.3rem;text-align:left;vertical-align:top}
+tr.violated td{color:var(--bad);font-weight:600}
+a{color:var(--accent);overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);padding:0.5rem;overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Paths: record:tls-advisory-example to concept:service-api</h1>
+<dl><dt>from</dt><dd><code>record:tls-advisory-example</code></dd><dt>to</dt><dd><code>concept:service-api</code></dd><dt>loaded</dt><dd>5 nodes, 4 edges</dd></dl>
+<section><h2>Path 1, 3 hop(s)</h2><ol class="steps"><li><code>record:tls-advisory-example</code> <span class="rel">RELATED_TO</span> <code>concept:tls-stack</code><div class="evidence">advisory names the stack</div></li><li><code>concept:tls-stack</code> <span class="rel">PREREQUISITE_OF</span> <code>concept:http-client-lib</code><div class="evidence">the client links it</div></li><li><code>concept:http-client-lib</code> <span class="rel">PREREQUISITE_OF</span> <code>concept:service-api</code><div class="evidence">the API calls out through it</div></li></ol><ul class="nodes"><li><code>record:tls-advisory-example</code> Advisory on the TLS stack source synthetic</li><li><code>concept:tls-stack</code> TLS stack</li><li><code>concept:http-client-lib</code> HTTP client library</li><li><code>concept:service-api</code> Service API</li></ul></section>
+<details><summary>Mermaid source</summary><pre>```mermaid
+flowchart LR
+  n0[&quot;record:tls-advisory-example&lt;br/&gt;Advisory on the TLS stack&quot;]
+  n1[&quot;concept:tls-stack&lt;br/&gt;TLS stack&quot;]
+  n2[&quot;concept:http-client-lib&lt;br/&gt;HTTP client library&quot;]
+  n3[&quot;concept:service-api&lt;br/&gt;Service API&quot;]
+  n0 --&gt;|&quot;RELATED_TO&quot;| n1
+  n1 --&gt;|&quot;PREREQUISITE_OF&quot;| n2
+  n2 --&gt;|&quot;PREREQUISITE_OF&quot;| n3
+  classDef concept fill:#ecfdf5,stroke:#047857,color:#032b1f
+  classDef endpoint fill:#ede9fe,stroke:#6d28d9,color:#1e1037
+  class n1,n2 concept
+  class n0,n3 endpoint
+```
+</pre></details>
+</main>
+</body>
+</html>

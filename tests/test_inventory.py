@@ -292,3 +292,47 @@ def test_pep440_agrees_with_packaging_on_the_cached_pypi_versions():
     seen = sorted({v for r in osv_cache()["vulns"].values() for a in r["affected"] if a["package"]["ecosystem"] == "PyPI"
                    for v in a.get("versions") or []} | {"1.0.dev0", "1.0a1.post1.dev2", "1.0b2-346", "1.0c1", "1!0.1", "1.0+abc.5", "1.0+5"})
     assert sorted(seen, key=pep440.key) == sorted(seen, key=version.Version)
+
+
+def propose(tmp_path: Path, capsys, fmt: str, rep: dict) -> tuple[int, dict, str]:
+    (tmp_path / "report.json").write_text(json.dumps(rep), encoding="utf-8")
+    capsys.readouterr()
+    code = cli.main(["propose", str(tmp_path / "report.json"), str(VINC), str(FILES[fmt]), "--repo", "Demo", "--space", "demo-space",
+                     "--osv-cache", str(CACHE), "--out", str(tmp_path / "plan.json")])
+    return code, json.loads((tmp_path / "plan.json").read_text(encoding="utf-8")), capsys.readouterr().out
+
+
+@pytest.mark.parametrize("fmt", ["cyclonedx", "spdx", "uv", "cargo", "go"])
+def test_propose_re_derives_the_records_of_every_ecosystem(tmp_path, capsys, no_network, fmt):
+    code, plan, out = propose(tmp_path, capsys, fmt, report(fmt))
+    assert code == 0 and plan["nodes"] and plan["held"] == [] and "; 0 failed." in out
+    assert all(n["props"]["subject_path"] == f"demo:{FILES[fmt].name}" for n in plan["nodes"])
+
+
+def test_propose_holds_a_go_record_whose_version_is_not_in_the_inventory(tmp_path, capsys, no_network):
+    rep = report("go")
+    f = next(f for f in rep["findings"] if f["package"] == "pkg:golang/golang.org/x/text@0.3.7" and f["advisory"] == "adv:GHSA-69ch-w2m2-3vjp")
+    f["package"] = "pkg:golang/golang.org/x/text@0.3.8"
+    code, plan, out = propose(tmp_path, capsys, "go", rep)
+    assert code == 1
+    held = next(h for h in plan["held"] if h.get("failed"))
+    assert "golang.org/x/text 0.3.8 is not a package in the lockfile" in held["failed"]
+    assert "golang.org/x/text 0.3.8 is not inside the advisory's affected ranges" in held["failed"]
+
+
+def test_propose_checks_pypi_records_by_their_pep440_ranges(tmp_path, capsys, no_network):
+    cache = osv_cache()
+    for record in cache["vulns"].values():
+        record["affected"] = ranges_only(record)
+    stripped = tmp_path / "osv-cache.json"
+    stripped.write_text(json.dumps(cache), encoding="utf-8")
+    text, siblings = inventory.load(FILES["uv"])
+    rep = audit.run(co.load(VINC.read_text(encoding="utf-8")), text, "Demo", advisories=external.cached_advisories(cache),
+                    filename="uv.lock", siblings=siblings)
+    assert rep["summary"]["affected"] == 10 and rep["summary"]["unresolved"] == 0
+    (tmp_path / "report.json").write_text(json.dumps(rep), encoding="utf-8")
+    capsys.readouterr()
+    code = cli.main(["propose", str(tmp_path / "report.json"), str(VINC), str(FILES["uv"]), "--repo", "Demo", "--space", "demo-space",
+                     "--osv-cache", str(stripped), "--out", str(tmp_path / "plan.json")])
+    plan = json.loads((tmp_path / "plan.json").read_text(encoding="utf-8"))
+    assert code == 0 and plan["nodes"] and plan["held"] == []

@@ -40,8 +40,10 @@ an unattended demo. The run writes `demo/transcript.json`, `demo/expected_findin
 2. Reason in the sandbox:
    `decisis audit snapshot.json package-lock.json --repo <name as in code_ref> --out report.json`
    (add `--osv-cache <file>` to stay offline), or `decisis impact snapshot.json <path> --format text`.
-3. Propose: `decisis propose report.json --repo <name> --space <space id> --out plan.json`.
-   It prints the exact write set and an approval digest.
+3. Propose: `decisis propose report.json snapshot.json package-lock.json --repo <name> --space <space id> --out plan.json`
+   (with the same `--osv-cache <file>` as the audit, if any). It re-derives each record from the snapshot, the
+   lockfile and OSV, holds back any record that fails, and prints the exact write set and an approval digest.
+   A non-zero exit means a record was held; report its failed checks and do not edit the report to get past them.
 4. Show the person the printed write set and the digest, and stop. Do not approve on their behalf.
 5. Only after the person gives the digest:
    `VINC_API_KEY=<full key> decisis commit plan.json --approve <digest>`.

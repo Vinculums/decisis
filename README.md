@@ -149,9 +149,10 @@ flowchart LR
    when it is writable). The loader checks that every node and edge landed.
 3. **Reason** read only with bounded Cypher queries (`src/decisis/queries/*.cypher`), so every answer is
    a path you can follow edge by edge.
-4. **Propose and approve.** `propose` turns findings into an exact write set with a digest. Nothing is
-   written until a person passes that digest to `commit`, which writes with `create_only` and reads every
-   node and edge back.
+4. **Propose and approve.** `propose` turns findings into records, re-derives each one in a fresh graph
+   built from the snapshot, the lockfile and OSV, holds back any record that fails, and prints the exact
+   write set with a digest. Nothing is written until a person passes that digest to `commit`, which
+   writes with `create_only` and reads every node and edge back.
 5. **Delete** the graph when the task ends.
 
 ## Commands
@@ -162,22 +163,37 @@ flowchart LR
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
 | `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
-| `propose <report> --repo <name> --space <space>` | nothing; it only writes a file | the exact write set and its approval digest |
+| `propose <report> <snapshot> <lockfile or SBOM> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
 | `compare` | nothing | the benchmark below |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
 
-Useful flags: `impact --hops N --format text`, `paths --hops N --limit N`, `audit --osv-cache FILE --depth N`.
+Useful flags: `impact --hops N --format text`, `paths --hops N --limit N`, `audit --osv-cache FILE --depth N`,
+`propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
 `impact`, `paths` and `audit` print JSON (`impact --format text` reads better for people); `demo`, `propose`
 and `compare` print text. `decisis <command> --help` lists the rest.
+
+`impact`, `paths` and `audit` also take `--format mermaid` and `--format html`:
+
+- `impact --format mermaid` prints a fenced Mermaid block that GitHub draws: each code path, the nodes
+  that name it and the edges to what governs them. `--format html` prints one page with each node, its
+  edge path and the evidence on each edge.
+- `paths --format mermaid` draws each path between the two ids; `--format html` lists each step with the
+  evidence the snapshot gives for its edge, and each node's title and `source` when it has one.
+- `audit --format mermaid` draws the dependency paths to each advisory and marks the ones that break a
+  decision in red; `--format html` lists each finding with its path, its policies and a link to its OSV
+  source. With `--out report.json` the JSON report still goes to that file and the view to stdout.
+
+The HTML page is one file with inline styles only: no scripts, fonts or network requests, so it opens
+offline. Its only links are the sources of the findings.
 
 Try them on the fixtures in this repository:
 
 ```
 decisis paths fixtures/vinc_subgraph.json record:tls-advisory-example concept:service-api
 decisis impact fixtures/impact/vinc.json reports/export.py storage/ --format text
-decisis audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json
-decisis propose report.json --repo Demo --space demo-space --out plan.json
+decisis audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json --format html > audit.html
+decisis propose report.json fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --space demo-space --osv-cache fixtures/audit/osv-cache.json --out plan.json
 ```
 
 ## Use it from an AI agent
@@ -257,7 +273,13 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
   and any reader.
 - The task directory is private (0700), under `/dev/shm` when it is writable, and removed after the run.
 - The audit joins the snapshot, the lockfile or SBOM (nested npm copies resolved) and OSV, checks the
-  installed version against the advisory ranges (semantic versions, and PEP 440 for PyPI), and keeps each advisory's source URL, fetch time and content hash.
+  installed version against the advisory ranges (semantic versions, and PEP 440 for PyPI), and keeps each
+  advisory's source URL, fetch time and content hash.
+- `propose` re-derives each record in a fresh graph built from the snapshot, the lockfile and OSV: the
+  advisory's content hash and severity, each version as a lockfile package inside the advisory's ranges,
+  each dependency path from the repository to the record's own package and advisory, the record's scope
+  against the development flags on its paths, and each `relates_to` target as a decision in the snapshot. A record that fails is held back with the failed
+  checks, and `propose` exits non-zero. The demo runs the same checks.
 - `commit` refuses a digest that does not match the plan as it stands, writes with `create_only`, and
   fails when a node, a property or an edge's type or direction does not come back.
 - A live run against a real Vinc space wrote and read back seven records with `create_only`, and a second
@@ -268,7 +290,6 @@ Future work, not built:
 
 - A Relate MCP server as the agent's read-only query surface; today the agent drives the CLI.
 - pnpm, Yarn, Bun, Poetry, requirements.txt, Gradle and Maven inputs, and repository metadata beyond the inventory.
-- The demo's Checker (re-deriving each record) also in the `propose` path for real data.
 - Query time limits, a cap on imported graph size and on `audit --depth`; today `paths` and `impact` bound hops and results.
 - Encrypted scratch storage with key destruction for sensitive data (see `docs/threat-model.md`).
 - A held-out benchmark set, and real repositories, to test whether the comparison holds.

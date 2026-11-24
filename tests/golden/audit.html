@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit: Demo</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--line:#d1d9e0;--card:#f6f8fa;--bad:#b91c1c;--badbg:#fdecec;--accent:#1d4ed8}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--line:#3d444d;--card:#151b23;--bad:#f87171;--badbg:#2d1214;--accent:#7aa2ff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:60rem;margin:0 auto;padding:1rem}
+h1{font-size:1.4rem;overflow-wrap:anywhere}
+h2{font-size:1.1rem;margin-top:1.5rem;overflow-wrap:anywhere}
+code{font:0.9em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:0.2rem 0.8rem;margin:0.5rem 0}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
+ul.items{list-style:none;padding:0}
+.item{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:0.75rem;margin:0.75rem 0}
+.item.violated{border-color:var(--bad);background:var(--badbg)}
+.badge{font-size:0.8em;border:1px solid var(--line);border-radius:4px;padding:0 0.3rem;color:var(--muted)}
+.badge.bad{border-color:var(--bad);color:var(--bad);font-weight:600}
+.title{font-weight:600}
+.steps{padding-left:1.4rem}
+.rel{color:var(--accent);font-size:0.85em}
+.evidence,.none{color:var(--muted)}
+.chain{overflow-wrap:anywhere}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{border-top:1px solid var(--line);padding:0.3rem;text-align:left;vertical-align:top}
+tr.violated td{color:var(--bad);font-weight:600}
+a{color:var(--accent);overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);padding:0.5rem;overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Audit: Demo</h1>
+<dl><dt>repository</dt><dd>Demo</dd><dt>space</dt><dd>synthetic</dd><dt>extracted at</dt><dd>2026-11-17T00:00:00Z</dd><dt>lockfile hash</dt><dd><code>9f0d53e6c3022785e85ceef3484aa5a31ddc141dffd796a163edde933ae675ff</code></dd><dt>loaded</dt><dd>14 nodes, 15 edges</dd><dt>findings</dt><dd>7 affected, 0 unresolved, 0 not_affected</dd><dt>violations</dt><dd>3</dd></dl>
+<section><h2>Governing decisions</h2><ul><li><code>decision:dependencies-are-pinned-by-a-lockfile</code> Dependencies are pinned by a lockfile via <code>concept:demo-app</code></li><li><code>decision:no-high-advisories-in-shipped-dependencies</code> No high advisories in shipped dependencies via <code>concept:demo-app</code></li></ul></section>
+<section><h2>Findings</h2><ul class="items"><li class="item"><div class="head"><code>pkg:npm/lodash@4.17.21</code> <code>adv:GHSA-r5fr-rjxr-66jc</code></div><div class="title">lodash vulnerable to Code Injection via `_.template` imports key names</div><dl><dt>severity</dt><dd>HIGH</dd><dt>status</dt><dd>affected</dd><dt>dev only</dt><dd>yes</dd><dt>source</dt><dd><a class="source" href="https://osv.dev/vulnerability/GHSA-r5fr-rjxr-66jc" rel="noopener noreferrer">https://osv.dev/vulnerability/GHSA-r5fr-rjxr-66jc</a></dd><dt>fetched at</dt><dd>2026-11-17T11:20:41Z</dd><dt>content hash</dt><dd><code>f500d0364e745edbe7369cb59e179abfe240a368aee840f245941bd9de3bdddd</code></dd></dl><p class="chain"><code>repo:Demo</code> <span class="rel">to</span> <code>pkg:npm/test-kit@1.0.3</code> <span class="rel">to</span> <code>pkg:npm/lodash@4.17.21</code> <span class="rel">to</span> <code>adv:GHSA-r5fr-rjxr-66jc</code></p><div class="scroll"><table><tr><th>decision</th><th>verdict</th><th>why</th></tr><tr class="relevant"><td><code>decision:dependencies-are-pinned-by-a-lockfile</code></td><td>relevant</td><td>governs this repository through concept:demo-app; it states no machine-checkable rule</td></tr><tr class="not_violated"><td><code>decision:no-high-advisories-in-shipped-dependencies</code></td><td>not_violated</td><td>reached only through development dependencies; the rule covers shipped ones</td></tr></table></div></li><li class="item violated"><div class="head"><span class="badge bad">violates a decision</span> <code>pkg:npm/lodash@4.17.15</code> <code>adv:GHSA-r5fr-rjxr-66jc</code></div><div class="title">lodash vulnerable to Code Injection via `_.template` imports key names</div><dl><dt>severity</dt><dd>HIGH</dd><dt>status</dt><dd>affected</dd><dt>dev only</dt><dd>no</dd><dt>source</dt><dd><a class="source" href="https://osv.dev/vulnerability/GHSA-r5fr-rjxr-66jc" rel="noopener noreferrer">https://osv.dev/vulnerability/GHSA-r5fr-rjxr-66jc</a></dd><dt>fetched at</dt><dd>2026-11-17T11:20:41Z</dd><dt>content hash</dt><dd><code>f500d0364e745edbe7369cb59e179abfe240a368aee840f245941bd9de3bdddd</code></dd></dl><p class="chain"><code>repo:Demo</code> <span class="rel">to</span> <code>pkg:npm/report-kit@2.1.0</code> <span class="rel">to</span> <code>pkg:npm/lodash@4.17.15</code> <span class="rel">to</span> <code>adv:GHSA-r5fr-rjxr-66jc</code></p><div class="scroll"><table><tr><th>decision</th><th>verdict</th><th>why</th></tr><tr class="relevant"><td><code>decision:dependencies-are-pinned-by-a-lockfile</code></td><td>relevant</td><td>governs this repository through concept:demo-app; it states no machine-checkable rule</td></tr><tr class="violated"><td><code>decision:no-high-advisories-in-shipped-dependencies</code></td><td>violated</td><td>severity HIGH is at or above HIGH</td></tr></table></div></li><li class="item violated"><div class="head"><span class="badge bad">violates a decision</span> <code>pkg:npm/lodash@4.17.15</code> <code>adv:GHSA-p6mc-m468-83gw</code></div><div class="title">Prototype Pollution in lodash</div><dl><dt>severity</dt><dd>HIGH</dd><dt>status</dt><dd>affected</dd><dt>dev only</dt><dd>no</dd><dt>source</dt><dd><a class="source" href="https://osv.dev/vulnerability/GHSA-p6mc-m468-83gw" rel="noopener noreferrer">https://osv.dev/vulnerability/GHSA-p6mc-m468-83gw</a></dd><dt>fetched at</dt><dd>2026-11-17T11:20:41Z</dd><dt>content hash</dt><dd><code>3abc9ceb8a940e0f5b7c68c4c0acd9dcdc1e6baa301baf7ac3d3c587d30c489c</code></dd></dl><p class="chain"><code>repo:Demo</code> <span class="rel">to</span> <code>pkg:npm/report-kit@2.1.0</code> <span class="rel">to</span> <code>pkg:npm/lodash@4.17.15</code> <span class="rel">to</span> <code>adv:GHSA-p6mc-m468-83gw</code></p><div class="scroll"><table><tr><th>decision</th><th>verdict</th><th>why</th></tr><tr class="relevant"><td><code>decision:dependencies-are-pinned-by-a-lockfile</code></td><td>relevant</td><td>governs this repository through concept:demo-app; it states no machine-checkable rule</td></tr><tr class="violated"><td><code>decision:no-high-advisories-in-shipped-dependencies</code></td><td>violated</td><td>severity HIGH is at or above HIGH</td></tr></table></div></li><li class="item violated"><div class="head"><span class="badge bad">violates a decision</span> <code>pkg:npm/lodash@4.17.15</code> <code>adv:GHSA-35jh-r3h4-6jhm</code></div><div class="title">Command Injection in lodash</div><dl><dt>severity</dt><dd>HIGH</dd><dt>status</dt><dd>affected</dd><dt>dev only</dt><dd>no</dd><dt>source</dt><dd><a class="source" href="https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm" rel="noopener noreferrer">https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm</a></dd><dt>fetched at</dt><dd>2026-11-17T11:20:41Z</dd><dt>content hash</dt><dd><code>29d052e9eb15775558e5975e986da9a6aef1a11169ec6a8fa4882885bac3fd0f</code></dd></dl><p class="chain"><code>repo:Demo</code> <span class="rel">to</span> <code>pkg:npm/report-kit@2.1.0</code> <span class="rel">to</span> <code>pkg:npm/lodash@4.17.15</code> <span class="rel">to</span> <code>adv:GHSA-35jh-r3h4-6jhm</code></p><div class="scroll"><table><tr><th>decision</th><th>verdict</th><th>why</th></tr><tr class="relevant"><td><code>decision:dependencies-are-pinned-by-a-lockfile</code></td><td>relevant</td><td>governs this repository through concept:demo-app; it states no machine-checkable rule</td></tr><tr class="violated"><td><code>decision:no-high-advisories-in-shipped-dependencies</code></td><td>violated</td><td>severity HIGH is at or above HIGH</td></tr></table></div></li><li class="item"><div class="head"><code>pkg:npm/lodash@4.17.21</code> <code>adv:GHSA-xxjr-mmjv-4gpg</code></div><div class="title">Lodash has Prototype Pollution Vulnerability in `_.unset`, `_.omit`, and `_.pullAt` functions</div><dl><dt>severity</dt><dd>MODERATE</dd><dt>status</dt><dd>affected</dd><dt>dev only</dt><dd>yes</dd><dt>source</dt><dd><a class="source" href="https://osv.dev/vulnerability/GHSA-xxjr-mmjv-4gpg" rel="noopener noreferrer">https://osv.dev/vulnerability/GHSA-xxjr-mmjv-4gpg</a></dd><dt>fetched at</dt><dd>2026-11-17T11:20:41Z</dd><dt>content hash</dt><dd><code>1e631e6a535a01d77c1c4591039375a9a059a003b66a3abbd816bdc09324e9c0</code></dd></dl><p class="chain"><code>repo:Demo</code> <span class="rel">to</span> <code>pkg:npm/test-kit@1.0.3</code> <span class="rel">to</span> <code>pkg:npm/lodash@4.17.21</code> <span class="rel">to</span> <code>adv:GHSA-xxjr-mmjv-4gpg</code></p><div class="scroll"><table><tr><th>decision</th><th>verdict</th><th>why</th></tr><tr class="relevant"><td><code>decision:dependencies-are-pinned-by-a-lockfile</code></td><td>relevant</td><td>governs this repository through concept:demo-app; it states no machine-checkable rule</td></tr><tr class="not_violated"><td><code>decision:no-high-advisories-in-shipped-dependencies</code></td><td>not_violated</td><td>reached only through development dependencies; the rule covers shipped ones</td></tr></table></div></li><li class="item"><div class="head"><code>pkg:npm/lodash@4.17.15</code> <code>adv:GHSA-xxjr-mmjv-4gpg</code></div><div class="title">Lodash has Prototype Pollution Vulnerability in `_.unset`, `_.omit`, and `_.pullAt` functions</div><dl><dt>severity</dt><dd>MODERATE</dd><dt>status</dt><dd>affected</dd><dt>dev only</dt><dd>no</dd><dt>source</dt><dd><a class="source" href="https://osv.dev/vulnerability/GHSA-xxjr-mmjv-4gpg" rel="noopener noreferrer">https://osv.dev/vulnerability/GHSA-xxjr-mmjv-4gpg</a></dd><dt>fetched at</dt><dd>2026-11-17T11:20:41Z</dd><dt>content hash</dt><dd><code>1e631e6a535a01d77c1c4591039375a9a059a003b66a3abbd816bdc09324e9c0</code></dd></dl><p class="chain"><code>repo:Demo</code> <span class="rel">to</span> <code>pkg:npm/report-kit@2.1.0</code> <span class="rel">to</span> <code>pkg:npm/lodash@4.17.15</code> <span class="rel">to</span> <code>adv:GHSA-xxjr-mmjv-4gpg</code></p><div class="scroll"><table><tr><th>decision</th><th>verdict</th><th>why</th></tr><tr class="relevant"><td><code>decision:dependencies-are-pinned-by-a-lockfile</code></td><td>relevant</td><td>governs this repository through concept:demo-app; it states no machine-checkable rule</td></tr><tr class="not_violated"><td><code>decision:no-high-advisories-in-shipped-dependencies</code></td><td>not_violated</td><td>status affected, severity MODERATE</td></tr></table></div></li><li class="item"><div class="head"><code>pkg:npm/lodash@4.17.15</code> <code>adv:GHSA-29mw-wpgm-hmr9</code></div><div class="title">Regular Expression Denial of Service (ReDoS) in lodash</div><dl><dt>severity</dt><dd>MODERATE</dd><dt>status</dt><dd>affected</dd><dt>dev only</dt><dd>no</dd><dt>source</dt><dd><a class="source" href="https://osv.dev/vulnerability/GHSA-29mw-wpgm-hmr9" rel="noopener noreferrer">https://osv.dev/vulnerability/GHSA-29mw-wpgm-hmr9</a></dd><dt>fetched at</dt><dd>2026-11-17T11:20:41Z</dd><dt>content hash</dt><dd><code>b76f9d272b4a2f3ef610498184519c39ea52c30e4db75e61393fdad030f88132</code></dd></dl><p class="chain"><code>repo:Demo</code> <span class="rel">to</span> <code>pkg:npm/report-kit@2.1.0</code> <span class="rel">to</span> <code>pkg:npm/lodash@4.17.15</code> <span class="rel">to</span> <code>adv:GHSA-29mw-wpgm-hmr9</code></p><div class="scroll"><table><tr><th>decision</th><th>verdict</th><th>why</th></tr><tr class="relevant"><td><code>decision:dependencies-are-pinned-by-a-lockfile</code></td><td>relevant</td><td>governs this repository through concept:demo-app; it states no machine-checkable rule</td></tr><tr class="not_violated"><td><code>decision:no-high-advisories-in-shipped-dependencies</code></td><td>not_violated</td><td>status affected, severity MODERATE</td></tr></table></div></li></ul></section>
+<details><summary>Mermaid source</summary><pre>```mermaid
+flowchart LR
+  n0[&quot;repo:Demo&quot;]
+  n1[&quot;decision:dependencies-are-pinned-by-a-lockfile&lt;br/&gt;Dependencies are pinned by a lockfile&quot;]
+  n2[&quot;concept:demo-app&quot;]
+  n3[&quot;decision:no-high-advisories-in-shipped-dependencies&lt;br/&gt;No high advisories in shipped dependencies&quot;]
+  n4[&quot;pkg:npm/test-kit@1.0.3&quot;]
+  n5[&quot;pkg:npm/lodash@4.17.21&quot;]
+  n6[&quot;adv:GHSA-r5fr-rjxr-66jc&lt;br/&gt;HIGH&quot;]
+  n7[&quot;pkg:npm/report-kit@2.1.0&quot;]
+  n8[&quot;pkg:npm/lodash@4.17.15&quot;]
+  n9[&quot;adv:GHSA-p6mc-m468-83gw&lt;br/&gt;HIGH&quot;]
+  n10[&quot;adv:GHSA-35jh-r3h4-6jhm&lt;br/&gt;HIGH&quot;]
+  n11[&quot;adv:GHSA-xxjr-mmjv-4gpg&lt;br/&gt;MODERATE&quot;]
+  n12[&quot;adv:GHSA-29mw-wpgm-hmr9&lt;br/&gt;MODERATE&quot;]
+  n1 --&gt;|&quot;ABOUT&quot;| n2
+  n0 --&gt;|&quot;DESCRIBED_BY&quot;| n2
+  n3 --&gt;|&quot;ABOUT&quot;| n2
+  n0 --&gt;|&quot;DEPENDS_ON&quot;| n4
+  n4 --&gt;|&quot;DEPENDS_ON&quot;| n5
+  n5 --&gt;|&quot;AFFECTED_BY&quot;| n6
+  n0 --&gt;|&quot;DEPENDS_ON&quot;| n7
+  n7 --&gt;|&quot;DEPENDS_ON&quot;| n8
+  n8 --&gt;|&quot;AFFECTED_BY&quot;| n6
+  n6 --&gt;|&quot;violates&quot;| n3
+  n8 --&gt;|&quot;AFFECTED_BY&quot;| n9
+  n9 --&gt;|&quot;violates&quot;| n3
+  n8 --&gt;|&quot;AFFECTED_BY&quot;| n10
+  n10 --&gt;|&quot;violates&quot;| n3
+  n5 --&gt;|&quot;AFFECTED_BY&quot;| n11
+  n8 --&gt;|&quot;AFFECTED_BY&quot;| n11
+  n8 --&gt;|&quot;AFFECTED_BY&quot;| n12
+  classDef advisory fill:#fde2e2,stroke:#b91c1c,color:#3f0a0a
+  classDef decision fill:#dbeafe,stroke:#1d4ed8,color:#0b1b3f
+  classDef package fill:#f3f4f6,stroke:#4b5563,color:#111827
+  classDef repository fill:#f3f4f6,stroke:#4b5563,stroke-width:2px,color:#111827
+  classDef violated fill:#fecaca,stroke:#b91c1c,stroke-width:3px,color:#3f0a0a
+  class n11,n12 advisory
+  class n1,n3 decision
+  class n4,n5,n7,n8 package
+  class n0 repository
+  class n6,n9,n10 violated
+  linkStyle 6,7,8,9,10,11,12,13 stroke:#b91c1c,stroke-width:3px
+```
+</pre></details>
+</main>
+</body>
+</html>

@@ -157,7 +157,8 @@ finding has `package`, `advisory`, `severity`, `status` (`affected`, `not_affect
 `unresolved_packages` lists each package that was not queried (`package`, `reason`).
 
 `propose --out plan.json` writes `space`, `nodes` (records), `edges` (`relates_to` from a record to a
-decision, with the verdict as evidence), `held` (findings not recorded and why) and `digest`: the first 16
+decision, with the verdict as evidence), `held` (findings not recorded and why; a record that failed a re-derivation check has `record` and `failed`, the list of
+failed checks) and `digest`: the first 16
 hex digits of SHA-256 over the space, nodes and edges as sorted JSON. A record's id is
 `record:<repo>-<package>-<shipped|development>-<advisory>`, and its props hold the claim (`entity`,
 `predicate`, `value`, `statement`), the evidence (`source`, `advisory_fetched_at`, `advisory_content_hash`,
