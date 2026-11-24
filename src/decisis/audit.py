@@ -140,17 +140,55 @@ def package_finding(node: dict, subject: str, governing: list[tuple[dict, rules.
             "path": [], "source_system": props.get("source_system"), "fetched_at": props.get("fetched_at"), "policies": found}
 
 
-def package_findings(box, graph: Subgraph, decisions: list[dict], repo: str, depth: int) -> list[dict]:
+def package_findings(graph: Subgraph, decisions: list[dict], repo: str, depth: int) -> list[dict]:
     governing = ruled(graph, decisions)
     wanted = [s for s in rules.PACKAGE_SUBJECTS if any(rules.judging(p, s) for _, p in governing)]
     packages = sorted((n for n in graph.nodes if n["kind"] == "Package"), key=lambda n: n["id"])
     found = [f for n in packages for s in wanted if (f := package_finding(n, s, governing)) is not None]
     if not found:
         return []
-    rows = box.query(query("package_paths", depth=depth), {"repo": f"repo:{repo}", "ids": sorted({f["package"] for f in found})})
-    paths = grouped(rows, lambda r: r["package"])
     dev = graph_dev({n["id"]: n for n in graph.nodes})
+    paths = package_paths(graph, f"repo:{repo}", {f["package"] for f in found}, depth, dev)
     return [{**f, "path": fitting(paths[f["package"]], dev, f["dev_only"])} for f in found if f["package"] in paths]
+
+
+def package_paths(graph: Subgraph, start: str, wanted: set[str], depth: int, is_dev) -> dict[str, list[list[str]]]:
+    after: dict[str, list[str]] = {}
+    for e in graph.edges:
+        if e["type"] == "DEPENDS_ON":
+            after.setdefault(e["source"], []).append(e["target"])
+    after = {s: sorted(set(t)) for s, t in after.items()}
+    out: dict[str, list[list[str]]] = {}
+    for allowed in (lambda nid: True, lambda nid: not is_dev(nid)):
+        for pkg, path in shortest(after, start, wanted, depth, allowed).items():
+            if path not in out.setdefault(pkg, []):
+                out[pkg].append(path)
+    return out
+
+
+def shortest(after: dict[str, list[str]], start: str, wanted: set[str], depth: int, allowed) -> dict[str, list[str]]:
+    parent: dict[str, str | None] = {start: None}
+    level, found = [start], {}
+    for _ in range(depth):
+        nxt = []
+        for node in level:
+            for t in after.get(node, []):
+                if t not in parent and allowed(t):
+                    parent[t] = node
+                    nxt.append(t)
+                    if t in wanted:
+                        found[t] = route(parent, t)
+        if not nxt or len(found) == len(wanted):
+            break
+        level = nxt
+    return found
+
+
+def route(parent: dict[str, str | None], end: str) -> list[str]:
+    out = [end]
+    while (up := parent[out[-1]]) is not None:
+        out.append(up)
+    return out[::-1]
 
 
 def rule_problems(graph: Subgraph, decisions: list[dict]) -> list[dict]:
@@ -163,7 +201,7 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
     counts = box.load(graph)
     rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
     decisions = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
-    findings = ordered(verify(rows, graph, decisions) + package_findings(box, graph, decisions, repo, depth))
+    findings = ordered(verify(rows, graph, decisions) + package_findings(graph, decisions, repo, depth))
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
     return {"meta": graph.meta, "loaded": counts, "governing": decisions, "summary": summary,
             "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings,

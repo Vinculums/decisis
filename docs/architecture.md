@@ -87,6 +87,7 @@ until it closes (`tests/test_sandbox.py`). That is why loading and reasoning are
 |---|---|---|
 | `paths_between` | `paths` | Paths of 1 to `--hops` edges in either direction between two ids, shortest first, at most `--limit`. |
 | `dependency_paths` | `audit`, `demo` | Every `repo -DEPENDS_ON*-> package -AFFECTED_BY-> advisory` chain up to `--depth` (default 8). |
+| `dependency_edges` | `propose` | The `DEPENDS_ON` edges into the packages on license and package records' paths, so the Checker can walk each record path step by step. |
 | `governing_decisions` | `audit` | Decisions `ABOUT` a Vinc node the repository is `DESCRIBED_BY`. |
 | `decision_to_advisory` | `demo` | The shortest path from one decision through the repository and its dependencies to one advisory. |
 | `governing_nodes` | `impact` | Decisions and records within `--hops` of a node whose code paths match, over governance edges only. |
@@ -104,7 +105,9 @@ query.
 Decisions can also forbid licenses and packages (`license_denied`, `license_allowed`, `package_denied`), allow only listed packages (`package_allowed`) and require every GitHub action to be pinned to a commit (`pinned_to_commit`).
 When a governing decision has such a rule, `audit` judges every package in the graph against it and adds
 a license or package finding for each package a rule matches or cannot judge, with the shortest
-dependency path to it. `src/decisis/rules.py` reads rules and judges one package or advisory; each kind is
+dependency path to it. That path comes from a breadth-first search over the composed graph's `DEPENDS_ON`
+edges up to `--depth`, not from a query: it keeps at most two paths per package, the shortest and the
+shortest with no development package on it, and lists no others. `src/decisis/rules.py` reads rules and judges one package or advisory; each kind is
 one entry of its `KINDS` table. A rule that cannot be read is `relevant` with its reason, never `violated`.
 The format is in [the data model](data-model.md#rules).
 

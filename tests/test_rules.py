@@ -244,6 +244,47 @@ def test_a_tampered_license_record_is_held_with_its_failed_check(tamper, problem
                                               if n["props"]["predicate"] == "licensed_under" and "gpl-lib" in n["id"])
 
 
+def test_a_record_path_longer_than_the_depth_or_walking_one_step_twice_is_held():
+    lock = copy.deepcopy(LOCK)
+    lock["packages"]["node_modules/both"]["dependencies"] = {"dual": "2.0.0"}
+    vinc = snapshot(("decision:no-gpl", DENY_GPL))
+    rep = copy.deepcopy(audit.run(vinc, json.dumps(lock), "Shop", advisories=no_advisories))
+    assert finding(rep, "pkg:npm/both@1.0.0", "license")["path"] == ["repo:Shop", "pkg:npm/dual@2.0.0", "pkg:npm/both@1.0.0"]
+    plan = wb.propose(rep, "Shop", "test-space", today="2026-11-25")
+    _, checked = checker.rederive(plan, vinc, json.dumps(lock), "Shop", no_advisories)
+    assert all(c["problems"] == [] for c in checked)
+    _, short = checker.rederive(plan, vinc, json.dumps(lock), "Shop", no_advisories, depth=1)
+    assert [p for c in short for p in c["problems"]] == [
+        "a dependency path is not in the sandbox graph: repo:Shop -> pkg:npm/dual@2.0.0 -> pkg:npm/both@1.0.0"]
+    twice = ["repo:Shop", "pkg:npm/dual@2.0.0", "pkg:npm/both@1.0.0", "pkg:npm/dual@2.0.0", "pkg:npm/both@1.0.0"]
+    finding(rep, "pkg:npm/both@1.0.0", "license")["path"] = twice
+    _, walked = checker.rederive(wb.propose(rep, "Shop", "test-space", today="2026-11-25"), vinc, json.dumps(lock), "Shop", no_advisories)
+    assert [p for c in walked for p in c["problems"]] == [f"a dependency path is not in the sandbox graph: {' -> '.join(twice)}"]
+
+
+def lattice(width: int, layers: int) -> co.Subgraph:
+    rows = [[f"pkg:npm/l{i}-{j}@1.0.0" for j in range(width)] for i in range(layers)]
+    end, tool = "pkg:npm/end@1.0.0", "pkg:npm/tool@1.0.0"
+    nodes = [{"id": "repo:Big", "kind": "Repository", "props": {}}]
+    nodes += [{"id": x, "kind": "Package", "props": {"dev": x == tool}} for x in [*sum(rows, []), end, tool]]
+    steps = [("repo:Big", x) for x in rows[0]] + [(a, b) for up, down in zip(rows, rows[1:]) for a in up for b in down]
+    steps += [(x, end) for x in rows[-1]] + [("repo:Big", tool), (tool, end)]
+    return co.Subgraph(nodes, [{"source": a, "target": b, "type": "DEPENDS_ON"} for a, b in steps], {})
+
+
+def test_package_paths_keep_the_shortest_path_and_the_shortest_shipped_one_without_listing_the_others():
+    graph = lattice(4, 10)
+    dev = audit.graph_dev({n["id"]: n for n in graph.nodes})
+    found = audit.package_paths(graph, "repo:Big", {"pkg:npm/end@1.0.0", "pkg:npm/l9-3@1.0.0"}, audit.MAX_DEPTH, dev)
+    shipped = ["repo:Big", *[f"pkg:npm/l{i}-0@1.0.0" for i in range(10)], "pkg:npm/end@1.0.0"]
+    assert found["pkg:npm/end@1.0.0"] == [["repo:Big", "pkg:npm/tool@1.0.0", "pkg:npm/end@1.0.0"], shipped]
+    assert found["pkg:npm/l9-3@1.0.0"] == [[*shipped[:-2], "pkg:npm/l9-3@1.0.0"]]
+    assert audit.fitting(found["pkg:npm/end@1.0.0"], dev, False) == shipped
+    assert audit.fitting(found["pkg:npm/end@1.0.0"], dev, True) == found["pkg:npm/end@1.0.0"][0]
+    near = audit.package_paths(graph, "repo:Big", {"pkg:npm/end@1.0.0", "pkg:npm/l9-3@1.0.0"}, 3, dev)
+    assert near == {"pkg:npm/end@1.0.0": [["repo:Big", "pkg:npm/tool@1.0.0", "pkg:npm/end@1.0.0"]]}
+
+
 BOM = {"bomFormat": "CycloneDX", "specVersion": "1.5",
        "metadata": {"component": {"bom-ref": "root", "name": "shop", "version": "1.0.0"}},
        "components": [{"bom-ref": "a", "name": "foo", "version": "1.0.0", "purl": "pkg:npm/foo@1.0.0",
