@@ -1,0 +1,3512 @@
+{
+ "tasks_file": "tasks.json",
+ "tasks_sha256": "f3132b927e99ece1e57fc03919766653804a5786b6c3cb12118b006c36e234fc",
+ "methods": {
+  "A": "Vinc retrieval only: nodes whose code_ref matches the subject, then their one-hop neighbours",
+  "B": "A plus the lockfile and the advisories as flat records joined by package name",
+  "C": "A Relate graph of the Vinc snapshot, the lockfile and the advisories, queried with multi-hop paths"
+ },
+ "tasks": [
+  {
+   "id": "cf-cli-command-file",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "command/v7/create_org_command.go",
+   "connection": "zero hops: two ADRs name command/v7, the directory that holds the file",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      0,
+      4
+     ],
+     "latency_ms": 107.8,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+       ],
+       "covered": false
+      },
+      {
+       "type": "path",
+       "key": [
+        "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "command/v7/create_org_command.go",
+        "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "command/v7/create_org_command.go",
+        "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "cf-cli-command-test",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "command/v7/create_org_command_test.go",
+   "connection": "zero hops: ADR 7 names the file, ADRs 11 and 12 name its directory",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      3
+     ],
+     "policy_links": [
+      0,
+      3
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      3
+     ],
+     "policy_links": [
+      0,
+      3
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      3,
+      3
+     ],
+     "policy_links": [
+      3,
+      3
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      6
+     ],
+     "covered": [
+      0,
+      6
+     ],
+     "latency_ms": 9.5,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:cf-cli-doc-adr-0007-integration-vs-command-test"
+       ],
+       "covered": false
+      },
+      {
+       "type": "path",
+       "key": [
+        "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+       ],
+       "covered": false
+      },
+      {
+       "type": "path",
+       "key": [
+        "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "command/v7/create_org_command_test.go",
+        "decision:cf-cli-doc-adr-0007-integration-vs-command-test"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "command/v7/create_org_command_test.go",
+        "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "command/v7/create_org_command_test.go",
+        "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "cf-cli-actor-named-wrongly",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "actor/v7action/droplet.go",
+   "connection": "zero hops for ADR 12; ADR 11 calls the directory action/v7action, which does not exist (the code is in actor/v7action)",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      2
+     ],
+     "policy_links": [
+      1,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 8.7,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "actor/v7action/droplet.go",
+        "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "cf-cli-api-layer",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "api/cloudcontroller/ccv3/application.go",
+   "connection": "zero hops: ADR 11 names api/cloudcontroller/ccv3",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 8.5,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "api/cloudcontroller/ccv3/application.go",
+        "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "cf-cli-integration-test",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "integration/v7/isolated/create_org_command_test.go",
+   "connection": "zero hops: ADR 7 names the file, ADR 12 names integration/v7",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      2,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      0,
+      4
+     ],
+     "latency_ms": 7.6,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:cf-cli-doc-adr-0007-integration-vs-command-test"
+       ],
+       "covered": false
+      },
+      {
+       "type": "path",
+       "key": [
+        "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "integration/v7/isolated/create_org_command_test.go",
+        "decision:cf-cli-doc-adr-0007-integration-vs-command-test"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "integration/v7/isolated/create_org_command_test.go",
+        "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "turtles-proxy-types",
+   "repo": "turtles",
+   "kind": "impact",
+   "subject": "api/rancher/management/v3/cluster.go",
+   "connection": "zero hops: ADR 9 (structured proxy types) names ./api/rancher",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 9.3,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:turtles-docs-adr-0009-use-structured-proxy-types"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "api/rancher/management/v3/cluster.go",
+        "decision:turtles-docs-adr-0009-use-structured-proxy-types"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "turtles-clusterctl-config",
+   "repo": "turtles",
+   "kind": "impact",
+   "subject": "internal/controllers/clusterctl/config.go",
+   "connection": "zero hops for ADR 16, which names the file; ADR 12 governs the embedded default config by its text and names no path",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      2
+     ],
+     "policy_links": [
+      1,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 11.9,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:turtles-docs-adr-0016-capi-version-pinning"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "internal/controllers/clusterctl/config.go",
+        "decision:turtles-docs-adr-0016-capi-version-pinning"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "turtles-clusterctlconfig-controller",
+   "repo": "turtles",
+   "kind": "impact",
+   "subject": "internal/controllers/clusterctlconfig_controller.go",
+   "connection": "text only: ADR 12 decides the ClusterctlConfig resource this controller reconciles, but names no code path",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 12.0,
+     "claims": []
+    }
+   }
+  },
+  {
+   "id": "turtles-import-controller",
+   "repo": "turtles",
+   "kind": "impact",
+   "subject": "internal/controllers/import_controller.go",
+   "connection": "text only: ADR 6 decides how the operator imports clusters and ADR 8 changes 'the current import controller logic'; neither names a path",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 8.7,
+     "claims": []
+    }
+   }
+  },
+  {
+   "id": "weave-gitops-auth-superseded",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": "pkg/server/auth/auth.go",
+   "connection": "zero hops for ADR 15; ADR 15 supersedes ADR 5, one SUPERSEDES edge away",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      2,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy",
+        "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg/server/auth/auth.go",
+        "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      2,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 0.0,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy",
+        "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg/server/auth/auth.go",
+        "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 9.1,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "pkg/server/auth/auth.go",
+        "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "weave-gitops-server-cmd",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": "cmd/gitops-server/cmd/cmd.go",
+   "connection": "zero hops for ADR 15; the superseded ADR 5 is one SUPERSEDES edge away",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      2,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy",
+        "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "cmd/gitops-server/cmd/cmd.go",
+        "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      2,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 0.1,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy",
+        "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy"
+       ],
+       "covered": true
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "cmd/gitops-server/cmd/cmd.go",
+        "decision:weave-gitops-doc-adr-0005-wego-core-auth-strategy"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 8.1,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "cmd/gitops-server/cmd/cmd.go",
+        "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "weave-gitops-buf",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": "buf.gen.yaml",
+   "connection": "zero hops: ADR 2 names buf.gen.yaml",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 8.0,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:weave-gitops-doc-adr-0002-api-definitions-grpc"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "buf.gen.yaml",
+        "decision:weave-gitops-doc-adr-0002-api-definitions-grpc"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "weave-gitops-release-workflow",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": ".github/workflows/release.yaml",
+   "connection": "zero hops: ADR 16 links the release workflow",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 7.7,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:weave-gitops-doc-adr-0016-release-ordering"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        ".github/workflows/release.yaml",
+        "decision:weave-gitops-doc-adr-0016-release-ordering"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "weave-gitops-cli-verb-noun",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": "cmd/gitops/",
+   "connection": "text only: ADR 11 (verb noun) decides the CLI syntax and supersedes ADR 3 (noun verb), with the spelling 'Supercedes'; neither names a path",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 6.8,
+     "claims": []
+    }
+   }
+  },
+  {
+   "id": "supabase-replaced-session-auth",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "src/lib/auth.ts",
+   "connection": "zero hops: ADR 1 names the file as the bespoke session system it replaces",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 6.2,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:supabase-multitenant-docs-adr-0001-authjs"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "src/lib/auth.ts",
+        "decision:supabase-multitenant-docs-adr-0001-authjs"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "supabase-prisma-schema",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "prisma/schema.prisma",
+   "connection": "zero hops: ADR 1 names prisma/schema.prisma",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 6.2,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:supabase-multitenant-docs-adr-0001-authjs"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "prisma/schema.prisma",
+        "decision:supabase-multitenant-docs-adr-0001-authjs"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "supabase-auth-route",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "src/app/api/auth/login/route.ts",
+   "connection": "zero hops: ADR 1 names src/app/api/auth/{login,...}, a directory that holds the route",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.1,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 6.3,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:supabase-multitenant-docs-adr-0001-authjs"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "src/app/api/auth/login/route.ts",
+        "decision:supabase-multitenant-docs-adr-0001-authjs"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "supabase-coolify",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "deploy/coolify/",
+   "connection": "zero hops: ADR 3 lists deploy/coolify/ as related",
+   "graph_expected_to_help": false,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      1,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      0,
+      2
+     ],
+     "latency_ms": 8.0,
+     "claims": [
+      {
+       "type": "path",
+       "key": [
+        "decision:supabase-multitenant-docs-adr-0003-shared-infrastructure-plane"
+       ],
+       "covered": false
+      },
+      {
+       "type": "policy_link",
+       "key": [
+        "deploy/coolify/",
+        "decision:supabase-multitenant-docs-adr-0003-shared-infrastructure-plane"
+       ],
+       "covered": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "supabase-authjs-config",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "src/auth.ts",
+   "connection": "text only: src/auth.ts configures NextAuth with the Prisma adapter, which ADR 1 adopts; ADR 1 does not name this file",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      1
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 9.0,
+     "claims": []
+    }
+   }
+  },
+  {
+   "id": "karma-source-file",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "impact",
+   "subject": "src/index.ts",
+   "connection": "text only: ADR 2 (TypeScript only) and ADR 3 (100% coverage for all source code) govern every source file and name none",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "C": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      2
+     ],
+     "findings": [
+      0,
+      0
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 8.5,
+     "claims": []
+    }
+   }
+  },
+  {
+   "id": "supabase-direct-dev-dependency",
+   "repo": "supabase-multitenant",
+   "kind": "audit",
+   "subject": "pkg:npm/vitest@3.2.7",
+   "connection": "one hop: vitest is a direct development dependency",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 2.9,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/vitest@3.2.7",
+        "adv:GHSA-82fw-gwwq-j7x9",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "adv:GHSA-82fw-gwwq-j7x9"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 8985.2,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/vitest@3.2.7",
+        "adv:GHSA-82fw-gwwq-j7x9",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "adv:GHSA-82fw-gwwq-j7x9"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "supabase-two-hop-tinypool",
+   "repo": "supabase-multitenant",
+   "kind": "audit",
+   "subject": "pkg:npm/tinypool@1.1.1",
+   "connection": "two hops through vitest, a direct dependency",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      2
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      2,
+      2
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 6.7,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/tinypool@1.1.1",
+        "adv:GHSA-5gmw-xhrv-c9v3",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/tinypool@1.1.1",
+        "adv:GHSA-85c8-ppgw-ccpr",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "pkg:npm/tinypool@1.1.1",
+        "adv:GHSA-5gmw-xhrv-c9v3"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "pkg:npm/tinypool@1.1.1",
+        "adv:GHSA-85c8-ppgw-ccpr"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      2,
+      2
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 8621.6,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/tinypool@1.1.1",
+        "adv:GHSA-5gmw-xhrv-c9v3",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/tinypool@1.1.1",
+        "adv:GHSA-85c8-ppgw-ccpr",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "pkg:npm/tinypool@1.1.1",
+        "adv:GHSA-5gmw-xhrv-c9v3"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "pkg:npm/tinypool@1.1.1",
+        "adv:GHSA-85c8-ppgw-ccpr"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "supabase-two-hop-mocker",
+   "repo": "supabase-multitenant",
+   "kind": "audit",
+   "subject": "pkg:npm/@vitest/mocker@3.2.7",
+   "connection": "two hops through vitest; one of its advisories is shared with vitest",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      2
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      2,
+      2
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 4.5,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/@vitest/mocker@3.2.7",
+        "adv:GHSA-82fw-gwwq-j7x9",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/@vitest/mocker@3.2.7",
+        "adv:GHSA-qxg6-89mg-rqv8",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "pkg:npm/@vitest/mocker@3.2.7",
+        "adv:GHSA-82fw-gwwq-j7x9"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "pkg:npm/@vitest/mocker@3.2.7",
+        "adv:GHSA-qxg6-89mg-rqv8"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      2,
+      2
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 8962.6,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/@vitest/mocker@3.2.7",
+        "adv:GHSA-82fw-gwwq-j7x9",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/@vitest/mocker@3.2.7",
+        "adv:GHSA-qxg6-89mg-rqv8",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "pkg:npm/@vitest/mocker@3.2.7",
+        "adv:GHSA-82fw-gwwq-j7x9"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:supabase-multitenant",
+        "pkg:npm/vitest@3.2.7",
+        "pkg:npm/@vitest/mocker@3.2.7",
+        "adv:GHSA-qxg6-89mg-rqv8"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "karma-two-hop-extract-zip",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/extract-zip@2.0.1",
+   "connection": "two hops through puppeteer, a direct dependency",
+   "graph_expected_to_help": false,
+   "c_vs_b": "same",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      2
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      2,
+      2
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 14.4,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/extract-zip@2.0.1",
+        "adv:GHSA-7pqw-9j4j-h8q3",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/extract-zip@2.0.1",
+        "adv:GHSA-jmr9-qjv8-65gv",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/puppeteer@13.7.0",
+        "pkg:npm/extract-zip@2.0.1",
+        "adv:GHSA-7pqw-9j4j-h8q3"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/puppeteer@13.7.0",
+        "pkg:npm/extract-zip@2.0.1",
+        "adv:GHSA-jmr9-qjv8-65gv"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      2,
+      2
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 26335.0,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/extract-zip@2.0.1",
+        "adv:GHSA-7pqw-9j4j-h8q3",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/extract-zip@2.0.1",
+        "adv:GHSA-jmr9-qjv8-65gv",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/puppeteer@13.7.0",
+        "pkg:npm/extract-zip@2.0.1",
+        "adv:GHSA-7pqw-9j4j-h8q3"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/puppeteer@13.7.0",
+        "pkg:npm/extract-zip@2.0.1",
+        "adv:GHSA-jmr9-qjv8-65gv"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "karma-three-hop-trim-newlines",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/trim-newlines@2.0.0",
+   "connection": "three hops: make-dir-cli, meow, trim-newlines",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      1
+     ],
+     "covered": [
+      1,
+      1
+     ],
+     "latency_ms": 7.6,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/trim-newlines@2.0.0",
+        "adv:GHSA-7p7h-4mm5-852v",
+        "affected"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 26416.6,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/trim-newlines@2.0.0",
+        "adv:GHSA-7p7h-4mm5-852v",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/make-dir-cli@2.0.0",
+        "pkg:npm/meow@5.0.0",
+        "pkg:npm/trim-newlines@2.0.0",
+        "adv:GHSA-7p7h-4mm5-852v"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "karma-two-chains-babel-traverse",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/babel-traverse@6.26.0",
+   "connection": "three and four hops: two chains through istanbul-lib-instrument",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      1,
+      2
+     ],
+     "covered": [
+      1,
+      2
+     ],
+     "latency_ms": 9.7,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/babel-traverse@6.26.0",
+        "adv:GHSA-67hx-6x53-jw92",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/istanbul-lib-instrument@1.10.2",
+        "pkg:npm/babel-traverse@6.26.0",
+        "adv:GHSA-67hx-6x53-jw92"
+       ],
+       "covered": false
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      3
+     ],
+     "covered": [
+      3,
+      3
+     ],
+     "latency_ms": 28451.3,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/babel-traverse@6.26.0",
+        "adv:GHSA-67hx-6x53-jw92",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/istanbul-instrumenter-loader@3.0.1",
+        "pkg:npm/istanbul-lib-instrument@1.10.2",
+        "pkg:npm/babel-template@6.26.0",
+        "pkg:npm/babel-traverse@6.26.0",
+        "adv:GHSA-67hx-6x53-jw92"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/istanbul-instrumenter-loader@3.0.1",
+        "pkg:npm/istanbul-lib-instrument@1.10.2",
+        "pkg:npm/babel-traverse@6.26.0",
+        "adv:GHSA-67hx-6x53-jw92"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "karma-four-hop-once",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/@tootallnate/once@1.1.2",
+   "connection": "four hops through codecov, teeny-request and http-proxy-agent",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      1
+     ],
+     "covered": [
+      1,
+      1
+     ],
+     "latency_ms": 11.2,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/@tootallnate/once@1.1.2",
+        "adv:GHSA-vpq2-c234-7xj6",
+        "affected"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 22635.6,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/@tootallnate/once@1.1.2",
+        "adv:GHSA-vpq2-c234-7xj6",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/codecov@3.8.3",
+        "pkg:npm/teeny-request@7.1.1",
+        "pkg:npm/http-proxy-agent@4.0.1",
+        "pkg:npm/@tootallnate/once@1.1.2",
+        "adv:GHSA-vpq2-c234-7xj6"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "karma-four-hop-async",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/async@2.6.3",
+   "connection": "four hops through @types/karma, log4js and streamroller",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      1
+     ],
+     "covered": [
+      1,
+      1
+     ],
+     "latency_ms": 13.0,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/async@2.6.3",
+        "adv:GHSA-fwr7-v2mv-hh25",
+        "affected"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      1,
+      1
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 23635.3,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/async@2.6.3",
+        "adv:GHSA-fwr7-v2mv-hh25",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/@types/karma@5.0.0",
+        "pkg:npm/log4js@4.5.1",
+        "pkg:npm/streamroller@1.0.6",
+        "pkg:npm/async@2.6.3",
+        "adv:GHSA-fwr7-v2mv-hh25"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "karma-six-hop-lodash-template",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/lodash.template@4.5.0",
+   "connection": "six hops through adr, markdown-toc, remarkable, autolinker and gulp-header",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      2
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      2,
+      2
+     ],
+     "unsupported": [
+      0,
+      2
+     ],
+     "covered": [
+      2,
+      2
+     ],
+     "latency_ms": 8.8,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/lodash.template@4.5.0",
+        "adv:GHSA-35jh-r3h4-6jhm",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/lodash.template@4.5.0",
+        "adv:GHSA-r5fr-rjxr-66jc",
+        "affected"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      2,
+      2
+     ],
+     "unsupported": [
+      0,
+      4
+     ],
+     "covered": [
+      4,
+      4
+     ],
+     "latency_ms": 22800.0,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/lodash.template@4.5.0",
+        "adv:GHSA-35jh-r3h4-6jhm",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/lodash.template@4.5.0",
+        "adv:GHSA-r5fr-rjxr-66jc",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/adr@1.3.3",
+        "pkg:npm/markdown-toc@1.2.0",
+        "pkg:npm/remarkable@1.7.4",
+        "pkg:npm/autolinker@0.28.1",
+        "pkg:npm/gulp-header@1.8.12",
+        "pkg:npm/lodash.template@4.5.0",
+        "adv:GHSA-35jh-r3h4-6jhm"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/adr@1.3.3",
+        "pkg:npm/markdown-toc@1.2.0",
+        "pkg:npm/remarkable@1.7.4",
+        "pkg:npm/autolinker@0.28.1",
+        "pkg:npm/gulp-header@1.8.12",
+        "pkg:npm/lodash.template@4.5.0",
+        "adv:GHSA-r5fr-rjxr-66jc"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "karma-two-chains-http-cache-semantics",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/http-cache-semantics@4.1.0",
+   "connection": "five and seven hops: two chains from np through two versions of got",
+   "graph_expected_to_help": true,
+   "c_vs_b": "better",
+   "results": {
+    "A": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      0,
+      1
+     ],
+     "unsupported": [
+      0,
+      0
+     ],
+     "covered": [
+      0,
+      0
+     ],
+     "latency_ms": 0.0,
+     "claims": []
+    },
+    "B": {
+     "paths": [
+      0,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      1
+     ],
+     "covered": [
+      1,
+      1
+     ],
+     "latency_ms": 7.9,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/http-cache-semantics@4.1.0",
+        "adv:GHSA-rc47-6667-2j5j",
+        "affected"
+       ],
+       "covered": true
+      }
+     ]
+    },
+    "C": {
+     "paths": [
+      2,
+      2
+     ],
+     "policy_links": [
+      0,
+      0
+     ],
+     "findings": [
+      1,
+      1
+     ],
+     "unsupported": [
+      0,
+      3
+     ],
+     "covered": [
+      3,
+      3
+     ],
+     "latency_ms": 27460.4,
+     "claims": [
+      {
+       "type": "finding",
+       "key": [
+        "pkg:npm/http-cache-semantics@4.1.0",
+        "adv:GHSA-rc47-6667-2j5j",
+        "affected"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/np@7.7.0",
+        "pkg:npm/npm-name@6.0.1",
+        "pkg:npm/got@10.7.0",
+        "pkg:npm/cacheable-request@7.0.1",
+        "pkg:npm/http-cache-semantics@4.1.0",
+        "adv:GHSA-rc47-6667-2j5j"
+       ],
+       "covered": true
+      },
+      {
+       "type": "path",
+       "key": [
+        "repo:karma-sabarivka-reporter",
+        "pkg:npm/np@7.7.0",
+        "pkg:npm/update-notifier@5.0.1",
+        "pkg:npm/latest-version@5.1.0",
+        "pkg:npm/package-json@6.5.0",
+        "pkg:npm/got@9.6.0",
+        "pkg:npm/cacheable-request@6.1.0",
+        "pkg:npm/http-cache-semantics@4.1.0",
+        "adv:GHSA-rc47-6667-2j5j"
+       ],
+       "covered": true
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "total": {
+  "A": {
+   "paths": [
+    0,
+    44
+   ],
+   "policy_links": [
+    0,
+    28
+   ],
+   "findings": [
+    0,
+    14
+   ],
+   "unsupported": [
+    4,
+    4
+   ],
+   "covered": [
+    4,
+    4
+   ],
+   "latency_ms": 1.6
+  },
+  "B": {
+   "paths": [
+    7,
+    44
+   ],
+   "policy_links": [
+    0,
+    28
+   ],
+   "findings": [
+    14,
+    14
+   ],
+   "unsupported": [
+    5,
+    26
+   ],
+   "covered": [
+    25,
+    26
+   ],
+   "latency_ms": 87.5
+  },
+  "C": {
+   "paths": [
+    35,
+    44
+   ],
+   "policy_links": [
+    19,
+    28
+   ],
+   "findings": [
+    14,
+    14
+   ],
+   "unsupported": [
+    0,
+    68
+   ],
+   "covered": [
+    30,
+    68
+   ],
+   "latency_ms": 204571.5
+  }
+ },
+ "c_vs_b": {
+  "better": [
+   "cf-cli-command-file",
+   "cf-cli-command-test",
+   "cf-cli-actor-named-wrongly",
+   "cf-cli-api-layer",
+   "cf-cli-integration-test",
+   "turtles-proxy-types",
+   "turtles-clusterctl-config",
+   "weave-gitops-auth-superseded",
+   "weave-gitops-server-cmd",
+   "weave-gitops-buf",
+   "weave-gitops-release-workflow",
+   "supabase-replaced-session-auth",
+   "supabase-prisma-schema",
+   "supabase-auth-route",
+   "supabase-coolify",
+   "karma-three-hop-trim-newlines",
+   "karma-two-chains-babel-traverse",
+   "karma-four-hop-once",
+   "karma-four-hop-async",
+   "karma-six-hop-lodash-template",
+   "karma-two-chains-http-cache-semantics"
+  ],
+  "same": [
+   "turtles-clusterctlconfig-controller",
+   "turtles-import-controller",
+   "weave-gitops-cli-verb-noun",
+   "supabase-authjs-config",
+   "karma-source-file",
+   "supabase-direct-dev-dependency",
+   "supabase-two-hop-tinypool",
+   "supabase-two-hop-mocker",
+   "karma-two-hop-extract-zip"
+  ],
+  "worse": [],
+  "mixed": []
+ }
+}

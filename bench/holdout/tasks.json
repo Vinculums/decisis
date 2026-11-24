@@ -1,0 +1,908 @@
+{
+ "version": 1,
+ "about": "Held-out tasks on five open-source repositories (bench/holdout/SOURCES.md). Expected findings were written from the ADR text and, for audit tasks, from an npm resolution worked out without decisis, before compare was run on these tasks. A decision that names the queried path itself is a path of one node: [decision]. Tasks marked 'text only' expect a decision that governs the path by its text but names no path, so no method that matches code paths can find it.",
+ "repos": {
+  "cf-cli": {
+   "impact": {
+    "snapshots": [
+     "bench/holdout/cf-cli/snapshot.json"
+    ],
+    "hops": 3
+   }
+  },
+  "turtles": {
+   "impact": {
+    "snapshots": [
+     "bench/holdout/turtles/snapshot.json"
+    ],
+    "hops": 3
+   }
+  },
+  "weave-gitops": {
+   "impact": {
+    "snapshots": [
+     "bench/holdout/weave-gitops/snapshot.json"
+    ],
+    "hops": 3
+   }
+  },
+  "supabase-multitenant": {
+   "audit": {
+    "snapshot": "bench/holdout/supabase-multitenant/snapshot.json",
+    "lockfile": "bench/holdout/supabase-multitenant/package-lock.json",
+    "osv_cache": "bench/holdout/supabase-multitenant/osv-cache.json"
+   },
+   "impact": {
+    "snapshots": [
+     "bench/holdout/supabase-multitenant/snapshot.json"
+    ],
+    "hops": 3
+   }
+  },
+  "karma-sabarivka-reporter": {
+   "audit": {
+    "snapshot": "bench/holdout/karma-sabarivka-reporter/snapshot.json",
+    "lockfile": "bench/holdout/karma-sabarivka-reporter/package-lock.json",
+    "osv_cache": "bench/holdout/karma-sabarivka-reporter/osv-cache.json"
+   },
+   "impact": {
+    "snapshots": [
+     "bench/holdout/karma-sabarivka-reporter/snapshot.json"
+    ],
+    "hops": 3
+   }
+  }
+ },
+ "methods": {
+  "A": "Vinc retrieval only: nodes whose code_ref matches the subject, then their one-hop neighbours",
+  "B": "A plus the lockfile and the advisories as flat records joined by package name",
+  "C": "A Relate graph of the Vinc snapshot, the lockfile and the advisories, queried with multi-hop paths"
+ },
+ "tasks": [
+  {
+   "id": "cf-cli-command-file",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "command/v7/create_org_command.go",
+   "connection": "zero hops: two ADRs name command/v7, the directory that holds the file",
+   "graph_expected_to_help": false,
+   "why": "ADR 11 sets the rules for the command layer under command/v7; ADR 12 decides that command/v7 is to be de-versioned. ADR 7 names only the test file, not this one.",
+   "expected": {
+    "paths": [
+     [
+      "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+     ],
+     [
+      "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "command/v7/create_org_command.go",
+      "node": "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+     },
+     {
+      "path": "command/v7/create_org_command.go",
+      "node": "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cf-cli-command-test",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "command/v7/create_org_command_test.go",
+   "connection": "zero hops: ADR 7 names the file, ADRs 11 and 12 name its directory",
+   "graph_expected_to_help": false,
+   "why": "ADR 7 uses this command test as its example of white box tests at the command level; ADRs 11 and 12 govern command/v7 as above.",
+   "expected": {
+    "paths": [
+     [
+      "decision:cf-cli-doc-adr-0007-integration-vs-command-test"
+     ],
+     [
+      "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+     ],
+     [
+      "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "command/v7/create_org_command_test.go",
+      "node": "decision:cf-cli-doc-adr-0007-integration-vs-command-test"
+     },
+     {
+      "path": "command/v7/create_org_command_test.go",
+      "node": "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+     },
+     {
+      "path": "command/v7/create_org_command_test.go",
+      "node": "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cf-cli-actor-named-wrongly",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "actor/v7action/droplet.go",
+   "connection": "zero hops for ADR 12; ADR 11 calls the directory action/v7action, which does not exist (the code is in actor/v7action)",
+   "graph_expected_to_help": false,
+   "why": "ADR 11's actor layer rules govern this file by their text, but the ADR spells the directory action/; the hand-made mapping keeps the ADR's spelling, so no method can find ADR 11 here. ADR 12 names actor/v7action.",
+   "expected": {
+    "paths": [
+     [
+      "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+     ],
+     [
+      "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "actor/v7action/droplet.go",
+      "node": "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+     },
+     {
+      "path": "actor/v7action/droplet.go",
+      "node": "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cf-cli-api-layer",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "api/cloudcontroller/ccv3/application.go",
+   "connection": "zero hops: ADR 11 names api/cloudcontroller/ccv3",
+   "graph_expected_to_help": false,
+   "why": "ADR 11 sets the API layer rules: one file per API resource in api/cloudcontroller/ccv3, one request per method.",
+   "expected": {
+    "paths": [
+     [
+      "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "api/cloudcontroller/ccv3/application.go",
+      "node": "decision:cf-cli-doc-adr-0011-command-actor-api-architecture"
+     }
+    ]
+   }
+  },
+  {
+   "id": "cf-cli-integration-test",
+   "repo": "cf-cli",
+   "kind": "impact",
+   "subject": "integration/v7/isolated/create_org_command_test.go",
+   "connection": "zero hops: ADR 7 names the file, ADR 12 names integration/v7",
+   "graph_expected_to_help": false,
+   "why": "ADR 7 puts black box tests at the integration level and names this test; ADR 12 decides integration/v7 becomes integration/tests.",
+   "expected": {
+    "paths": [
+     [
+      "decision:cf-cli-doc-adr-0007-integration-vs-command-test"
+     ],
+     [
+      "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "integration/v7/isolated/create_org_command_test.go",
+      "node": "decision:cf-cli-doc-adr-0007-integration-vs-command-test"
+     },
+     {
+      "path": "integration/v7/isolated/create_org_command_test.go",
+      "node": "decision:cf-cli-doc-adr-0012-de-version-v8-code-base"
+     }
+    ]
+   }
+  },
+  {
+   "id": "turtles-proxy-types",
+   "repo": "turtles",
+   "kind": "impact",
+   "subject": "api/rancher/management/v3/cluster.go",
+   "connection": "zero hops: ADR 9 (structured proxy types) names ./api/rancher",
+   "graph_expected_to_help": false,
+   "why": "The proxy types under ./api/rancher carry kubebuilder annotations and generated deep copies by ADR 9. ADR 8 is about the import strategy that creates v3 clusters, not about the type definitions.",
+   "expected": {
+    "paths": [
+     [
+      "decision:turtles-docs-adr-0009-use-structured-proxy-types"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "api/rancher/management/v3/cluster.go",
+      "node": "decision:turtles-docs-adr-0009-use-structured-proxy-types"
+     }
+    ]
+   }
+  },
+  {
+   "id": "turtles-clusterctl-config",
+   "repo": "turtles",
+   "kind": "impact",
+   "subject": "internal/controllers/clusterctl/config.go",
+   "connection": "zero hops for ADR 16, which names the file; ADR 12 governs the embedded default config by its text and names no path",
+   "graph_expected_to_help": false,
+   "why": "ADR 16 decides how the embedded config.yaml (embedded via config.go) pins CAPI versions. ADR 12 decides that the default ConfigMap for clusterctl.yaml overrides is embedded into the release and managed by the ClusterctlConfig resource.",
+   "expected": {
+    "paths": [
+     [
+      "decision:turtles-docs-adr-0016-capi-version-pinning"
+     ],
+     [
+      "decision:turtles-docs-adr-0012-clusterctl-provider"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "internal/controllers/clusterctl/config.go",
+      "node": "decision:turtles-docs-adr-0016-capi-version-pinning"
+     },
+     {
+      "path": "internal/controllers/clusterctl/config.go",
+      "node": "decision:turtles-docs-adr-0012-clusterctl-provider"
+     }
+    ]
+   }
+  },
+  {
+   "id": "turtles-clusterctlconfig-controller",
+   "repo": "turtles",
+   "kind": "impact",
+   "subject": "internal/controllers/clusterctlconfig_controller.go",
+   "connection": "text only: ADR 12 decides the ClusterctlConfig resource this controller reconciles, but names no code path",
+   "graph_expected_to_help": false,
+   "why": "No mapping can anchor ADR 12 without inventing a path; listed to measure what ADR text governs beyond the paths it names.",
+   "expected": {
+    "paths": [
+     [
+      "decision:turtles-docs-adr-0012-clusterctl-provider"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "internal/controllers/clusterctlconfig_controller.go",
+      "node": "decision:turtles-docs-adr-0012-clusterctl-provider"
+     }
+    ]
+   }
+  },
+  {
+   "id": "turtles-import-controller",
+   "repo": "turtles",
+   "kind": "impact",
+   "subject": "internal/controllers/import_controller.go",
+   "connection": "text only: ADR 6 decides how the operator imports clusters and ADR 8 changes 'the current import controller logic'; neither names a path",
+   "graph_expected_to_help": false,
+   "why": "Both decisions govern the import controller by their text; neither names a file or directory.",
+   "expected": {
+    "paths": [
+     [
+      "decision:turtles-docs-adr-0006-import-strategy"
+     ],
+     [
+      "decision:turtles-docs-adr-0008-managementv3-clusters-support"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "internal/controllers/import_controller.go",
+      "node": "decision:turtles-docs-adr-0006-import-strategy"
+     },
+     {
+      "path": "internal/controllers/import_controller.go",
+      "node": "decision:turtles-docs-adr-0008-managementv3-clusters-support"
+     }
+    ]
+   }
+  },
+  {
+   "id": "weave-gitops-auth-superseded",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": "pkg/server/auth/auth.go",
+   "connection": "zero hops for ADR 15; ADR 15 supersedes ADR 5, one SUPERSEDES edge away",
+   "graph_expected_to_help": true,
+   "why": "ADR 15 describes the current authentication strategy and names this file. ADR 5 is superseded by ADR 15 and no longer governs; a walk that ignores edge meaning returns it.",
+   "expected": {
+    "paths": [
+     [
+      "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "pkg/server/auth/auth.go",
+      "node": "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy"
+     }
+    ]
+   }
+  },
+  {
+   "id": "weave-gitops-server-cmd",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": "cmd/gitops-server/cmd/cmd.go",
+   "connection": "zero hops for ADR 15; the superseded ADR 5 is one SUPERSEDES edge away",
+   "graph_expected_to_help": true,
+   "why": "ADR 15 names cmd.go as one of the places that use a raw, non-impersonated client. ADR 5 is superseded.",
+   "expected": {
+    "paths": [
+     [
+      "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "cmd/gitops-server/cmd/cmd.go",
+      "node": "decision:weave-gitops-doc-adr-0015-current-api-authentication-strategy"
+     }
+    ]
+   }
+  },
+  {
+   "id": "weave-gitops-buf",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": "buf.gen.yaml",
+   "connection": "zero hops: ADR 2 names buf.gen.yaml",
+   "graph_expected_to_help": false,
+   "why": "ADR 2 standardises request and response APIs on protobuf generated with buf from buf.gen.yaml.",
+   "expected": {
+    "paths": [
+     [
+      "decision:weave-gitops-doc-adr-0002-api-definitions-grpc"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "buf.gen.yaml",
+      "node": "decision:weave-gitops-doc-adr-0002-api-definitions-grpc"
+     }
+    ]
+   }
+  },
+  {
+   "id": "weave-gitops-release-workflow",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": ".github/workflows/release.yaml",
+   "connection": "zero hops: ADR 16 links the release workflow",
+   "graph_expected_to_help": false,
+   "why": "ADR 16 changes the release ordering so the GitHub release is published only after the container image is available.",
+   "expected": {
+    "paths": [
+     [
+      "decision:weave-gitops-doc-adr-0016-release-ordering"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": ".github/workflows/release.yaml",
+      "node": "decision:weave-gitops-doc-adr-0016-release-ordering"
+     }
+    ]
+   }
+  },
+  {
+   "id": "weave-gitops-cli-verb-noun",
+   "repo": "weave-gitops",
+   "kind": "impact",
+   "subject": "cmd/gitops/",
+   "connection": "text only: ADR 11 (verb noun) decides the CLI syntax and supersedes ADR 3 (noun verb), with the spelling 'Supercedes'; neither names a path",
+   "graph_expected_to_help": false,
+   "why": "The gitops CLI under cmd/gitops follows ADR 11. ADR 3 is superseded; its status line says 'Superceded by', which decisis does not read as superseded.",
+   "expected": {
+    "paths": [
+     [
+      "decision:weave-gitops-doc-adr-0011-cli-verb-noun"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "cmd/gitops/",
+      "node": "decision:weave-gitops-doc-adr-0011-cli-verb-noun"
+     }
+    ]
+   }
+  },
+  {
+   "id": "supabase-replaced-session-auth",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "src/lib/auth.ts",
+   "connection": "zero hops: ADR 1 names the file as the bespoke session system it replaces",
+   "graph_expected_to_help": false,
+   "why": "ADR 1 adopts Auth.js v5 with the Prisma adapter and supersedes the session system in src/lib/auth.ts.",
+   "expected": {
+    "paths": [
+     [
+      "decision:supabase-multitenant-docs-adr-0001-authjs"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "src/lib/auth.ts",
+      "node": "decision:supabase-multitenant-docs-adr-0001-authjs"
+     }
+    ]
+   }
+  },
+  {
+   "id": "supabase-prisma-schema",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "prisma/schema.prisma",
+   "connection": "zero hops: ADR 1 names prisma/schema.prisma",
+   "graph_expected_to_help": false,
+   "why": "Under ADR 1, Auth.js owns the Account, Session and VerificationToken models in the schema. ADR 2 decides the system database topology, not the schema file.",
+   "expected": {
+    "paths": [
+     [
+      "decision:supabase-multitenant-docs-adr-0001-authjs"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "prisma/schema.prisma",
+      "node": "decision:supabase-multitenant-docs-adr-0001-authjs"
+     }
+    ]
+   }
+  },
+  {
+   "id": "supabase-auth-route",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "src/app/api/auth/login/route.ts",
+   "connection": "zero hops: ADR 1 names src/app/api/auth/{login,...}, a directory that holds the route",
+   "graph_expected_to_help": false,
+   "why": "The login route is part of the bespoke auth that ADR 1 replaces with Auth.js.",
+   "expected": {
+    "paths": [
+     [
+      "decision:supabase-multitenant-docs-adr-0001-authjs"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "src/app/api/auth/login/route.ts",
+      "node": "decision:supabase-multitenant-docs-adr-0001-authjs"
+     }
+    ]
+   }
+  },
+  {
+   "id": "supabase-coolify",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "deploy/coolify/",
+   "connection": "zero hops: ADR 3 lists deploy/coolify/ as related",
+   "graph_expected_to_help": false,
+   "why": "ADR 3 decides one shared infrastructure plane with per-tenant databases; the Coolify template deploys it.",
+   "expected": {
+    "paths": [
+     [
+      "decision:supabase-multitenant-docs-adr-0003-shared-infrastructure-plane"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "deploy/coolify/",
+      "node": "decision:supabase-multitenant-docs-adr-0003-shared-infrastructure-plane"
+     }
+    ]
+   }
+  },
+  {
+   "id": "supabase-authjs-config",
+   "repo": "supabase-multitenant",
+   "kind": "impact",
+   "subject": "src/auth.ts",
+   "connection": "text only: src/auth.ts configures NextAuth with the Prisma adapter, which ADR 1 adopts; ADR 1 does not name this file",
+   "graph_expected_to_help": false,
+   "why": "ADR 1 governs the Auth.js configuration by its text, but names only the files it replaces.",
+   "expected": {
+    "paths": [
+     [
+      "decision:supabase-multitenant-docs-adr-0001-authjs"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "src/auth.ts",
+      "node": "decision:supabase-multitenant-docs-adr-0001-authjs"
+     }
+    ]
+   }
+  },
+  {
+   "id": "karma-source-file",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "impact",
+   "subject": "src/index.ts",
+   "connection": "text only: ADR 2 (TypeScript only) and ADR 3 (100% coverage for all source code) govern every source file and name none",
+   "graph_expected_to_help": false,
+   "why": "Both decisions hold for all source code in the project; no ADR in this repository names a path.",
+   "expected": {
+    "paths": [
+     [
+      "decision:karma-sabarivka-reporter-doc-adr-0002-typescript-as-project-language"
+     ],
+     [
+      "decision:karma-sabarivka-reporter-doc-adr-0003-high-test-coverage-thresholds"
+     ]
+    ],
+    "policy_links": [
+     {
+      "path": "src/index.ts",
+      "node": "decision:karma-sabarivka-reporter-doc-adr-0002-typescript-as-project-language"
+     },
+     {
+      "path": "src/index.ts",
+      "node": "decision:karma-sabarivka-reporter-doc-adr-0003-high-test-coverage-thresholds"
+     }
+    ]
+   }
+  },
+  {
+   "id": "supabase-direct-dev-dependency",
+   "repo": "supabase-multitenant",
+   "kind": "audit",
+   "subject": "pkg:npm/vitest@3.2.7",
+   "connection": "one hop: vitest is a direct development dependency",
+   "graph_expected_to_help": false,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/vitest@3.2.7",
+      "advisory": "adv:GHSA-82fw-gwwq-j7x9",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:supabase-multitenant",
+      "pkg:npm/vitest@3.2.7",
+      "adv:GHSA-82fw-gwwq-j7x9"
+     ]
+    ],
+    "policy_links": []
+   }
+  },
+  {
+   "id": "supabase-two-hop-tinypool",
+   "repo": "supabase-multitenant",
+   "kind": "audit",
+   "subject": "pkg:npm/tinypool@1.1.1",
+   "connection": "two hops through vitest, a direct dependency",
+   "graph_expected_to_help": false,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/tinypool@1.1.1",
+      "advisory": "adv:GHSA-5gmw-xhrv-c9v3",
+      "status": "affected"
+     },
+     {
+      "package": "pkg:npm/tinypool@1.1.1",
+      "advisory": "adv:GHSA-85c8-ppgw-ccpr",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:supabase-multitenant",
+      "pkg:npm/vitest@3.2.7",
+      "pkg:npm/tinypool@1.1.1",
+      "adv:GHSA-5gmw-xhrv-c9v3"
+     ],
+     [
+      "repo:supabase-multitenant",
+      "pkg:npm/vitest@3.2.7",
+      "pkg:npm/tinypool@1.1.1",
+      "adv:GHSA-85c8-ppgw-ccpr"
+     ]
+    ],
+    "policy_links": []
+   }
+  },
+  {
+   "id": "supabase-two-hop-mocker",
+   "repo": "supabase-multitenant",
+   "kind": "audit",
+   "subject": "pkg:npm/@vitest/mocker@3.2.7",
+   "connection": "two hops through vitest; one of its advisories is shared with vitest",
+   "graph_expected_to_help": false,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/@vitest/mocker@3.2.7",
+      "advisory": "adv:GHSA-82fw-gwwq-j7x9",
+      "status": "affected"
+     },
+     {
+      "package": "pkg:npm/@vitest/mocker@3.2.7",
+      "advisory": "adv:GHSA-qxg6-89mg-rqv8",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:supabase-multitenant",
+      "pkg:npm/vitest@3.2.7",
+      "pkg:npm/@vitest/mocker@3.2.7",
+      "adv:GHSA-82fw-gwwq-j7x9"
+     ],
+     [
+      "repo:supabase-multitenant",
+      "pkg:npm/vitest@3.2.7",
+      "pkg:npm/@vitest/mocker@3.2.7",
+      "adv:GHSA-qxg6-89mg-rqv8"
+     ]
+    ],
+    "policy_links": []
+   }
+  },
+  {
+   "id": "karma-two-hop-extract-zip",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/extract-zip@2.0.1",
+   "connection": "two hops through puppeteer, a direct dependency",
+   "graph_expected_to_help": false,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/extract-zip@2.0.1",
+      "advisory": "adv:GHSA-7pqw-9j4j-h8q3",
+      "status": "affected"
+     },
+     {
+      "package": "pkg:npm/extract-zip@2.0.1",
+      "advisory": "adv:GHSA-jmr9-qjv8-65gv",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/puppeteer@13.7.0",
+      "pkg:npm/extract-zip@2.0.1",
+      "adv:GHSA-7pqw-9j4j-h8q3"
+     ],
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/puppeteer@13.7.0",
+      "pkg:npm/extract-zip@2.0.1",
+      "adv:GHSA-jmr9-qjv8-65gv"
+     ]
+    ],
+    "policy_links": []
+   }
+  },
+  {
+   "id": "karma-three-hop-trim-newlines",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/trim-newlines@2.0.0",
+   "connection": "three hops: make-dir-cli, meow, trim-newlines",
+   "graph_expected_to_help": true,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/trim-newlines@2.0.0",
+      "advisory": "adv:GHSA-7p7h-4mm5-852v",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/make-dir-cli@2.0.0",
+      "pkg:npm/meow@5.0.0",
+      "pkg:npm/trim-newlines@2.0.0",
+      "adv:GHSA-7p7h-4mm5-852v"
+     ]
+    ],
+    "policy_links": []
+   }
+  },
+  {
+   "id": "karma-two-chains-babel-traverse",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/babel-traverse@6.26.0",
+   "connection": "three and four hops: two chains through istanbul-lib-instrument",
+   "graph_expected_to_help": true,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/babel-traverse@6.26.0",
+      "advisory": "adv:GHSA-67hx-6x53-jw92",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/istanbul-instrumenter-loader@3.0.1",
+      "pkg:npm/istanbul-lib-instrument@1.10.2",
+      "pkg:npm/babel-template@6.26.0",
+      "pkg:npm/babel-traverse@6.26.0",
+      "adv:GHSA-67hx-6x53-jw92"
+     ],
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/istanbul-instrumenter-loader@3.0.1",
+      "pkg:npm/istanbul-lib-instrument@1.10.2",
+      "pkg:npm/babel-traverse@6.26.0",
+      "adv:GHSA-67hx-6x53-jw92"
+     ]
+    ],
+    "policy_links": []
+   }
+  },
+  {
+   "id": "karma-four-hop-once",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/@tootallnate/once@1.1.2",
+   "connection": "four hops through codecov, teeny-request and http-proxy-agent",
+   "graph_expected_to_help": true,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/@tootallnate/once@1.1.2",
+      "advisory": "adv:GHSA-vpq2-c234-7xj6",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/codecov@3.8.3",
+      "pkg:npm/teeny-request@7.1.1",
+      "pkg:npm/http-proxy-agent@4.0.1",
+      "pkg:npm/@tootallnate/once@1.1.2",
+      "adv:GHSA-vpq2-c234-7xj6"
+     ]
+    ],
+    "policy_links": []
+   }
+  },
+  {
+   "id": "karma-four-hop-async",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/async@2.6.3",
+   "connection": "four hops through @types/karma, log4js and streamroller",
+   "graph_expected_to_help": true,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/async@2.6.3",
+      "advisory": "adv:GHSA-fwr7-v2mv-hh25",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/@types/karma@5.0.0",
+      "pkg:npm/log4js@4.5.1",
+      "pkg:npm/streamroller@1.0.6",
+      "pkg:npm/async@2.6.3",
+      "adv:GHSA-fwr7-v2mv-hh25"
+     ]
+    ],
+    "policy_links": []
+   }
+  },
+  {
+   "id": "karma-six-hop-lodash-template",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/lodash.template@4.5.0",
+   "connection": "six hops through adr, markdown-toc, remarkable, autolinker and gulp-header",
+   "graph_expected_to_help": true,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/lodash.template@4.5.0",
+      "advisory": "adv:GHSA-35jh-r3h4-6jhm",
+      "status": "affected"
+     },
+     {
+      "package": "pkg:npm/lodash.template@4.5.0",
+      "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/adr@1.3.3",
+      "pkg:npm/markdown-toc@1.2.0",
+      "pkg:npm/remarkable@1.7.4",
+      "pkg:npm/autolinker@0.28.1",
+      "pkg:npm/gulp-header@1.8.12",
+      "pkg:npm/lodash.template@4.5.0",
+      "adv:GHSA-35jh-r3h4-6jhm"
+     ],
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/adr@1.3.3",
+      "pkg:npm/markdown-toc@1.2.0",
+      "pkg:npm/remarkable@1.7.4",
+      "pkg:npm/autolinker@0.28.1",
+      "pkg:npm/gulp-header@1.8.12",
+      "pkg:npm/lodash.template@4.5.0",
+      "adv:GHSA-r5fr-rjxr-66jc"
+     ]
+    ],
+    "policy_links": []
+   }
+  },
+  {
+   "id": "karma-two-chains-http-cache-semantics",
+   "repo": "karma-sabarivka-reporter",
+   "kind": "audit",
+   "subject": "pkg:npm/http-cache-semantics@4.1.0",
+   "connection": "five and seven hops: two chains from np through two versions of got",
+   "graph_expected_to_help": true,
+   "why": "Each chain is the npm resolution of the lockfile (nearest node_modules copy), worked out without decisis; the advisories are those api.osv.dev returned for this name and version. No ADR in this repository names the package or states a dependency rule, so no policy link is expected.",
+   "expected": {
+    "findings": [
+     {
+      "package": "pkg:npm/http-cache-semantics@4.1.0",
+      "advisory": "adv:GHSA-rc47-6667-2j5j",
+      "status": "affected"
+     }
+    ],
+    "paths": [
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/np@7.7.0",
+      "pkg:npm/npm-name@6.0.1",
+      "pkg:npm/got@10.7.0",
+      "pkg:npm/cacheable-request@7.0.1",
+      "pkg:npm/http-cache-semantics@4.1.0",
+      "adv:GHSA-rc47-6667-2j5j"
+     ],
+     [
+      "repo:karma-sabarivka-reporter",
+      "pkg:npm/np@7.7.0",
+      "pkg:npm/update-notifier@5.0.1",
+      "pkg:npm/latest-version@5.1.0",
+      "pkg:npm/package-json@6.5.0",
+      "pkg:npm/got@9.6.0",
+      "pkg:npm/cacheable-request@6.1.0",
+      "pkg:npm/http-cache-semantics@4.1.0",
+      "adv:GHSA-rc47-6667-2j5j"
+     ]
+    ],
+    "policy_links": []
+   }
+  }
+ ]
+}

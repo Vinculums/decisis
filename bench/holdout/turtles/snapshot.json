@@ -1,0 +1,377 @@
+{
+ "meta": {
+  "source": "decisis init, then bench/holdout/build_inputs.py",
+  "repo": "turtles",
+  "repository": "rancher/turtles",
+  "commit": "be75f9a24befacfb5b1c571fb410a2e218f1f45e",
+  "nodes": 19,
+  "edges": 0,
+  "problems": [
+   {
+    "file": "docs/adr/0001-use-adrs.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0002-use-helm.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0003-deletion-strategy.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0004-running-out-of-rancher-manager-cluster.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0005-rancher-integration-strategy.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0006-import-strategy.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0007-rancher-turtles-public-api.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0008-managementv3-clusters-support.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0009-publish-chart-to-rancher-charts.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0009-use-structured-proxy-types.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0010-migrate-to-v3-cluster-resource.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0011-v1-to-v3-migration.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0012-clusterctl-provider.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0013-self-managed-rancher-cluster.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0014-turtles-ui-installation.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0015-capiprovider-architecture.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0016-capi-version-pinning.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   },
+   {
+    "file": "docs/adr/0017-release-process.md",
+    "reason": "it names no code paths (front matter code_ref, subject_path or also_touches)",
+    "action": "kept without code paths"
+   }
+  ]
+ },
+ "nodes": [
+  {
+   "id": "concept:turtles-codeowners-rancher-highlander-19502adb22c3",
+   "kind": "concept",
+   "title": "Owned by @rancher/highlander",
+   "props": {
+    "source_file": "CODEOWNERS",
+    "code_ref": [
+     "turtles:.claude/",
+     "turtles:.dockerignore",
+     "turtles:.envrc.example",
+     "turtles:.github/",
+     "turtles:.gitignore",
+     "turtles:.golangci.yml",
+     "turtles:.markdownlinkcheck.json",
+     "turtles:AI_POLICY.md",
+     "CODEOWNERS",
+     "turtles:CONTRIBUTING.md",
+     "Dockerfile",
+     "LICENSE",
+     "Makefile",
+     "PROJECT",
+     "turtles:README.md",
+     "Tiltfile",
+     "turtles:api/",
+     "turtles:charts/",
+     "turtles:code-of-conduct.md",
+     "turtles:config/",
+     "turtles:devbox.json",
+     "turtles:devbox.lock",
+     "turtles:docs/",
+     "turtles:examples/",
+     "turtles:feature/",
+     "turtles:go.mod",
+     "turtles:go.sum",
+     "turtles:hack/",
+     "turtles:index.yaml",
+     "turtles:internal/",
+     "turtles:logos/",
+     "turtles:main.go",
+     "turtles:scripts/",
+     "turtles:test/",
+     "turtles:tilt-settings.json.example",
+     "turtles:tilt/",
+     "turtles:updatecli/",
+     "turtles:util/"
+    ],
+    "content_hash": "sha256:413605ffbef65da6145d7f4565395aa9a1aef8f6b5267f9529cc2b64cc538e28"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0001-use-adrs",
+   "kind": "decision",
+   "title": "1. Use ADRs to record decisions",
+   "props": {
+    "source_file": "docs/adr/0001-use-adrs.md",
+    "status": "proposed",
+    "date": "2023-07-11",
+    "statement": "The project will use [Architectural Decision Records (ADR)](https://adr.github.io/) to record decisions that are applicable across the project and that are not explicitly covered by a ...",
+    "content_hash": "sha256:e124caecac54ffd5ac3f13f5c17774fad119476e3b55482559964d766cb36127"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0002-use-helm",
+   "kind": "decision",
+   "title": "2. Use helm charts for releases",
+   "props": {
+    "source_file": "docs/adr/0002-use-helm.md",
+    "status": "proposed",
+    "date": "2023-07-27",
+    "statement": "For the operator releases we would use [helm charts](https://helm.sh/docs/topics/charts/). We will follow recommended practices, versioning and ensure compatibility with rancher packaging strategy ...",
+    "content_hash": "sha256:7b9732aa3a518c8f36bffd696d8d747b5ebb0a3af51f4495e844e7da835ead18"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0003-deletion-strategy",
+   "kind": "decision",
+   "title": "3. Deletion strategy",
+   "props": {
+    "source_file": "docs/adr/0003-deletion-strategy.md",
+    "status": "proposed",
+    "date": "2023-08-22",
+    "statement": "The deletion workflow is structured as follows:",
+    "content_hash": "sha256:9408514efeac852ee417ee197f8a1662fa6cae2014a3a9de8acdfb395141d186"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0004-running-out-of-rancher-manager-cluster",
+   "kind": "decision",
+   "title": "4. Running out of Rancher Manager cluster",
+   "props": {
+    "source_file": "docs/adr/0004-running-out-of-rancher-manager-cluster.md",
+    "status": "proposed",
+    "date": "2023-08-31",
+    "statement": "`CAPIImportReconciler` will contain two differentiated clients: - `Client`: in-cluster client for the controller and the CAPI resources. - `RancherClient`: for the Rancher Manager cluster.",
+    "content_hash": "sha256:143f63dab5bf5bc20981dfd503768845125d2e73f931590ecc2225034e7e7cb3"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0005-rancher-integration-strategy",
+   "kind": "decision",
+   "title": "5. Rancher Integration Strategy",
+   "props": {
+    "source_file": "docs/adr/0005-rancher-integration-strategy.md",
+    "status": "accepted",
+    "date": "2023-06-01",
+    "statement": "Both the custom resources are defined in the **github.com/rancher/rancher/pkg/apis** Go package of Rancher Manager. We considered importing this package directly and using the API definitions ...",
+    "content_hash": "sha256:97fd1909d3e90e7e7f3a1245d3a897ca7fd9b00a46e330acce7a6e70c6a14998"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0006-import-strategy",
+   "kind": "decision",
+   "title": "6. Cluster Import Strategy",
+   "props": {
+    "source_file": "docs/adr/0006-import-strategy.md",
+    "status": "accepted",
+    "date": "2023-06-01",
+    "statement": "The operator will replicate the steps that a user would perform if they were importing an existing cluster via the Rancher Manager UI including applying the manifests available via the import ...",
+    "content_hash": "sha256:7431bfe04c313df6404a37a4eac0f4135200038473cb0badca2368f31ac7f97a"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0007-rancher-turtles-public-api",
+   "kind": "decision",
+   "title": "7. Rancher Turtles Public API",
+   "props": {
+    "source_file": "docs/adr/0007-rancher-turtles-public-api.md",
+    "status": "accepted",
+    "date": "2023-12-04",
+    "statement": "The decided implementation of the API resource will be located under the `turtles-capi.cattle.io` group, kind `CAPIProvider`.",
+    "content_hash": "sha256:c9683ed888bf082ead1ba4e01cb5dd3681d42c643e8ac59fb5d7093e464b6594"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0008-managementv3-clusters-support",
+   "kind": "decision",
+   "title": "8. Management V3 clusters support",
+   "props": {
+    "source_file": "docs/adr/0008-managementv3-clusters-support.md",
+    "status": "proposed",
+    "date": "2024-01-25",
+    "statement": "The current import controller logic creates a `provisioning.cattle.io/v1` cluster when a new CAPI cluster is detected. To support a new import strategy, based on a new feature flag, Rancher Turtles ...",
+    "content_hash": "sha256:bfa401bffa35f8b7fc76994de008db744054f2156d529384dfa13cc84f1c1f71"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0009-publish-chart-to-rancher-charts",
+   "kind": "decision",
+   "title": "9. Helm chart repository",
+   "props": {
+    "source_file": "docs/adr/0009-publish-chart-to-rancher-charts.md",
+    "status": "proposed",
+    "date": "2024-03-11",
+    "statement": "After discussing both alternatives as a team, with input from product, the decision is to use a **custom Rancher Turtles Helm chart repository**. For now, we do not consider making the extension ...",
+    "content_hash": "sha256:a62357fbee937693ab6d1035aadd27e3143c67319dcf79e90ef974f6eafcd907"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0009-use-structured-proxy-types",
+   "kind": "decision",
+   "title": "9. Use structured proxy types",
+   "props": {
+    "source_file": "docs/adr/0009-use-structured-proxy-types.md",
+    "status": "proposed",
+    "date": "2023-08-09",
+    "statement": "The `rancher-turtles` operator will be using `kubebuilder` [annotations](https://kubebuilder.io/reference/markers) on specified for the `Rancher` proxy types located under the `./api/rancher` ...",
+    "code_ref": [
+     "turtles:api/rancher"
+    ],
+    "content_hash": "sha256:d6d1d4d246ca2f4393d99bb1cc8ec4e5795e0fff79ea3ffe72cd19382e2cee2f"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0010-migrate-to-v3-cluster-resource",
+   "kind": "decision",
+   "title": "10. Manually migrate to v3 cluster resource",
+   "props": {
+    "source_file": "docs/adr/0010-migrate-to-v3-cluster-resource.md",
+    "status": "proposed",
+    "date": "2024-06-12",
+    "statement": "An initial assessment of the requirements for the migration suggested that we should define a procedure based on deleting existing Rancher cluster resources, migrating to new controller, and letting ...",
+    "content_hash": "sha256:1b0c41bde3a6616bf865bfb9b7d9914cd96906e9a5a890e29d76b1b45d26351b"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0011-v1-to-v3-migration",
+   "kind": "decision",
+   "title": "11. Migration to v3 clusters",
+   "props": {
+    "source_file": "docs/adr/0011-v1-to-v3-migration.md",
+    "status": "proposed",
+    "date": "2024-06-21",
+    "statement": "Our helm chart will support automatic migration path under `managementv3-cluster-migration` feature flag.",
+    "content_hash": "sha256:c5bb54c6f997a65cd222e2ce79ecbaf2396aeaa2b9508a30e158f950d16bd4da"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0012-clusterctl-provider",
+   "kind": "decision",
+   "title": "12. Clusterctl Config resource",
+   "props": {
+    "source_file": "docs/adr/0012-clusterctl-provider.md",
+    "status": "proposed",
+    "date": "2024-09-03",
+    "statement": "The proposed solution involves introducing a new singleton namespaced `CustomResource` - `ClusterctlConfig`, which will manage clusterctl overrides in a more flexible and maintainable way. The ...",
+    "content_hash": "sha256:6a99c53c4f6bfeee9424e7ebb15d34d60a42e5a95a62a60169848a29d7152fdf"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0013-self-managed-rancher-cluster",
+   "kind": "decision",
+   "title": "Self managed Rancher cluster",
+   "props": {
+    "source_file": "docs/adr/0013-self-managed-rancher-cluster.md",
+    "status": "proposed",
+    "date": "2025-01-20",
+    "statement": "The proposed solution is to support a [Bootstrap & Pivot](https://cluster-api.sigs.k8s.io/clusterctl/commands/move.html#bootstrap--pivot) process, so that the user can first create a temporary ...",
+    "content_hash": "sha256:17904729e4760b406454411f69fbcd630f1e89e5cb8994116a757b30a8bea40f"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0014-turtles-ui-installation",
+   "kind": "decision",
+   "title": "Turtles UI installation",
+   "props": {
+    "source_file": "docs/adr/0014-turtles-ui-installation.md",
+    "status": "proposed",
+    "date": "2025-02-17",
+    "statement": "The proposed solution is to install UI extension chart as a `Helm` dependency for the Turtles `Helm` chart. This will leverage `questions.yaml` [integration][] to allow users to configure extension ...",
+    "content_hash": "sha256:39ea4e0efc664ba36ea7be7d799cce5d94eb62e7d0ce0960fbc207483a07ca41"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0015-capiprovider-architecture",
+   "kind": "decision",
+   "title": "CAPIProvider Architecture",
+   "props": {
+    "source_file": "docs/adr/0015-capiprovider-architecture.md",
+    "status": "accepted",
+    "date": "2025-07-10",
+    "statement": "To simplify this, we will stop using CAPI Operator CRDs and controllers. Instead, we will use the CAPI Operator as an embedded library for managing the provider lifecycle after some refactoring of ...",
+    "content_hash": "sha256:d56687096dbbc7b78ebb0da7e0b89570c3f2e97e88cb84da500ae5965db346c7"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0016-capi-version-pinning",
+   "kind": "decision",
+   "title": "CAPI version pinning strategy (community vs prime)",
+   "props": {
+    "source_file": "docs/adr/0016-capi-version-pinning.md",
+    "status": "proposed",
+    "date": "2025-08-25",
+    "statement": "- Use Go build tags to pin CAPI providers for community and Prime builds. - If the Go build tag approach for pinning providers doesn't work well, switch to pinning with Helm charts. Since the ...",
+    "code_ref": [
+     "turtles:internal/controllers/clusterctl/config.go",
+     "turtles:internal/controllers/clusterctl/config.yaml"
+    ],
+    "content_hash": "sha256:e7f7019a0896bac80b773a90ec0f7ea73f6199dcd67d17ba297e661a83195809"
+   }
+  },
+  {
+   "id": "decision:turtles-docs-adr-0017-release-process",
+   "kind": "decision",
+   "title": "17. Release Process",
+   "props": {
+    "source_file": "docs/adr/0017-release-process.md",
+    "status": "proposed",
+    "date": "2025-09-09",
+    "statement": "For the intermediate phase: - a new release process will be introduced which should allow differentiation of community vs Prime builds. - the existing release process will continue to be used on a ...",
+    "content_hash": "sha256:544eede37b3710d999bd3ac3f017d2d88213305f59ce77abb24c6c2cf87a4301"
+   }
+  }
+ ],
+ "edges": []
+}

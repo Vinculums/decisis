@@ -1,0 +1,69 @@
+{
+ "repo": "weave-gitops",
+ "repository": "weaveworks/weave-gitops",
+ "commit": "936e848c4e001355fccdfee61c0d54e4a9917183",
+ "license": "Apache-2.0",
+ "note": "Hand-made: each path below is copied from the quoted sentence of the ADR it is listed under; no path was added that the ADR does not name. Written before compare was run on the held-out tasks.",
+ "decisions": {
+  "doc/adr/0002-api-definitions-grpc.md": [
+   {
+    "path": "buf.yaml",
+    "sentence": "`buf.yaml`"
+   },
+   {
+    "path": "buf.gen.yaml",
+    "sentence": "The real power of the buf generation mechanism comes from the file `buf.gen.yaml`."
+   },
+   {
+    "path": "pkg/protos",
+    "sentence": "out: pkg/protos"
+   }
+  ],
+  "doc/adr/0007-embedding-weave-gitops-core.md": [
+   {
+    "path": "index.js",
+    "sentence": "The Weave GitOps Core repository will contain an `index.js` file that will define the public API for including WeGO UI components in other projects."
+   },
+   {
+    "path": "package.json",
+    "sentence": "This will associate the `@weaveworks` organization with the NPM organization specified in the package.json."
+   }
+  ],
+  "doc/adr/0015-current-api-authentication-strategy.md": [
+   {
+    "path": "./pkg/server/auth",
+    "sentence": "subgraph \"WithAPIAuthentication (auth package: ./pkg/server/auth)\""
+   },
+   {
+    "path": "./core/clustersmngr",
+    "sentence": "subgraph \"ClientConfigWithUser (clustersmngr package: ./core/clustersmngr)\""
+   },
+   {
+    "path": "pkg/server/auth/auth.go",
+    "sentence": "(part of the the [auth package](../../pkg/server/auth/auth.go))"
+   },
+   {
+    "path": "pkg/server/auth/server.go",
+    "sentence": "(handled by the [`login` method](../../pkg/server/auth/server.go)"
+   },
+   {
+    "path": "core/clustermngr/clustermngr.go",
+    "sentence": "(part of the [clustermngr package](../../core/clustermngr/clustermngr.go))"
+   },
+   {
+    "path": "cmd/gitops-server/cmd/cmd.go",
+    "sentence": "There are a couple of places in `pkg/server/auth/` and in `cmd/gitops-server/cmd/cmd.go` where a raw (i.e. non-impersonated) client are used"
+   }
+  ],
+  "doc/adr/0016-release-ordering.md": [
+   {
+    "path": ".github/workflows/release.yaml",
+    "sentence": "Current [release workflow](../../.github/workflows/release.yaml) ordering publishes a GitHub release before the artifacts are available."
+   },
+   {
+    "path": ".github/workflows/helm.yaml",
+    "sentence": "the helm chart is published in [a workflow](../../.github/workflows/helm.yaml)"
+   }
+  ]
+ }
+}
