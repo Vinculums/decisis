@@ -114,7 +114,7 @@ leaves it out. A broken answer ends in the same one-line error and exit code 1 a
 `test_the_repr_of_the_client_and_the_bound_reader_never_holds_the_token`,
 `test_a_broken_answer_fails_the_command_with_a_message_and_no_traceback`.)
 
-**A read-only MCP server.** `decisis serve --mcp` lists only `impact`, `paths` and `audit`, and refuses
+**A read-only MCP server.** `decisis serve --mcp` lists only `impact`, `paths`, `audit` and `query`, and refuses
 any other tool name and any argument its schema does not list. Bounds are checked before a sandbox is
 built; a code path with `..`, an absolute path or another repository's prefix is refused. `audit` reads a
 lockfile only when its resolved path, after symlinks, lies under `--root`, and uses the network only with
@@ -125,6 +125,40 @@ cleanup above removes it with the sandboxes inside. (`src/decisis/serve.py`; `te
 `test_a_server_stopped_during_a_slow_call_leaves_no_sandbox`,
 `test_gc_removes_the_directory_of_a_server_killed_with_sigkill_and_keeps_a_live_one`,
 `test_the_audit_reads_only_under_the_root_and_refuses_an_escaping_symlink`, `test_the_audit_uses_the_network_only_when_allowed`.)
+
+**A read-only `query`.** The `query` command and tool refuse a write three ways, and each is tested without
+the others. The text check refuses `CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`, `FOREACH`, `LOAD CSV`,
+`DROP`, `SHOW`, `USE` and the other admin clauses in any case, after comments and inside subqueries, refuses
+`CALL { }` subqueries and every procedure but the schema ones, and allows one statement only. The query
+process plans the statement with `EXPLAIN` on a read-only connection and runs it only when Relate plans it
+as a read. The read-only connection refuses a write on its own. Rows stop at 500 and 1 MiB, and the query
+runs under the same time limit as every other query. (`src/decisis/cypher.py`;
+`test_the_check_refuses_every_write_load_and_admin_form_before_running`,
+`test_without_the_check_the_query_process_refuses_a_write_from_relates_plan`,
+`test_the_read_only_connection_refuses_a_write_on_its_own`, `test_rows_stop_at_the_row_cap_with_a_note`,
+`test_a_query_past_the_time_limit_is_stopped`.)
+
+**`check` never runs repository code.** Imports are read with `ast` for Python and a scanner for JavaScript
+and TypeScript; no module of the repository is imported and no build or package manager runs. `--base`
+runs `git diff --name-only` with the repository's hooks, fsmonitor and pager turned off, and refuses a ref
+that looks like an option. A changed path outside the repository is refused, and a file reached through a
+symbolic link that leads outside it is `unresolved`. (`src/decisis/check.py`, `src/decisis/imports.py`;
+`test_repository_code_is_parsed_and_never_run`, `test_base_ignores_the_repositorys_own_hooks_and_fsmonitor`,
+`test_base_refuses_a_ref_that_looks_like_an_option`, `test_a_changed_path_outside_the_repository_is_refused`,
+`test_a_symbolic_link_out_of_the_repository_is_unresolved`.)
+
+**The GitHub Action.** The workflow asks for `contents: read` and `pull-requests: write` only. Inputs reach
+Python as environment variables, never through `${{ }}` inside a shell script, and Python runs with `-I`,
+so a module in the pull request's checkout cannot shadow decisis. Third-party actions in `action.yml` are
+pinned to commits. The base commit must be a SHA from the event payload. Every title, path and reason in
+the comment is escaped and mentions are broken, so a decision title cannot inject Markdown or notify
+anyone. Only the bot's own marked comment is updated; a marked comment by anyone else is left alone. On a
+fork the result goes to the job summary. (`src/decisis/action.py`, `action.yml`;
+`test_a_hostile_title_and_path_reach_the_comment_only_as_escaped_text`,
+`test_third_party_actions_are_pinned_and_no_expression_reaches_a_shell`,
+`test_the_action_has_its_inputs_and_the_workflow_asks_for_the_least_permission`,
+`test_the_base_must_be_a_commit_sha_from_the_payload`, `test_the_bots_marked_comment_is_found_across_pages_and_updated`,
+`test_a_fork_pull_request_writes_only_the_job_summary`.)
 
 ## What it does not protect
 
@@ -173,6 +207,10 @@ cleanup above removes it with the sandboxes inside. (`src/decisis/serve.py`; `te
 - **Memory and disk.** The caps bound the number of nodes and edges, not the size of their properties,
   and a query can use a lot of memory before its time limit; there is no memory limit on the query
   process. Loading is not under the time limit; the size caps bound it.
+- **A pull request that changes the snapshot.** The action reads the snapshot, the inventory and the
+  rules from the pull request's own checkout, so a pull request can edit a decision or drop a rule and the
+  comment judges the edited version. Keep the snapshot path under CODEOWNERS review, or read it from the
+  base branch in an earlier step.
 - **The endpoint.** The key is sent to the Vinc MCP URL, which `VINC_MCP_URL` can change. Point it only
   at a server you trust.
 - **The fake Vinc.** The demo's in-process Vinc imitates the calls the tool makes; it is not a security

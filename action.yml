@@ -79,7 +79,7 @@ runs:
         set -euo pipefail
         if [ -n "$DECISIS_VERSION" ]; then
           if ! [[ "$DECISIS_VERSION" =~ ^[0-9][0-9A-Za-z.+!-]*$ ]]; then
-            echo "decisis-version must be a version such as 0.1.1" >&2
+            echo "decisis-version must be a version such as 0.2.0" >&2
             exit 1
           fi
           source="decisis==$DECISIS_VERSION"

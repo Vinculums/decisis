@@ -1,6 +1,6 @@
 [project]
 name = "decisis"
-version = "0.1.1"
+version = "0.2.0"
 description = "Stand by what was decided: join a team's decisions with code and outside facts in a throwaway Relate graph, and keep only verified findings. Works offline; connects to Vinc when you configure it."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -34,7 +34,6 @@ mcp = ["mcp>=2.2,<3", "jsonschema>=4.20,<5"]
 
 [project.scripts]
 decisis = "decisis.cli:main"
-vinc-relate = "decisis.cli:main"
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -42,7 +41,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = [
-    "decisis", "decisis.inventory", "decisis.queries", "decisis.bench", "vinc_relate",
+    "decisis", "decisis.inventory", "decisis.queries", "decisis.bench",
     "decisis.fixtures", "decisis.fixtures.audit", "decisis.fixtures.compare", "decisis.fixtures.demo", "decisis.fixtures.impact",
     "decisis.fixtures.inventory", "decisis.fixtures.inventory.go",
 ]

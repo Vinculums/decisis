@@ -2,7 +2,8 @@
 
 ## The snapshot
 
-Every command that reasons (`paths`, `impact`, `audit`) reads a snapshot: one JSON file with the slice
+Every command that reasons (`paths`, `impact`, `check`, `audit`, `query`, `propose`, and the tools of
+`serve --mcp`) reads a snapshot: one JSON file with the slice
 of knowledge a task needs. `checkout` writes one from Vinc, but nothing in the format is specific to
 Vinc. You can write one by hand from your own notes, decisions and incident records.
 
@@ -461,7 +462,7 @@ characters, a version range, or
 `LATEST`/`RELEASE`. Transitive dependencies are not read.
 
 Both JVM readers give the same id and purl as a CycloneDX Maven component (`pkg:maven/<group>:<artifact>@<version>`,
-purl `pkg:maven/<group>/<artifact>@<version>`), and the report of either carries a `notes` entry saying that
+purl `pkg:maven/<group>/<artifact>@<version>`), and the report of either carries an `inventory_notes` entry saying that
 transitive dependencies are not resolved and pointing to `cyclonedx-gradle-plugin` or
 `cyclonedx-maven-plugin` for the full graph.
 
@@ -654,6 +655,38 @@ given: then an `unresolved` result also exits 1. A CI gate that must not pass wh
 uses that flag. With `--base REF`, the changed files
 are `git diff --name-only --relative REF...HEAD` in `--repo-dir`, so a commit not yet made is not
 included; a REF that starts with `-` is refused.
+
+## The query result
+
+`query` and the MCP `query` tool return one JSON object:
+
+| Key | Meaning |
+|---|---|
+| `loaded` | the node and edge counts the sandbox loaded |
+| `columns` | the column names of the statement's `RETURN`, in order |
+| `row_count` | how many rows the statement gave |
+| `rows` | the rows, each a mapping from column name to value; a node comes back as its labels and properties, an edge as its type and properties, a path as its `nodes` and `relationships` |
+| `cut` | only when `rows` is shorter than `row_count`: how many rows are shown, and that results stop at 500 rows and 1 MiB |
+
+## MCP replies
+
+Every tool of `serve --mcp` takes `detail`. With `"full"` the reply is the report the command prints:
+the `impact`, `paths` or `audit` JSON above, or the query result. With `"summary"`, the default over MCP,
+the reply has `"detail": "summary"`, the counts, ids and titles of the report, at most 10 items of each
+list, and a `note` that says how to get the rest. A reply that would pass 1 MiB as the server sends it has
+its longest list shortened from the end, and a `cut` entry names each list that was shortened. A refused
+argument comes back as an MCP error result that names it, not as a report.
+
+## The benchmark task file
+
+`compare --tasks FILE` reads one JSON task file; `bench/tasks.json` is the default and
+`bench/holdout/tasks.json` the held-out set. A task has an `id`, a `kind` (`audit` or `impact`), a
+`subject` (a package id or a code path), the `connection` it tests, `graph_expected_to_help` (set before
+the first run), a `why`, and `expected`: the `paths`, `policy_links` and, for audit tasks, `findings` a
+correct answer gives. The file names its inputs: `inputs` in the synthetic set, `repos` with each
+repository's snapshots, lockfile and OSV cache in the held-out set. The results JSON keeps the task file's
+SHA-256, each method's scores and claims per task, the totals and the `c_vs_b` lists; `results.md` is its
+table.
 
 ## The demo transcript
 

@@ -26,7 +26,7 @@ jobs:
           cd /tmp
           /tmp/check/bin/decisis demo --out /tmp/demo-out
           /tmp/check/bin/decisis compare > /tmp/compare.md
-          /tmp/check/bin/vinc-relate --help > /dev/null
+          /tmp/check/bin/decisis --help > /dev/null
       - uses: actions/upload-artifact@v4
         with:
           name: dist
