@@ -108,6 +108,26 @@ won for a reason other than the graph:
   too), and weave-gitops ADR 3 gains the status superseded and a `SUPERSEDES` edge from ADR 11; the other three
   snapshots are unchanged. The stored snapshots were kept so that the change in the numbers above comes from A
   alone. On the ten impact tasks of those two repositories, the rebuilt snapshots give every method the same scores.
+- **`init --suggest-refs` finds most of the hand mapping by itself.** Run on the five clones, the code refs it
+  suggests are scored against the hand mapping (`bench/holdout/score_suggest_refs.py`, which needs the clones;
+  the result is `bench/holdout/suggest-refs.json`). The snapshots, tasks and results above are not rebuilt from
+  it.
+
+| Repository | Suggested | Mapped | Matched | Precision | Recall |
+|---|---|---|---|---|---|
+| cf-cli | 18 | 16 | 13 | 0.722 | 0.812 |
+| karma-sabarivka-reporter | 0 | 0 | 0 | n/a | n/a |
+| supabase-multitenant | 4 | 4 | 4 | 1.000 | 1.000 |
+| turtles | 6 | 3 | 2 | 0.333 | 0.667 |
+| weave-gitops | 17 | 13 | 9 | 0.529 | 0.692 |
+| total | 45 | 36 | 28 | 0.622 | 0.778 |
+
+  Seven of the 8 mapped paths it misses are not in the repository at the pinned commit (the ADR's spelling, such
+  as cf-cli's `action/v7action`, or a file that is not there at that commit, such as weave-gitops's
+  `.github/workflows/helm.yaml`); the eighth is cf-cli's `Makefile`, written without
+  backticks or an extension. Of the 17 suggestions the mapping does not have, some name real paths the mapping
+  left out (cf-cli's `actor` and `resources` directories) and some are plain misses: a file name that matches
+  several files (`index.js`, `Chart.yaml`) or an API version that is also a directory (`management/v3`).
 - **Small and hand-mapped.** Five repositories, two of them npm (the Go repositories have impact tasks only,
   because B and the coverage check read npm lockfiles only), and one person's reading of which ADR governs
   which path.

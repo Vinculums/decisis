@@ -133,6 +133,10 @@ files and never the network.
   to `id`, `summary`, `aliases`, `published`, `modified`, `affected` (package, ranges, versions) and
   `database_specific.severity`. Advisory details and references are dropped.
 
+- `suggest-refs.json` and `suggest-refs.md`: the score of `decisis init --suggest-refs` against each `mapping.json`,
+  made by `score_suggest_refs.py` from the same clones. For each suggestion the mapping does not have it keeps the
+  ADR sentence the suggestion came from, as an excerpt; no whole document is stored.
+
 The three Go repositories have impact tasks only. Their lockfile is `go.mod` with `go.sum`, which decisis can
 audit, but `compare`'s text join (method B) and its evidence check read npm lockfiles only, so audit tasks on
 them would measure that limit rather than the graph; their lockfiles are not stored.

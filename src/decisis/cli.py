@@ -18,6 +18,7 @@ from . import github as gh
 from . import impact
 from . import init
 from . import inventory
+from . import madr
 from . import render
 from . import commit as wb
 from . import checkout as co
@@ -73,7 +74,16 @@ def main(argv: list[str] | None = None) -> int:
     ini.add_argument("--since", help="with --github: read pull requests merged on or after this date, for example 2026-01-31")
     ini.add_argument("--limit", type=bounded(1, gh.MAX_LIMIT), metavar="N",
                      help=f"with --github: read at most N closed pull requests, most recently updated first (default {gh.DEFAULT_LIMIT}, at most {gh.MAX_LIMIT})")
+    ini.add_argument("--suggest-refs", action="store_true",
+                     help="give each ADR that states no code path the existing files and directories its text names, as suggested code_ref")
     ini.add_argument("--out", required=True)
+    na = sub.add_parser("new-adr", help="write the next-numbered MADR file with status proposed and the code refs and rule given")
+    na.add_argument("title")
+    na.add_argument("--repo-dir", default=".", help="the repository to write into (default: the current directory)")
+    na.add_argument("--adr-dir", help=f"the ADR directory, relative to --repo-dir (default: the first of {', '.join(init.ADR_DIRS)} that exists)")
+    na.add_argument("--code-ref", action="append", default=[], metavar="PATH", help="a path from the repository root the decision governs; repeat for more")
+    na.add_argument("--rule", metavar="JSON", help='one JSON object read as audit and check read it, for example \'{"review_required": {"paths": ["src/**"], "reviewers": ["@org/team"]}}\'')
+    na.add_argument("--date", help="the date in the front matter (default: today)")
     p = sub.add_parser("paths", help="load a snapshot into a throwaway Relate file and list paths between two ids")
     p.add_argument("snapshot")
     p.add_argument("source")
@@ -272,10 +282,15 @@ def run(a: argparse.Namespace) -> int:
             sys.stdout.write(text + "\n")
         return 0
     if a.cmd == "init":
-        snapshot = init.build(a.repo_dir or ".", a.repo, *init_readers(a), adr_dir=a.adr_dir, postmortem_dir=a.postmortem_dir)
+        snapshot = init.build(a.repo_dir or ".", a.repo, *init_readers(a), adr_dir=a.adr_dir, postmortem_dir=a.postmortem_dir,
+                              suggest_refs=a.suggest_refs)
         Path(a.out).write_text(init.dump(snapshot), encoding="utf-8")
         meta = snapshot["meta"]
         print(json.dumps({"out": a.out, "nodes": meta["nodes"], "edges": meta["edges"], "problems": meta["problems"]}, ensure_ascii=False, indent=1))
+        return 0
+    if a.cmd == "new-adr":
+        path = madr.write(a.repo_dir, a.title, a.adr_dir, a.code_ref, a.rule, a.date)
+        print(json.dumps({"out": str(path)}, ensure_ascii=False))
         return 0
     if a.cmd == "checkout":
         graph = co.checkout(co.VincMCP.from_env(), a.seeds, a.depth)

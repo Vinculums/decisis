@@ -2,7 +2,8 @@
 
 Each reader takes a `Tree` and returns `(nodes, edges)` in snapshot shape. `build` runs the readers, merges
 what they return and sorts it, so the same tree always gives the same bytes. A file that cannot be read or
-parsed is listed in `meta.problems` with its path and the reason, and skipped; nothing is guessed from prose.
+parsed is listed in `meta.problems` with its path and the reason, and skipped; nothing is guessed from prose,
+except that `--suggest-refs` adds the paths an ADR's text names and marks them as suggested.
 docs/data-model.md lists the front matter keys and headings each reader understands.
 """
 from __future__ import annotations
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import codeowners as owners
+from . import suggest
 from .impact import REF_KEYS, code_path
 
 ADR_DIRS = ("docs/adr", "docs/decisions", "adr", "doc/adr")
@@ -25,6 +27,7 @@ CODEOWNERS_FILES = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 NOT_RECORDS = ("readme.md", "index.md")
 REPO_NAME = re.compile(r"[A-Za-z0-9_-]+")
 SKIPPED, KEPT, NO_EDGE, NOT_READ, NO_EFFECT = "skipped", "kept without code paths", "no edge", "not read", "no effect"
+NOT_SUGGESTED = "not suggested"
 
 TEXT_KEYS = ("title", "status", "date")
 LIST_KEYS = ("deciders", "decision-makers", "supersedes", "superseded_by", "superseded-by", "decisions", *REF_KEYS)
@@ -52,6 +55,7 @@ class Tree:
     adr_dir: str | None = None
     postmortem_dir: str | None = None
     problems: list[dict] = field(default_factory=list)
+    suggest_refs: bool = False
 
     def rel(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()
@@ -96,6 +100,17 @@ class Tree:
             for key in keys:
                 index.setdefault(key, set()).add(nid)
         return index
+
+    @cached_property
+    def path_index(self) -> suggest.Index | None:
+        try:
+            files, notes = suggest.repository_files(self.root)
+        except suggest.TooLarge as e:
+            self.problem(".", f"{e}; no code refs are suggested", NOT_READ)
+            return None
+        for note in notes:
+            self.problem(".gitignore", note, NOT_READ)
+        return suggest.Index.of(files)
 
     def node_id(self, kind: str, path: Path, extra: str = "") -> str:
         stem = self.rel(path)[: -len(path.suffix)] if path.suffix else self.rel(path)
@@ -394,7 +409,7 @@ def read_adrs(tree: Tree) -> tuple[list[dict], list[dict]]:
         if parsed is None:
             continue
         fields, supersedes, superseded_by = adr_fields(parsed)
-        refs = parsed.refs
+        refs = parsed.refs or suggested_refs(tree, path, parsed)
         props = {**base_props(tree, path, parsed), **fields, **refs}
         if "rule" in parsed.fm:
             props["rule"] = parsed.fm["rule"]
@@ -406,6 +421,19 @@ def read_adrs(tree: Tree) -> tuple[list[dict], list[dict]]:
             for ref in refs_named:
                 link(tree, path, nid, verb, ref, edges)
     return nodes, list(edges.values())
+
+
+def suggested_refs(tree: Tree, path: Path, parsed: Parsed) -> dict:
+    if not tree.suggest_refs or tree.path_index is None:
+        return {}
+    found = suggest.suggest(tree.path_index, parsed.doc.body, tree.rel(path.parent))
+    for token in sorted(found.skipped):
+        tree.problem(path, f"{found.skipped[token]}; it is not suggested as a code ref", NOT_SUGGESTED)
+    if not found.refs:
+        return {}
+    refs = sorted(found.refs)
+    return {"code_ref": [tree.ref(r) for r in refs], "code_ref_evidence": [{"code_ref": tree.ref(r), "sentence": found.refs[r]} for r in refs],
+            "code_ref_source": "suggested"}
 
 
 def link(tree: Tree, path: Path, nid: str, verb: str, ref: str, edges: dict) -> None:
@@ -528,13 +556,13 @@ READERS: tuple[Reader, ...] = (read_adrs, read_codeowners, read_postmortems)
 
 
 def build(repo_dir: str | Path, repo: str | None = None, *readers: Reader, adr_dir: str | None = None,
-          postmortem_dir: str | None = None) -> dict:
+          postmortem_dir: str | None = None, suggest_refs: bool = False) -> dict:
     root = Path(os.path.abspath(repo_dir))
     if not root.is_dir():
         raise ValueError(f"{repo_dir} is not a directory")
     if repo is not None and not REPO_NAME.fullmatch(repo):
         raise ValueError(f"--repo {repo!r} must be letters, digits, '-' or '_'")
-    tree = Tree(root, repo, adr_dir, postmortem_dir)
+    tree = Tree(root, repo, adr_dir, postmortem_dir, suggest_refs=suggest_refs)
     nodes, edges = merge(tree, readers or READERS)
     problems = {(p["file"], p["action"], p["reason"]): p for p in tree.problems}
     meta = {"source": "decisis init", "repo": repo, "nodes": len(nodes), "edges": len(edges), "problems": [problems[k] for k in sorted(problems)]}

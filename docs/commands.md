@@ -4,7 +4,7 @@ The README has the table of commands. This page has the flags, the limits and th
 
 ## Flags
 
-Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --format text`, `paths --hops N --limit N`,
+Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR --suggest-refs`, `new-adr --adr-dir DIR --code-ref PATH --rule JSON --date DATE`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --format text`, `paths --hops N --limit N`,
 `audit --osv-cache FILE --depth N --root DIR`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit),
 `serve --osv-cache FILE --allow-network --root DIR`, `gc --root DIR --grace SECONDS`.
 

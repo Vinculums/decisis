@@ -191,10 +191,11 @@ decisis impact snapshot.json src/payments/retry.py --repo Shop --format text
 
 `init` reads three kinds of file a repository often already has and writes a snapshot that every other
 command loads. It reads no code and no prose beyond the fields below, and it never guesses: a file it cannot
-read or parse is listed in `meta.problems` with the reason and left out. Each entry has `file`, `reason` and
+read or parse is listed in `meta.problems` with the reason and left out. The one reader of prose is
+`--suggest-refs` (below), which marks every code path it adds as suggested and keeps the sentence it came from. Each entry has `file`, `reason` and
 `action`: `skipped` (the file or line is not in the snapshot), `kept without code paths` (the node is there
 but no code path anchors it), `no edge` (a reference did not resolve to exactly one ADR), `no effect` (a
-CODEOWNERS line that owns no file) or `not read`.
+CODEOWNERS line that owns no file), `not suggested` (a path an ADR names that `--suggest-refs` left out) or `not read`.
 `fixtures/init/shop` is an example repository with each format and each kind of problem.
 
 | Flag | Meaning |
@@ -207,6 +208,7 @@ CODEOWNERS line that owns no file) or `not read`.
 | `--label NAME` | with `--github`: the label that selects a pull request (default: `decision`, any case) |
 | `--since DATE` | with `--github`: only pull requests merged on or after this date (UTC), such as `2026-01-31` |
 | `--limit N` | with `--github`: read at most N closed pull requests, most recently updated first (default 100, 1 to 5,000) |
+| `--suggest-refs` | give each ADR that states no code path the existing files and directories its text names (below) |
 | `--out FILE` | where the snapshot goes; the command prints its counts and problems |
 
 Every `.md` file directly in those directories is read, except `README.md`, `index.md` and names that
@@ -225,7 +227,7 @@ write the same bytes.
 | `date` | `date` | a `Date:` line under the title |
 | `deciders` | `deciders` or `decision-makers` (a list, or names split at commas) | a `Deciders:` or `Decision-makers:` line under the title |
 | `statement` | | the first paragraph of `## Decision` or `## Decision Outcome` |
-| `code_ref`, `subject_path`, `also_touches` | the keys of the same name, a path or a list of paths from the repository root | none: code paths come only from front matter |
+| `code_ref`, `subject_path`, `also_touches` | the keys of the same name, a path or a list of paths from the repository root | none, unless `--suggest-refs` is given: then `code_ref` lists the paths the text names (below) |
 | `rule` | `rule`, an inline JSON object, kept as it is | |
 
 The `Status:`, `Date:`, `Deciders:` and `Decision-makers:` lines under the title may stand alone or be list items
@@ -249,6 +251,38 @@ under `superseded`, with `superseded_by` (the decisions that replace it), so a p
 and, apart, what used to. `--format text` prints it after the governing nodes; Mermaid draws it dashed with
 the `SUPERSEDES` edge, and HTML lists it in its own part. The `superseded` key is left out when it would be
 empty, so a snapshot without superseded decisions gives the same output as before.
+
+### Suggested code refs: `--suggest-refs`
+
+Real ADRs rarely carry `code_ref`, so with `--suggest-refs` `init` reads the text of each ADR that states no
+`code_ref`, `subject_path` or `also_touches` and suggests the files and directories it names. A code path the
+ADR states itself is never changed, and nothing is suggested for postmortems or pull requests.
+
+- A candidate is a backticked token, a word with a `/` or a file extension (`config/payments.toml`,
+  `retry.py`), or the target of a Markdown link: relative to the ADR file, from the repository root when it
+  starts with `/`, or the path in a `github.com/OWNER/REPO/blob/...` or `/tree/...` URL. Image links, other
+  URLs and paths that leave the repository are not candidates. In a fenced code block only words with a `/`
+  count, so a directory listing or a command does not suggest every file name in it. `./`, a leading or
+  trailing `/`, a `#anchor` and a `:line` suffix are dropped; a glob such as `pkg/**/*.go` or
+  `src/auth/{login,logout}` names the directory before its first wildcard.
+- A candidate matches the file or directory with that path from the repository root. When there is none, a
+  candidate with a `/` or an extension also matches every path that ends with it (`handler.py`,
+  `v7/push`); a bare backticked word (`command`) matches only at the root.
+- The paths searched are what `git ls-files --cached --others --exclude-standard` lists in a git work tree,
+  and otherwise every file below `--repo-dir` except what the root `.gitignore` lists (a negated `!` line is
+  listed as `not read` and not applied), with the directories above them. Anything under `.git`,
+  `node_modules` or `vendor` is skipped in both cases. A tree of more than 100,000 files is listed as `not
+  read` and nothing is suggested.
+- Paths in the ADR's own directory (other ADRs, their images) are records, not code, and are not suggested.
+- A candidate that matches more than 5 paths, or that is only a bare common name (`src`, `test`, `README`,
+  `docs`, `lib`, `main`, in any case), is not suggested. It is listed under `not suggested` with the number
+  of paths it matched, and `init` prints it with the other problems.
+
+The decision gets each suggested path in `code_ref` (sorted, with `--repo` before it and a trailing `/` on a
+directory), `code_ref_source` set to `suggested`, and `code_ref_evidence`: one `{"code_ref": ..., "sentence": ...}`
+per path, the first sentence of the ADR that named it. An ADR with suggested paths is not listed under
+`kept without code paths`. On the five held-out repositories the suggestions match the hand mapping with
+precision 0.622 and recall 0.778 (`bench/holdout/suggest-refs.md`); review them before relying on them.
 
 ### CODEOWNERS owner sets become concepts
 
@@ -337,6 +371,37 @@ YAML and needs no YAML library:
 Anything else is refused with the line number and the file is skipped: nested mappings, block text (`|`,
 `>`), anchors and aliases (`&`, `*`), tags (`!`), nested lists, and text that holds `: ` without quotes.
 Keys other than those above are ignored.
+
+## A new ADR: `new-adr`
+
+```
+decisis new-adr "Review payment changes" --code-ref src/payments/ \
+  --rule '{"review_required": {"paths": ["src/payments/**"], "reviewers": ["@shop/payments"]}}'
+```
+
+`new-adr` writes one MADR file and prints its path. It goes in `--adr-dir` (relative to `--repo-dir`, made
+when it does not exist, refused outside the repository), or else in the first of `docs/adr`,
+`docs/decisions`, `adr` and `doc/adr` that exists, the first directory `init` reads. Its name is the next
+number after the highest number that starts a `.md` file name there, as wide as that number (four digits
+when there is none), then the title in lower case with each run of other characters as `-`:
+`0004-review-payment-changes.md`. A file of that name is never overwritten: the command stops and writes
+nothing.
+
+| Flag | Meaning |
+|---|---|
+| `--repo-dir DIR` | the repository (default: the current directory) |
+| `--adr-dir DIR` | the ADR directory, relative to `--repo-dir` |
+| `--code-ref PATH` | a path from the repository root the decision governs; repeat it for more |
+| `--rule JSON` | one JSON object, the `rule` front matter key |
+| `--date DATE` | the `date` front matter key (default: today) |
+
+The front matter has `status: proposed`, `date`, and `code_ref` and `rule` when they are given, as inline
+JSON; the body is the `# ` title and empty `## Context and Problem Statement`, `## Considered Options` and
+`## Decision Outcome` sections. Before anything is written the rule is read with the same reader `audit` and
+`check` use, and a rule with an unknown kind or a bad value is refused with its reason; a `code_ref` that is
+not a path relative to the repository root is refused as `init` refuses it; and the whole front matter is
+read back with `init`'s reader. `init` then reads the file into a decision with the same `code_ref` (with
+`--repo` before each path) and `rule`.
 
 ## The Relate graph of an audit
 
