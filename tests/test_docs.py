@@ -10,6 +10,7 @@ from decisis import cli
 ROOT = Path(__file__).resolve().parents[1]
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 DATA_MODEL = (ROOT / "docs" / "data-model.md").read_text(encoding="utf-8")
+BENCHMARK = (ROOT / "docs" / "benchmark.md").read_text(encoding="utf-8")
 
 
 def example(tmp_path: Path) -> str:
@@ -43,9 +44,9 @@ def test_the_readme_digest_is_the_one_the_demo_prints():
     assert f"decisis demo --approve {digest}" in README
 
 
-def test_the_readme_table_is_the_committed_benchmark_table():
+def test_the_benchmark_doc_table_is_the_committed_benchmark_table():
     committed = (ROOT / "bench" / "results.md").read_text(encoding="utf-8").split("\n\n")[0].strip()
-    assert committed in README
+    assert committed in BENCHMARK
 
 
 def test_the_readme_quick_start_prints_what_the_readme_shows(tmp_path, capsys, no_network):
