@@ -36,6 +36,27 @@ parameters; hop and result bounds are substituted as integers (`paths --hops` 1 
 **Deletion.** The directory is removed when the command ends, in a `finally`, so a failed task removes
 it too. The demo prints whether the removal happened and the tests assert the scratch root is empty.
 
+**Cleanup after a kill.** Each task directory holds `owner.json` with the process id, the process start
+time (Linux) and the host name. A new sandbox, and `decisis gc`, remove a `decisis-<32 hex>` directory
+under the same root only when it is a real directory owned by the current user, older than 10 minutes,
+and its owner process is gone (on Linux, a reused process id is told apart by its start time). A live
+owner, another user's directory, a `decisis-*` entry that is a symbolic link, a directory under another
+root and a directory without a readable owner record (or with a process id outside 1 to 2^31 - 1) are left
+alone, and removal never follows a symbolic link inside the root. A root that is itself a symbolic link is
+followed and used as the root. An error on one entry keeps that entry and the sweep goes on; the sweep a
+new sandbox runs never stops the command, and `decisis gc` names each entry it kept because of an error.
+(`sweep` in `src/decisis/sandbox.py`; the cleanup tests in `tests/test_sandbox_limits.py`.)
+
+**Size and time limits.** A graph over 50,000 nodes or 250,000 edges is refused before the database is
+opened. Every query runs in a separate query process and is stopped after 60 seconds by killing that
+process; the task directory is still removed and the command exits with 1. The caps and the time limit
+can be raised with `--max-nodes`, `--max-edges` and `--query-timeout` or the `DECISIS_MAX_NODES`,
+`DECISIS_MAX_EDGES` and `DECISIS_QUERY_TIMEOUT` environment variables, but not past 1,000,000 nodes,
+5,000,000 edges and 3,600 seconds. `audit --depth` is 1 to 16. (`Limits`, `check_size` and `_Worker`;
+`test_a_graph_over_the_node_or_edge_cap_is_refused_before_anything_is_written`,
+`test_a_query_over_the_time_limit_is_stopped_and_the_directory_is_removed`,
+`test_audit_depth_is_bounded_like_paths_hops`.)
+
 **An approval digest before any write.** `propose` writes nothing. It prints the exact write set with a
 digest: the first 16 hex digits of SHA-256 over the space, nodes and edges. `commit` recomputes the
 digest from the plan file and refuses unless it equals both the plan's digest and the one given with
@@ -62,8 +83,10 @@ carries them. `--osv-cache` replays a saved set of advisories and refuses the ne
 - **Erasure.** Deleting a file is not secure erasure. tmpfs can be swapped to disk, and where `/dev/shm`
   is missing (macOS, Windows) the directory is on the disk under the system temporary directory. Data
   that must not touch a disk needs encrypted scratch storage with key destruction, which is not built.
-- **A crash or kill.** A process killed with SIGKILL, or a machine that loses power, skips the `finally`
-  and leaves the directory behind; nothing cleans up stale `decisis-*` directories.
+- **A crash or kill, until the next run.** A process killed with SIGKILL, or a machine that loses power,
+  skips the `finally` and leaves the directory behind until the next sandbox or `decisis gc` under the
+  same root removes it, at least 10 minutes later. On Windows nothing removes it; delete it by hand. A
+  directory left by decisis 0.1.1 or earlier has no owner record and is never removed automatically.
 - **The same user and root.** 0700 keeps out other users, not other processes of the same user or an
   administrator.
 - **Files you ask for.** The snapshot from `checkout`, the report from `audit --out` and the plan from
@@ -86,8 +109,9 @@ carries them. `--osv-cache` replays a saved set of advisories and refuses the ne
   itself is right.
 - **Text in outside data.** Advisory summaries and lockfile fields are stored as data and never run as
   queries, but an agent that reads them can still be misled by what they say.
-- **Resource limits.** `paths` and `impact` bound hops and result counts; `audit --depth` is an integer
-  with no cap, and query time and the size of the imported graph are not limited.
+- **Memory and disk.** The caps bound the number of nodes and edges, not the size of their properties,
+  and a query can use a lot of memory before its time limit; there is no memory limit on the query
+  process. Loading is not under the time limit; the size caps bound it.
 - **The endpoint.** The key is sent to the Vinc MCP URL, which `VINC_MCP_URL` can change. Point it only
   at a server you trust.
 - **The fake Vinc.** The demo's in-process Vinc imitates the calls the tool makes; it is not a security

@@ -5,7 +5,7 @@ import json
 from . import audit, external, semver
 from . import commit as wb
 from .queries import load as query
-from .sandbox import Sandbox, Subgraph
+from .sandbox import Limits, Sandbox, Subgraph
 
 ECOSYSTEM = "npm"
 
@@ -100,9 +100,9 @@ def withhold(plan: dict, checked: list[dict]) -> dict:
 
 
 def rederive(plan: dict, vinc: Subgraph, lock_text: str, repo: str, advisories, depth: int = 8,
-             root=None) -> tuple[dict, list[dict]]:
+             root=None, limits: Limits | None = None) -> tuple[dict, list[dict]]:
     graph = audit.compose(vinc, lock_text, repo, advisories)
-    box = Sandbox(root)
+    box = Sandbox(root, limits)
     try:
         box.load(graph)
         checked = check_plan(plan, box, decisions(vinc), repo, depth)
