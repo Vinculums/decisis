@@ -13,6 +13,7 @@ from . import impact
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
+from . import sandbox as sb
 from .sandbox import sandbox
 
 MAX_LIMIT = 100
@@ -28,6 +29,19 @@ def bounded(lo: int, hi: int):
             raise argparse.ArgumentTypeError(f"{value} is outside {lo} to {hi}")
         return value
     return parse
+
+
+def limit_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--max-nodes", type=bounded(1, sb.CEILING_NODES), metavar="N",
+                        help=f"refuse a graph with more nodes (default {sb.MAX_NODES} or DECISIS_MAX_NODES, at most {sb.CEILING_NODES})")
+    parser.add_argument("--max-edges", type=bounded(1, sb.CEILING_EDGES), metavar="N",
+                        help=f"refuse a graph with more edges (default {sb.MAX_EDGES} or DECISIS_MAX_EDGES, at most {sb.CEILING_EDGES})")
+    parser.add_argument("--query-timeout", type=bounded(1, sb.CEILING_SECONDS), metavar="SECONDS",
+                        help=f"stop a query that runs longer (default {sb.QUERY_SECONDS} or DECISIS_QUERY_TIMEOUT, at most {sb.CEILING_SECONDS})")
+
+
+def limits(a: argparse.Namespace) -> sb.Limits:
+    return sb.Limits.resolve(a.max_nodes, a.max_edges, a.query_timeout)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -53,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("snapshot")
     au.add_argument("lockfile")
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
-    au.add_argument("--depth", type=int, default=8)
+    au.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"longest dependency chain to follow (1 to {audit.MAX_DEPTH})")
     au.add_argument("--out")
     au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
     pr = sub.add_parser("propose", help="turn an audit report into the exact write set the owner approves")
@@ -76,16 +90,24 @@ def main(argv: list[str] | None = None) -> int:
     cp.add_argument("--tasks", type=Path, help="the task file with expected findings (default: bench/tasks.json in this repository)")
     cp.add_argument("--out", type=Path, help="write the full results as JSON here")
     cp.add_argument("--table", type=Path, help="write the results table as Markdown here")
+    gc = sub.add_parser("gc", help="remove task directories that a killed run left behind")
+    gc.add_argument("--root", type=Path, help="the directory that holds the task directories (default: /dev/shm, or the system temporary directory)")
+    gc.add_argument("--grace", type=bounded(0, 86400), default=sb.GRACE_SECONDS, metavar="SECONDS",
+                    help=f"leave directories younger than this (default {sb.GRACE_SECONDS})")
+    for s in (p, im, au):
+        limit_flags(s)
     a = ap.parse_args(argv)
     try:
         return run(a)
     except ValueError as e:
         ap.error(str(e))
-    except (external.NetworkRefused, external.NetworkFailed) as e:
+    except (external.NetworkRefused, external.NetworkFailed, sb.LimitExceeded) as e:
         ap.exit(1, f"{ap.prog}: error: {e}\n")
 
 
 def run(a: argparse.Namespace) -> int:
+    if a.cmd == "gc":
+        return gc(a.root or sb.default_root(), a.grace)
     if a.cmd == "compare":
         root = demo.default_fixtures().parent
         result = compare.run(root, a.tasks or root / "bench" / "tasks.json")
@@ -113,7 +135,7 @@ def run(a: argparse.Namespace) -> int:
         print(json.dumps(receipt, ensure_ascii=False, indent=1))
         return 0 if receipt["verified"] else 1
     if a.cmd == "impact":
-        report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo)
+        report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo, limits=limits(a))
         if a.format == "text":
             print(impact.render(report))
         else:
@@ -125,7 +147,7 @@ def run(a: argparse.Namespace) -> int:
         if a.osv_cache:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth,
-                           advisories=advisories)
+                           advisories=advisories, limits=limits(a))
         text = json.dumps(report, ensure_ascii=False, indent=1)
         if a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
@@ -139,11 +161,22 @@ def run(a: argparse.Namespace) -> int:
         print(json.dumps(graph.meta))
         return 0
     graph = co.load(Path(a.snapshot).read_text(encoding="utf-8"))
-    with sandbox() as box:
+    with sandbox(limits=limits(a)) as box:
         counts = box.load(graph)
         rows = box.query(query("paths_between", hops=a.hops, limit=a.limit), {"source": a.source, "target": a.target})
     json.dump({"loaded": counts, "paths": rows}, sys.stdout, ensure_ascii=False, indent=1)
     sys.stdout.write("\n")
+    return 0
+
+
+def gc(root: Path, grace: int) -> int:
+    if not sb.can_sweep():
+        print("decisis gc: this platform cannot check the owner of a task directory safely; nothing was removed")
+        return 0
+    removed = sb.sweep(root, grace)
+    for path in removed:
+        print(f"removed {path}")
+    print(f"removed {len(removed)} task director{'y' if len(removed) == 1 else 'ies'} under {root}")
     return 0
 
 
