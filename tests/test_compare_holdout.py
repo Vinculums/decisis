@@ -69,3 +69,14 @@ def test_each_repository_loads_on_its_own_and_one_without_a_lockfile_has_no_audi
     assert sets["cf-cli"]["lock"] is None and sets["cf-cli"]["vinc"].nodes == []
     assert sets["supabase-multitenant"]["lock"] is not None
     assert all(inp["repo"] == name for name, inp in sets.items())
+
+
+def test_the_committed_held_out_results_are_what_the_command_gives():
+    result = compare.run(ROOT, TASKS)
+    committed = json.loads((HOLDOUT / "results.json").read_text(encoding="utf-8"))
+    assert compare.without_latency(committed) == compare.without_latency(result)
+    assert (HOLDOUT / "results.md").read_text(encoding="utf-8").splitlines()[2:5] == compare.render(committed).splitlines()[2:5]
+    c, b = result["total"]["C"], result["total"]["B"]
+    assert c["paths"] == [35, 44] and c["policy_links"] == [19, 28] and c["covered"] == [30, 68]
+    assert b["paths"] == [7, 44] and b["unsupported"] == [5, 26]
+    assert result["c_vs_b"]["worse"] == [] and len(result["c_vs_b"]["same"]) == 9
