@@ -282,9 +282,9 @@ def test_the_cli_serves_over_stdio(no_network):
     assert not result.is_error and result.structured_content["hops"] == 1
 
 
-def test_the_base_install_has_one_dependency_and_does_not_import_mcp():
+def test_the_base_install_needs_relate_db_and_pyyaml_and_does_not_import_mcp():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    assert project["dependencies"] == ["relate-db==1.0.2"]
+    assert project["dependencies"] == ["relate-db==1.0.2", "PyYAML>=6.0.1"]
     assert any(re.match(r"mcp>=2\.\d+,<3$", d) for d in project["optional-dependencies"]["mcp"])
     code = "import sys, decisis.cli; print(sorted(m for m in ('mcp', 'jsonschema') if m in sys.modules))"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, env={**os.environ, "PYTHONPATH": str(ROOT / "src")})

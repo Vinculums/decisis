@@ -154,6 +154,8 @@ class Tools:
 
     def audit(self, args: dict) -> dict:
         advisories = self.advisories()
+        if inventory.bun.binary(resolve_under(self.root, args["lockfile"])):
+            raise Refused(inventory.bun.refusal(PurePosixPath(args["lockfile"]).name))
         lock_text = read_under(self.root, args["lockfile"])
         name = PurePosixPath(args["lockfile"]).name
         siblings = self.siblings(args["lockfile"], lock_text, name)

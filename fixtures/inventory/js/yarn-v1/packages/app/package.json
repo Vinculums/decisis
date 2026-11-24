@@ -1,0 +1,12 @@
+{
+  "name": "@demo/app",
+  "version": "1.0.0",
+  "dependencies": {
+    "@demo/lib": "^1.0.0",
+    "mkdirp": "0.5.5",
+    "react": "18.2.0"
+  },
+  "devDependencies": {
+    "semver": "7.5.1"
+  }
+}
