@@ -326,10 +326,11 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - The task directory is private (0700), under `/dev/shm` when it is writable, and removed after the run.
 - A graph over the node or edge cap is refused before anything is written, a query over the time limit
   is stopped, and in both cases the task directory is removed and the command exits non-zero.
-- Each task directory records its owner process. On Linux and macOS a new sandbox, or `decisis gc`,
-  removes `decisis-*` directories under the same root whose owner is gone; it leaves another user's
-  directory, a live run's directory, a `decisis-*` entry that is a symbolic link, and anything a symbolic
-  link inside a task directory points to. A root that is itself a symbolic link is followed and used as
+- Each task directory, and the parent directory of `decisis serve`, records its owner process. On Linux
+  and macOS a new sandbox, a new server or `decisis gc` removes `decisis-*` and `decisis-serve-*`
+  directories under the same root whose owner is gone, so a server killed with SIGKILL is cleaned up
+  too; it leaves another user's directory, a live run's directory, a `decisis-*` entry that is a
+  symbolic link, and anything a symbolic link inside a task directory points to. A root that is itself a symbolic link is followed and used as
   the root.
 - The audit joins the snapshot, the lockfile or SBOM (nested npm copies resolved) and OSV, checks the
   installed version against the advisory ranges (semantic versions, and PEP 440 for PyPI), and keeps each

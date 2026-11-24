@@ -25,7 +25,9 @@ from typing import Iterator, Mapping
 import relate
 
 TMPFS = Path("/dev/shm")
-TASK_DIR = re.compile(r"decisis-[0-9a-f]{32}")
+TASK_PREFIX = "decisis-"
+SERVE_PREFIX = "decisis-serve-"
+TASK_DIR = re.compile(r"decisis-(?:serve-)?[0-9a-f]{32}")
 OWNER = "owner.json"
 GRACE_SECONDS = 600
 MAX_PID = 2**31 - 1
@@ -119,11 +121,7 @@ def _mismatch(graph: Subgraph, got: dict) -> str:
 class Sandbox:
     def __init__(self, root: Path | None = None, limits: Limits | None = None):
         self.limits = limits or Limits.resolve()
-        root = root or default_root()
-        _quiet_sweep(root)
-        self.dir = root / f"decisis-{uuid.uuid4().hex}"
-        self.dir.mkdir(mode=0o700)
-        _write_owner(self.dir)
+        self.dir = owned_dir(root or default_root())
         self.path = self.dir / "task.rl"
         self.loaded = False
 
@@ -319,6 +317,14 @@ def _write_owner(path: Path) -> None:
     fd = os.open(path / OWNER, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(owner, f)
+
+
+def owned_dir(root: Path, prefix: str = TASK_PREFIX) -> Path:
+    _quiet_sweep(root)
+    path = root / f"{prefix}{uuid.uuid4().hex}"
+    path.mkdir(mode=0o700)
+    _write_owner(path)
+    return path
 
 
 def can_sweep() -> bool:
