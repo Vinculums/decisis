@@ -46,7 +46,7 @@ sequenceDiagram
 | `src/decisis/imports.py` | Reads the imports of a Python file with `ast` and of a JavaScript or TypeScript file with a scanner that skips comments, strings, template literals, regular expressions and JSX text, then resolves each to a file in the repository (package roots, `tsconfig.json` or `jsconfig.json` `paths` and `baseUrl` with `extends`) or marks it external or `unresolved`. A plain text search runs beside the scanner, and a disagreement is `unresolved`. |
 | `src/decisis/render.py` | The `mermaid` and `html` views of the `impact`, `check`, `paths` and `audit` reports. Every label is escaped, and the HTML is one file with inline styles and no script; its only links are the findings' sources. |
 | `src/decisis/cypher.py` | The `query` command and tool: the text check that refuses writes, loads, admin clauses, `CALL { }` subqueries and procedures other than the schema ones; the `EXPLAIN` plan check on a read-only connection; the row and byte caps; and the schema text built from a snapshot for the tool description. |
-| `src/decisis/serve.py` | `serve --mcp`: a stdio MCP server (the optional `mcp` extra) with the tools `impact`, `paths`, `audit` and `query`. It validates each call against its JSON schema, refuses code paths outside the repository and lockfiles outside `--root`, builds and deletes a sandbox per call, and removes its own directory on SIGTERM, SIGINT or the end of stdin. |
+| `src/decisis/serve.py` | `serve --mcp`: a stdio MCP server (the optional `mcp` extra) with the tools `impact`, `paths`, `audit`, `check` and `query`. It validates each call against its JSON schema, refuses code paths outside the repository, lockfiles and changed files outside `--root`, and a `check` base that could pass for an option, reloads a changed snapshot before a call, builds and deletes a sandbox per call, and removes its own directory on SIGTERM, SIGINT or the end of stdin. |
 | `src/decisis/compact.py` | The `summary` form of each tool reply (counts, ids, titles and the first 10 items of each list) and `fit`, which shortens the longest list until a reply is under 1 MiB and adds a `cut` note. |
 | `src/decisis/action.py` | The code behind `action.yml`: reads the pull request from the event payload, the approving reviews through `github.py`, runs `check` and `audit`, and writes or updates one marked comment, falling back to the job summary on a fork or a read-only token. |
 | `src/decisis/commit.py` | `propose` turns `affected` findings into record nodes and `relates_to` edges, with a digest over the space, nodes and edges. `commit` checks the digest, writes with `create_only` and an operation id derived from the digest, and reads every node and edge back. |
@@ -159,10 +159,13 @@ exits non-zero. The demo runs the same `checker.check_plan` in its own sandbox.
 
 ## The MCP server and `query`
 
-`serve --mcp` fixes one snapshot, an optional OSV cache and a `--root` when it starts. It makes one
+`serve --mcp` fixes a snapshot file, an optional OSV cache and a `--root` when it starts. It makes one
 private `decisis-serve-<32 hex>` directory with an owner record, and every tool call loads the snapshot
-into a new sandbox inside it and deletes that sandbox before the reply. The tools are `impact`, `paths`,
-`audit` and `query`; each validates its arguments against a JSON schema with the same bounds as the
+into a new sandbox inside it and deletes that sandbox before the reply. Before each call `serve.Live`
+compares the file's mtime and size with the copy it holds and reloads it when either changed; a file that
+fails to load leaves the previous copy, and the reply carries `reload_failed`. After a reload the `query`
+schema is rebuilt and the server sends `notifications/tools/list_changed`. The tools are `impact`, `paths`,
+`audit`, `check` and `query`; each validates its arguments against a JSON schema with the same bounds as the
 command, and a refused argument comes back as an error result. Replies are the command's report in
 `"detail": "full"`, or in the default `"summary"` a short form from `compact.py`; either way `compact.fit`
 keeps the reply under 1 MiB.
