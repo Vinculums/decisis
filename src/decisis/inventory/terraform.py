@@ -18,11 +18,19 @@ STRING = r'"((?:[^"\\\n]|\\.)*)"'
 LIST = re.compile(rf"\[\s*(?:{STRING}\s*,\s*)*(?:{STRING}\s*)?\]")
 ITEM = re.compile(rf"{STRING},?")
 ADDRESS = re.compile(r"(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?::\d+)?/)?[A-Za-z0-9_-]+/[A-Za-z0-9_-]+")
-FIRST = re.compile(r'(?:\s*(?:#|//)[^\n]*\n|\s*\n)*\s*provider\s+"[^"/]+/[^"]+"')
+FIRST = re.compile(r'provider\s+"[^"/]+/[^"]+"')
+
+
+def first_line(text: str) -> str:
+    for raw in text.splitlines():
+        body = raw.strip()
+        if body and not body.startswith(("#", "//")):
+            return body
+    return ""
 
 
 def detect(text: str, filename: str) -> bool:
-    return filename == LOCKFILE or FIRST.match(text) is not None
+    return filename == LOCKFILE or FIRST.match(first_line(text)) is not None
 
 
 class _Parser:

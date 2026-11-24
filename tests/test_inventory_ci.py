@@ -397,3 +397,13 @@ def test_the_cli_audits_workflows_and_terraform_offline_and_propose_re_derives(t
                          "--osv-cache", str(CACHE), "--out", str(tmp_path / "plan.json")]) == 0
         assert "; 0 failed." in capsys.readouterr().out
         assert json.loads((tmp_path / "plan.json").read_text(encoding="utf-8"))["nodes"]
+
+
+def test_detecting_a_terraform_lock_takes_linear_time_on_many_blank_lines():
+    import time
+    from decisis.inventory import terraform
+    text = "\n" * 200000 + "x"
+    started = time.monotonic()
+    assert terraform.detect(text, "other.txt") is False
+    assert time.monotonic() - started < 1
+    assert terraform.detect("# c\n\n// d\nprovider \"registry.terraform.io/hashicorp/aws\" {\n", "lock.hcl") is True
