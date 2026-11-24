@@ -95,7 +95,20 @@ def local(target: str) -> bool:
     return target.startswith((".", "/", "~")) or target.startswith("file:") or bool(re.match(r"^[A-Za-z]:[\\/]", target))
 
 
+USERINFO = re.compile(r"(://)[^/@\s]+@")
+REFERENCE = re.compile(r"^(?:[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]*\])?\s*@\s*)?(?:[a-z]+\+)?[a-z][a-z0-9+.-]*://\S+|#egg=", re.I)
+
+
+def redact(text: str) -> str:
+    return USERINFO.sub(r"\1***@", text)
+
+
+def reference(text: str) -> bool:
+    return bool(REFERENCE.search(direct_reference(text)))
+
+
 def requirement(file: str, number: int, text: str) -> Line:
+    text = redact(text)
     line = Line(file, number, HASH.sub("", text).strip())
     found = None if EDITABLE.match(text) else shape(text)
     if found is None:
@@ -133,17 +146,19 @@ class Reader:
         if include:
             self.include(name, number, include[1], depth + 1)
         elif constraint:
-            self.notes.append(f"{name} line {number} names the constraints file {constraint[1]}; constraints files are not read")
+            self.notes.append(f"{name} line {number} names the constraints file {redact(constraint[1])}; constraints files are not read")
         elif editable and local(editable[1]) or not editable and local(text):
-            self.notes.append(f"{name} line {number} installs the local project {direct_reference(text)}; "
+            self.notes.append(f"{name} line {number} installs the local project {redact(direct_reference(text))}; "
                               "its own dependencies are not listed here and were not seen")
+        elif not editable and not text.startswith("-") and shape(text) is None and not reference(text):
+            self.notes.append(f"{name} line {number} is not a requirement line, so it was skipped and is not shown")
         elif editable or not text.startswith("-"):
             self.lines.append(requirement(name, number, text))
 
     def include(self, name: str, number: int, target: str, depth: int) -> None:
         path = None if "://" in target or target.startswith("file:") else relative(name, target)
         if path is None:
-            self.notes.append(f"{name} line {number} includes {target}, which was not followed: "
+            self.notes.append(f"{name} line {number} includes {redact(target)}, which was not followed: "
                               "audit reads includes only by a relative path inside the repository")
             return
         if depth > MAX_DEPTH:

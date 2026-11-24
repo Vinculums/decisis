@@ -338,3 +338,30 @@ def test_a_requirements_file_with_nothing_pinned_is_refused(tmp_path, no_network
 def test_a_text_file_that_is_not_a_requirements_file_is_not_read_as_one(text):
     with pytest.raises(ValueError, match="cannot tell what notes.txt is"):
         inventory.detect(text, "notes.txt")
+
+
+def test_a_file_that_is_not_a_requirements_file_shows_none_of_its_lines(tmp_path):
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "home").mkdir()
+    (tmp_path / "creds.cfg").write_text("[default]\naws_secret_access_key = TOPSECRET123\n", encoding="utf-8")
+    req = tmp_path / "home" / "requirements.txt"
+    req.write_text("-r ../creds.cfg\ncertifi==2023.7.22\n", encoding="utf-8")
+    text, siblings = inventory.load(req)
+    nodes, edges = inventory.read(text, req.name, "Demo", siblings)
+    shown = json.dumps([nodes, edges])
+    assert "TOPSECRET123" not in shown and "aws_secret_access_key" not in shown and "[default]" not in shown
+    assert {n["props"]["name"] for n in nodes if n["kind"] == "Package"} == {"certifi"}
+    notes = [n for node in nodes for n in node["props"].get("inventory_notes", [])]
+    assert any("line 2 is not a requirement line" in n for n in notes)
+
+
+def test_credentials_in_a_url_requirement_are_not_shown(tmp_path):
+    req = tmp_path / "requirements.txt"
+    req.write_text("pkg @ git+https://user:s3cr3t-token@github.com/o/r.git\n"
+                   "git+https://ghp_abc123@github.com/o/q.git#egg=q\n"
+                   "-c https://bob:pw@example.com/constraints.txt\n"
+                   "certifi==2023.7.22\n", encoding="utf-8")
+    text, siblings = inventory.load(req)
+    shown = json.dumps(inventory.read(text, req.name, "Demo", siblings))
+    assert "s3cr3t-token" not in shown and "ghp_abc123" not in shown and "bob:pw" not in shown
+    assert "***@github.com" in shown
