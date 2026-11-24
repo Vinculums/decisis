@@ -130,3 +130,28 @@ def test_a_decision_about_two_concepts_keeps_the_same_evidence_whatever_the_snap
             inp["vinc"] = compare.Subgraph(nodes, edges, {})
             seen.append([c for c in compare.RUNNERS[("audit", m)](inp, "pkg:npm/chart-kit@1.2.0") if c["type"] == "policy_link"])
         assert seen[0] and seen[0] == seen[1], m
+
+
+def test_retrieval_reports_the_decision_that_names_the_path_and_then_one_hop():
+    nodes = [{"id": "decision:adr-1", "kind": "decision", "title": "ADR 1", "props": {"code_ref": ["Demo:api/handlers"]}},
+             {"id": "decision:adr-2", "kind": "decision", "title": "ADR 2", "props": {"subject_path": "Demo:api/handlers/user.go"}},
+             {"id": "decision:adr-3", "kind": "decision", "title": "ADR 3", "props": {"also_touches": ["Other:api/handlers"]}},
+             {"id": "record:adr-1-review", "kind": "record", "title": "review", "props": {}},
+             {"id": "decision:adr-4", "kind": "decision", "title": "ADR 4", "props": {"code_ref": ["Demo:api/handlersx"]}}]
+    edges = [{"source": "record:adr-1-review", "target": "decision:adr-1", "type": "RELATED_TO", "evidence": "review of ADR 1"},
+             {"source": "decision:adr-2", "target": "decision:adr-1", "type": "SUPERSEDES", "evidence": "ADR 2 replaces ADR 1"}]
+    inp = {"repo": "Demo", "impact": compare.Subgraph(nodes, edges, {})}
+    claims = compare.method_a_impact(inp, "api/handlers/user.go")
+    assert compare.RUNNERS[("impact", "B")](inp, "api/handlers/user.go") == claims
+    paths = [c["key"] for c in claims if c["type"] == "path"]
+    assert paths == [["decision:adr-1"], ["decision:adr-2"], ["decision:adr-1", "record:adr-1-review"]]
+    links = [c["key"][1] for c in claims if c["type"] == "policy_link"]
+    assert links == ["decision:adr-1", "decision:adr-2", "record:adr-1-review"]
+    zero = [c for c in claims if len(c["key"]) == 1 or c["key"][1] in ("decision:adr-1", "decision:adr-2")]
+    assert all(c["evidence"] == [] and c["from"] == c["to"] for c in zero)
+    task = {"kind": "impact", "expected": {"paths": [["decision:adr-1"], ["decision:adr-2"]],
+                                           "policy_links": [{"path": "api/handlers/user.go", "node": "decision:adr-1"},
+                                                            {"path": "api/handlers/user.go", "node": "decision:adr-2"}]}}
+    s = compare.score(task, claims, compare.facts({"repo": "Demo", "vinc": compare.Subgraph([], [], {}), "impact": inp["impact"], "lock": None,
+                                                   "cache": compare.NO_ADVISORIES}))
+    assert s["paths"] == [2, 2] and s["policy_links"] == [2, 2] and s["unsupported"] == [2, 6] and s["covered"] == [2, 6]

@@ -1,29 +1,29 @@
 | Method | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
 |---|---|---|---|---|---|---|
-| A | 0/44 | 0/28 | 0/14 | 4/4 | 4/4 | 1.6 |
-| B | 7/44 | 0/28 | 14/14 | 5/26 | 25/26 | 87.5 |
-| C | 35/44 | 19/28 | 14/14 | 0/68 | 30/68 | 204571.5 |
+| A | 19/44 | 19/28 | 0/14 | 4/42 | 4/42 | 1.4 |
+| B | 26/44 | 19/28 | 14/14 | 5/64 | 25/64 | 83.7 |
+| C | 35/44 | 19/28 | 14/14 | 0/68 | 30/68 | 5836.0 |
 
 | Task | Graph expected to help | A paths, links, unsupported | B paths, links, unsupported | C paths, links, unsupported | C against B |
 |---|---|---|---|---|---|
-| cf-cli-command-file | no | 0/2, 0/2, - | 0/2, 0/2, - | 2/2, 2/2, 0/4 | better |
-| cf-cli-command-test | no | 0/3, 0/3, - | 0/3, 0/3, - | 3/3, 3/3, 0/6 | better |
-| cf-cli-actor-named-wrongly | no | 0/2, 0/2, - | 0/2, 0/2, - | 1/2, 1/2, 0/2 | better |
-| cf-cli-api-layer | no | 0/1, 0/1, - | 0/1, 0/1, - | 1/1, 1/1, 0/2 | better |
-| cf-cli-integration-test | no | 0/2, 0/2, - | 0/2, 0/2, - | 2/2, 2/2, 0/4 | better |
-| turtles-proxy-types | no | 0/1, 0/1, - | 0/1, 0/1, - | 1/1, 1/1, 0/2 | better |
-| turtles-clusterctl-config | no | 0/2, 0/2, - | 0/2, 0/2, - | 1/2, 1/2, 0/2 | better |
+| cf-cli-command-file | no | 2/2, 2/2, 0/4 | 2/2, 2/2, 0/4 | 2/2, 2/2, 0/4 | same |
+| cf-cli-command-test | no | 3/3, 3/3, 0/6 | 3/3, 3/3, 0/6 | 3/3, 3/3, 0/6 | same |
+| cf-cli-actor-named-wrongly | no | 1/2, 1/2, 0/2 | 1/2, 1/2, 0/2 | 1/2, 1/2, 0/2 | same |
+| cf-cli-api-layer | no | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | same |
+| cf-cli-integration-test | no | 2/2, 2/2, 0/4 | 2/2, 2/2, 0/4 | 2/2, 2/2, 0/4 | same |
+| turtles-proxy-types | no | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | same |
+| turtles-clusterctl-config | no | 1/2, 1/2, 0/2 | 1/2, 1/2, 0/2 | 1/2, 1/2, 0/2 | same |
 | turtles-clusterctlconfig-controller | no | 0/1, 0/1, - | 0/1, 0/1, - | 0/1, 0/1, - | same |
 | turtles-import-controller | no | 0/2, 0/2, - | 0/2, 0/2, - | 0/2, 0/2, - | same |
-| weave-gitops-auth-superseded | yes | 0/1, 0/1, 2/2 | 0/1, 0/1, 2/2 | 1/1, 1/1, 0/2 | better |
-| weave-gitops-server-cmd | yes | 0/1, 0/1, 2/2 | 0/1, 0/1, 2/2 | 1/1, 1/1, 0/2 | better |
-| weave-gitops-buf | no | 0/1, 0/1, - | 0/1, 0/1, - | 1/1, 1/1, 0/2 | better |
-| weave-gitops-release-workflow | no | 0/1, 0/1, - | 0/1, 0/1, - | 1/1, 1/1, 0/2 | better |
+| weave-gitops-auth-superseded | yes | 1/1, 1/1, 2/4 | 1/1, 1/1, 2/4 | 1/1, 1/1, 0/2 | better |
+| weave-gitops-server-cmd | yes | 1/1, 1/1, 2/4 | 1/1, 1/1, 2/4 | 1/1, 1/1, 0/2 | better |
+| weave-gitops-buf | no | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | same |
+| weave-gitops-release-workflow | no | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | same |
 | weave-gitops-cli-verb-noun | no | 0/1, 0/1, - | 0/1, 0/1, - | 0/1, 0/1, - | same |
-| supabase-replaced-session-auth | no | 0/1, 0/1, - | 0/1, 0/1, - | 1/1, 1/1, 0/2 | better |
-| supabase-prisma-schema | no | 0/1, 0/1, - | 0/1, 0/1, - | 1/1, 1/1, 0/2 | better |
-| supabase-auth-route | no | 0/1, 0/1, - | 0/1, 0/1, - | 1/1, 1/1, 0/2 | better |
-| supabase-coolify | no | 0/1, 0/1, - | 0/1, 0/1, - | 1/1, 1/1, 0/2 | better |
+| supabase-replaced-session-auth | no | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | same |
+| supabase-prisma-schema | no | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | same |
+| supabase-auth-route | no | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | same |
+| supabase-coolify | no | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | 1/1, 1/1, 0/2 | same |
 | supabase-authjs-config | no | 0/1, 0/1, - | 0/1, 0/1, - | 0/1, 0/1, - | same |
 | karma-source-file | no | 0/2, 0/2, - | 0/2, 0/2, - | 0/2, 0/2, - | same |
 | supabase-direct-dev-dependency | no | 0/1, -, - | 1/1, -, 0/2 | 1/1, -, 0/2 | same |

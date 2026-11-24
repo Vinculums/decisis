@@ -87,8 +87,14 @@ def anchors(graph: Subgraph, subject: str, repo: str) -> list[str]:
 def method_a_impact(inp: dict, subject: str) -> list[dict]:
     graph = inp["impact"]
     kind = {n["id"]: n["kind"] for n in graph.nodes}
+    found = anchors(graph, subject, inp["repo"])
     claims, seen = [], set()
-    for anchor in anchors(graph, subject, inp["repo"]):
+    for anchor in found:
+        if kind.get(anchor) in GOVERNING:
+            seen.add(anchor)
+            claims.append(_claim("path", [anchor], [], anchor, anchor))
+            claims.append(_claim("policy_link", [subject, anchor], [], anchor, anchor))
+    for anchor in found:
         for e in sorted(graph.edges, key=lambda e: (e["source"], e["type"], e["target"])):
             other = e["target"] if e["source"] == anchor else e["source"] if e["target"] == anchor else None
             if other is None or kind.get(other) not in GOVERNING or other in seen:
