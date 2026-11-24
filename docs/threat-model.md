@@ -78,6 +78,17 @@ key comes from `VINC_API_KEY` and is not written to any file the tool produces.
 each advisory keeps its source URL and a SHA-256 of the record that was read, and each written record
 carries them. `--osv-cache` replays a saved set of advisories and refuses the network.
 
+**Outbound requests to GitHub.** `init --github` sends only GET requests, only to `https://api.github.com`
+on port 443: a `Link` header, a redirect or a final answer that points anywhere else is refused before
+anything is sent there or read from it. `GITHUB_TOKEN` is read from the environment, never from a flag, and
+goes only in the `Authorization` header; a token with a space, a line break or a character outside
+printable ASCII is refused without echoing it, and every error message has the token replaced by `[token]`.
+The token is not written to the snapshot or printed. Answers over 20 MB are refused, and the listing stops at
+`--limit` (at most 5,000) closed pull requests. (`src/decisis/github.py`;
+`test_it_sends_only_get_requests_to_api_github_com_and_follows_link_headers`,
+`test_a_next_page_or_an_answer_on_another_host_is_refused`, `test_a_redirect_to_another_host_is_not_followed`,
+`test_the_token_goes_only_in_the_authorization_header_and_never_into_an_error`, `test_init_never_prints_the_token`.)
+
 **A read-only MCP server.** `decisis serve --mcp` lists only `impact`, `paths` and `audit`, and refuses
 any other tool name and any argument its schema does not list. Bounds are checked before a sandbox is
 built; a code path with `..`, an absolute path or another repository's prefix is refused. `audit` reads a
@@ -102,6 +113,11 @@ call is still running. (`src/decisis/serve.py`; `test_a_write_shaped_request_is_
 - **A root that changes under the server.** `serve --mcp` resolves a lockfile path, checks it is under
   `--root`, then reads it. A process that can write under `--root` can swap a file for a symlink between
   the check and the read. Give the server a root that only you write to.
+- **What GitHub says.** `init --github` trusts GitHub's answers for titles, descriptions, reviews and file
+  names; anyone who can edit a pull request's description can change its `statement` until the next
+  `init`. The content hash records what was read; it does not authenticate it. Give `GITHUB_TOKEN` read-only
+  access to the one repository (a fine-grained token with pull request read access) rather than a broad
+  classic token: decisis never writes to GitHub, so it needs nothing more.
 - **Files you ask for.** The snapshot from `checkout`, the report from `audit --out` and the plan from
   `propose` are written where `--out` says, on whatever disk that is, and are never deleted by the tool.
   A snapshot of a private space is private data; keep it out of public repositories (the root
