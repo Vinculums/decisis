@@ -5,7 +5,9 @@ import re
 
 from . import external, inventory, semver
 from .queries import load as query
-from .sandbox import Subgraph, sandbox
+from .sandbox import Limits, Subgraph, sandbox
+
+MAX_DEPTH = 16
 
 SEVERITY = ["LOW", "MODERATE", "MEDIUM", "HIGH", "CRITICAL"]
 
@@ -95,6 +97,8 @@ def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dic
 
 
 def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
+    if not 1 <= depth <= MAX_DEPTH:
+        raise ValueError(f"depth must be between 1 and {MAX_DEPTH}")
     counts = box.load(graph)
     rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
     decisions = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
@@ -110,8 +114,8 @@ def unresolved_packages(graph: Subgraph) -> list[dict]:
             if n["kind"] == "Package" and (n.get("props") or {}).get("unresolved")]
 
 
-def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories, filename: str = "package-lock.json",
-        siblings: dict[str, str] | None = None) -> dict:
+def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories,
+        limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None) -> dict:
     graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
-    with sandbox() as box:
+    with sandbox(limits=limits) as box:
         return analyze(box, graph, repo, depth)
