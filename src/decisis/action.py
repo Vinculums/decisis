@@ -357,6 +357,13 @@ def reason(e: Exception) -> str:
     return " ".join(str(e).split()) or type(e).__name__
 
 
+def identity(path: Path) -> Path:
+    try:
+        return path.resolve()
+    except RuntimeError:
+        return Path(os.path.abspath(path))
+
+
 def lockfile(name: str) -> bool:
     return name in LOCKFILES or (name.startswith("requirements") and name.endswith(".txt"))
 
@@ -410,14 +417,14 @@ def audits(env: Mapping[str, str], graph, repo: str, root: Path) -> tuple[list[A
     empty = False
     for line in lines:
         if line != AUTO:
-            if Path(line).resolve() not in seen:
-                seen.add(Path(line).resolve())
+            if identity(Path(line)) not in seen:
+                seen.add(identity(Path(line)))
                 out.append(Audited(line, audit_file(graph, Path(line), repo, advisories)))
             continue
         here = found(root)
         empty = empty or not here
         for label, name, problem in here:
-            key = (root / (name or label)).resolve()
+            key = identity(root / (name or label))
             if key in seen:
                 continue
             seen.add(key)

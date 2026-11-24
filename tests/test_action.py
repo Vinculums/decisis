@@ -491,3 +491,30 @@ def test_several_paths_one_per_line_each_get_a_section(tmp_path, no_network):
     (_, _, data), = fake.writes()
     assert sections(data["body"]) == [action.text(root / "package-lock.json"), action.text(root / "web" / "requirements.txt")]
     assert int(outputs(tmp_path)["violations"]) == one
+
+
+def test_an_explicit_inventory_that_is_a_symlink_loop_stops_the_step_with_the_error(tmp_path, no_network):
+    root, base = shop(tmp_path)
+    (root / "loop.json").symlink_to("loop.json")
+    fake = FakeGitHub()
+    assert action.main(audit_env(tmp_path, root, base, str(root / "loop.json")), fake) == 2
+    assert fake.writes() == []
+    summary = (tmp_path / "summary.md").read_text()
+    assert summary.startswith("decisis could not check this pull request") and "symbolic links" in summary
+
+
+@pytest.mark.parametrize("loop", ["package-lock.json", ".github"])
+def test_a_symlink_loop_that_auto_finds_gets_a_section_and_the_comment_is_written(tmp_path, loop, no_network):
+    root, base = shop(tmp_path)
+    shutil.copy(DEMO_LOCK, root / "npm-shrinkwrap.json")
+    (root / loop).symlink_to(loop)
+    one = one_lockfile_violations(tmp_path, root, base)
+    fake = FakeGitHub()
+    assert action.main(audit_env(tmp_path, root, base, "auto"), fake) == 0
+    (_, _, data), = fake.writes()
+    label = {"package-lock.json": "package\\-lock.json", ".github": ".github/workflows"}[loop]
+    assert sections(data["body"]) == ["npm\\-shrinkwrap.json", label]
+    shown = data["body"].split(f"#### Audit of <code>{label}</code>")[1]
+    assert "Not audited" in shown and "symbolic link loop" in shown
+    assert (tmp_path / "summary.md").read_text() == data["body"]
+    assert int(outputs(tmp_path)["violations"]) == one
