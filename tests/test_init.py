@@ -476,3 +476,24 @@ def test_in_a_git_work_tree_ignored_files_are_not_owned(tmp_path):
     assert owned_by(init.build(root), "@x")["props"]["code_ref"] == [".github/", ".gitignore", "src/"]
     shutil.rmtree(root / ".git")
     assert owned_by(init.build(root), "@x")["props"]["code_ref"] == [".github/", ".gitignore", "build/", "src/"]
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
+@pytest.mark.parametrize("key, value", [
+    ("core.fsmonitor", "touch {marker}; false"),
+    ("core.hooksPath", "{hooks}"),
+    ("core.pager", "touch {marker}; cat"),
+])
+def test_init_runs_no_command_the_repository_config_names(tmp_path, key, value):
+    root = owners_repo(tmp_path / "repo", "* @x\n", ["src/a.py"])
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    marker = tmp_path / "RAN"
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    for name in ("post-index-change", "reference-transaction", "pre-auto-gc"):
+        (hooks / name).write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
+        (hooks / name).chmod(0o755)
+    subprocess.run(["git", "-C", str(root), "config", key, value.format(marker=marker, hooks=hooks)], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "core.untrackedCache", "true"], check=True)
+    assert owned_by(init.build(root), "@x")["props"]["code_ref"] == [".github/", "src/"]
+    assert not marker.exists()

@@ -77,13 +77,23 @@ def repository_files(root: Path) -> tuple[list[str], str]:
     return files, source
 
 
+GIT_SAFE = ("-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null",
+            "-c", "core.pager=cat")
+
+
+def git(root: Path, *args: str, timeout: int) -> subprocess.CompletedProcess:
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0")
+    return subprocess.run(["git", *GIT_SAFE, "-C", str(root), *args], capture_output=True, timeout=timeout, env=env,
+                          stdin=subprocess.DEVNULL)
+
+
 def git_files(root: Path) -> list[str] | None:
     try:
-        inside = subprocess.run(["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"], capture_output=True, text=True, timeout=60)
-        if inside.returncode != 0 or inside.stdout.strip() != "true":
+        inside = git(root, "rev-parse", "--is-inside-work-tree", timeout=60)
+        if inside.returncode != 0 or inside.stdout.decode("utf-8", "replace").strip() != "true":
             return None
-        listed = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-                                capture_output=True, timeout=300)
+        listed = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard", timeout=300)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if listed.returncode != 0:
