@@ -67,7 +67,16 @@ decision:no-high-advisories-in-shipped-dependencies -ABOUT-> concept:demo-app <-
 The rule lives in the team's decisions, the dependency chain in the lockfile and the advisory in OSV;
 no single source holds the connection.
 
-**2. Use your own decisions.** Write a snapshot: one JSON file of nodes and edges. This one has an app,
+**2. Use your own decisions.** If the repository keeps ADRs (MADR or Nygard), a CODEOWNERS file or
+postmortems, build the snapshot from them and ask what governs a file:
+
+```bash
+decisis init --repo-dir . --repo Shop --out snapshot.json
+decisis impact snapshot.json src/payments/retry.py --repo Shop --format text
+```
+
+`init` prints what it could not read and why; [`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md#a-snapshot-from-a-repository-init)
+lists the front matter keys and headings it reads. Or write a snapshot by hand: one JSON file of nodes and edges. This one has an app,
 a checkout flow, one decision and one incident record ([`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md) has
 every field):
 
@@ -140,6 +149,7 @@ flowchart LR
 | Command | Needs | What it does |
 |---|---|---|
 | `demo` | nothing | the whole procedure on synthetic data, against an in-process fake Vinc |
+| `init --out <file>` | nothing | a snapshot from the repository's ADRs, CODEOWNERS and postmortems |
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
 | `audit <snapshot> <lockfile> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
@@ -149,8 +159,8 @@ flowchart LR
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
 | `gc` | nothing | removes task directories that a killed run left behind, and prints them |
 
-Useful flags: `impact --hops N --format text`, `paths --hops N --limit N`, `audit --osv-cache FILE --depth N`,
-`propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
+Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `impact --hops N --format text`, `paths --hops N --limit N`,
+`audit --osv-cache FILE --depth N`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
 
 Limits: `paths`, `impact`, `audit` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
 anything, and stop any query that runs longer than 60 seconds; the task directory is removed either way
