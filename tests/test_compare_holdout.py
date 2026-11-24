@@ -79,7 +79,9 @@ def test_the_committed_held_out_results_are_what_the_command_gives():
     committed = json.loads((HOLDOUT / "results.json").read_text(encoding="utf-8"))
     assert compare.without_latency(committed) == compare.without_latency(result)
     assert (HOLDOUT / "results.md").read_text(encoding="utf-8").splitlines()[2:5] == compare.render(committed).splitlines()[2:5]
-    c, b = result["total"]["C"], result["total"]["B"]
+    c, b, a = result["total"]["C"], result["total"]["B"], result["total"]["A"]
     assert c["paths"] == [35, 44] and c["policy_links"] == [19, 28] and c["covered"] == [30, 68]
-    assert b["paths"] == [7, 44] and b["unsupported"] == [5, 26]
-    assert result["c_vs_b"]["worse"] == [] and len(result["c_vs_b"]["same"]) == 9
+    assert b["paths"] == [26, 44] and b["policy_links"] == [19, 28] and b["unsupported"] == [5, 64]
+    assert a["paths"] == [19, 44] and a["policy_links"] == [19, 28] and a["unsupported"] == [4, 42]
+    assert result["c_vs_b"]["worse"] == [] and len(result["c_vs_b"]["same"]) == 22
+    assert result["c_vs_b"]["better"] == [t["id"] for t in doc()["tasks"] if t["graph_expected_to_help"]]

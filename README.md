@@ -427,7 +427,8 @@ decisis compare
 ```
 
 `compare` runs nine tasks from `bench/tasks.json` three ways, offline and without a model:
-**A** answers from the Vinc snapshot alone (nodes whose `code_ref` matches the subject, then one hop);
+**A** answers from the Vinc snapshot alone (nodes whose `code_ref`, `subject_path` or `also_touches` matches the
+subject, then one hop; a matching decision or record is reported itself, as `impact` reports it at zero hops);
 **B** adds the lockfile and the advisories as flat records joined by package name, with the same version
 range check and policy rule as C; **C** loads all three into a Relate graph and queries it. The tasks and
 their expected findings were committed before the first run. A path or a policy link counts when it
@@ -436,9 +437,9 @@ connected chain of edges that exist in the inputs.
 
 | Method | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
 |---|---|---|---|---|---|---|
-| A | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.2 |
+| A | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.5 |
 | B | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.6 |
-| C | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 85.0 |
+| C | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 287.3 |
 
 Against B, C is better on 2 tasks, the same on 7 and worse on none. It helped where a connection spans
 sources: a vulnerable package reached only through a shared transitive dependency, and a decision two
@@ -481,40 +482,52 @@ the same as for the synthetic set.
 
 | Method | Set | Path discovery | Policy links | Findings | Unsupported claims | Evidence coverage | Latency (ms, all tasks) |
 |---|---|---|---|---|---|---|---|
-| A | synthetic | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.2 |
-| A | held-out | 0/44 | 0/28 | 0/14 | 4/4 | 4/4 | 1.6 |
+| A | synthetic | 5/13 | 5/17 | 0/5 | 0/10 | 10/10 | 0.5 |
+| A | held-out | 19/44 | 19/28 | 0/14 | 4/42 | 4/42 | 1.8 |
 | B | synthetic | 9/13 | 15/17 | 5/5 | 1/30 | 27/30 | 0.6 |
-| B | held-out | 7/44 | 0/28 | 14/14 | 5/26 | 25/26 | 87.5 |
-| C | synthetic | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 85.0 |
-| C | held-out | 35/44 | 19/28 | 14/14 | 0/68 | 30/68 | 204571.5 |
+| B | held-out | 26/44 | 19/28 | 14/14 | 5/64 | 25/64 | 144.3 |
+| C | synthetic | 13/13 | 17/17 | 5/5 | 0/35 | 35/35 | 287.3 |
+| C | held-out | 35/44 | 19/28 | 14/14 | 0/68 | 30/68 | 300939.5 |
 
-Against B on the held-out set, C is better on 21 tasks, the same on 9 and worse on none. Per-task numbers are
+Against B on the held-out set, C is better on 8 tasks, the same on 22 and worse on none. Per-task numbers are
 in `bench/holdout/results.md`, every claim in `bench/holdout/results.json`. Where C did not beat A or B, or
 won for a reason other than the graph:
 
-- **Most of C's impact wins are not the graph's doing.** In an `init` snapshot the ADR's decision is itself the
-  node that names the path. A (and B, which is A for impact) reports the neighbours of a matching node but not
-  the matching node, so it returns nothing; C lists the matching decision at zero hops. That is the whole
-  difference on 13 of C's 15 impact wins. A retrieval that returned the matching decision would tie C there.
-- **The graph mattered on 8 tasks, the 8 marked in advance as expected to help.** On two weave-gitops tasks A
-  and B also return ADR 5, which ADR 15 supersedes (2 unsupported claims each); C does not follow `SUPERSEDES`.
-  On six audit tasks the affected package is three to seven hops from the repository, and B's join through a
-  direct parent finds no chain (on one it claims a wrong one); C finds every expected chain.
-- **C was the same as B on 9 tasks.** On four audit tasks the chain is one or two hops, which B's join finds.
-  On five impact tasks a decision governs the path by its text but names no path, and no method found anything.
-- **C missed 9 of 28 policy links and 9 of 44 paths.** All nine are decisions that govern the path by their
-  text without naming it: the five tasks above, cf-cli ADR 11 (which spells the actor directory `action/`
-  where the code is in `actor/`), and turtles ADR 12 (which names no path for the embedded clusterctl config).
-- **C's evidence coverage is lower than B's: 30/68 against 25/26.** Its 38 zero-hop impact claims have no edge
-  to cite, and a claim with no evidence counts as uncovered.
-- **C is far slower: 204.6 s against 0.1 s for B.** Each audit task takes 9 to 28 s to build the graph for a
-  lockfile of 700 to 1,250 packages and query paths up to eight hops.
+- **C's lead is the 8 tasks marked in advance as expected to help, and no more.** The first run of this set had
+  C better on 21 tasks. Thirteen of those were not the graph's doing: in an `init` snapshot the ADR's decision is
+  itself the node that names the path, and A (and B, which is A for impact) reported the neighbours of a matching
+  node but not the matching node, so it returned nothing where C listed that decision at zero hops. A now reports
+  the matching decision or record itself, and those 13 tasks are the same for all three methods. Only A's
+  retrieval changed; the inputs, the expectations, the carry rules, the scoring and C's claims are the same as in
+  the first run, which is in the history of `bench/holdout/results.json`.
+- **The graph mattered on those 8 tasks.** On two weave-gitops tasks A and B return ADR 15 but also ADR 5, which
+  ADR 15 supersedes (2 unsupported claims each); C does not follow `SUPERSEDES`. On six audit tasks the affected
+  package is three to seven hops from the repository, and B's join through a direct parent finds no chain (on one
+  it claims a wrong one); C finds every expected chain. So on impact C beats B on 2 of 20 tasks, on audit on 6 of 10.
+- **C was the same as B on 22 tasks.** On 13 impact tasks every method lists the decision that names the path. On
+  four audit tasks the chain is one or two hops, which B's join finds. On five impact tasks a decision governs the
+  path by its text but names no path, and no method found anything.
+- **Every method missed the same 9 of 28 policy links, and C 9 of 44 paths.** All nine are decisions that govern
+  the path by their text without naming it: the five tasks above, cf-cli ADR 11 (which spells the actor directory
+  `action/` where the code is in `actor/`), and turtles ADR 12 (which names no path for the embedded clusterctl
+  config).
+- **Evidence coverage is low for every method on impact: C 30/68, B 25/64, A 4/42.** Each method makes the same
+  38 zero-hop impact claims, which have no edge to cite, and a claim with no evidence counts as uncovered. The only
+  impact claims A and B have covered are the 4 ADR 5 claims above, which are wrong.
+- **C is far slower: 300.9 s against 0.1 s for B.** Each audit task takes 14 to 43 s to build the graph for a
+  lockfile of 700 to 1,250 packages and query paths up to eight hops. This run was on a shared machine under load
+  (load average about 55 on 16 cores); the first run of the same C code took 204.6 s, 9 to 28 s per audit task.
 - **The audit policy logic is untested here.** No held-out ADR states a machine-checkable dependency rule or
   names an affected package, and an `init` snapshot links no decision to the repository, so the audit tasks
   expect no policy links and every method returns none.
 - **The carry rules are barely exercised.** The five snapshots hold one edge between them: weave-gitops ADR 15
   `SUPERSEDES` ADR 5, which two tasks use (none of the repositories has postmortems, and `--github` was not used). The `RELATED_TO` rule fitted on the
   synthetic decoy never comes into play, so this set does not show that it generalises.
+- **The stored snapshots predate a later `init` fix.** They were built before `init` read a bold `Status` line and
+  the `Superceded` spelling. Rebuilt with that fix, the three supabase-multitenant ADRs gain a status (two of them a date
+  too), and weave-gitops ADR 3 gains the status superseded and a `SUPERSEDES` edge from ADR 11; the other three
+  snapshots are unchanged. The stored snapshots were kept so that the change in the numbers above comes from A
+  alone. On the ten impact tasks of those two repositories, the rebuilt snapshots give every method the same scores.
 - **Small and hand-mapped.** Five repositories, two of them npm (the Go repositories have impact tasks only,
   because B and the coverage check read npm lockfiles only), and one person's reading of which ADR governs
   which path.
