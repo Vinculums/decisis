@@ -27,7 +27,18 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
     nodes, edges = READERS[name].read(text, Path(filename).name, repo, siblings)
     if not any(n["kind"] == "Package" for n in nodes):
         raise ValueError(f"{Path(filename).name or 'the inventory'} ({name}) lists no packages, so there is nothing to audit")
+    unread_notes(nodes, Path(filename).name, siblings)
     return nodes, edges
+
+
+def unread_notes(nodes: list[dict], filename: str, siblings: dict[str, str] | None) -> None:
+    shown = {n["props"].get("name") for n in nodes if n["kind"] == "Package" and n["props"].get("unresolved")}
+    notes = [f"{name}, beside {filename}, was not read: {reason}"
+             for name, reason in sorted((getattr(siblings, "unread", None) or {}).items()) if name not in shown]
+    repo = next((n for n in nodes if n["kind"] == "Repository"), None)
+    if notes and repo is not None:
+        kept = repo["props"].setdefault("inventory_notes", [])
+        kept += [n for n in notes if n not in kept]
 
 
 def notes(text: str, filename: str) -> list[str]:
@@ -46,7 +57,8 @@ def gather(text: str, filename: str, reader: Reader, resolve: Resolver | None = 
     for name in names:
         try:
             found = reader(name)
-        except ValueError:
+        except ValueError as e:
+            out.unread[name] = " ".join(str(e).split())
             continue
         if found is not None:
             out[name] = clean(found)

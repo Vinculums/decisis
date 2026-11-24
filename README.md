@@ -186,9 +186,12 @@ For GitHub Actions, pass one workflow file, such as `.github/workflows/ci.yml`; 
 other `*.yml` and `*.yaml` workflow in the same directory through the same bounded reader as other
 sibling files (`serve --mcp` reads only the file it is given). Each `uses:` of a step, and of a job that
 calls a reusable workflow, becomes a package in the OSV `GitHub Actions` ecosystem named `owner/repo`
-(`owner/repo/path@ref` too), with its ref as written: a tag, a branch or a commit SHA. A local `./` action,
-a `docker://` image and a `uses:` built from an expression are listed under `unresolved_packages` with the
-reason and not queried, and so is a workflow file that is not valid YAML. YAML anchors and aliases are
+(`owner/repo/path@ref` too) in lower case, since GitHub does not tell case apart, with its ref as written:
+a tag, a branch or a commit SHA. OSV does tell case apart, so it is asked for the lower-case name and for
+each spelling the workflows use. A local `./` action, a `docker://` image, a `uses:` built from an
+expression and one that is not a name (`../x@v1`) are listed under `unresolved_packages` with the reason
+and not queried, and so is a workflow file that is not valid YAML or cannot be read (not UTF-8, or a link
+that leads outside the repository). YAML anchors and aliases are
 allowed in workflows, up to 100,000 expanded nodes. OSV does not match GitHub Actions versions itself, so
 `audit` asks OSV for every advisory of each action and compares the ref with the ranges: a tag such as
 `v4.1.0` is a version, a major or minor tag such as `v4` covers every release under it and is `unresolved`

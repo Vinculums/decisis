@@ -108,9 +108,12 @@ and `1.0.0` for npm, `6.0` and `6.0.0` for PyPI). Without `versions` every versi
 `not_violated`, so one rule can allow a set of GitHub actions without judging npm packages. Names are
 compared as for `package_denied`; GitHub Actions names are compared without regard to case, and a Terraform
 provider name without a host (`hashicorp/aws`) means `registry.terraform.io/hashicorp/aws`.
-`pinned_to_commit` judges only `GitHub Actions` packages; a local `./` action, a `docker://` image and a
-`uses:` built from an expression have no ecosystem, are listed under `unresolved_packages`, and are not
-judged by it.
+`pinned_to_commit` judges only `GitHub Actions` packages. A workflow `uses:` that names no action keeps the
+`GitHub Actions` ecosystem with an empty version, and the two kinds judge it by what it is: a local `./`
+action is `not_violated` by both (it is in the repository and read at the workflow's commit); a
+`docker://` image is `unresolved` under both (a digest pin is not checked, and an allowlist names actions);
+a `uses:` built from an expression, or one that is not a name, is `unresolved` under both, never
+`not_violated`.
 
 A rule that cannot be read is never dropped: an unknown kind, a value of the wrong shape, a `dependencies`
 other than `shipped` or `all`, an empty list, or a string that is not JSON gives a policy with verdict
@@ -355,10 +358,14 @@ depends on is linked from the repository with the evidence `listed in the SBOM w
 reporting it clean. A Terraform lock file is the exception: its reader sets `ADVISORIES = False`, since
 OSV has no Terraform ecosystem, and its providers are judged against rules only.
 
-A workflow `uses:` that is a local `./` path, a `docker://` image or built from an expression (`${{ ... }}`)
-gets the id `pkg:unknown/<uses>@`, ecosystem `""` and an `unresolved` reason. A workflow file that is not
-valid YAML, or has neither `jobs` nor `runs.steps`, gets the id `pkg:unknown/<file>@` with the parser's
-message as the reason, and the other workflows are still read. Every Terraform provider has the
+A workflow `uses:` that is a local `./` path, a `docker://` image, built from an expression (`${{ ... }}`)
+or not an `owner/repo[/path]@ref` name (such as `../x@v1`) gets the id `pkg:unknown/<uses>@`, ecosystem
+`GitHub Actions`, an empty version and an `unresolved` reason. An action's `name` is `owner/repo` in lower
+case, as GitHub matches it, and its id and purl use that name; `spellings` lists each spelling the
+workflows use, and OSV, which tells case apart, is asked for the name and every spelling. A workflow file
+that is not valid YAML, or has neither `jobs` nor `runs.steps`, gets the id `pkg:unknown/<file>@` with the
+parser's message as the reason, and the other workflows are still read. So does a workflow beside it that
+cannot be read: not UTF-8, or a symbolic link that leads outside the root. Every Terraform provider has the
 `unresolved` reason that OSV has no Terraform ecosystem.
 
 The `Repository` node has `inventory_notes`, a list of strings, when the reader saw a gap in what the
@@ -409,7 +416,10 @@ globs match (outside `node_modules`), and the GitHub Actions reader returns ever
 `*.yaml` file in the workflow's directory (at most 256; none for an `action.yml`). `listing` lists a
 directory relative to the inventory under the same root as the reader; `inventory.load` passes one, and
 a caller that does not (such as `serve --mcp`) gets only the file it names. Of those files, the ones with
-top-level `on` and `jobs` are read as workflows. `inventory.gather` reads them with the same bounded reader as every other
+top-level `on` and `jobs` are read as workflows. A file a reader names but that cannot be read (not
+UTF-8, or outside the root) is kept in `Siblings.unread` with the reason; the GitHub Actions reader lists
+such a workflow under `unresolved_packages`, and for every other format `inventory.read` adds an
+`inventory_notes` entry, so no named file is dropped without a word. `inventory.gather` reads them with the same bounded reader as every other
 sibling, so the CLI reads them only under the repository root and `serve --mcp` only under its `--root`;
 a match that leads outside is skipped. Every inventory is read as strict UTF-8 with a leading BOM
 removed; a file that is not UTF-8 is refused. A binary `bun.lockb`, told by its name or its
@@ -469,8 +479,9 @@ When the severity does not come from the record itself, the advisory node and ea
 package id such as `pkg:npm/lodash@4.17.15` to the list of advisory ids OSV returned for it) and `vulns`
 (an advisory id to the OSV record as `api.osv.dev/v1/vulns/<id>` returns it). A package or advisory the
 file does not hold stops the run. The keys follow the package ids, so a cache works for every ecosystem.
-OSV returns nothing for a GitHub Actions query with a version, so `audit` asks for those by name only;
-their keys are the id without the version (`pkg:githubactions/tj-actions/changed-files`), and the
+OSV returns nothing for a GitHub Actions query with a version, so `audit` asks for those by name only, once
+for the lower-case name and once for each other spelling; their keys are the id without the version
+(`pkg:githubactions/tj-actions/changed-files`, `pkg:githubactions/Azure/setup-kubectl`), and the
 `AFFECTED_BY` evidence says the version is compared by decisis.
 `fixtures/audit/osv-cache.json` covers the demo lockfile, `fixtures/inventory/osv-cache.json` covers
 the examples in `fixtures/inventory/`, `fixtures/inventory/ci/osv-cache.json` the workflows and

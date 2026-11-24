@@ -83,7 +83,14 @@ def test_local_docker_and_expression_uses_are_listed_and_not_queried():
         "pkg:unknown/./.github/actions/setup@": actions.LOCAL,
         "pkg:unknown/docker://alpine:3.20@": actions.DOCKER,
         "pkg:unknown/${{ matrix.action }}@": actions.EXPRESSION}
-    assert not any(external.queryable({"kind": "Package", "props": p}) for p in pkgs.values() if not p["ecosystem"])
+    assert not any(external.queryable({"kind": "Package", "props": p}) for p in pkgs.values() if p["unresolved"])
+    assert {p["ecosystem"] for p in pkgs.values() if p["unresolved"] and "valid YAML" not in p["unresolved"]} == {"GitHub Actions"}
+
+
+@pytest.mark.parametrize("value", ["../x@v1", "owner/../x@v1", "owner/repo/../../x@v1", "./../outside", "o_x/repo@v1", "owner/.@v1"])
+def test_a_uses_that_leaves_its_place_or_is_not_a_name_is_refused(value):
+    pkg = actions.action(value)
+    assert pkg["id"] == f"pkg:unknown/{value}@" and pkg["version"] == "" and "is not owner/repo@ref" in pkg["unresolved"]
 
 
 def test_edges_name_the_file_job_and_step_and_aliases_in_a_workflow_are_expanded():
@@ -114,10 +121,17 @@ def test_the_sibling_workflows_are_read_through_the_bounded_reader_and_only_work
     (flows / "c.txt").write_text("on: push\njobs: {}\n", encoding="utf-8")
     (tmp_path / "outside.yml").write_text("on: push\njobs:\n  q:\n    steps:\n      - uses: evil/action@v1\n", encoding="utf-8")
     (flows / "link.yml").symlink_to(tmp_path / "outside.yml")
+    (flows / "deploy.yml").write_bytes("on: push\njobs:\n  d:\n    steps:\n      - uses: tj-actions/changed-files@v35\n# caf\xe9\n"
+                                       .encode("latin-1"))
     text, siblings = inventory.load(flows / "a.yml", root=flows)
-    assert sorted(siblings) == ["b.yaml", "notes.yml"]
-    assert sorted(n["id"] for n in inventory.read(text, "a.yml", "Shop", siblings)[0] if n["kind"] == "Package") == [
-        "pkg:githubactions/actions/checkout@v4", "pkg:githubactions/octo/flows@v2"]
+    assert sorted(siblings) == ["b.yaml", "notes.yml"] and sorted(siblings.unread) == ["deploy.yml", "link.yml"]
+    pkgs = {n["id"]: n["props"] for n in inventory.read(text, "a.yml", "Shop", siblings)[0] if n["kind"] == "Package"}
+    assert sorted(pkgs) == ["pkg:githubactions/actions/checkout@v4", "pkg:githubactions/octo/flows@v2", "pkg:unknown/deploy.yml@",
+                            "pkg:unknown/link.yml@"]
+    assert pkgs["pkg:unknown/deploy.yml@"]["unresolved"].startswith("'utf-8' codec can't decode byte 0xe9")
+    assert pkgs["pkg:unknown/link.yml@"]["unresolved"] == f"'link.yml' leads outside {flows.resolve()}; its uses were not read"
+    nodes = inventory.read(text, "a.yml", "Shop", siblings)[0]
+    assert "inventory_notes" not in next(n for n in nodes if n["kind"] == "Repository")["props"]
     _, plain = inventory.load(flows / "a.yml", reader=lambda name: None)
     assert dict(plain) == {}
 
@@ -172,18 +186,59 @@ def test_the_report_holds_the_real_tj_actions_advisories_pins_and_the_allowlist(
         assert hit["status"] == "affected" and hit["severity"] == "HIGH" and hit["policies"][0]["verdict"] == "violated"
         assert finding(rep, f"pkg:githubactions/tj-actions/changed-files@{CHANGED_SHA}", "advisory", f"adv:{ghsa}")["status"] == "unresolved"
     pins = {f["package"] for f in rep["findings"] if f.get("kind") == "pin" and f["status"] == "affected"}
+    assert {(f["package"], f["kind"]) for f in rep["findings"] if f.get("kind") in ("pin", "allowlist") and f["status"] == "unresolved"} == {
+        ("pkg:unknown/${{ matrix.action }}@", "pin"), ("pkg:unknown/${{ matrix.action }}@", "allowlist"),
+        ("pkg:unknown/docker://alpine:3.20@", "pin"), ("pkg:unknown/docker://alpine:3.20@", "allowlist")}
+    assert not any(f["package"] == "pkg:unknown/./.github/actions/setup@" for f in rep["findings"])
     assert pins == {CHANGED, "pkg:githubactions/actions/setup-node@v4.1.0", "pkg:githubactions/actions/cache@v4",
                     "pkg:githubactions/some-org/unvetted-action@v1", "pkg:githubactions/octo-org/shared-workflows@main"}
     tag = finding(rep, "pkg:githubactions/actions/setup-node@v4.1.0", "pin")
     assert tag["policies"] == [{"decision": "decision:ci", "verdict": "violated", "rule": "pinned_to_commit",
                                 "why": "actions/setup-node is pinned to 'v4.1.0', not to a full 40-character commit SHA"}]
-    unlisted = {f["package"] for f in rep["findings"] if f.get("kind") == "allowlist"}
+    unlisted = {f["package"] for f in rep["findings"] if f.get("kind") == "allowlist" and f["status"] == "affected"}
     assert unlisted == {"pkg:githubactions/some-org/unvetted-action@v1", "pkg:githubactions/octo-org/shared-workflows@main"}
     assert not any(f["package"].endswith(CHECKOUT_SHA) for f in rep["findings"])
     assert {u["package"] for u in rep["unresolved_packages"]} == {
         "pkg:unknown/./.github/actions/setup@", "pkg:unknown/docker://alpine:3.20@", "pkg:unknown/${{ matrix.action }}@",
         "pkg:unknown/broken.yml@"}
     assert rep["inventory_notes"] == list(actions.NOTES)
+
+
+def test_an_owner_or_repo_written_in_another_case_is_one_action_and_osv_is_asked_for_each_spelling(tmp_path):
+    (tmp_path / "ci.yml").write_text("on: push\njobs:\n  a:\n    steps:\n      - uses: TJ-Actions/Changed-Files@v35\n"
+                                     "      - uses: Azure/setup-kubectl@v1\n  b:\n    steps:\n      - uses: tj-actions/changed-files@v35\n",
+                                     encoding="utf-8")
+    pkgs = packages(tmp_path / "ci.yml")
+    assert pkgs[CHANGED]["name"] == "tj-actions/changed-files" and pkgs[CHANGED]["purl"] == "pkg:githubactions/tj-actions/changed-files@v35"
+    assert pkgs[CHANGED]["spellings"] == ["TJ-Actions/Changed-Files", "tj-actions/changed-files"]
+    assert ("pkg:githubactions/tj-actions/changed-files@v35", "ci.yml jobs.a.steps[0] uses TJ-Actions/Changed-Files@v35") in {
+        (e["target"], e["evidence"]) for e in read_path(tmp_path / "ci.yml")[1]}
+    assert [q["package"]["name"] for q in external.osv_queries(pkgs["pkg:githubactions/azure/setup-kubectl@v1"])] == [
+        "azure/setup-kubectl", "Azure/setup-kubectl"]
+    rep = report(tmp_path / "ci.yml", ("decision:ci", [{"advisory_severity_at_least": "LOW"}]))
+    assert {(f["package"], f["advisory"], f["status"]) for f in rep["findings"]} == {
+        (CHANGED, "adv:GHSA-mrrh-fwg8-r2c3", "affected"), (CHANGED, "adv:GHSA-mcph-m25j-8j63", "affected"),
+        ("pkg:githubactions/azure/setup-kubectl@v1", "adv:GHSA-p756-rfxh-x63h", "affected")}
+
+
+def test_a_sibling_file_a_reader_names_but_cannot_read_is_a_note_not_dropped(tmp_path):
+    (tmp_path / "poetry.lock").write_text((FIX / "poetry" / "poetry.lock").read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_bytes('[tool.poetry]\nname = "caf\xe9"\n'.encode("latin-1"))
+    nodes, _ = read_path(tmp_path / "poetry.lock")
+    notes = next(n for n in nodes if n["kind"] == "Repository")["props"]["inventory_notes"]
+    assert any(n.startswith("pyproject.toml, beside poetry.lock, was not read: 'utf-8' codec can't decode") for n in notes)
+
+
+def test_unnamed_uses_are_unresolved_under_pin_and_allowlist_rules_and_local_actions_pass():
+    pin, allow = rules.parse(PINNED).rules[0], rules.parse(ALLOW).rules[0]
+    for value in ("${{ matrix.action }}", "../x@v1"):
+        facts = actions.action(value)
+        assert rules.outcome(pin, facts)[0] == rules.UNKNOWN and rules.outcome(allow, facts)[0] == rules.UNKNOWN
+    docker = actions.action("docker://alpine:3.20")
+    assert rules.outcome(pin, docker)[0] == rules.UNKNOWN and rules.outcome(allow, docker)[0] == rules.UNKNOWN
+    local = actions.action("./.github/actions/setup")
+    assert rules.outcome(pin, local)[0] == rules.CLEAR and rules.outcome(allow, local) == (
+        rules.CLEAR, "./.github/actions/setup is a local action in this repository, which the allowlist allows")
 
 
 def test_terraform_providers_are_read_with_their_versions_and_checked_against_rules_only():

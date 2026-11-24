@@ -16,6 +16,7 @@ class Siblings(dict):
         super().__init__(texts or {})
         self.reader = reader
         self.resolve = resolve
+        self.unread: dict[str, str] = {}
 
 
 def clean(text: str) -> str:

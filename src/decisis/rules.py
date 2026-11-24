@@ -217,12 +217,26 @@ def _allowlist(value) -> tuple:
     return tuple(_allowed_spec(spec) for spec in value)
 
 
+def unnamed_use(facts: dict) -> str | None:
+    if (facts.get("ecosystem") or "").lower() != PINNED.lower() or facts.get("version"):
+        return None
+    name = facts.get("name") or ""
+    return "local" if name.startswith("./") else "docker" if name.startswith("docker://") else "unknown"
+
+
 def _package_allowed(value: tuple, facts: dict) -> tuple[str, str]:
     ecosystem = facts.get("ecosystem") or ""
     shown = f"{ecosystem} {facts.get('name')} {facts.get('version')}"
     named = [spec for spec in value if spec["ecosystem"].lower() == ecosystem.lower()]
     if not named:
         return CLEAR, f"the allowlist names no {ecosystem or 'package without an ecosystem'} packages"
+    use = unnamed_use(facts)
+    if use == "local":
+        return CLEAR, f"{facts.get('name')} is a local action in this repository, which the allowlist allows"
+    if use == "docker":
+        return UNKNOWN, f"{facts.get('name')} is a Docker image, not an action the allowlist can name; it cannot be judged"
+    if use == "unknown":
+        return UNKNOWN, f"uses {facts.get('name')!r} names no action, so it cannot be shown to be on the allowlist"
     if any(semver.same_package(spec["ecosystem"], spec["name"], facts) for spec in named):
         return CLEAR, f"{shown} is on the allowlist"
     return MATCH, f"{shown} is not on the allowlist of {ecosystem} packages ({', '.join(spec['name'] for spec in named)})"
@@ -238,6 +252,13 @@ def _pinned(value: tuple, facts: dict) -> tuple[str, str]:
     ecosystem, name, version = facts.get("ecosystem") or "", facts.get("name"), facts.get("version") or ""
     if ecosystem.lower() != PINNED.lower():
         return CLEAR, f"pinned_to_commit covers {PINNED} only, not {ecosystem or 'a package without an ecosystem'}"
+    use = unnamed_use(facts)
+    if use == "local":
+        return CLEAR, f"{name} is a local action, read at the same commit as the workflow"
+    if use == "docker":
+        return UNKNOWN, f"{name} is a Docker image, not pinned to a commit; whether it is pinned to a digest is not checked"
+    if use == "unknown":
+        return UNKNOWN, f"uses {name!r} names no action, so it cannot be shown to be pinned to a commit"
     if COMMIT.fullmatch(version):
         return CLEAR, f"{name} is pinned to commit {version}"
     return MATCH, f"{name} is pinned to {version!r}, not to a full 40-character commit SHA"

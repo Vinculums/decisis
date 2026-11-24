@@ -79,9 +79,11 @@ def query_id(q: dict) -> str:
     return pid if "version" in q else pid.removesuffix("@")
 
 
-def osv_query(props: dict) -> dict:
-    q = {"package": {"ecosystem": props["ecosystem"], "name": props["name"]}}
-    return q if props["ecosystem"] in NAME_ONLY else {**q, "version": props["version"]}
+def osv_queries(props: dict) -> list[dict]:
+    if props["ecosystem"] not in NAME_ONLY:
+        return [{"package": {"ecosystem": props["ecosystem"], "name": props["name"]}, "version": props["version"]}]
+    names = dict.fromkeys([props["name"], *(props.get("spellings") or [])])
+    return [{"package": {"ecosystem": props["ecosystem"], "name": name}} for name in names]
 
 
 def queryable(node: dict) -> bool:
@@ -93,13 +95,13 @@ def fetch_advisories(packages: list[dict], opener=urllib.request.urlopen, cache:
                      fetched_at: str | None = None) -> tuple[list[dict], list[dict]]:
     cache = cache if cache is not None else {}
     pkgs = [p for p in packages if queryable(p)]
-    hits: dict[str, list[str]] = {}
-    for i in range(0, len(pkgs), BATCH):
-        chunk = pkgs[i:i + BATCH]
-        queries = [osv_query(p["props"]) for p in chunk]
-        reply = _post(OSV_BATCH, {"queries": queries}, opener)
-        for p, r in zip(chunk, reply.get("results", [])):
-            hits[p["id"]] = [v["id"] for v in (r.get("vulns") or [])]
+    hits: dict[str, list[str]] = {p["id"]: [] for p in pkgs}
+    asks = [(p["id"], q) for p in pkgs for q in osv_queries(p["props"])]
+    for i in range(0, len(asks), BATCH):
+        chunk = asks[i:i + BATCH]
+        reply = _post(OSV_BATCH, {"queries": [q for _, q in chunk]}, opener)
+        for (pid, _), r in zip(chunk, reply.get("results", [])):
+            hits[pid] += [v["id"] for v in (r.get("vulns") or []) if v["id"] not in hits[pid]]
     fetched = fetched_at or now()
     nodes = []
     vids = sorted({v for vs in hits.values() for v in vs})

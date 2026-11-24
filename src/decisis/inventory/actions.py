@@ -13,7 +13,7 @@ SOURCE = "github-actions-workflow"
 ACTION_FILES = ("action.yml", "action.yaml")
 SUFFIXES = (".yml", ".yaml")
 MAX_FILES = 256
-USES = re.compile(r"([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)((?:/[^@\s]+)?)@(\S+)")
+USES = re.compile(r"([A-Za-z0-9][A-Za-z0-9-]*)/(?!\.\.?(?:[/@]))([A-Za-z0-9_.-]+)((?:/[^@\s]+)?)@(\S+)")
 JOBS = re.compile(r"^jobs\s*:", re.M)
 ON = re.compile(r"""^(on|"on"|'on')\s*:""", re.M)
 RUNS = re.compile(r"^runs\s*:", re.M)
@@ -44,24 +44,24 @@ def sibling_names(read, resolve=None, listing=None, filename: str = "") -> tuple
     return names
 
 
-def _unknown(value: str, reason: str) -> dict:
-    return {"id": f"pkg:unknown/{value}@", "ecosystem": "", "name": value, "version": "", "purl": "", "unresolved": reason}
+def _unknown(value: str, reason: str, ecosystem: str = "") -> dict:
+    return {"id": f"pkg:unknown/{value}@", "ecosystem": ecosystem, "name": value, "version": "", "purl": "", "unresolved": reason}
 
 
 def action(value: str) -> dict:
     value = value.strip()
     if "${{" in value:
-        return _unknown(value, EXPRESSION)
+        return _unknown(value, EXPRESSION, ECOSYSTEM)
     if value.startswith("docker://"):
-        return _unknown(value, DOCKER)
-    if value.startswith("./"):
-        return _unknown(value, LOCAL)
+        return _unknown(value, DOCKER, ECOSYSTEM)
+    if value.startswith("./") and "/../" not in f"{value}/":
+        return _unknown(value, LOCAL, ECOSYSTEM)
     m = USES.fullmatch(value)
-    if m is None:
-        return _unknown(value, f"{value!r} is not owner/repo@ref, owner/repo/path@ref, ./path or docker://image")
-    name, ref = f"{m[1]}/{m[2]}", m[4]
+    if m is None or any(part in (".", "..") for part in m[3].split("/")):
+        return _unknown(value, f"{value!r} is not owner/repo@ref, owner/repo/path@ref, ./path or docker://image", ECOSYSTEM)
+    name, ref = f"{m[1]}/{m[2]}".lower(), m[4]
     return {"id": package_id(ECOSYSTEM, name, ref), "ecosystem": ECOSYSTEM, "name": name, "version": ref,
-            "purl": make_purl("githubactions", name, ref), "unresolved": ""}
+            "purl": make_purl("githubactions", name, ref), "unresolved": "", "spelling": f"{m[1]}/{m[2]}"}
 
 
 def _steps(steps, where: str) -> list[tuple[str, object]]:
@@ -105,7 +105,16 @@ def _file(inv: Inventory, name: str, text: str) -> None:
     for where, value in found:
         pkg = action(value) if isinstance(value, str) else _unknown(f"{name}#{where}", f"{name} {where} uses is not a string")
         inv.add(pkg["id"], pkg, f"{inv.repo}:{name}#{where}")
+        if pkg.get("spelling"):
+            spellings = inv.nodes[pkg["id"]]["props"].setdefault("spellings", [])
+            spellings += [pkg["spelling"]] if pkg["spelling"] not in spellings else []
         inv.depends(None, pkg["id"], f"{name} {where} uses {value}")
+
+
+def unread(siblings: dict[str, str] | None, filename: str) -> dict[str, str]:
+    if filename in ACTION_FILES:
+        return {}
+    return {name: reason for name, reason in sorted((getattr(siblings, "unread", None) or {}).items()) if name.endswith(SUFFIXES)}
 
 
 def files(text: str, filename: str, siblings: dict[str, str] | None) -> dict[str, str]:
@@ -123,4 +132,6 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
     inv = Inventory(repo, SOURCE, text_digest(*(f"{name}\n{body}" for name, body in sorted(found.items()))))
     for name, body in sorted(found.items()):
         _file(inv, name, body)
+    for name, reason in unread(siblings, filename).items():
+        _unread(inv, name, f"{reason}; its uses were not read")
     return inv.result()
