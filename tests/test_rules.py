@@ -368,3 +368,12 @@ def test_a_finding_says_where_a_derived_severity_came_from():
     ghsa = [f for f in rep["findings"] if f["advisory"].startswith("adv:GHSA-")]
     assert rust and all(f["severity"] != "UNKNOWN" and f["severity_source"].startswith("GHSA alias GHSA-") for f in rust)
     assert ghsa and all("severity_source" not in f for f in ghsa)
+
+
+def test_long_names_that_share_a_start_keep_their_own_record_ids():
+    from decisis.commit import record_id
+    core = record_id("Shop", "maven-org.apache.logging.log4j:log4j-core", "shipped", "denied-package")
+    api = record_id("Shop", "maven-org.apache.logging.log4j:log4j-api", "shipped", "denied-package")
+    assert core != api
+    assert core == record_id("Shop", "maven-org.apache.logging.log4j:log4j-core", "shipped", "denied-package")
+    assert record_id("Demo", "lodash", "shipped", "GHSA-r5fr-rjxr-66jc") == "record:demo-lodash-shipped-ghsa-r5fr-rjxr-66jc"

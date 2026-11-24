@@ -19,8 +19,11 @@ def _slug(text: str) -> str:
 
 def record_id(repo: str, name: str, scope: str, advisory: str) -> str:
     adv = _slug(advisory)
-    room = SLUG_MAX - len(adv) - len(scope) - 2
-    return f"record:{_slug(f'{repo}-{name}')[:max(room, 8)].strip('-')}-{scope}-{adv}"
+    room = max(SLUG_MAX - len(adv) - len(scope) - 2, 16)
+    head = _slug(f"{repo}-{name}")
+    if len(head) > room:
+        head = f"{head[:room - 8].strip('-')}-{hashlib.sha256(f'{repo}-{name}'.encode()).hexdigest()[:7]}"
+    return f"record:{head}-{scope}-{adv}"
 
 
 def _package_name(purl: str) -> str:
