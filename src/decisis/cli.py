@@ -3,12 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
 from . import audit
 from . import checker
 from . import compare
+from . import cypher
 from . import demo
 from . import external
 from . import github as gh
@@ -122,9 +124,14 @@ def main(argv: list[str] | None = None) -> int:
     gc.add_argument("--root", type=Path, help="the directory that holds the task directories (default: /dev/shm, or the system temporary directory)")
     gc.add_argument("--grace", type=bounded(0, 86400), default=sb.GRACE_SECONDS, metavar="SECONDS",
                     help=f"leave directories younger than this (default {sb.GRACE_SECONDS})")
-    for s in (p, im, au, pr):
+    qy = sub.add_parser("query", help="run one read-only Cypher statement on a throwaway Relate graph of a snapshot and print the rows as JSON")
+    qy.add_argument("snapshot")
+    qy.add_argument("cypher", help="one statement that starts with MATCH, OPTIONAL MATCH, WITH, UNWIND, RETURN or CALL; writes are refused")
+    qy.add_argument("--param", action="append", default=[], type=param, metavar="KEY=VALUE",
+                    help="a value for $KEY; VALUE is read as JSON when it parses (12, true, [1, 2]), else as text")
+    for s in (p, im, au, pr, qy):
         limit_flags(s)
-    sv = sub.add_parser("serve", help="serve impact, paths and audit to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
+    sv = sub.add_parser("serve", help="serve impact, paths, audit and query to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
     sv.add_argument("--mcp", action="store_true", required=True, help="speak MCP over stdin and stdout")
     sv.add_argument("--snapshot", type=Path, required=True, help="the JSON snapshot every tool call reads")
     sv.add_argument("--osv-cache", type=Path, metavar="FILE", help="audit reads OSV advisories from this file and never from the network")
@@ -135,8 +142,30 @@ def main(argv: list[str] | None = None) -> int:
         return run(a)
     except ValueError as e:
         ap.error(str(e))
-    except (external.NetworkRefused, external.NetworkFailed, gh.GitHubFailed, sb.LimitExceeded) as e:
+    except (external.NetworkRefused, external.NetworkFailed, gh.GitHubFailed, sb.LimitExceeded, sb.relate.Error) as e:
         ap.exit(1, f"{ap.prog}: error: {e}\n")
+
+
+PARAM_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
+
+
+def param(text: str) -> tuple[str, object]:
+    key, sep, raw = text.partition("=")
+    if not sep or not PARAM_KEY.fullmatch(key):
+        raise argparse.ArgumentTypeError(f"{text!r} is not KEY=VALUE with a parameter name for KEY")
+    try:
+        return key, json.loads(raw)
+    except ValueError:
+        return key, raw
+
+
+def params_of(pairs: list[tuple[str, object]]) -> dict:
+    out: dict = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(f"--param {key} is given twice")
+        out[key] = value
+    return out
 
 
 def serve(a: argparse.Namespace) -> int:
@@ -192,6 +221,11 @@ def run(a: argparse.Namespace) -> int:
         receipt = wb.commit(plan, a.approve, client)
         print(json.dumps(receipt, ensure_ascii=False, indent=1))
         return 0 if receipt["verified"] else 1
+    if a.cmd == "query":
+        report = cypher.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.cypher, params_of(a.param), limits=limits(a))
+        json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
+        sys.stdout.write("\n")
+        return 0
     if a.cmd == "impact":
         report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo, limits=limits(a))
         if a.format == "text":

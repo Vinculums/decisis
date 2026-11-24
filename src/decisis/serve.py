@@ -1,10 +1,10 @@
-"""A read-only MCP server over stdio: impact, paths and audit on one snapshot.
+"""A read-only MCP server over stdio: impact, paths, audit and query on one snapshot.
 
 Each tool call loads the snapshot into its own sandbox and deletes it before the reply. The sandboxes live
 in one private directory that the server removes when stdin closes or on SIGTERM or SIGINT, even while a call runs,
 and that records its owner so that decisis gc removes it after a SIGKILL. No tool writes,
-proposes or commits. File reads are limited to the snapshot, the OSV cache given at start, and lockfiles
-under the root given at start. Audit asks api.osv.dev only when the server was started with --allow-network.
+proposes or commits; query refuses write clauses before it runs and runs on a read-only connection. File reads
+are limited to the snapshot, the OSV cache given at start, and lockfiles under the root given at start. Audit asks api.osv.dev only when the server was started with --allow-network.
 """
 from __future__ import annotations
 
@@ -21,16 +21,20 @@ from mcp import types
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
-from . import audit, external, impact, inventory
+from . import audit, compact, cypher, external, impact, inventory
 from . import checkout as co
 from .cli import MAX_LIMIT
 from .queries import load as query
-from .sandbox import SERVE_PREFIX, Subgraph, default_root, owned_dir, sandbox
+from .sandbox import SERVE_PREFIX, NotReadOnly, Subgraph, default_root, owned_dir, sandbox
 
 MAX_DEPTH = 16
 MAX_TEXT = 512
 MAX_LOCKFILE_BYTES = 64 * 1024 * 1024
 TEXT = {"type": "string", "minLength": 1, "maxLength": MAX_TEXT}
+MAX_PARAMS = 32
+DETAIL = {"type": "string", "enum": list(compact.DETAILS), "default": "summary",
+          "description": f"summary (the default): counts, ids, titles and the first {compact.FIRST} items of each list; "
+                         "full: the whole report"}
 
 SCHEMAS = {
     "impact": {
@@ -41,6 +45,7 @@ SCHEMAS = {
             "hops": {"type": "integer", "minimum": 0, "maximum": impact.MAX_HOPS, "default": 3,
                      "description": f"how far from a matching concept to look (0 to {impact.MAX_HOPS})"},
             "repo": {**TEXT, "description": "skip code_refs that name another repository, for example Demo"},
+            "detail": DETAIL,
         },
         "required": ["code_paths"],
         "additionalProperties": False,
@@ -54,6 +59,7 @@ SCHEMAS = {
                      "description": f"longest path to look for (1 to {impact.MAX_HOPS})"},
             "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIMIT, "default": 10,
                       "description": f"most paths to return (1 to {MAX_LIMIT})"},
+            "detail": DETAIL,
         },
         "required": ["source", "target"],
         "additionalProperties": False,
@@ -65,8 +71,21 @@ SCHEMAS = {
             "repo": {**TEXT, "description": "repository name as it appears in Vinc code_ref, for example Vinc"},
             "depth": {"type": "integer", "minimum": 1, "maximum": MAX_DEPTH, "default": 8,
                       "description": f"longest dependency path to follow (1 to {MAX_DEPTH})"},
+            "detail": DETAIL,
         },
         "required": ["lockfile", "repo"],
+        "additionalProperties": False,
+    },
+    "query": {
+        "type": "object",
+        "properties": {
+            "cypher": {"type": "string", "minLength": 1, "maxLength": cypher.MAX_CYPHER,
+                       "description": "one read-only Cypher statement; refer to values as $name and pass them in params"},
+            "params": {"type": "object", "maxProperties": MAX_PARAMS, "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"},
+                       "description": "values for the $name parameters in cypher"},
+            "detail": DETAIL,
+        },
+        "required": ["cypher"],
         "additionalProperties": False,
     },
 }
@@ -78,9 +97,16 @@ DESCRIPTIONS = {
     "audit": "Join the snapshot, a lockfile or SBOM and OSV advisories, and report the advisories the repository reaches "
              "and the decisions they break. Reads advisories from the server's OSV cache, or from api.osv.dev only "
              "when the server was started with --allow-network.",
+    "query": "Run one read-only Cypher statement on a fresh sandbox of the snapshot and return its rows. Use it for a question "
+             "the fixed tools do not answer: impact for the decisions on code paths, paths between two ids, audit for a "
+             "lockfile. CREATE, MERGE, SET, DELETE, REMOVE, LOAD CSV, admin clauses and procedures other than the db.labels "
+             f"family are refused before the query runs. Results stop at {cypher.MAX_ROWS} rows and {cypher.MAX_BYTES} bytes "
+             "with a note when cut, and a query that runs past the server's time limit is stopped.",
 }
 
 INSTRUCTIONS = ("decisis answers read-only questions about one Vinc snapshot in a throwaway Relate graph. "
+                "Ask impact, paths and audit first; use query with read-only Cypher for a question they do not answer. "
+                "Each tool returns a summary unless called with detail \"full\". "
                 "It never writes to Vinc: to record findings, run decisis propose and show the person the write set.")
 
 
@@ -95,12 +121,23 @@ class Tools:
     osv_cache: dict | None = None
     allow_network: bool = False
     scratch: Path | None = None
+    schema: str = ""
+
+    def __post_init__(self):
+        if not self.schema:
+            object.__setattr__(self, "schema", cypher.describe(self.graph))
 
     def call(self, name: str, arguments: dict | None) -> dict:
         if name not in SCHEMAS:
             raise Refused(f"{name!r} is not a decisis tool; this server is read only and serves {', '.join(SCHEMAS)}")
         args = validated(name, arguments)
-        return getattr(self, name)(args)
+        return compact.shape(name, getattr(self, name)(args), args.get("detail", "summary"))
+
+    def query(self, args: dict) -> dict:
+        try:
+            return cypher.run(self.graph, args["cypher"], args.get("params") or {}, root=self.scratch)
+        except NotReadOnly as e:
+            raise Refused(f"query: {e}") from None
 
     def impact(self, args: dict) -> dict:
         repo = args.get("repo")
@@ -180,10 +217,14 @@ def read_under(root: Path, raw: str) -> str:
 
 
 def tool_list(tools: Tools) -> list[types.Tool]:
-    return [types.Tool(name=name, description=DESCRIPTIONS[name], input_schema=schema,
+    return [types.Tool(name=name, description=description(tools, name), input_schema=schema,
                        annotations=types.ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True,
                                                          open_world_hint=name == "audit" and tools.allow_network))
             for name, schema in SCHEMAS.items()]
+
+
+def description(tools: Tools, name: str) -> str:
+    return DESCRIPTIONS[name] + ("\n\n" + tools.schema if name == "query" else "")
 
 
 def error(message: str) -> types.CallToolResult:

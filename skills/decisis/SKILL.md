@@ -14,6 +14,8 @@ back to Vinc.
 - "Which advisories does this repository reach, and which of our decisions do they break?" (`audit`)
 - "This code path changes; which decisions and records govern it?" (`impact`)
 - "How are these two nodes connected?" (`paths`)
+- A question about the snapshot the three above do not answer, such as "which decisions have no `ABOUT`
+  edge?" or "how many records does each concept have?" (`query`, read-only Cypher)
 
 Do not use it to edit the graph by hand. It writes only through `commit`, and only with the digest
 a person approved.
@@ -34,7 +36,7 @@ an unattended demo. The run writes `demo/transcript.json`, `demo/expected_findin
 
 ## As an MCP server
 
-With the `mcp` extra, the same `impact`, `paths` and `audit` are MCP tools over stdio, on one snapshot
+With the `mcp` extra, the same `impact`, `paths`, `audit` and `query` are MCP tools over stdio, on one snapshot
 fixed when the server starts. For Claude Code:
 
 ```
@@ -60,6 +62,31 @@ The tools are read only: there is no `propose` or `commit` tool, so the write pa
 command the person sees. `audit` takes a lockfile path under the server's `--root`; it uses the network
 only when the server was started with `--allow-network` and has no `--osv-cache`. A refused input comes
 back as an error result that names the argument; fix the argument rather than retrying the same call.
+
+Each tool returns a summary by default: counts, ids, titles and the first 10 items of each list, with a
+note. Call it again with `"detail": "full"` only when you need every item or field, such as a finding's
+policies or an edge path's evidence.
+
+### `query` or a fixed tool
+
+Use `impact`, `paths` and `audit` for their questions: they follow only the edges that carry governance,
+judge each decision's rule, and return the evidence on each edge. A Cypher query that looks similar can
+miss a direction or an edge type they handle. Use `query` when no fixed tool answers the question.
+
+- Read the schema in the `query` tool's description first: labels are node kinds with the first letter
+  in upper case (`:Decision`, `:Concept`), edge types are as in the snapshot (`:ABOUT`), and every node has
+  `id`, `title` and `domain`.
+- Write one read statement that starts with `MATCH`, `OPTIONAL MATCH`, `WITH`, `UNWIND`, `RETURN` or `CALL`.
+  Pass values in `params` and refer to them as `$name`. Return ids and properties, not whole nodes.
+- Writes (`CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`), `LOAD CSV`, admin clauses, procedures other than
+  `db.labels`, `db.relationshipTypes`, `db.propertyKeys` and `db.schema.*`, and `CALL { }` subqueries are
+  refused before the query runs. Use `COLLECT { }`, `COUNT { }`, `EXISTS { }` or `UNION` instead of a
+  subquery, and put a label or key named like a clause in backticks.
+- Results stop at 500 rows and 1 MiB with a `cut` note; add `LIMIT` and `SKIP` rather than asking again
+  for everything. A query past the time limit is stopped; narrow the pattern or lower the hops.
+
+On the command line the same query is
+`decisis query snapshot.json "MATCH (d:Decision) RETURN d.id AS id" --param KEY=VALUE`.
 
 ## The procedure on real data
 
