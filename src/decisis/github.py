@@ -1,19 +1,20 @@
 """Read decisions from a repository's merged pull requests through the GitHub REST API.
 
-`read_pulls`, bound to one repository and its options with `functools.partial`, is an `init` reader: it
-takes a `Tree` and returns `(nodes, edges)`. It sends only GET requests, only to api.github.com, and sends
+`PullReader` binds `read_pulls` to one repository and its options and is an `init` reader: it takes a `Tree`
+and returns `(nodes, edges)`. Its repr leaves out the token. It sends only GET requests, only to api.github.com, and sends
 the token only in the Authorization header. A rate limit stops the read; what was read before it is kept
 and the stop is listed in `meta.problems`. docs/data-model.md lists the fields each pull request gives.
 """
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Callable, Iterator
 
@@ -95,7 +96,7 @@ def default_opener() -> Callable:
 
 @dataclass
 class Client:
-    token: str | None = None
+    token: str | None = field(default=None, repr=False)
     opener: Callable | None = None
 
     def redact(self, text: str) -> str:
@@ -125,14 +126,16 @@ class Client:
             raise self.http_error(url, e) from None
         except GitHubFailed as e:
             raise self.fail(str(e)) from None
-        except (OSError, ValueError) as e:
-            raise self.fail(f"could not reach GitHub at {url} ({getattr(e, 'reason', None) or e})") from None
+        except (OSError, ValueError, http.client.HTTPException) as e:
+            raise self.fail(f"could not reach GitHub at {url} ({getattr(e, 'reason', None) or str(e) or type(e).__name__})") from None
         if len(data) > MAX_BYTES:
             raise self.fail(f"GitHub's answer to {url} is over {MAX_BYTES} bytes; it was not read")
         try:
             return json.loads(data), next_page(link)
         except (ValueError, UnicodeDecodeError):
             raise self.fail(f"GitHub's answer to {url} is not JSON") from None
+        except RecursionError:
+            raise self.fail(f"GitHub's answer to {url} is JSON nested too deeply to read") from None
 
     def http_error(self, url: str, e: urllib.error.HTTPError) -> Exception:
         headers = e.headers or {}
@@ -213,6 +216,10 @@ class Pulls:
     tree: Tree
 
     @property
+    def key(self) -> str:
+        return repo_key(self.owner, self.name)
+
+    @property
     def where(self) -> str:
         return f"github:{self.owner}/{self.name}"
 
@@ -245,7 +252,11 @@ class Pulls:
         return sorted({f for f in listed if isinstance(f, str)})
 
     def reviews(self, pr: dict) -> list[dict]:
-        return [r for r in self.client.pages(self.url(f"/pulls/{pr['number']}/reviews", per_page=PER_PAGE), MAX_REVIEWS) if r]
+        listed = list(self.client.pages(self.url(f"/pulls/{pr['number']}/reviews", per_page=PER_PAGE), MAX_REVIEWS))
+        if None in listed:
+            self.tree.problem(self.at(pr), f"decisis reads at most {MAX_REVIEWS} reviews of a pull request; reviews past that "
+                                           "are not read, so deciders can miss an approval", NOT_READ)
+        return [r for r in listed if r]
 
     def node(self, pr: dict) -> dict:
         files, reviews = self.files(pr), self.reviews(pr)
@@ -253,6 +264,10 @@ class Pulls:
         refs = []
         for path in files:
             p = code_path(path)
+            if ":" in path:
+                self.tree.problem(self.at(pr), f"its changed file {path!r} has a colon, which a code_ref reads as a repository "
+                                               "prefix or as the end of the path; it is not in code_ref", SKIPPED)
+                continue
             if path.startswith("/") or p is None or ".." in p.split("/"):
                 self.tree.problem(self.at(pr), f"its changed file {path!r} is not a path relative to the repository root", SKIPPED)
                 continue
@@ -269,8 +284,12 @@ class Pulls:
         else:
             self.tree.problem(self.at(pr), "it changes no file GitHub listed", KEPT)
         title = pr.get("title") if isinstance(pr.get("title"), str) and pr["title"].strip() else f"Pull request #{pr['number']}"
-        nid = f"decision:github-{slug(self.owner)}-{slug(self.name)}-pr-{pr['number']}"
+        nid = f"decision:github-{slug(self.owner)}-{slug(self.name)}-{self.key}-pr-{pr['number']}"
         return {"id": nid, "kind": "decision", "title": title, "props": props}
+
+
+def repo_key(owner: str, name: str) -> str:
+    return hashlib.sha256(f"{owner}/{name}".lower().encode("utf-8")).hexdigest()[:8]
 
 
 def digest(pr: dict, files: list[str], reviews: list[dict]) -> str:
@@ -295,4 +314,19 @@ def read_pulls(tree: Tree, repo: str, token: str | None = None, label: str = "de
             nodes.append(pulls.node(pr))
     except RateLimited as e:
         tree.problem(pulls.where, f"{e}; kept the {len(nodes)} pull request(s) read before it", NOT_READ)
+    except RecursionError:
+        raise GitHubFailed(f"GitHub's answers for {pulls.where} hold JSON nested too deeply to read") from None
     return nodes, []
+
+
+@dataclass(frozen=True)
+class PullReader:
+    repo: str
+    token: str | None = field(default=None, repr=False)
+    label: str = "decision"
+    since: date | None = None
+    limit: int = DEFAULT_LIMIT
+    opener: Callable | None = None
+
+    def __call__(self, tree: Tree) -> tuple[list[dict], list[dict]]:
+        return read_pulls(tree, self.repo, self.token, self.label, self.since, self.limit, self.opener)

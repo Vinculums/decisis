@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import argparse
 import email.message
+import http.client
 import io
 import json
 import re
@@ -22,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SHOP = ROOT / "fixtures" / "init" / "shop"
 RECORDING = json.loads((ROOT / "fixtures" / "init" / "github" / "acme-shop.json").read_text(encoding="utf-8"))
 API = "https://api.github.com/repos/acme/shop"
-PR = "decision:github-acme-shop-pr-"
+PR = f"decision:github-acme-shop-{gh.repo_key('acme', 'shop')}-pr-"
 ADR = "decision:shop-docs-adr-"
 TOKEN = "ghp_" + "Z9" * 18
 
@@ -321,3 +323,101 @@ def test_the_docs_name_the_flags_and_fields_and_cite_tests_that_exist():
     part = threat[threat.index("**Outbound requests to GitHub.**"):threat.index("**A read-only MCP server.**")]
     cited = re.findall(r"`(test_[a-z_]+)`", part)
     assert cited and all(callable(globals().get(name)) for name in cited), cited
+
+
+class Cut(Answer):
+    def read(self, *args):
+        raise http.client.IncompleteRead(b'[{"number": 2', 4096)
+
+
+def broken_at_read(req, timeout=None):
+    return Cut(b"", email.message.Message(), req.full_url)
+
+
+def broken_status(req, timeout=None):
+    raise http.client.BadStatusLine("HTTP/9.9 ???")
+
+
+def too_deep(req, timeout=None):
+    return Answer(b"[" * 100000 + b"]" * 100000, email.message.Message(), req.full_url)
+
+
+@pytest.mark.parametrize("opener,said", [
+    (broken_at_read, "IncompleteRead"),
+    (broken_status, "HTTP/9.9"),
+    (too_deep, "nested too deeply"),
+])
+def test_a_broken_answer_fails_the_command_with_a_message_and_no_traceback(no_network, tmp_path, capsys, monkeypatch, opener, said):
+    monkeypatch.setenv("GITHUB_TOKEN", TOKEN)
+    out = tmp_path / "snapshot.json"
+    code, printed, err = run_cli(capsys, monkeypatch, opener, "--github", "acme/shop", "--out", str(out))
+    assert code == 1 and err.startswith("decisis: error: ") and said in err
+    assert f"{API}/pulls?" in err and "Traceback" not in printed + err and TOKEN not in printed + err
+    assert not out.exists()
+    with pytest.raises(gh.GitHubFailed):
+        read(opener)
+
+
+def test_json_deep_enough_to_fail_after_it_was_read_still_fails_cleanly(no_network, monkeypatch):
+    def deep(*args):
+        raise RecursionError("maximum recursion depth exceeded")
+    monkeypatch.setattr(gh, "digest", deep)
+    with pytest.raises(gh.GitHubFailed, match="nested too deeply"):
+        read(Recorded())
+
+
+def test_a_changed_file_with_a_colon_is_skipped_and_never_read_as_another_repository(no_network):
+    files = {"url": f"{API}/pulls/15/files", "status": 200, "headers": {},
+             "body": [{"filename": "src/logging/redact.py"}, {"filename": "C:/win"}, {"filename": "a:b/c.py"},
+                      {"filename": "src/x:y.py"}]}
+    snap = read(Recorded(files))
+    assert by_id(snap)[f"{PR}15"]["props"]["code_ref"] == ["Shop:src/logging/redact.py"]
+    skipped = [p for p in snap["meta"]["problems"] if p["file"] == "github:acme/shop#15"]
+    assert sorted(p["reason"].split("'")[1] for p in skipped) == ["C:/win", "a:b/c.py", "src/x:y.py"]
+    assert all(p["action"] == "skipped" and "colon" in p["reason"] for p in skipped)
+    for node in snap["nodes"]:
+        for ref in node["props"].get("code_ref", []):
+            assert impact.code_path(ref, "Shop") is not None, ref
+    alone = init.build(SHOP, None, partial(gh.read_pulls, repo="acme/shop", opener=Recorded(files)))
+    assert by_id(alone)[f"{PR}15"]["props"]["code_ref"] == ["src/logging/redact.py"]
+
+
+def test_the_repr_of_the_client_and_the_bound_reader_never_holds_the_token(monkeypatch):
+    monkeypatch.setenv("GITHUB_TOKEN", TOKEN)
+    a = argparse.Namespace(github="acme/shop", label=None, since=None, limit=None, repo_dir=None, adr_dir=None, postmortem_dir=None)
+    [reader] = cli.init_readers(a)
+    assert reader.token == TOKEN
+    client = gh.Client(TOKEN)
+    pulls = gh.Pulls("acme", "shop", client, init.Tree(SHOP))
+    for thing in (client, reader, pulls, gh.PullReader("acme/shop", TOKEN)):
+        assert TOKEN not in repr(thing) and TOKEN not in str(thing), type(thing)
+    assert "acme/shop" in repr(reader)
+
+
+def test_the_bound_reader_reads_as_read_pulls_does(no_network):
+    assert init.build(SHOP, "Shop", gh.PullReader("acme/shop", opener=Recorded())) == read(Recorded())
+
+
+def test_reviews_past_the_cap_are_reported(no_network, monkeypatch):
+    monkeypatch.setattr(gh, "MAX_REVIEWS", 2)
+    snap = read(Recorded())
+    assert {"file": "github:acme/shop#21", "action": "not read",
+            "reason": "decisis reads at most 2 reviews of a pull request; reviews past that are not read, "
+                      "so deciders can miss an approval"} in snap["meta"]["problems"]
+    assert [p["file"] for p in snap["meta"]["problems"]] == ["github:acme/shop#21"]
+    assert by_id(snap)[f"{PR}21"]["props"]["deciders"] == ["@ana"]
+
+
+def one_pull(req, timeout=None):
+    path = urllib.parse.urlsplit(req.full_url).path
+    body = RECORDING["exchanges"][0]["body"][:1] if path.endswith("/pulls") else []
+    return Answer(json.dumps(body).encode("utf-8"), email.message.Message(), req.full_url)
+
+
+def test_pull_request_ids_stay_unique_across_repositories_whose_names_slug_alike(no_network):
+    repos = ["a-b/c", "a/b-c", "acme/foo.bar", "acme/foo-bar", "acme/foo_bar", "acme/shop"]
+    ids = [gh.read_pulls(init.Tree(SHOP), repo, opener=one_pull)[0][0]["id"] for repo in repos]
+    assert len(set(ids)) == len(repos), ids
+    assert ids[-1] == f"{PR}21" and re.fullmatch(r"decision:github-acme-shop-[0-9a-f]{8}-pr-21", ids[-1])
+    assert gh.read_pulls(init.Tree(SHOP), "Acme/Shop", opener=one_pull)[0][0]["id"] == ids[-1]
+    assert gh.repo_key("acme", "shop") == "d21b2cdf"

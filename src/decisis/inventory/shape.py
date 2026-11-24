@@ -138,6 +138,11 @@ class Inventory:
         self.key_dev: dict = {}
         self.marks: dict[str, list[bool]] = {}
         self.links: dict[tuple[str, str], tuple[str, bool]] = {}
+        self.notes: list[str] = []
+
+    def note(self, text: str) -> None:
+        if text not in self.notes:
+            self.notes.append(text)
 
     def root(self, key) -> None:
         self.keys[key] = self.repo_id
@@ -198,6 +203,8 @@ class Inventory:
         for pid, node in self.nodes.items():
             if node["kind"] == "Package":
                 node["props"]["dev"] = self._dev(pid, reached, shipped)
+        if self.notes:
+            self.nodes[self.repo_id]["props"]["inventory_notes"] = list(self.notes)
         edges = [{"source": src, "target": dst, "type": "DEPENDS_ON", "evidence": why}
                  for (src, dst), (why, _) in sorted(self.links.items())]
         return list(self.nodes.values()), edges

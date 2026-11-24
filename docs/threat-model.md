@@ -83,11 +83,14 @@ on port 443: a `Link` header, a redirect or a final answer that points anywhere 
 anything is sent there or read from it. `GITHUB_TOKEN` is read from the environment, never from a flag, and
 goes only in the `Authorization` header; a token with a space, a line break or a character outside
 printable ASCII is refused without echoing it, and every error message has the token replaced by `[token]`.
-The token is not written to the snapshot or printed. Answers over 20 MB are refused, and the listing stops at
+The token is not written to the snapshot or printed, and the `repr()` of the client and of the bound reader
+leaves it out. A broken answer ends in the same one-line error and exit code 1 as a network error. Answers over 20 MB are refused, and the listing stops at
 `--limit` (at most 5,000) closed pull requests. (`src/decisis/github.py`;
 `test_it_sends_only_get_requests_to_api_github_com_and_follows_link_headers`,
 `test_a_next_page_or_an_answer_on_another_host_is_refused`, `test_a_redirect_to_another_host_is_not_followed`,
-`test_the_token_goes_only_in_the_authorization_header_and_never_into_an_error`, `test_init_never_prints_the_token`.)
+`test_the_token_goes_only_in_the_authorization_header_and_never_into_an_error`, `test_init_never_prints_the_token`,
+`test_the_repr_of_the_client_and_the_bound_reader_never_holds_the_token`,
+`test_a_broken_answer_fails_the_command_with_a_message_and_no_traceback`.)
 
 **A read-only MCP server.** `decisis serve --mcp` lists only `impact`, `paths` and `audit`, and refuses
 any other tool name and any argument its schema does not list. Bounds are checked before a sandbox is

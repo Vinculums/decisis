@@ -124,13 +124,9 @@ class Tools:
                          filename=name, siblings=siblings)
 
     def siblings(self, raw: str, text: str, name: str) -> dict[str, str]:
-        out = {}
-        for sibling in inventory.READERS[inventory.detect(text, name)].SIBLINGS:
-            try:
-                out[sibling] = read_under(self.root, str(PurePosixPath(raw).parent / sibling))
-            except Refused:
-                continue
-        return out
+        parent = PurePosixPath(raw).parent
+        return inventory.gather(text, name, lambda rel: read_under(self.root, str(parent / rel)),
+                                lambda rel: str(resolve_under(self.root, str(parent / rel))))
 
     def advisories(self):
         if self.osv_cache is not None:
@@ -161,7 +157,7 @@ def inside_repo(raw: str, repo: str | None) -> str:
     return path
 
 
-def read_under(root: Path, raw: str) -> str:
+def resolve_under(root: Path, raw: str) -> Path:
     candidate = Path(raw) if Path(raw).is_absolute() else root / raw
     try:
         resolved = candidate.resolve()
@@ -169,6 +165,11 @@ def read_under(root: Path, raw: str) -> str:
         raise Refused(f"{raw!r} cannot be resolved") from None
     if not resolved.is_relative_to(root):
         raise Refused(f"{raw!r} is outside the server's root {root}")
+    return resolved
+
+
+def read_under(root: Path, raw: str) -> str:
+    resolved = resolve_under(root, raw)
     if not resolved.exists():
         raise Refused(f"{raw!r} does not exist under the server's root")
     if not resolved.is_file():
