@@ -587,7 +587,8 @@ findings. A package that the repository does not reach within `--depth` gives no
 A finding's `path` is the shortest path within `--depth` that fits its scope: for a package that is not
 `dev_only`, the shortest path on which no package is a development dependency, so a shipped package that
 is also reached through a development tool keeps its shipped route. When no path fits, the shortest is
-kept.
+kept. Among paths of the same length, a license or package finding shows the first one a breadth-first
+search reaches, visiting each package's dependencies in id order.
 
 `unresolved_packages` lists each package that was not queried (`package`, `reason`), and
 `inventory_notes` lists sentences on what the inventory does not cover, from the reader (an include not followed,

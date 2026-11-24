@@ -45,13 +45,13 @@ def _facts(box, plan: dict, repo: str, depth: int) -> dict:
     names = sorted({_name(n) for n in plan["nodes"]})
     on_paths = sorted({x for n in plan["nodes"] for path in n["props"]["dependency_paths"] for x in path})
     packages = box.query(query("packages_named"), {"names": names}) + box.query(query("package_records"), {"ids": on_paths})
-    ends = sorted({x for n in plan["nodes"] if subject(n) != "advisory" for x in _ends(n)})
+    steps = sorted({x for n in plan["nodes"] if subject(n) != "advisory" for path in n["props"]["dependency_paths"] for x in path[1:]})
     return {"repo": f"repo:{repo}",
             "advisories": {r["advisory"]: r for r in box.query(query("advisory_records"), {"ids": advisories})},
             "packages": {r["package"]: r for r in packages},
             "paths": {tuple(r["path"]) for r in box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})},
-            "package_paths": {tuple(r["path"]) for r in box.query(query("package_paths", depth=depth), {"repo": f"repo:{repo}", "ids": ends})}
-            if ends else set()}
+            "depth": depth,
+            "package_edges": {(r["source"], r["target"]) for r in box.query(query("dependency_edges"), {"ids": steps})} if steps else set()}
 
 
 def _advisory(p: dict, record: dict | None) -> list[str]:
@@ -96,9 +96,14 @@ def _package_path(path: list[str], p: dict, own: set[str], facts: dict) -> list[
     shown = " -> ".join(path)
     if len(path) < 2 or path[0] != facts["repo"] or path[-1] not in own:
         return [f"a dependency path does not run from {facts['repo']} to this record's package: {shown}"]
-    if tuple(path) not in facts["package_paths"]:
+    if not _walk(path, facts):
         return [f"a dependency path is not in the sandbox graph: {shown}"]
     return _scope(path[1:], p, facts, shown)
+
+
+def _walk(path: list[str], facts: dict) -> bool:
+    steps = list(zip(path, path[1:]))
+    return len(steps) <= facts["depth"] and len(set(steps)) == len(steps) and all(s in facts["package_edges"] for s in steps)
 
 
 def _claimed(kind: str, name: str, version: str, pkg: dict, value: str) -> list[str]:
