@@ -157,13 +157,16 @@ for files under `src/` in a crate without a library, a target a `[[bin]]`, `[[te
 `tests/`, `examples/` or `benches/` or the `main.rs` of its subdirectory. The crate's modules are the tree
 of `mod` declarations followed from that root: `mod x;` names `x.rs` or `x/mod.rs` in the module's
 directory, a `#[path = "..."]` or `#[cfg_attr(..., path = "...")]` attribute names a file read from the
-declaring file's directory (or the inline module's directory), and `mod x { ... }` is an inline module. The
+declaring file's directory (or the inline module's directory), and `mod x { ... }` is an inline module.
+When `cfg_attr` paths name more than one existing file, the path is followed through each, and each file
+it reaches is matched against the `to` globs. `mod` declarations and items inside an item-level macro
+call (`cfg_if! { ... }`, `wrapper! { ... }`) are read; the body of a `macro_rules!` definition is not. The
 importing file's own module is found in that tree, by its place under the root or else by walking the
 tree.
 
 A path that starts with `crate::` is read from the crate root, `self::` from the current module, and each
 `super::` one module up. Any other first name is looked up in the current module, then taken as a crate of
-the repository, then as external. Each name of the path is looked up in turn in the module reached so far,
+the repository, then as external; `std`, `core` and `alloc` are always external. Each name of the path is looked up in turn in the module reached so far,
 as a child module, as an item the module declares (`struct`, `enum`, `trait`, `type`, `fn`, `const`,
 `static`, `union` or `macro_rules!`), as a name it binds with `use`, `pub use` or `extern crate` (followed to
 what it binds, also through a `use` inside a function), or as a name a `use ...::*` in it brings in. A
@@ -201,8 +204,8 @@ like any other path outside the module, so no `to` glob can name them. In Rust i
 `self::` or `super::` path or a `mod` declaration in a file with no `Cargo.toml` above it or whose nearest
 `Cargo.toml` has no `[package]` or cannot be read, a path with a name found no way above, a crate with no
 root file the scanner finds, a `super::` above the crate root or from a file the tree does not reach, a
-`mod x;` with no file, one whose file leads outside the repository, one whose `cfg_attr` paths name more
-than one existing file (when a path goes through it), a repository crate with no library root, and a
+`mod x;` with no file, one whose file leads outside the repository, a path that one of several `cfg_attr`
+files of a module cannot resolve, a repository crate with no library root, and a
 `use` declaration that cannot be read (such as `use $x;` in a macro). No code of the repository is run.
 
 `package_denied` compares the ecosystem without regard to case and the name as OSV does (PyPI names are

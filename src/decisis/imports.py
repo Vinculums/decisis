@@ -802,6 +802,7 @@ MAX_HOPS = 64
 MAX_MODULES = 5000
 ITEMS = ("fn", "struct", "enum", "trait", "type", "const", "static", "union")
 NOT_CONST = ("fn", "unsafe", "async", "extern", "_")
+EXTERN_PRELUDE = ("std", "core", "alloc")
 
 
 def is_punct(tok: Token | None, value: str) -> bool:
@@ -1205,6 +1206,8 @@ def rust_parse(toks: list[Token]) -> dict:
                 if pending is not None:
                     stack.append(("mod", pending, depth))
                     pending = None
+                elif is_punct(at(toks, i - 1), "!") or (stack and stack[-1][0] == "macro"):
+                    stack.append(("macro", 0, depth))
                 else:
                     frame += 1
                     stack.append(("other", frame, depth))
@@ -1214,7 +1217,7 @@ def rust_parse(toks: list[Token]) -> dict:
                 depth -= 1
             inline = tuple(e[1] for e in stack if e[0] == "mod")
             last = max((n for n, e in enumerate(stack) if e[0] == "mod"), default=-1)
-            frames = tuple(e[1] for e in stack[last + 1:])
+            frames = tuple(e[1] for e in stack[last + 1:] if e[0] == "other")
             if inline not in scopes:
                 scopes[inline] = new_scope()
             scope = scopes[inline]
@@ -1532,9 +1535,7 @@ def child(repo: Repo, m: Mod, name: str) -> tuple[str, object]:
     files = mod_files(repo, m, decl)
     if isinstance(files, str):
         return "unresolved", files
-    if len(files) > 1:
-        return "unresolved", f"mod {name} has more than one file ({', '.join(f.file for f in files)}), chosen by cfg"
-    return "mod", files[0]
+    return ("mod", files[0]) if len(files) == 1 else ("multi", files)
 
 
 def visible(refs: list[RustRef], frames: tuple[int, ...]) -> list[RustRef]:
@@ -1549,7 +1550,7 @@ def lookup(repo: Repo, crate: dict, m: Mod, name: str, frames: tuple[int, ...], 
         return "none", None
     repo.rust_explored.add(key)
     found = find(repo, crate, m, name, frames, seen)
-    if found[0] in ("mod", "item", "external"):
+    if found[0] in ("mod", "item", "external", "multi"):
         repo.rust_found[key] = found
     return found
 
@@ -1579,9 +1580,20 @@ def find(repo: Repo, crate: dict, m: Mod, name: str, frames: tuple[int, ...], se
     return outcome
 
 
+def merged(results: list[tuple[str, object]]) -> tuple[str, object]:
+    found = [value for kind, value in results if kind in ("mod", "item")]
+    bad = next((r for r in results if r[0] == "unresolved"), None)
+    if bad is not None or not found:
+        return bad or results[0]
+    kind = next(k for k, _ in results if k in ("mod", "item"))
+    return kind, replace(found[0], also=found[0].also + tuple(p for f in found[1:] for p in (f.file, *f.also) if p != found[0].file))
+
+
 def walk(repo: Repo, crate: dict, m: Mod, rest: tuple[str, ...], seen: frozenset) -> tuple[str, object]:
-    for name in rest:
+    for k, name in enumerate(rest):
         kind, value = lookup(repo, crate, m, name, (), seen)
+        if kind == "multi":
+            return merged([walk(repo, crate, alt, rest[k + 1:], seen) for alt in value])
         if kind == "mod":
             m = value
         elif kind == "none":
@@ -1616,8 +1628,10 @@ def resolve(repo: Repo, crate: dict, m: Mod, path: tuple[str, ...], frames: tupl
     kind, value = lookup(repo, crate, m, first, frames, seen)
     if kind in ("none", "external") and first in crate["crates"]:
         return other_crate(repo, crate, first, path[1:], seen)
-    if kind == "none":
+    if kind == "none" or (kind == "unresolved" and first in EXTERN_PRELUDE):
         return "external", None
+    if kind == "multi":
+        return merged([walk(repo, crate, alt, path[1:], seen) for alt in value])
     if kind == "mod":
         return walk(repo, crate, value, path[1:], seen)
     return kind, value

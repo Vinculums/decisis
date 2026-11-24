@@ -614,7 +614,8 @@ def test_rust_tests_and_binaries_are_crate_roots_of_their_own(tmp_path):
     ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n"}, "src/ui.rs", "use crate::Error;\n", "Error is no module, item or use in src/lib.rs"),
     ({**CRATE}, "src/ui.rs", "use crate::db::Gone;\n", "Gone is no module, item or use in src/db.rs"),
     ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": '#[cfg_attr(unix, path = "a.rs")]\n#[cfg_attr(windows, path = "b.rs")]\nmod sys;\nmod ui;\n',
-      "src/a.rs": "pub struct X;\n", "src/b.rs": "pub struct X;\n"}, "src/ui.rs", "use crate::sys::X;\n", "has more than one file"),
+      "src/a.rs": "pub struct X;\n", "src/b.rs": "pub struct Y;\n"}, "src/ui.rs", "use crate::sys::X;\n", "X is no module, item or use in src/b.rs"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n"}, "src/ui.rs", "use crate::gone::*;\nuse serde::Serialize;\n", "gone is no module"),
 ])
 def test_a_rust_path_that_cannot_be_placed_is_unresolved(tmp_path, files, rel, text, why):
     got = judge_import(tmp_path, {**files, rel: text}, rel, {"from": ["**"], "to": ["db/**"]})
@@ -725,3 +726,27 @@ def test_a_macro_use_of_dollar_crate_reads_from_the_crate_root_and_an_empty_grou
     got = judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})
     assert got == [(2, "use crate::db::Pool", "repository", "src/db.rs", "violated"),
                    (4, "use declaration that cannot be read", "unresolved", None, "unresolved")]
+
+
+def test_a_rust_module_with_a_file_per_cfg_is_judged_on_every_file(tmp_path):
+    files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": '#[cfg_attr(unix, path = "a.rs")]\n#[cfg_attr(windows, path = "b.rs")]\nmod sys;\nmod ui;\n',
+             "src/a.rs": "pub struct X;\n", "src/b.rs": "pub struct X;\n", "src/ui.rs": "use crate::sys::X;\nuse crate::sys;\n"}
+    assert judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/b.rs"]}) == [
+        (1, "use crate::sys::X", "repository", "src/a.rs", "violated"), (2, "use crate::sys", "repository", "src/a.rs", "violated")]
+
+
+def test_rust_items_and_modules_inside_an_item_level_macro_are_read(tmp_path):
+    lib = ("cfg_if::cfg_if! {\n    if #[cfg(unix)] {\n        pub mod db;\n        pub use db::Pool;\n    } else {\n        pub mod other;\n    }\n}\nmod ui;\n"
+           "glib::wrapper! {\n    pub struct Widget(Object<ffi::GtkWidget>);\n}\nmacro_rules! m {\n    () => { mod hidden; };\n}\n")
+    files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": lib, "src/db.rs": "pub struct Pool;\n", "src/other.rs": "",
+             "src/ui.rs": "use crate::db::Pool;\nuse crate::Pool as P;\nuse crate::Widget;\nuse std::io;\nuse crate::hidden::H;\n"}
+    assert judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]}) == [
+        (1, "use crate::db::Pool", "repository", "src/db.rs", "violated"), (2, "use crate::Pool", "repository", "src/db.rs", "violated"),
+        (3, "use crate::Widget", "repository", "src/lib.rs", "not_violated"), (4, "use std::io", "external", None, "not_violated"),
+        (5, "use crate::hidden::H", "unresolved", None, "unresolved")]
+
+
+def test_the_extern_prelude_stays_external_beside_a_glob_that_cannot_be_followed(tmp_path):
+    files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n", "src/ui.rs": "use crate::gone::*;\nuse std::io;\nuse core::mem;\n"}
+    assert [(g[1], g[2]) for g in judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/**"]})] == [
+        ("use crate::gone", "unresolved"), ("use std::io", "external"), ("use core::mem", "external")]
