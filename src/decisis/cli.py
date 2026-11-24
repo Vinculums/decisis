@@ -12,6 +12,7 @@ from . import demo
 from . import external
 from . import impact
 from . import init
+from . import inventory
 from . import render
 from . import commit as wb
 from . import checkout as co
@@ -74,9 +75,9 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
     im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     im.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
-    au = sub.add_parser("audit", help="join a Vinc snapshot, an npm lockfile and OSV advisories in a throwaway Relate graph")
+    au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
-    au.add_argument("lockfile")
+    au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, or go.mod (read with the go.sum next to it)")
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"longest dependency chain to follow (1 to {audit.MAX_DEPTH})")
     au.add_argument("--out", help="write the JSON report here; with --format mermaid or html the view still goes to stdout")
@@ -85,11 +86,11 @@ def main(argv: list[str] | None = None) -> int:
     pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
     pr.add_argument("snapshot", help="the snapshot the audit read")
-    pr.add_argument("lockfile", help="the lockfile the audit read")
+    pr.add_argument("lockfile", help="the lockfile or SBOM the audit read (for go.mod, the go.sum next to it is read too)")
     pr.add_argument("--repo", required=True)
     pr.add_argument("--space", required=True)
     pr.add_argument("--out", required=True)
-    pr.add_argument("--lockfile-path", default="package-lock.json", help="the lockfile path inside the repository, for subject_path")
+    pr.add_argument("--lockfile-path", help="the lockfile path inside the repository, for subject_path (default: package-lock.json for an npm lockfile, else the file's name)")
     pr.add_argument("--ref", help="the commit the lockfile was read at, for measured_ref")
     pr.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"the audit's --depth, for the dependency paths (1 to {audit.MAX_DEPTH})")
     pr.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
@@ -121,6 +122,10 @@ def main(argv: list[str] | None = None) -> int:
         ap.exit(1, f"{ap.prog}: error: {e}\n")
 
 
+def subject_file(text: str, path: Path) -> str:
+    return "package-lock.json" if inventory.detect(text, path.name) == "npm" else path.name
+
+
 def run(a: argparse.Namespace) -> int:
     if a.cmd == "gc":
         return gc(a.root or sb.default_root(), a.grace)
@@ -137,13 +142,14 @@ def run(a: argparse.Namespace) -> int:
     if a.cmd == "demo":
         return demo.run(Path(a.out), a.fixtures, approve=a.approve, yes=a.yes)[0]
     if a.cmd == "propose":
+        lock_text, siblings = inventory.load(Path(a.lockfile))
         plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
-                          lockfile_path=a.lockfile_path, ref=a.ref)
+                          lockfile_path=a.lockfile_path or subject_file(lock_text, Path(a.lockfile)), ref=a.ref)
         advisories = external.fetch_advisories
         if a.osv_cache:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
-        plan, checked = checker.rederive(plan, co.load(Path(a.snapshot).read_text(encoding="utf-8")),
-                                         Path(a.lockfile).read_text(encoding="utf-8"), a.repo, advisories, a.depth, limits=limits(a))
+        plan, checked = checker.rederive(plan, co.load(Path(a.snapshot).read_text(encoding="utf-8")), lock_text, a.repo, advisories,
+                                         a.depth, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings)
         Path(a.out).write_text(json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         failed = sum(1 for c in checked if c["problems"])
         print(f"Re-derived {len(checked)} records with {sum(c['checks'] for c in checked)} checks; {failed} failed.\n")
@@ -171,8 +177,9 @@ def run(a: argparse.Namespace) -> int:
         advisories = external.fetch_advisories
         if a.osv_cache:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
-        report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth,
-                           advisories=advisories, limits=limits(a))
+        text, siblings = inventory.load(Path(a.lockfile))
+        report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
+                           advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings)
         text = json.dumps(report, ensure_ascii=False, indent=1)
         if a.format in VIEWS:
             if a.out:
@@ -180,7 +187,8 @@ def run(a: argparse.Namespace) -> int:
             sys.stdout.write(VIEWS[a.format]("audit", report))
         elif a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
-            print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"], "out": a.out}))
+            print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"],
+                              "unresolved_packages": len(report["unresolved_packages"]), "out": a.out}))
         else:
             sys.stdout.write(text + "\n")
         return 0
