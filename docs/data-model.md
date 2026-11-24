@@ -192,16 +192,20 @@ token, at GitHub's lower limit for anonymous requests.
 | `source` | `https://github.com/OWNER/REPO/pull/{n}` |
 | `content_hash` | `sha256:` and the hex digest of the number, title, description, merge time, merge commit, labels, author, files and reviews that were read |
 
-Its id is `decision:github-<owner>-<repo>-pr-<number>`, so it stays the same across runs and never meets an
-ADR's id. No fetch time is stored, so the same answers from GitHub give the same bytes.
+Its id is `decision:github-<owner>-<repo>-<key>-pr-<number>`, where `<key>` is the first 8 hex digits of the
+SHA-256 of `owner/repo` in lower case, so it stays the same across runs, never meets an ADR's id, and differs
+between repositories whose names slug alike (`a-b/c` and `a/b-c`, `foo.bar` and `foo_bar`). No fetch time is stored, so the same answers from GitHub give the same bytes.
 
 The listing follows GitHub's `Link` headers and stops at `--limit` closed pull requests, or at the first one
 last updated before `--since`; a stop at the limit is listed as `not read` on `github:OWNER/REPO`. GitHub
-lists at most 3,000 changed files of a pull request; a pull request at that cap is kept and listed. A rate
+lists at most 3,000 changed files of a pull request; a pull request at that cap is kept and listed. `init`
+reads at most 1,000 reviews of a pull request; one with more is kept and listed as `not read`, since its
+`deciders` can miss an approval. A changed file whose path has a colon (`C:/win`, `a:b/c.py`) is left out of
+`code_ref` and listed as `skipped`, because a `code_ref` reads what comes before a colon as a repository. A rate
 limit (HTTP 429, or 403 with `x-ratelimit-remaining: 0` or `retry-after`) stops the read: the pull requests
 read before it stay in the snapshot, and the stop is listed as `not read` with GitHub's reset time. Any other
-error answer, an answer that is not JSON, and a redirect or `Link` to another host stop the command with exit
-code 1 and write nothing.
+error answer, a broken or cut-off answer, an answer that is not JSON or is nested too deeply to read, and a
+redirect or `Link` to another host stop the command with exit code 1 and write nothing.
 
 ### The front matter subset
 
@@ -247,12 +251,14 @@ returns the same nodes and edges.
 | `uv.lock` | `uv-lockfile` | packages with an `editable`, `virtual`, `directory` or `path` source | `dependencies`, `optional-dependencies`, `dev-dependencies` | reached only through a dependency group |
 | `Cargo.lock` | `cargo-lockfile` | packages without a `source` (the workspace) | `dependencies` (`name`, `name version` or `name version (source)`) | always false; the lockfile does not mark it |
 | `go.mod` with `go.sum` | `go-modules` | the module | every `require`, after `replace`; `// indirect` is kept in the evidence | always false |
+| `gradle.lockfile`, `settings-gradle.lockfile` | `gradle-lockfile` | the build | the repository to every locked `group:artifact:version`, with its configurations in the evidence | every configuration is a test one (`test...`, `...Test...`), compile-only (`compileOnly`, `compileClasspath`) or an annotation processor (`annotationProcessor`, `kapt`, `ksp`) |
+| `pom.xml` | `maven-pom` | the project | the repository to every entry of `<dependencies>` (not profiles or plugins) | scope `test` or `provided` |
 | `poetry.lock` 1.x or 2.x, with `pyproject.toml` when present | `poetry-lockfile` | the project in `pyproject.toml`; without it, packages that nothing in the lock requires | `[package.dependencies]`; from the repository, `tool.poetry` dependencies, dev-dependencies and groups, and `project` dependencies, optional dependencies and `dependency-groups` | `category` other than `main` (1.x), `groups` without `main` (2.1), or reached only through a non-main group in `pyproject.toml`; with none of these, false and noted |
 | `requirements*.txt` | `pip-requirements` | the file and the files it includes with `-r` | the repository to each requirement line; no transitive edges | always false |
 
 Package props:
 
-- `ecosystem` is the OSV ecosystem (`npm`, `PyPI`, `crates.io`, `Go`; from an SBOM purl also `Maven`,
+- `ecosystem` is the OSV ecosystem (`npm`, `PyPI`, `crates.io`, `Go`, `Maven`; from an SBOM purl also
   `NuGet`, `RubyGems`, `Packagist`, `GitHub Actions`, `Debian:<n>` from `distro=debian-<n>`, `Alpine:v<x.y>`
   from `distro=alpine-<x.y...>`). A purl type with no such mapping gives `""`.
 - `name` is the name OSV uses: `@scope/name` for npm, the normalized name for PyPI, `group:artifact` for
@@ -300,6 +306,24 @@ For Go, `audit` is given `go.mod` and reads `go.sum` from the same directory. It
 module; a `replace` to another module uses that module and version. Modules that appear only in `go.sum`
 are not read: from Go 1.17, `go.mod` lists every module in the build.
 
+A Gradle lockfile lists `group:artifact:version=configurations` lines; `empty=` lines and comments are
+skipped, and any other line stops the run. It does not say which dependency brings in which, so every
+package hangs off the repository.
+
+A `pom.xml` is refused when it holds a DOCTYPE or an entity declaration, before it is parsed. A version
+is read when it is a literal or uses properties defined in the same file (`<properties>`, `project.version`,
+`project.groupId`, `project.parent.version` and the like, also nested), or when the file's own
+`<dependencyManagement>` gives it. Otherwise the package keeps its `group:artifact` name, gets version
+`""` and an `unresolved` reason: no version (with the parent and imported BOMs it would come from), a
+property the file does not define, properties that refer to each other in a loop or expand past 256
+characters, a version range, or
+`LATEST`/`RELEASE`. Transitive dependencies are not read.
+
+Both JVM readers give the same id and purl as a CycloneDX Maven component (`pkg:maven/<group>:<artifact>@<version>`,
+purl `pkg:maven/<group>/<artifact>@<version>`), and the report of either carries a `notes` entry saying that
+transitive dependencies are not resolved and pointing to `cyclonedx-gradle-plugin` or
+`cyclonedx-maven-plugin` for the full graph.
+
 Readers live in `src/decisis/inventory/`. Each one has `FORMAT`, `SIBLINGS` (files read from the same
 directory), `detect(text, filename)` and `read(text, filename, repo, siblings=None)` returning
 `(nodes, edges)`; `inventory.read` picks the first reader whose `detect` matches.
@@ -310,7 +334,13 @@ A finding is `affected` when the version is listed in the advisory, or falls in 
 `ECOSYSTEM` ranges. Range events are sorted by version before they are read. `SEMVER` ranges and the
 `ECOSYSTEM` ranges of npm, crates.io and Go are ordered as semantic versions (a leading `v` and build
 metadata are ignored; Go pseudo-versions order as pre-releases). PyPI `ECOSYSTEM` ranges are ordered by
-PEP 440 (epoch, release, pre, post, dev and local segments). A version at or above a range's `limit` is
+PEP 440 (epoch, release, pre, post, dev and local segments). Maven `ECOSYSTEM` ranges are ordered like
+Maven's `ComparableVersion`: the version is split into number and qualifier tokens at `.`, `-` and
+digit-letter changes, trailing zeros and empty qualifiers are dropped, and qualifiers order as
+`alpha` (`a1`) < `beta` (`b1`) < `milestone` (`m1`) < `rc` = `cr` < `snapshot` < release (`""`, `ga`,
+`final`, `release`) < `sp` < any other word, alphabetically. A qualifier sorts below a number and `-1`
+below `.1`, so `2.0.a` < `2-1` < `2.0.1` < `2.1`; a missing position counts as `0` or as the release
+qualifier. A version at or above a range's `limit` is
 not affected. A version that cannot be ordered, or an `ECOSYSTEM` range of another ecosystem, gives
 `unresolved`, never `affected`.
 
@@ -320,8 +350,9 @@ not affected. A version that cannot be ordered, or an `ECOSYSTEM` range of anoth
 package id such as `pkg:npm/lodash@4.17.15` to the list of advisory ids OSV returned for it) and `vulns`
 (an advisory id to the OSV record as `api.osv.dev/v1/vulns/<id>` returns it). A package or advisory the
 file does not hold stops the run. The keys follow the package ids, so a cache works for every ecosystem.
-`fixtures/audit/osv-cache.json` covers the demo lockfile and `fixtures/inventory/osv-cache.json` covers
-the examples in `fixtures/inventory/`.
+`fixtures/audit/osv-cache.json` covers the demo lockfile, `fixtures/inventory/osv-cache.json` covers
+the examples in `fixtures/inventory/`, and `fixtures/inventory/jvm/osv-cache.json` the Gradle and Maven
+examples next to it.
 
 ## The report and the plan
 
@@ -331,7 +362,9 @@ finding has `package`, `advisory`, `severity`, `status` (`affected`, `not_affect
 `dev_only`, `path` (ids from `repo:<name>` to the advisory), `source_url`, `fetched_at`, `content_hash`,
 `advisory_summary` and `policies` (one `decision`, `verdict` and `why` per governing decision).
 `unresolved_packages` lists each package that was not queried (`package`, `reason`), and
-`inventory_notes` lists the reader's notes on what the inventory does not cover (empty when none).
+`inventory_notes` lists sentences on what the inventory does not cover, from the reader (an include not followed,
+a dev split that is unknown) or from its format (the Gradle and Maven readers do not resolve transitive
+dependencies); it is empty when there are none.
 
 `propose --out plan.json` writes `space`, `nodes` (records), `edges` (`relates_to` from a record to a
 decision, with the verdict as evidence), `held` (findings not recorded and why; a record that failed a re-derivation check has `record` and `failed`, the list of

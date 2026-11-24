@@ -140,16 +140,26 @@ decision above.
 | uv | `uv.lock` | dependency groups (`dev-dependencies`) |
 | Cargo | `Cargo.lock` | not marked in the lockfile; every crate counts as shipped |
 | Go modules | `go.mod`, with `go.sum` in the same directory | not marked; every module counts as shipped |
+| Gradle lockfile | `gradle.lockfile`, `settings-gradle.lockfile` | every configuration that locks it is a test, compile-only or annotation processor one |
+| Maven POM | `pom.xml` | scope `test` or `provided` |
 | Poetry, lock-version 1.x and 2.x | `poetry.lock`, with `pyproject.toml` in the same directory when present | `category = "dev"` (1.x), `groups` without `main` (2.1), or the non-main groups in `pyproject.toml` |
 | pip requirements | `requirements*.txt` | not marked; every package counts as shipped |
 
 For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
-line there. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, and for
-SBOMs also Maven, NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
+line there. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, Maven, and for
+SBOMs also NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
 without a purl, or whose purl type has no OSV ecosystem, stays in the graph and is listed under
 `unresolved_packages` in the report; it is not queried. An inventory with no packages, or none that can
 be queried, is refused. `fixtures/inventory/` holds one small example of each format and an OSV cache
-that covers them all.
+that covers them all; the Gradle and Maven examples and their cache are in `fixtures/inventory/jvm/`.
+
+A Gradle lockfile pins every resolved version but not which dependency brings in which, and a `pom.xml`
+declares direct dependencies only. `audit` reads `pom.xml` versions that are literals or properties
+defined in the same file, and lists a version from a parent, an imported BOM, a range, `LATEST` or
+`RELEASE`, or a missing one under `unresolved_packages`. For both formats the report carries `notes`
+saying that transitive dependencies are not resolved. For the full graph, generate CycloneDX JSON with
+`cyclonedx-gradle-plugin` or `cyclonedx-maven-plugin` and audit that instead; the HTML view shows the
+notes above the findings.
 
 For Poetry, a `poetry.lock` that marks no package as development and has no `pyproject.toml` next to it
 is read with every package shipped, and the report says the dev split is unknown. A requirements file

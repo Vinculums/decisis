@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import functools
 import json
 import os
 import sys
@@ -258,8 +257,8 @@ def init_readers(a: argparse.Namespace) -> tuple:
         raise ValueError("--label must name a label")
     gh.repository(a.github)
     since = gh.since_date(a.since) if a.since is not None else None
-    pulls = functools.partial(gh.read_pulls, repo=a.github, token=gh.clean_token(os.environ.get("GITHUB_TOKEN")),
-                              label=(a.label or "decision").strip(), since=since, limit=a.limit or gh.DEFAULT_LIMIT)
+    pulls = gh.PullReader(a.github, gh.clean_token(os.environ.get("GITHUB_TOKEN")), (a.label or "decision").strip(), since,
+                          a.limit or gh.DEFAULT_LIMIT)
     return (*init.READERS, pulls) if a.repo_dir is not None else (pulls,)
 
 

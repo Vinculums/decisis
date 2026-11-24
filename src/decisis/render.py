@@ -270,7 +270,8 @@ def audit_sections(report: dict) -> list[str]:
             ("findings", esc(", ".join(f"{v} {k}" for k, v in summary.items()))), ("violations", esc(report.get("violations", 0)))]
     gov = "".join(f"<li>{code(d['decision'])} {esc(d.get('title'))} via {code(d.get('via'))}</li>" for d in report.get("governing", []))
     items = "".join(finding_html(f) for f in report.get("findings", []))
-    return [dl(head), section("Governing decisions", "<ul>" + gov + "</ul>" if gov else NONE),
+    notes = "".join(f"<li>{esc(n)}</li>" for n in report.get("inventory_notes") or report.get("notes") or [])
+    return [dl(head), *([section("Notes", "<ul>" + notes + "</ul>")] if notes else []), section("Governing decisions", "<ul>" + gov + "</ul>" if gov else NONE),
             section("Findings", '<ul class="items">' + items + "</ul>" if items else NONE)]
 
 
