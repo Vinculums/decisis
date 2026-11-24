@@ -36,13 +36,21 @@
    "GHSA-9vvw-cc9w-f27h",
    "GHSA-gxpj-cx7g-858c"
   ],
+  "pkg:npm/js-tokens@4.0.0": [],
+  "pkg:npm/loose-envify@1.4.0": [],
+  "pkg:npm/lru-cache@6.0.0": [],
   "pkg:npm/minimist@1.2.5": [
    "GHSA-xvch-5gv4-984h"
   ],
+  "pkg:npm/mkdirp@0.5.5": [],
   "pkg:npm/ms@2.0.0": [],
+  "pkg:npm/react-dom@18.2.0": [],
+  "pkg:npm/react@18.2.0": [],
+  "pkg:npm/scheduler@0.23.0": [],
   "pkg:npm/semver@7.5.1": [
    "GHSA-c2qf-rxjj-qqgw"
   ],
+  "pkg:npm/yallist@4.0.0": [],
   "pkg:pypi/certifi@2023.7.22": [
    "GHSA-248v-346w-9cwc",
    "GHSA-6q48-6c7w-9gw2",
