@@ -142,8 +142,9 @@ class Sandbox:
                 rows = [{"id": n["id"], "title": n.get("title") or "", "domain": n.get("domain") or "", "props": _flat(n.get("props"))}
                         for n in graph.nodes if n["kind"] == kind]
                 for r in con.execute(f"UNWIND $rows AS r CREATE (n:{_label(kind)} {{id: r.id, title: r.title, domain: r.domain}}) SET n += r.props "
-                                     "RETURN r.id AS id, id(n) AS nid", {"rows": rows}).fetchall():
-                    made.setdefault(r["id"], []).append(r["nid"])
+                                     "RETURN n.id AS id, id(n) AS nid", {"rows": rows}).fetchall():
+                    if isinstance(r["id"], str):
+                        made.setdefault(r["id"], []).append(r["nid"])
             seek = {i: n[0] for i, n in made.items() if len(n) == 1}
             for rel in sorted({e["type"] for e in graph.edges}):
                 for by_id, rows in _runs([e for e in graph.edges if e["type"] == rel], seek):
@@ -487,7 +488,7 @@ def _label(name: str) -> str:
 def _runs(edges: list[dict], seek: dict[str, int]) -> list[tuple[bool, list[dict]]]:
     out: list[tuple[bool, list[dict]]] = []
     for e in edges:
-        by_id = e["source"] in seek and e["target"] in seek
+        by_id = isinstance(e["source"], str) and isinstance(e["target"], str) and e["source"] in seek and e["target"] in seek
         ends = (seek[e["source"]], seek[e["target"]]) if by_id else (e["source"], e["target"])
         row = {"s": ends[0], "t": ends[1], "evidence": e.get("evidence") or ""}
         if out and out[-1][0] == by_id:

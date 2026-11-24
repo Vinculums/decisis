@@ -94,6 +94,36 @@ def test_a_node_id_repeated_under_two_kinds_still_fails_the_load(tmp_path):
             box.load(co.Subgraph(g.nodes + [twin], g.edges, {}))
 
 
+def node(i: str, kind: str = "Thing", **props) -> dict:
+    return {"id": i, "kind": kind, "title": i, "props": props}
+
+
+def edge(s: str, t: str, kind: str = "REL") -> dict:
+    return {"source": s, "target": t, "type": kind, "evidence": ""}
+
+
+def test_an_edge_is_not_credited_to_a_node_whose_props_carry_its_id(tmp_path):
+    g = co.Subgraph([node("decision:a", "decision", id="decision:b", status="accepted"), node("decision:b", "decision", status="accepted"),
+                     node("concept:c", "concept")], [edge("decision:a", "concept:c", "about")], {})
+    with sandbox(tmp_path) as box:
+        with pytest.raises(LoadMismatch, match="loaded 3 nodes and 0 edges, but the snapshot has 3 nodes and 1 edges"):
+            box.load(g)
+
+
+def test_a_props_id_that_overrides_the_node_id_fails_the_load(tmp_path):
+    g = co.Subgraph([node("a", id="z"), node("b")], [edge("a", "b")], {})
+    with sandbox(tmp_path) as box:
+        with pytest.raises(LoadMismatch, match="loaded 2 nodes and 0 edges, but the snapshot has 2 nodes and 1 edges"):
+            box.load(g)
+
+
+def test_a_props_id_that_collides_with_another_node_fails_the_load(tmp_path):
+    g = co.Subgraph([node("a", id="b"), node("b"), node("c")], [edge("c", "b")], {})
+    with sandbox(tmp_path) as box:
+        with pytest.raises(LoadMismatch, match="loaded 3 nodes and 2 edges, but the snapshot has 3 nodes and 1 edges"):
+            box.load(g)
+
+
 def chain(n: int) -> co.Subgraph:
     nodes = [{"id": "repo:Big", "kind": "Repository", "props": {}}]
     nodes += [{"id": f"pkg:npm/p{i}@1.0.0", "kind": "Package", "props": {"name": f"p{i}"}} for i in range(n)]
