@@ -240,13 +240,17 @@ def dense_snapshot(path: Path, n: int = 14) -> Path:
     return path
 
 
-def scratch_dirs() -> set[Path]:
-    return set(sb.default_root().glob("decisis-serve-*"))
+SERVE_UNDER = "import sys; from pathlib import Path; from decisis import cli, sandbox; sandbox.TMPFS = Path(sys.argv[1]); sys.exit(cli.main(sys.argv[2:]))"
 
 
-def slow_call(snapshot: Path):
-    before = scratch_dirs()
-    p = subprocess.Popen([sys.executable, "-m", "decisis.cli", "serve", "--mcp", "--snapshot", str(snapshot)],
+def scratch_dirs(root: Path | None = None) -> set[Path]:
+    return set((root or sb.default_root()).glob("decisis-serve-*"))
+
+
+def slow_call(snapshot: Path, root: Path | None = None):
+    before = scratch_dirs(root)
+    start = [sys.executable, "-c", SERVE_UNDER, str(root)] if root else [sys.executable, "-m", "decisis.cli"]
+    p = subprocess.Popen([*start, "serve", "--mcp", "--snapshot", str(snapshot)],
                          stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=str(ROOT), env={**os.environ, "PYTHONPATH": str(ROOT / "src")})
 
     def send(message):
@@ -259,10 +263,10 @@ def slow_call(snapshot: Path):
     send({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
           "params": {"name": "paths", "arguments": {"source": "concept:n0", "target": "concept:n1", "hops": impact.MAX_HOPS, "limit": cli.MAX_LIMIT}}})
     deadline = time.monotonic() + 30
-    while not any((d / "task.rl").exists() for s in scratch_dirs() - before for d in s.iterdir()):
+    while not any((d / "task.rl").exists() for s in scratch_dirs(root) - before for d in s.iterdir()):
         assert time.monotonic() < deadline and p.poll() is None
         time.sleep(0.05)
-    return p, scratch_dirs() - before
+    return p, scratch_dirs(root) - before
 
 
 @pytest.mark.parametrize("stop,code", [(lambda p: p.send_signal(signal.SIGTERM), 128 + signal.SIGTERM),
@@ -307,3 +311,59 @@ def test_audit_does_not_read_a_go_sum_outside_the_root(tmp_path, no_network):
     t = tools(AUDIT_SNAPSHOT, tmp_path, FIX / "inventory" / "osv-cache.json")
     with pytest.raises(Exception, match="go.sum"):
         t.call("audit", {"lockfile": "go.mod", "repo": "Demo"})
+
+
+def age(path: Path) -> None:
+    old = time.time() - sb.GRACE_SECONDS - 60
+    os.utime(path, (old, old))
+
+
+@pytest.mark.skipif(not sb.can_sweep(), reason="this platform cannot check the owner of a task directory")
+def test_gc_removes_the_directory_of_a_server_killed_with_sigkill_and_keeps_a_live_one(tmp_path, capsys):
+    root = tmp_path / "root"
+    root.mkdir()
+    snapshot = dense_snapshot(tmp_path / "dense.json")
+    killed, (gone,) = slow_call(snapshot, root)
+    live, (kept,) = slow_call(snapshot, root)
+    try:
+        assert re.fullmatch(r"decisis-serve-[0-9a-f]{32}", gone.name) and gone.stat().st_mode & 0o777 == 0o700
+        owner = json.loads((gone / sb.OWNER).read_text(encoding="utf-8"))
+        assert owner["pid"] == killed.pid and owner["host"] == sb.socket.gethostname()
+        assert owner["start"] == sb._start_time(killed.pid) and (gone / sb.OWNER).stat().st_mode & 0o777 == 0o600
+        killed.kill()
+        assert killed.wait(timeout=15) == -signal.SIGKILL
+        assert gone.is_dir() and any(d.name != sb.OWNER for d in gone.iterdir())
+        age(gone)
+        age(kept)
+        capsys.readouterr()
+        assert cli.main(["gc", "--root", str(root)]) == 0
+        assert f"removed {gone}" in capsys.readouterr().out
+        assert not gone.exists() and kept.is_dir() and live.poll() is None
+        assert scratch_dirs(root) == {kept}
+    finally:
+        for p in (killed, live):
+            p.kill()
+            p.wait()
+            p.stdin.close()
+            p.stdout.close()
+
+
+@pytest.mark.skipif(not sb.can_sweep(), reason="this platform cannot check the owner of a task directory")
+def test_a_new_server_sweeps_the_directory_a_killed_server_left(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    snapshot = dense_snapshot(tmp_path / "dense.json")
+    killed, (gone,) = slow_call(snapshot, root)
+    killed.kill()
+    killed.wait()
+    killed.stdin.close()
+    killed.stdout.close()
+    age(gone)
+    p, (mine,) = slow_call(snapshot, root)
+    try:
+        assert not gone.exists() and scratch_dirs(root) == {mine}
+    finally:
+        p.kill()
+        p.wait()
+        p.stdin.close()
+        p.stdout.close()

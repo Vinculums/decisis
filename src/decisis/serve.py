@@ -1,7 +1,8 @@
 """A read-only MCP server over stdio: impact, paths and audit on one snapshot.
 
 Each tool call loads the snapshot into its own sandbox and deletes it before the reply. The sandboxes live
-in one private directory that the server removes when stdin closes or on SIGTERM or SIGINT, even while a call runs. No tool writes,
+in one private directory that the server removes when stdin closes or on SIGTERM or SIGINT, even while a call runs,
+and that records its owner so that decisis gc removes it after a SIGKILL. No tool writes,
 proposes or commits. File reads are limited to the snapshot, the OSV cache given at start, and lockfiles
 under the root given at start. Audit asks api.osv.dev only when the server was started with --allow-network.
 """
@@ -11,7 +12,6 @@ import json
 import os
 import shutil
 import signal
-import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 
@@ -25,7 +25,7 @@ from . import audit, external, impact, inventory
 from . import checkout as co
 from .cli import MAX_LIMIT
 from .queries import load as query
-from .sandbox import Subgraph, default_root, sandbox
+from .sandbox import SERVE_PREFIX, Subgraph, default_root, owned_dir, sandbox
 
 MAX_DEPTH = 16
 MAX_TEXT = 512
@@ -220,7 +220,7 @@ async def stdio(server: Server) -> None:
 
 
 def scratch_dir() -> Path:
-    return Path(tempfile.mkdtemp(prefix="decisis-serve-", dir=default_root()))
+    return owned_dir(default_root(), SERVE_PREFIX)
 
 
 def leave(scratch: Path, code: int) -> None:
