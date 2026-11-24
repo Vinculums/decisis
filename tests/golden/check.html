@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check: 4 changed file(s)</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--line:#d1d9e0;--card:#f6f8fa;--bad:#b91c1c;--badbg:#fdecec;--accent:#1d4ed8}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--line:#3d444d;--card:#151b23;--bad:#f87171;--badbg:#2d1214;--accent:#7aa2ff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:60rem;margin:0 auto;padding:1rem}
+h1{font-size:1.4rem;overflow-wrap:anywhere}
+h2{font-size:1.1rem;margin-top:1.5rem;overflow-wrap:anywhere}
+code{font:0.9em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:0.2rem 0.8rem;margin:0.5rem 0}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
+ul.items{list-style:none;padding:0}
+.item{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:0.75rem;margin:0.75rem 0}
+.item.violated{border-color:var(--bad);background:var(--badbg)}
+.badge{font-size:0.8em;border:1px solid var(--line);border-radius:4px;padding:0 0.3rem;color:var(--muted)}
+.badge.bad{border-color:var(--bad);color:var(--bad);font-weight:600}
+.title{font-weight:600}
+.steps{padding-left:1.4rem}
+.rel{color:var(--accent);font-size:0.85em}
+.evidence,.none{color:var(--muted)}
+.chain{overflow-wrap:anywhere}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{border-top:1px solid var(--line);padding:0.3rem;text-align:left;vertical-align:top}
+tr.violated td{color:var(--bad);font-weight:600}
+a{color:var(--accent);overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);padding:0.5rem;overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Check: 4 changed file(s)</h1>
+<dl><dt>changed files</dt><dd>4</dd><dt>base</dt><dd>not given</dd><dt>reviewers</dt><dd>bob</dd><dt>loaded</dt><dd>8 nodes, 5 edges</dd><dt>violations</dt><dd>4</dd><dt>cannot be judged</dt><dd>3</dd></dl>
+<section><h2>Violations</h2><div class="scroll"><table><tr><th>file</th><th>line</th><th>decision</th><th>rule</th><th>why</th></tr><tr class="violated"><td><code>src/payments/charge.py</code></td><td></td><td><code>decision:payments-need-a-payments-review</code></td><td><code>review_required</code></td><td>src/payments/** needs a review from @alice or @shop/payments; none of them is among the reviewers given</td></tr><tr class="violated"><td><code>src/shop/ui/view.py</code></td><td>4</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>src/shop/ui/** must not import src/shop/db/**; from shop.db import models is src/shop/db/models.py</td></tr><tr class="violated"><td><code>src/shop/ui/view.py</code></td><td>5</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>src/shop/ui/** must not import src/shop/db/**; from ..db.session import open_session is src/shop/db/session.py</td></tr><tr class="violated"><td><code>web/src/ui/page.ts</code></td><td>1</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>web/src/ui/** must not import web/src/db/**; ../db/client is web/src/db/client.ts</td></tr></table></div></section>
+<section><h2>Cannot be judged</h2><div class="scroll"><table><tr><th>file</th><th>line</th><th>decision</th><th>rule</th><th>why</th></tr><tr class="unresolved"><td><code>src/shop/ui/view.py</code></td><td>10</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>import_module() with a computed name: the specifier is computed at run time; it cannot be judged</td></tr><tr class="unresolved"><td><code>web/src/ui/page.ts</code></td><td>3</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>../db/secret: a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree; it cannot be judged</td></tr><tr class="unresolved"><td><code>web/src/ui/page.ts</code></td><td>9</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>import() with a computed specifier: the specifier is computed at run time; it cannot be judged</td></tr></table></div></section>
+<section><h2>Governing decisions</h2><ul><li><code>decision:payments-need-a-payments-review</code> Payment changes need a review from the payments team (<code>src/payments/charge.py</code>)</li><li><code>decision:ui-does-not-import-db</code> The user interface reads data through the API, never the database layer (<code>src/shop/ui/view.py</code>, <code>web/src/ui/index.ts</code>, <code>web/src/ui/page.ts</code>)</li></ul></section>
+<section><h2>Superseded, not judged</h2><ul><li><code>decision:payments-reviewed-by-carol</code> Carol reviews every payment change (<code>src/payments/charge.py</code>) superseded by <code>decision:payments-need-a-payments-review</code></li></ul></section>
+<section><h2>Imports read</h2><div class="scroll"><table><tr><th>file</th><th>line</th><th>import</th><th>resolution</th><th>target</th></tr><tr><td><code>src/shop/ui/view.py</code></td><td>1</td><td><code>import importlib</code></td><td>external</td><td></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>2</td><td><code>import os</code></td><td>external</td><td></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>4</td><td><code>from shop.db import models</code></td><td>repository</td><td><code>src/shop/db/models.py</code></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>5</td><td><code>from ..db.session import open_session</code></td><td>repository</td><td><code>src/shop/db/session.py</code></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>6</td><td><code>from . import widgets</code></td><td>repository</td><td><code>src/shop/ui/widgets.py</code></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>10</td><td><code>import_module() with a computed name</code></td><td>unresolved</td><td>the specifier is computed at run time</td></tr><tr><td><code>web/src/ui/index.ts</code></td><td>1</td><td><code>./page</code></td><td>repository</td><td><code>web/src/ui/page.ts</code></td></tr><tr><td><code>web/src/ui/page.ts</code></td><td>1</td><td><code>../db/client</code></td><td>repository</td><td><code>web/src/db/client.ts</code></td></tr><tr><td><code>web/src/ui/page.ts</code></td><td>2</td><td><code>react</code></td><td>external</td><td><code>node_modules/react</code></td></tr><tr><td><code>web/src/ui/page.ts</code></td><td>3</td><td><code>../db/secret</code></td><td>unresolved</td><td>a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree</td></tr><tr><td><code>web/src/ui/page.ts</code></td><td>9</td><td><code>import() with a computed specifier</code></td><td>unresolved</td><td>the specifier is computed at run time</td></tr></table></div></section>
+<details><summary>Mermaid source</summary><pre>```mermaid
+flowchart LR
+  n0[&quot;src/payments/charge.py&quot;]
+  n1[&quot;concept:payments&lt;br/&gt;Payments&quot;]
+  n2[&quot;decision:payments-need-a-payments-review&lt;br/&gt;Payment changes need a review from the payments team&quot;]
+  n3[&quot;record:double-charge-incident&lt;br/&gt;A retry charged a card twice&quot;]
+  n4[&quot;decision:payments-reviewed-by-carol&lt;br/&gt;Carol reviews every payment change&lt;br/&gt;superseded&quot;]
+  n5[&quot;src/shop/ui/view.py&quot;]
+  n6[&quot;concept:shop-ui&lt;br/&gt;Shop user interface&quot;]
+  n7[&quot;decision:ui-does-not-import-db&lt;br/&gt;The user interface reads data through the API, never the database layer&quot;]
+  n8[&quot;web/src/ui/index.ts&quot;]
+  n9[&quot;web/src/ui/page.ts&quot;]
+  n10[&quot;src/shop/db/models.py&quot;]
+  n11[&quot;src/shop/db/session.py&quot;]
+  n12[&quot;web/src/db/client.ts&quot;]
+  n1 --&gt;|&quot;code_ref encloses&quot;| n0
+  n2 --&gt;|&quot;ABOUT&quot;| n1
+  n3 --&gt;|&quot;RELATED_TO&quot;| n1
+  n4 --&gt;|&quot;ABOUT&quot;| n1
+  n2 --&gt;|&quot;SUPERSEDES&quot;| n4
+  n6 --&gt;|&quot;code_ref encloses&quot;| n5
+  n7 --&gt;|&quot;ABOUT&quot;| n6
+  n6 --&gt;|&quot;code_ref encloses&quot;| n8
+  n6 --&gt;|&quot;code_ref encloses&quot;| n9
+  n0 --&gt;|&quot;violates review_required&quot;| n2
+  n5 --&gt;|&quot;imports, line 4&quot;| n10
+  n10 --&gt;|&quot;forbidden by&quot;| n7
+  n5 --&gt;|&quot;imports, line 5&quot;| n11
+  n11 --&gt;|&quot;forbidden by&quot;| n7
+  n9 --&gt;|&quot;imports, line 1&quot;| n12
+  n12 --&gt;|&quot;forbidden by&quot;| n7
+  classDef code fill:#f3f4f6,stroke:#4b5563,color:#111827
+  classDef concept fill:#ecfdf5,stroke:#047857,color:#032b1f
+  classDef decision fill:#dbeafe,stroke:#1d4ed8,color:#0b1b3f
+  classDef record fill:#fef3c7,stroke:#b45309,color:#3b2603
+  classDef superseded fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray:4 3,color:#4b5563
+  classDef violated fill:#fecaca,stroke:#b91c1c,stroke-width:3px,color:#3f0a0a
+  class n0,n5,n8,n9 code
+  class n1,n6 concept
+  class n2,n7 decision
+  class n3 record
+  class n4 superseded
+  class n10,n11,n12 violated
+  linkStyle 9,10,11,12,13,14,15 stroke:#b91c1c,stroke-width:3px
+```
+</pre></details>
+</main>
+</body>
+</html>

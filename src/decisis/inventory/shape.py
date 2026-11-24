@@ -34,6 +34,11 @@ def pypi_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
+def terraform_name(name: str) -> str:
+    name = name.lower()
+    return name if name.count("/") >= 2 else f"registry.terraform.io/{name}"
+
+
 def json_object(text: str) -> dict | None:
     if not text.lstrip().startswith("{"):
         return None

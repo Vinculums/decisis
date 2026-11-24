@@ -1,0 +1,20 @@
+{"meta": {"seeds": ["concept:shop-ui", "concept:payments"], "space": "synthetic", "extracted_at": "2026-11-25T00:00:00Z", "nodes": 8, "edges": 6},
+ "nodes": [
+  {"id": "concept:shop-ui", "kind": "concept", "title": "Shop user interface", "domain": "shop/ui", "props": {"code_ref": ["src/shop/ui/", "web/src/ui/"]}},
+  {"id": "concept:shop-db", "kind": "concept", "title": "Shop database layer", "domain": "shop/db", "props": {"code_ref": ["src/shop/db/", "web/src/db/"]}},
+  {"id": "concept:payments", "kind": "concept", "title": "Payments", "domain": "shop/payments", "props": {"code_ref": "Shop:src/payments/"}},
+  {"id": "decision:ui-does-not-import-db", "kind": "decision", "title": "The user interface reads data through the API, never the database layer", "domain": "shop/ui", "props": {"statement": "Code under the user interface does not import the database layer.", "rule": {"imports_forbidden": {"from": ["src/shop/ui/**", "web/src/ui/**"], "to": ["src/shop/db/**", "web/src/db/**"]}}}},
+  {"id": "decision:db-owns-its-schema", "kind": "decision", "title": "The database layer owns its schema", "domain": "shop/db", "props": {"statement": "Only the database layer changes the schema."}},
+  {"id": "decision:payments-need-a-payments-review", "kind": "decision", "title": "Payment changes need a review from the payments team", "domain": "shop/payments", "props": {"statement": "A change to payments is reviewed by alice or the payments team.", "rule": {"review_required": {"paths": ["src/payments/**"], "reviewers": ["@alice", "@shop/payments"]}}}},
+  {"id": "decision:payments-reviewed-by-carol", "kind": "decision", "title": "Carol reviews every payment change", "domain": "shop/payments", "props": {"statement": "Carol reviews payment changes.", "status": "superseded", "rule": {"review_required": {"paths": ["src/payments/**"], "reviewers": ["@carol"]}}}},
+  {"id": "record:double-charge-incident", "kind": "record", "title": "A retry charged a card twice", "domain": "shop/payments", "props": {"summary": "A retried request charged a card twice."}}
+ ],
+ "edges": [
+  {"source": "decision:ui-does-not-import-db", "target": "concept:shop-ui", "type": "ABOUT", "evidence": "the boundary is drawn on the user interface"},
+  {"source": "decision:db-owns-its-schema", "target": "concept:shop-db", "type": "ABOUT", "evidence": "the schema lives in the database layer"},
+  {"source": "decision:payments-need-a-payments-review", "target": "concept:payments", "type": "ABOUT", "evidence": "the review rule covers payments"},
+  {"source": "decision:payments-need-a-payments-review", "target": "decision:payments-reviewed-by-carol", "type": "SUPERSEDES", "evidence": "the team replaced a single reviewer"},
+  {"source": "decision:payments-reviewed-by-carol", "target": "concept:payments", "type": "ABOUT", "evidence": "the old review rule covered payments"},
+  {"source": "record:double-charge-incident", "target": "concept:payments", "type": "RELATED_TO", "evidence": "the incident was in the charge path"}
+ ]
+}

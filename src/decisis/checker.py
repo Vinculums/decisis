@@ -7,7 +7,8 @@ from . import commit as wb
 from .queries import load as query
 from .sandbox import Limits, Sandbox, Subgraph
 
-SUBJECT = {"licensed_under": "license", "uses_denied_package": "package"}
+SUBJECT = {"licensed_under": "license", "uses_denied_package": "package", "uses_unlisted_package": "allowlist",
+           "not_pinned_to_commit": "pin"}
 
 
 def decisions(vinc: Subgraph) -> dict[str, dict]:
@@ -103,7 +104,7 @@ def _package_path(path: list[str], p: dict, own: set[str], facts: dict) -> list[
 def _claimed(kind: str, name: str, version: str, pkg: dict, value: str) -> list[str]:
     if kind == "license" and (pkg.get("license_expression") or "") != value:
         return [f"{name} {version} is licensed {pkg.get('license_expression') or 'with no license'} in the inventory, not {value}"]
-    if kind == "package" and f"{pkg.get('ecosystem')}:{pkg.get('name')}" != value:
+    if kind != "license" and f"{pkg.get('ecosystem')}:{pkg.get('name')}" != value:
         return [f"{name} {version} is {pkg.get('ecosystem')}:{pkg.get('name')} in the inventory, not {value}"]
     return []
 

@@ -1,4 +1,4 @@
-"""Mermaid and HTML views of the `impact`, `paths` and `audit` reports.
+"""Mermaid and HTML views of the `impact`, `paths`, `audit` and `check` reports.
 
 Each kind names a title, a graph builder and the HTML sections in `KINDS`. A graph is a list of nodes
 (id, label, class) and edges (source, label, target, violated); `mermaid` and `html` read only that table,
@@ -137,6 +137,11 @@ def paths_graph(report: dict) -> Graph:
     return g
 
 
+RULE_FINDINGS = {"package": "denied package", "allowlist": "outside the allowlist", "pin": "not pinned to a commit"}
+RULE_TITLES = {"package": "a package a decision denies", "allowlist": "outside a decision's allowlist",
+               "pin": "not pinned to the full commit SHA a decision requires"}
+
+
 def violated(finding: dict) -> bool:
     return any(p.get("verdict") == "violated" for p in finding.get("policies", []))
 
@@ -148,8 +153,8 @@ def target(finding: dict) -> str:
 def detail(finding: dict) -> str:
     if finding.get("kind") == "license":
         return f"license {finding.get('license_expression') or 'unknown'}"
-    if finding.get("kind") == "package":
-        return "denied package"
+    if finding.get("kind") in RULE_FINDINGS:
+        return RULE_FINDINGS[finding["kind"]]
     return finding.get("severity") or ""
 
 
@@ -176,6 +181,63 @@ def audit_graph(report: dict) -> Graph:
             if p.get("verdict") == "violated":
                 g.edge(end, "violates", p["decision"], True)
     return g
+
+
+def check_graph(report: dict) -> Graph:
+    g = impact_graph(report)
+    titles = {d["decision"]: d.get("title") or "" for d in report.get("governing", [])}
+    for v in report.get("violations", []):
+        code = f"path:{v['file']}"
+        g.node(code, (v["file"],), "code")
+        g.node(v["decision"], label(v["decision"], titles.get(v["decision"], "")), "decision")
+        if v.get("target"):
+            end = f"path:{v['target']}"
+            g.node(end, (v["target"],), "violated", replace=True)
+            g.edge(code, f"imports, line {v['line']}" if v.get("line") else "imports", end, True)
+            g.edge(end, "forbidden by", v["decision"], True)
+        else:
+            g.edge(code, f"violates {v['rule']}", v["decision"], True)
+    return g
+
+
+def result_table(results: list[dict]) -> str:
+    if not results:
+        return NONE
+    rows = "".join(f'<tr class="{esc(r.get("verdict"))}"><td>{code(r["file"])}</td><td>{esc(r.get("line") or "")}</td>'
+                   f'<td>{code(r["decision"])}</td><td>{code(r["rule"])}</td><td>{esc(r.get("why"))}</td></tr>' for r in results)
+    head = "<tr><th>file</th><th>line</th><th>decision</th><th>rule</th><th>why</th></tr>"
+    return f'<div class="scroll"><table>{head}{rows}</table></div>'
+
+
+def imports_table(found: list[dict]) -> str:
+    if not found:
+        return NONE
+    rows = "".join(f'<tr><td>{code(i["file"])}</td><td>{esc(i.get("line") or "")}</td><td>{code(i["import"])}</td>'
+                   f'<td>{esc(i["resolution"])}</td><td>{code(i["target"]) if i.get("target") else esc(i.get("why"))}</td></tr>' for i in found)
+    head = "<tr><th>file</th><th>line</th><th>import</th><th>resolution</th><th>target</th></tr>"
+    return f'<div class="scroll"><table>{head}{rows}</table></div>'
+
+
+def decision_list(decisions: list[dict], note: str = "") -> str:
+    if not decisions:
+        return NONE
+    items = "".join(f"<li>{code(d['decision'])} {esc(d.get('title'))} ({', '.join(code(f) for f in d.get('files', []))})"
+                    + (f" {esc(note)} " + ", ".join(code(n) for n in d.get("superseded_by", [])) if note else "") + "</li>" for d in decisions)
+    return "<ul>" + items + "</ul>"
+
+
+def check_sections(report: dict) -> list[str]:
+    head = [("changed files", esc(len(report.get("changed", [])))), ("base", esc(report.get("base") or "not given")),
+            ("reviewers", esc(", ".join(report.get("reviewers", [])) or "none given")), ("loaded", loaded(report)),
+            ("violations", esc(len(report.get("violations", [])))), ("cannot be judged", esc(len(report.get("unresolved", []))))]
+    problems = "".join(f"<li>{code(p['decision'])} {code(p.get('rule') or 'rule')}: {esc(p['problem'])}</li>"
+                       for p in report.get("rule_problems", []))
+    return [dl(head), section("Violations", result_table(report.get("violations", []))),
+            section("Cannot be judged", result_table(report.get("unresolved", []))),
+            section("Governing decisions", decision_list(report.get("governing", []))),
+            *([section("Superseded, not judged", decision_list(report["superseded"], "superseded by"))] if report.get("superseded") else []),
+            *([section("Rules that cannot be checked", "<ul>" + problems + "</ul>")] if problems else []),
+            section("Imports read", imports_table(report.get("imports", [])))]
 
 
 def esc(value) -> str:
@@ -267,7 +329,7 @@ def finding_rows(f: dict) -> list[tuple[str, str]]:
     if f.get("kind") == "license":
         return [("license", esc(f.get("license_expression") or "none given"))] + tail + [
             ("source", esc(f.get("source_system"))), ("fetched at", esc(f.get("fetched_at")))]
-    if f.get("kind") == "package":
+    if f.get("kind") in RULE_FINDINGS:
         return [("package", esc(f"{f.get('ecosystem')}:{f.get('name')} {f.get('version')}"))] + tail + [
             ("source", esc(f.get("source_system"))), ("fetched at", esc(f.get("fetched_at")))]
     severity = [("severity", esc(f.get("severity")))]
@@ -291,8 +353,8 @@ def policy_table(policies: list[dict]) -> str:
 def finding_title(f: dict) -> str:
     if f.get("kind") == "license":
         return f"{f['package']} is licensed {f.get('license_expression') or 'with no license the inventory gives'}"
-    if f.get("kind") == "package":
-        return f"{f['package']} is a package a decision denies"
+    if f.get("kind") in RULE_FINDINGS:
+        return f"{f['package']} is {RULE_TITLES[f['kind']]}"
     return f.get("advisory_summary") or ""
 
 
@@ -333,6 +395,8 @@ KINDS: dict[str, Kind] = {
     "impact": Kind(lambda r: "Impact: " + ", ".join(i["path"] for i in r.get("impact", [])), impact_graph, impact_sections),
     "paths": Kind(lambda r: f"Paths: {r['source']} to {r['target']}" if r.get("source") else "Paths", paths_graph, paths_sections),
     "audit": Kind(lambda r: f"Audit: {(r.get('meta') or {}).get('repo') or 'repository'}", audit_graph, audit_sections),
+    "check": Kind(lambda r: f"Check: {len(r.get('changed', []))} changed file(s)" + (f" against {r['base']}" if r.get("base") else ""),
+                  check_graph, check_sections),
 }
 
 

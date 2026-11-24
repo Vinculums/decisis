@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from . import audit
+from . import check
 from . import checker
 from . import compare
 from . import cypher
@@ -86,9 +87,21 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
     im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     im.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
+    ck = sub.add_parser("check", help="judge a change set against the review and import rules of the decisions in a snapshot; exits 1 on a violation")
+    ck.add_argument("snapshot")
+    ck.add_argument("--repo-dir", default=".", help="the repository the changed files are read from (default: the current directory)")
+    which = ck.add_mutually_exclusive_group(required=True)
+    which.add_argument("--changed", nargs="+", metavar="FILE", help="the changed files, relative to --repo-dir")
+    which.add_argument("--base", metavar="REF", help="list the changed files with git diff --name-only REF...HEAD in --repo-dir")
+    ck.add_argument("--reviewers", nargs="+", default=[], metavar="HANDLE", help="the handles that reviewed the change, for example @alice @org/team")
+    ck.add_argument("--fail-on-unresolved", action="store_true", help="also exit 1 when an import or a file cannot be judged")
+    ck.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far impact looks from a matching concept (0 to {impact.MAX_HOPS})")
+    ck.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
+    ck.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
     au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
-    au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, or go.mod (read with the go.sum next to it)")
+    au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, go.mod (read with the go.sum next to it), "
+                    "a GitHub Actions workflow (read with the workflows next to it), action.yml, .terraform.lock.hcl, or another format in the README")
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"longest dependency chain to follow (1 to {audit.MAX_DEPTH})")
     au.add_argument("--out", help="write the JSON report here; with --format mermaid or html the view still goes to stdout")
@@ -129,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
     qy.add_argument("cypher", help="one statement that starts with MATCH, OPTIONAL MATCH, WITH, UNWIND, RETURN or CALL; writes are refused")
     qy.add_argument("--param", action="append", default=[], type=param, metavar="KEY=VALUE",
                     help="a value for $KEY; VALUE is read as JSON when it parses (12, true, [1, 2]), else as text")
-    for s in (p, im, au, pr, qy):
+    for s in (p, im, ck, au, pr, qy):
         limit_flags(s)
     sv = sub.add_parser("serve", help="serve impact, paths, audit and query to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
     sv.add_argument("--mcp", action="store_true", required=True, help="speak MCP over stdin and stdout")
@@ -236,6 +249,8 @@ def run(a: argparse.Namespace) -> int:
             json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
             sys.stdout.write("\n")
         return 0
+    if a.cmd == "check":
+        return run_check(a)
     if a.cmd == "audit":
         advisories = external.fetch_advisories
         if a.osv_cache:
@@ -278,6 +293,23 @@ def run(a: argparse.Namespace) -> int:
     json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
     sys.stdout.write("\n")
     return 0
+
+
+def run_check(a: argparse.Namespace) -> int:
+    root = Path(a.repo_dir)
+    if not root.is_dir():
+        raise ValueError(f"--repo-dir {a.repo_dir} is not a directory")
+    changed = check.changed_since(root, a.base) if a.base is not None else a.changed
+    report = check.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), changed, root, a.reviewers, a.hops, a.repo,
+                       base=a.base, limits=limits(a))
+    if a.format == "text":
+        print(check.render(report))
+    elif a.format in VIEWS:
+        sys.stdout.write(VIEWS[a.format]("check", report))
+    else:
+        json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
+        sys.stdout.write("\n")
+    return 1 if report["violations"] or (a.fail_on_unresolved and report["unresolved"]) else 0
 
 
 def init_readers(a: argparse.Namespace) -> tuple:

@@ -58,3 +58,12 @@ def test_the_readme_quick_start_prints_what_the_readme_shows(tmp_path, capsys, n
     report = json.loads(run(capsys, "audit", str(snap), str(ROOT / "fixtures/audit/demo-lockfile.json"), "--repo", "Shop",
                             "--osv-cache", str(ROOT / "fixtures/audit/osv-cache.json")))
     assert report["violations"] == 3
+
+
+def test_the_readme_check_example_prints_what_the_readme_shows(capsys, no_network):
+    shown = re.search(r"\$ decisis check (.*?)\n(.*?)```", README, re.S)
+    args = shown.group(1).split()
+    args = [str(ROOT / a) if a.startswith("fixtures/") else a for a in args]
+    capsys.readouterr()
+    assert cli.main(["check", *args]) == 1
+    assert capsys.readouterr().out.strip() == shown.group(2).strip()

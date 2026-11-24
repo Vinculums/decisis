@@ -93,6 +93,13 @@ key comes from `VINC_API_KEY` and is not written to any file the tool produces.
 each advisory keeps its source URL and a SHA-256 of the record that was read, and each written record
 carries them. `--osv-cache` replays a saved set of advisories and refuses the network.
 
+**Outbound requests to OSV.** `audit` and `propose` send OSV queries to `https://api.osv.dev`. When the
+inventory has GitHub Actions packages they also download, once per run, OSV's export of GitHub Actions
+records from `https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip`, run by the
+same OSV project, to learn the spelling OSV stores for each action name. The download is cut off at
+64 MiB, and the archive at 100,000 records of 4 MiB each; only package names are kept from it. With
+`--osv-cache` neither host is asked.
+
 **Outbound requests to GitHub.** `init --github` sends only GET requests, only to `https://api.github.com`
 on port 443: a `Link` header, a redirect or a final answer that points anywhere else is refused before
 anything is sent there or read from it. `GITHUB_TOKEN` is read from the environment, never from a flag, and
