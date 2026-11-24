@@ -137,13 +137,18 @@ class Sandbox:
         _warm()
         con = relate.connect(str(self.path))
         try:
+            made: dict[str, list[int]] = {}
             for kind in sorted({n["kind"] for n in graph.nodes}):
                 rows = [{"id": n["id"], "title": n.get("title") or "", "domain": n.get("domain") or "", "props": _flat(n.get("props"))}
                         for n in graph.nodes if n["kind"] == kind]
-                con.execute(f"UNWIND $rows AS r CREATE (n:{_label(kind)} {{id: r.id, title: r.title, domain: r.domain}}) SET n += r.props", {"rows": rows})
+                for r in con.execute(f"UNWIND $rows AS r CREATE (n:{_label(kind)} {{id: r.id, title: r.title, domain: r.domain}}) SET n += r.props "
+                                     "RETURN r.id AS id, id(n) AS nid", {"rows": rows}).fetchall():
+                    made.setdefault(r["id"], []).append(r["nid"])
+            seek = {i: n[0] for i, n in made.items() if len(n) == 1}
             for rel in sorted({e["type"] for e in graph.edges}):
-                rows = [{"s": e["source"], "t": e["target"], "evidence": e.get("evidence") or ""} for e in graph.edges if e["type"] == rel]
-                con.execute(f"UNWIND $rows AS r MATCH (a {{id: r.s}}), (b {{id: r.t}}) CREATE (a)-[:{_label(rel)} {{evidence: r.evidence}}]->(b)", {"rows": rows})
+                for by_id, rows in _runs([e for e in graph.edges if e["type"] == rel], seek):
+                    match = "MATCH (a) WHERE id(a) = r.s MATCH (b) WHERE id(b) = r.t" if by_id else "MATCH (a {id: r.s}), (b {id: r.t})"
+                    con.execute(f"UNWIND $rows AS r {match} CREATE (a)-[:{_label(rel)} {{evidence: r.evidence}}]->(b)", {"rows": rows})
             nodes = con.execute("MATCH (n) RETURN count(n) AS c").single()
             edges = con.execute("MATCH ()-[r]->() RETURN count(r) AS c").single()
         finally:
@@ -477,6 +482,19 @@ def _label(name: str) -> str:
     if not clean or not clean[0].isalpha():
         raise ValueError(f"not a usable label: {name!r}")
     return clean[0].upper() + clean[1:]
+
+
+def _runs(edges: list[dict], seek: dict[str, int]) -> list[tuple[bool, list[dict]]]:
+    out: list[tuple[bool, list[dict]]] = []
+    for e in edges:
+        by_id = e["source"] in seek and e["target"] in seek
+        ends = (seek[e["source"]], seek[e["target"]]) if by_id else (e["source"], e["target"])
+        row = {"s": ends[0], "t": ends[1], "evidence": e.get("evidence") or ""}
+        if out and out[-1][0] == by_id:
+            out[-1][1].append(row)
+        else:
+            out.append((by_id, [row]))
+    return out
 
 
 def _flat(props: dict | None) -> dict:

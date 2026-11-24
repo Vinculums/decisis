@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -83,6 +84,32 @@ def test_a_repeated_node_id_fails_the_load_by_name(tmp_path):
     with sandbox(tmp_path) as box:
         with pytest.raises(LoadMismatch, match="repeated node ids: " + g.nodes[0]["id"]):
             box.load(co.Subgraph(g.nodes + [g.nodes[0]], g.edges, {}))
+
+
+def test_a_node_id_repeated_under_two_kinds_still_fails_the_load(tmp_path):
+    g = graph()
+    twin = {**g.nodes[0], "kind": "Other"}
+    with sandbox(tmp_path) as box:
+        with pytest.raises(LoadMismatch, match="repeated node ids: " + g.nodes[0]["id"]):
+            box.load(co.Subgraph(g.nodes + [twin], g.edges, {}))
+
+
+def chain(n: int) -> co.Subgraph:
+    nodes = [{"id": "repo:Big", "kind": "Repository", "props": {}}]
+    nodes += [{"id": f"pkg:npm/p{i}@1.0.0", "kind": "Package", "props": {"name": f"p{i}"}} for i in range(n)]
+    edges = [{"source": "repo:Big", "target": f"pkg:npm/p{i}@1.0.0", "type": "DEPENDS_ON"} for i in range(0, n, 10)]
+    edges += [{"source": f"pkg:npm/p{i}@1.0.0", "target": f"pkg:npm/p{i + 1}@1.0.0", "type": "DEPENDS_ON"} for i in range(n - 1)]
+    return co.Subgraph(nodes, edges, {})
+
+
+def test_a_lockfile_sized_graph_loads_in_seconds(tmp_path):
+    big = chain(3000)
+    start = time.perf_counter()
+    with sandbox(tmp_path) as box:
+        assert box.load(big) == {"nodes": len(big.nodes), "edges": len(big.edges)}
+        rows = box.query("MATCH (:Repository {id: 'repo:Big'})-[:DEPENDS_ON]->(p:Package {id: 'pkg:npm/p10@1.0.0'})-[:DEPENDS_ON]->(q) RETURN q.id AS id")
+    assert rows == [{"id": "pkg:npm/p11@1.0.0"}]
+    assert time.perf_counter() - start < 10
 
 
 def test_nodes_without_edges_load(tmp_path):
