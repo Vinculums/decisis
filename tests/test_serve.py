@@ -132,6 +132,24 @@ def test_query_over_mcp_answers_refuses_writes_and_cleans_up(boxes):
     assert len(made) == 3 and list(root.iterdir()) == []
 
 
+def sent(result) -> int:
+    return len(result.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8"))
+
+
+def test_what_the_server_sends_stays_under_the_byte_cap(boxes):
+    wide = "UNWIND range(1, 500) AS i RETURN i, [x IN range(1, 1000) | 0] AS xs"
+    _, (full, short, small) = over_mcp(tools(IMPACT_SNAPSHOT, ROOT), ("query", {"cypher": wide, "detail": "full"}),
+                                       ("query", {"cypher": wide}), ("query", {"cypher": "UNWIND range(1, 3) AS i RETURN i", "detail": "full"}))
+    assert not (full.is_error or short.is_error)
+    got = full.structured_content
+    assert sent(full) <= serve.MAX_SENT and json.loads(text_of(full)) == got
+    assert 0 < len(got["rows"]) < 348 and [r["i"] for r in got["rows"]] == list(range(1, len(got["rows"]) + 1))
+    assert got["row_count"] == 500 and "the response was shortened to stay under 1048576 bytes: rows" in got["cut"]
+    assert re.match(r"\d+ of 500 rows are shown: results stop at 500 rows", got["cut"])
+    assert sent(short) <= serve.MAX_SENT and len(short.structured_content["rows"]) == 10
+    assert "cut" not in small.structured_content
+
+
 def test_a_query_over_mcp_past_the_time_limit_is_an_error_result(boxes, monkeypatch, tmp_path):
     root, made = boxes
     monkeypatch.setenv("DECISIS_QUERY_TIMEOUT", "1")

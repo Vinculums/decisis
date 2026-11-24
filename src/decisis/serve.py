@@ -32,6 +32,7 @@ MAX_TEXT = 512
 MAX_LOCKFILE_BYTES = 64 * 1024 * 1024
 TEXT = {"type": "string", "minLength": 1, "maxLength": MAX_TEXT}
 MAX_PARAMS = 32
+MAX_SENT = cypher.MAX_BYTES
 DETAIL = {"type": "string", "enum": list(compact.DETAILS), "default": "summary",
           "description": f"summary (the default): counts, ids, titles and the first {compact.FIRST} items of each list; "
                          "full: the whole report"}
@@ -238,9 +239,13 @@ def answer(report: dict) -> types.CallToolResult:
     return types.CallToolResult(content=[types.TextContent(type="text", text=text)], structured_content=report)
 
 
+def sent_size(report: dict) -> int:
+    return len(answer(report).model_dump_json(by_alias=True, exclude_none=True).encode("utf-8"))
+
+
 def outcome(tools: Tools, name: str, arguments: dict | None) -> types.CallToolResult:
     try:
-        return answer(tools.call(name, arguments))
+        return answer(compact.fit(tools.call(name, arguments), sent_size, MAX_SENT))
     except Refused as e:
         return error(str(e))
     except Exception as e:

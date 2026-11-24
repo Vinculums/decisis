@@ -336,7 +336,10 @@ goes in backticks. Relate plans every `CALL { }` subquery as read-write, so thos
 `COLLECT { }`, `COUNT { }`, `EXISTS { }` or `UNION`. Then the query process plans the statement with
 `EXPLAIN` on a read-only connection and runs it only when Relate plans it as a read, and the read-only
 connection refuses any write on its own. Results stop at 500 rows and 1 MiB with a note that says how many
-rows there were; the node, edge and time limits are the ones above. Nodes, edges and paths come back as
+rows there were, and every MCP reply, as the server sends it, stays under 1 MiB: in full detail the
+longest list is shortened and a `cut` note says so. The schema names come from the snapshot: names that
+are not plain ASCII identifiers are shown in backticks, and long or unprintable ones are left out.
+The node, edge and time limits are the ones above. Nodes, edges and paths come back as
 labels or type and properties; return ids and properties to keep the rows small.
 
 ## Connect Vinc (optional)

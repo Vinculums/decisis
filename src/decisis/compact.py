@@ -1,7 +1,11 @@
 """Short forms of the tool reports for an agent's context: counts, ids and titles, and the first items of each list."""
 from __future__ import annotations
 
+import copy
+import json
+
 FIRST = 10
+NOTE_ROOM = 4096
 DETAILS = ("summary", "full")
 NOTE = (f'detail "summary" gives counts, ids and titles, and at most {FIRST} items of each list; '
         'call again with detail "full" for every item and field')
@@ -69,3 +73,65 @@ def query(report: dict) -> dict:
 
 
 SHORT = {"impact": impact, "paths": paths, "audit": audit, "query": query}
+
+
+def fit(report: dict, size, limit: int) -> dict:
+    if size(report) <= limit:
+        return report
+    out, cuts = copy.deepcopy(report), []
+    while size(out) > limit - NOTE_ROOM:
+        path = heaviest(out)
+        if path is None:
+            raise ValueError(f"the report is larger than {limit} bytes and has no list left to shorten")
+        items = at(out, path)
+        keep = longest_fit(out, path, items, size, limit - NOTE_ROOM)
+        cuts.append((path, keep, len(items)))
+        place(out, path, items[:keep])
+    shortened = "; ".join(f"{'/'.join(map(str, p)) or 'the report'} {k} of {n}" for p, k, n in cuts[:FIRST])
+    note = f"the response was shortened to stay under {limit} bytes: {shortened}; ask for less, such as fewer rows or detail \"summary\""
+    out["cut"] = f"{out['cut']}; {note}" if isinstance(out.get("cut"), str) else note
+    return out
+
+
+def longest_fit(out: dict, path: tuple, items: list, size, target: int) -> int:
+    lo, hi = 0, len(items) - 1
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        place(out, path, items[:mid])
+        if size(out) <= target:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+
+def lists(value, path: tuple = ()) -> list[tuple[int, tuple]]:
+    found = []
+    if isinstance(value, list) and value:
+        found.append((len(json.dumps(value, ensure_ascii=False)), path))
+    children = value.items() if isinstance(value, dict) else enumerate(value) if isinstance(value, list) else ()
+    for key, child in children:
+        found += lists(child, (*path, key))
+    return found
+
+
+def heaviest(report: dict) -> tuple | None:
+    found = lists(report)
+    if not found:
+        return None
+    weight, path = max(found)
+    while True:
+        inner = [(w, p) for w, p in found if len(p) > len(path) and p[:len(path)] == path and w * 2 >= weight]
+        if not inner:
+            return path
+        weight, path = max(inner)
+
+
+def at(value, path: tuple):
+    for key in path:
+        value = value[key]
+    return value
+
+
+def place(report: dict, path: tuple, items: list) -> None:
+    at(report, path[:-1])[path[-1]] = items
