@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from test_audit import no_network
-from decisis import audit, cli, external, inventory, pep440, semver
+from decisis import audit, checker, cli, external, inventory, pep440, semver
+from decisis import commit as wb
 from decisis import checkout as co
 from decisis.inventory import shape
 
@@ -367,6 +368,77 @@ def test_a_package_marked_development_everywhere_and_reached_only_that_way_stays
     bom["components"][0]["properties"] = [{"name": "cdx:npm:package:development", "value": "true"}]
     nodes, _ = inventory.read(json.dumps(bom), "bom.json", "Demo")
     assert {n["id"]: n["props"]["dev"] for n in nodes if n["kind"] == "Package"} == {"pkg:npm/lodash@4.17.20": True, "pkg:npm/jest@1.0.0": True}
+
+
+def reach_lock() -> dict:
+    return {"name": "shop", "version": "1.0.0", "lockfileVersion": 3, "packages": {
+        "": {"name": "shop", "version": "1.0.0", "dependencies": {"app": "1.0.0"}, "devDependencies": {"lint": "1.0.0"}},
+        "node_modules/lint/node_modules/ms": {"version": "2.1.2", "license": "MIT", "dev": True},
+        "node_modules/app": {"version": "1.0.0", "license": "MIT", "dependencies": {"ms": "2.1.2"}, "peerDependencies": {"shared": "^1.0.0"}},
+        "node_modules/lint": {"version": "1.0.0", "license": "MIT", "dev": True, "dependencies": {"helper": "1.0.0", "shared": "1.0.0", "ms": "2.1.2"}},
+        "node_modules/helper": {"version": "1.0.0", "license": "MIT", "peer": True},
+        "node_modules/shared": {"version": "1.0.0", "license": "MIT"},
+        "node_modules/ms": {"version": "2.1.2", "license": "MIT"}}}
+
+
+def dev_of(nodes: list[dict]) -> dict[str, bool]:
+    return {n["id"]: n["props"]["dev"] for n in nodes if n["kind"] == "Package"}
+
+
+def test_an_npm_package_reached_only_through_development_packages_is_development_whatever_its_flag_says():
+    nodes, edges = inventory.read(json.dumps(reach_lock()), "package-lock.json", "Shop")
+    assert dev_of(nodes) == {"pkg:npm/app@1.0.0": False, "pkg:npm/lint@1.0.0": True, "pkg:npm/helper@1.0.0": True,
+                             "pkg:npm/shared@1.0.0": False, "pkg:npm/ms@2.1.2": False}
+    assert {"source": "pkg:npm/app@1.0.0", "target": "pkg:npm/shared@1.0.0", "type": "DEPENDS_ON",
+            "evidence": "node_modules/app requires shared (peer)"} in edges
+
+
+def test_records_from_reachability_pass_re_derivation_in_both_scopes():
+    lock = json.dumps(reach_lock())
+    vinc = co.load(json.dumps({
+        "nodes": [{"id": "concept:shop", "kind": "concept", "title": "Shop", "props": {"code_ref": "Shop"}},
+                  {"id": "decision:only-0bsd", "kind": "decision", "title": "only 0BSD", "props": {"rule": {"license_allowed": ["0BSD"]}}}],
+        "edges": [{"source": "decision:only-0bsd", "target": "concept:shop", "type": "ABOUT", "evidence": "test"}]}))
+    rep = audit.run(vinc, lock, "Shop", advisories=lambda pkgs: ([], []))
+    scope = {f["package"]: (f["dev_only"], f["path"]) for f in rep["findings"]}
+    assert scope["pkg:npm/helper@1.0.0"] == (True, ["repo:Shop", "pkg:npm/lint@1.0.0", "pkg:npm/helper@1.0.0"])
+    assert scope["pkg:npm/shared@1.0.0"] == (False, ["repo:Shop", "pkg:npm/app@1.0.0", "pkg:npm/shared@1.0.0"])
+    plan = wb.propose(rep, "Shop", "space")
+    kept, checked = checker.rederive(plan, vinc, lock, "Shop", lambda pkgs: ([], []))
+    assert kept["held"] == [] and all(not c["problems"] for c in checked)
+    assert {"record:shop-npm-helper-development-license-mit", "record:shop-npm-shared-shipped-license-mit"} <= {n["id"] for n in kept["nodes"]}
+
+
+NPM_PROBES = FIX / "npm"
+
+
+@pytest.mark.parametrize("package,evidence", [("pkg:npm/opt@1.0.0", "opt: file:../src/opt/opt-1.0.0.tgz (optional)"),
+                                              ("pkg:npm/p@1.0.0", "p: file:../src/p/p-1.0.0.tgz (peer)")])
+def test_a_root_optional_or_peer_dependency_that_a_development_package_also_requires_is_shipped(package, evidence):
+    nodes, edges = inventory.read((NPM_PROBES / "root-optional-peer" / "package-lock.json").read_text(encoding="utf-8"),
+                                  "package-lock.json", "Proj")
+    assert dev_of(nodes)[package] is False and dev_of(nodes)["pkg:npm/lint@1.0.0"] is True
+    assert {"source": "repo:Proj", "target": package, "type": "DEPENDS_ON", "evidence": evidence} in edges
+
+
+def test_an_optional_peer_of_a_shipped_package_that_a_development_package_requires_is_shipped():
+    nodes, edges = inventory.read((NPM_PROBES / "optional-peer" / "package-lock.json").read_text(encoding="utf-8"),
+                                  "package-lock.json", "Proj")
+    assert dev_of(nodes) == {"pkg:npm/app@1.0.0": False, "pkg:npm/lint2@1.0.0": True, "pkg:npm/x@1.0.0": False}
+
+
+def test_the_shared_builder_lets_reachability_decide_over_a_production_mark():
+    inv = shape.Inventory("Demo", "test", "hash")
+    for name, dev in (("tool", True), ("lib", False), ("app", False), ("both", False), ("loose", False)):
+        inv.add(name, shape.from_purl(f"pkg:npm/{name}@1.0.0"), name, dev=dev)
+    inv.depends(None, "tool", "declared")
+    inv.depends(None, "app", "declared")
+    inv.depends("tool", "lib", "tool requires lib")
+    inv.depends("tool", "both", "tool requires both")
+    inv.depends("app", "both", "app requires both")
+    nodes, _ = inv.result()
+    assert dev_of(nodes) == {"pkg:npm/tool@1.0.0": True, "pkg:npm/lib@1.0.0": True, "pkg:npm/app@1.0.0": False,
+                             "pkg:npm/both@1.0.0": False, "pkg:npm/loose@1.0.0": False}
 
 
 @pytest.mark.parametrize("kind,ecosystem,version", [("SEMVER", "npm", "2.0.0"), ("ECOSYSTEM", "PyPI", "2.0.0"),
