@@ -7,6 +7,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 
 Reader = Callable[[str], "str | None"]
 Resolver = Callable[[str], str]
+Lister = Callable[[str], "list[str]"]
 BOM = "﻿"
 
 
@@ -15,6 +16,7 @@ class Siblings(dict):
         super().__init__(texts or {})
         self.reader = reader
         self.resolve = resolve
+        self.unread: dict[str, str] = {}
 
 
 def clean(text: str) -> str:
@@ -51,6 +53,16 @@ def directory_resolver(base: Path, root: Path | None = None) -> Resolver:
         return str(real)
 
     return resolve
+
+
+def directory_lister(base: Path, root: Path | None = None) -> Lister:
+    resolve = directory_resolver(base, root)
+
+    def listing(name: str) -> list[str]:
+        real = Path(resolve(name))
+        return sorted(p.name for p in real.iterdir() if p.is_file()) if real.is_dir() else []
+
+    return listing
 
 
 def directory_reader(base: Path, root: Path | None = None) -> Reader:

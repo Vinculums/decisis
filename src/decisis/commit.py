@@ -73,7 +73,7 @@ def _group(f: dict, repo: str, scope: str) -> tuple[str, dict]:
     kind = f.get("kind", "advisory")
     if kind in PACKAGE_RECORD:
         value = f.get("license_expression") or "" if kind == "license" else f"{f['ecosystem']}:{f['name']}"
-        suffix = license_slug(value) if kind == "license" else "denied-package"
+        suffix = license_slug(value) if kind == "license" else SUFFIX[kind]
         return record_id(repo, f"{_purl_type(f['package'])}-{name}", scope, suffix), {
             "kind": kind, "name": name, "ecosystem": f.get("ecosystem") or "", "value": value, "scope": scope}
     osv = f["advisory"].split(":", 1)[1]
@@ -122,7 +122,10 @@ def advisory_record(rid: str, g: dict, found: list, verdicts: dict, repo: str, t
 PACKAGE_RECORD = {
     "license": ("licensed_under", "is licensed {value}", "licensed {value}"),
     "package": ("uses_denied_package", "is the denied package {value}", "a package a decision denies"),
+    "allowlist": ("uses_unlisted_package", "is {value}, outside the allowlist", "a package outside a decision's allowlist"),
+    "pin": ("not_pinned_to_commit", "is not pinned to a commit", "a ref that is not the full commit SHA a decision requires"),
 }
+SUFFIX = {"package": "denied-package", "allowlist": "unlisted-package", "pin": "unpinned"}
 
 
 def package_record(rid: str, g: dict, found: list, verdicts: dict, repo: str, today: str, evidence: dict) -> dict:

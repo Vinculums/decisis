@@ -1,0 +1,28 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        action: [actions/setup-python@v5]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@v4.1.0
+        with:
+          node-version: 22
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.npm
+          key: npm
+      - uses: tj-actions/changed-files@v35
+      - uses: some-org/unvetted-action@v1
+      - uses: ./.github/actions/setup
+      - uses: docker://alpine:3.20
+      - uses: ${{ matrix.action }}
+      - run: npm test
+  shared:
+    uses: octo-org/shared-workflows/.github/workflows/build.yml@main

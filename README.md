@@ -177,6 +177,8 @@ decision above.
 | pnpm lockfile v6 or v9 | `pnpm-lock.yaml` | an importer's `devDependencies`; v6 also `dev: true` |
 | Yarn v1 and Yarn Berry (2 and later) | `yarn.lock`, with the root `package.json` and the workspaces' `package.json` files next to it | `devDependencies` in the `package.json` files |
 | Bun text lockfile | `bun.lock` | a workspace's `devDependencies` |
+| GitHub Actions workflows | any `.github/workflows/*.yml` (the other workflows beside it are read too), or an `action.yml` | not marked; every action counts as shipped |
+| Terraform lock file | `.terraform.lock.hcl` | not marked; every provider counts as shipped |
 
 For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
 line there. In a pnpm, Yarn or Bun monorepo each workspace package (a pnpm importer, a Yarn or Bun
@@ -185,12 +187,13 @@ workspace) is a `Workspace` node between the repository and its dependencies, so
 from the repository. Peer and optional dependencies are edges with `(peer)` or `(optional)` in the evidence.
 For `yarn.lock`, `audit` reads the root `package.json` and the `package.json` of each directory its
 `workspaces` globs match; without them the packages are linked straight from the repository. A binary
-`bun.lockb` is refused: run `bun install --save-text-lockfile` and audit the `bun.lock` it writes. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, Maven, and for
+`bun.lockb` is refused: run `bun install --save-text-lockfile` and audit the `bun.lock` it writes. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, Maven, GitHub Actions, and for
 SBOMs also NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
 without a purl, or whose purl type has no OSV ecosystem, stays in the graph and is listed under
 `unresolved_packages` in the report; it is not queried. An inventory with no packages, or none that can
 be queried, is refused. `fixtures/inventory/` holds one small example of each format and an OSV cache
-that covers them all; the Gradle and Maven examples and their cache are in `fixtures/inventory/jvm/`.
+that covers them all; the Gradle and Maven examples and their cache are in `fixtures/inventory/jvm/`, and the
+workflows and Terraform lock file with theirs in `fixtures/inventory/ci/`.
 
 A Gradle lockfile pins every resolved version but not which dependency brings in which, and a `pom.xml`
 declares direct dependencies only. `audit` reads `pom.xml` versions that are literals or properties
@@ -208,6 +211,34 @@ followed only inside the repository, and each file is read once. A requirements 
 lists direct dependencies only, so the report says the packages they depend on were not seen and
 recommends a lockfile or an SBOM. Such notes are in the report's `inventory_notes`. Python names are
 normalized as in PEP 503 and queried under the PyPI ecosystem.
+
+For GitHub Actions, pass one workflow file, such as `.github/workflows/ci.yml`; `audit` also reads every
+other `*.yml` and `*.yaml` workflow in the same directory through the same bounded reader as other
+sibling files (`serve --mcp` reads only the file it is given). Each `uses:` of a step, and of a job that
+calls a reusable workflow, becomes a package in the OSV `GitHub Actions` ecosystem named `owner/repo`
+(`owner/repo/path@ref` too) in lower case, since GitHub does not tell case apart, with its ref as written:
+a tag, a branch or a commit SHA. OSV does tell case apart and stores some names in mixed case
+(`Azure/setup-kubectl`), so when the inventory has actions `audit` also downloads OSV's own list of
+GitHub Actions records, `https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip`
+(once per run, at most 64 MiB), and asks OSV for each action under the spelling OSV stores; an action
+that is not in that list has no advisories and is not queried. `--osv-cache` carries that list as
+`names`, and a cached run with actions refuses without it. A local `./` action, a `docker://` image, a `uses:` built from an
+expression and one that is not a name (`../x@v1`) are listed under `unresolved_packages` with the reason
+and not queried, and so is a workflow file that is not valid YAML or cannot be read (not UTF-8, or a link
+that leads outside the repository). YAML anchors and aliases are
+allowed in workflows, up to 100,000 expanded nodes. OSV does not match GitHub Actions versions itself, so
+`audit` asks OSV for every advisory of each action and compares the ref with the ranges: a tag such as
+`v4.1.0` is a version, a major or minor tag such as `v4` covers every release under it and is `unresolved`
+when a range starts or ends inside it, and a branch or a commit SHA cannot be ordered, so its advisories
+are `unresolved` unless the record lists that ref. An `action.yml` is read for the `uses:` of its
+composite `runs.steps`.
+
+A `.terraform.lock.hcl` is read by a small strict parser: `provider "<address>" { ... }` blocks with
+quoted strings and lists of quoted strings, and comments; anything else stops the run with the line.
+Each provider is a package in the ecosystem `Terraform` with its full address as the name and its locked
+version. OSV has no Terraform ecosystem (checked 2026-11-24), so providers are not queried: they are
+checked against decision rules only (`package_denied`, `package_allowed`), each is listed under
+`unresolved_packages` with that reason, and `inventory_notes` says so.
 
 Files next to the inventory (`go.sum`, `pyproject.toml`, `-r` includes, the `package.json` files of Yarn
 workspaces) are read only inside the repository: the nearest directory above the inventory that holds a
@@ -248,7 +279,7 @@ flowchart LR
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `check <snapshot> (--changed <file>... \| --base <ref>)` | nothing; with `--base`, git | the decisions that govern a change set, and the `review_required` and `imports_forbidden` rules it breaks; exits 1 on a violation |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
-| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
+| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev (and OSV's GitHub Actions export for workflows), unless `--osv-cache` | advisories the repository reaches and the decisions they break |
 | `propose <report> <snapshot> <lockfile or SBOM> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
 | `compare` | nothing | the benchmark below |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |

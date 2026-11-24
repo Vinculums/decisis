@@ -101,7 +101,7 @@ without a rule is `relevant`. A dependency reached only through development depe
 violate a rule about shipped ones. The verdict is computed in Python from the graph's answers, not by the
 query.
 
-Decisions can also forbid licenses and packages (`license_denied`, `license_allowed`, `package_denied`).
+Decisions can also forbid licenses and packages (`license_denied`, `license_allowed`, `package_denied`), allow only listed packages (`package_allowed`) and require every GitHub action to be pinned to a commit (`pinned_to_commit`).
 When a governing decision has such a rule, `audit` judges every package in the graph against it and adds
 a license or package finding for each package a rule matches or cannot judge, with the shortest
 dependency path to it. `src/decisis/rules.py` reads rules and judges one package or advisory; each kind is
