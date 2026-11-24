@@ -340,3 +340,37 @@ def test_a_failing_sweep_never_stops_a_new_sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(sb, "sweep", boom)
     with sandbox(tmp_path) as box:
         assert box.load(graph()) == {"nodes": 5, "edges": 4}
+
+
+
+FINDER_ONLY = """
+import importlib.util, sys
+src = sys.argv[1]
+
+class Finder:
+    def find_spec(self, name, path=None, target=None):
+        if name == "decisis":
+            return importlib.util.spec_from_file_location(name, src + "/decisis/__init__.py", submodule_search_locations=[src + "/decisis"])
+        return None
+
+sys.meta_path.insert(0, Finder())
+from decisis import cli
+sys.exit(cli.main(["query", sys.argv[2], "MATCH (n) RETURN count(n) AS c"]))
+"""
+
+
+def test_the_query_process_starts_when_decisis_is_found_only_through_an_import_hook(tmp_path):
+    import relate
+    import venv
+    venv.create(tmp_path / "env", with_pip=False)
+    python = next(p for p in [tmp_path / "env" / "bin" / "python", tmp_path / "env" / "Scripts" / "python.exe"] if p.exists())
+    site = next(p for p in (tmp_path / "env").rglob("site-packages") if p.is_dir())
+    (site / "relate_only.pth").write_text(str(Path(relate.__file__).resolve().parents[1]) + "\n", encoding="utf-8")
+    script = tmp_path / "finder_only.py"
+    script.write_text(FINDER_ONLY, encoding="utf-8")
+    src = Path(__file__).resolve().parents[1] / "src"
+    snap = Path(__file__).resolve().parents[1] / "fixtures" / "impact" / "vinc.json"
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
+    run = subprocess.run([str(python), "-I", str(script), str(src), str(snap)], capture_output=True, text=True, timeout=120, env=env, cwd=tmp_path)
+    assert run.returncode == 0, run.stderr
+    assert json.loads(run.stdout)["rows"][0]["c"] > 0
