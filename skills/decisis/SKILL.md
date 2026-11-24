@@ -91,13 +91,24 @@ On the command line the same query is
 
 ## The procedure on real data
 
-1. Check out only what the task needs, with a read-only key:
+1. Get a snapshot. With Vinc, check out only what the task needs, with a read-only key:
    `VINC_API_KEY=<read-only key> VINC_SPACE=<space id> decisis checkout <seed id> ... --out snapshot.json`
    Pick seeds that the task names (the repository's concept, the decision in question); keep `--depth` at 1 or 2.
+   Without Vinc, build one from the repository's ADRs, CODEOWNERS and postmortems:
+   `decisis init --repo-dir . --repo <name> --out snapshot.json` (add `--github OWNER/REPO` for merged pull
+   requests labelled `decision`). Read what `init` prints it could not read, and say so in your report.
 2. Reason in the sandbox:
    `decisis audit snapshot.json package-lock.json --repo <name as in code_ref> --out report.json`
    (add `--osv-cache <file>` to stay offline), `decisis impact snapshot.json <path> --format text`, or
    `decisis check snapshot.json --base origin/main --reviewers <handle>... --format text`.
+   `audit` reads npm, pnpm, Yarn and Bun lockfiles, CycloneDX and SPDX JSON, `uv.lock`, `poetry.lock`,
+   `requirements*.txt`, `Cargo.lock`, `go.mod` with `go.sum`, Gradle lockfiles, `pom.xml`, GitHub Actions
+   workflows and `.terraform.lock.hcl`, and tells the format from the file. Files next to it are read only
+   under the repository root (`--root DIR` sets it). `--format mermaid` or `--format html` gives a view for a
+   person; keep the JSON for yourself.
+   A graph over 50,000 nodes or 250,000 edges, or a query over 60 seconds, stops the command with exit 1;
+   raise `--max-nodes`, `--max-edges` or `--query-timeout` only when the person agrees. If a killed run left
+   a `decisis-*` directory behind, `decisis gc` removes it.
 3. Propose: `decisis propose report.json snapshot.json package-lock.json --repo <name> --space <space id> --out plan.json`
    (with the same `--osv-cache <file>` as the audit, if any). It re-derives each record from the snapshot, the
    lockfile and OSV, holds back any record that fails, and prints the exact write set and an approval digest.
@@ -116,11 +127,22 @@ On the command line the same query is
   machine-checkable `rule`, otherwise `relevant`. A development-only path does not violate a rule
   about shipped dependencies.
 - `source_url`, `fetched_at`, `content_hash`: the advisory evidence each record keeps.
-- A finding with `kind` `license` or `package` comes from a decision whose rule forbids licenses or
-  packages (`license_denied`, `license_allowed`, `package_denied`); its `path` ends at the package and
-  each policy names its `rule`. An unknown license is `unresolved`, never `violated`.
+- A finding with `kind` `license`, `package`, `allowlist` or `pin` comes from a decision whose rule
+  forbids licenses (`license_denied`, `license_allowed`), denies packages (`package_denied`), allows only
+  listed packages (`package_allowed`) or requires GitHub actions pinned to a commit (`pinned_to_commit`);
+  its `path` ends at the package and each policy names its `rule`. An unknown license, or a `docker://` image
+  under `pinned_to_commit`, is `unresolved`, never `violated`.
+- `inventory_notes`: gaps in what the inventory covers, such as a `requirements.txt` that lists
+  direct dependencies only, or a Gradle lockfile or `pom.xml` whose transitive dependencies are not
+  resolved. Pass them on; a clean report over such an inventory is not a clean bill.
+- `unresolved_packages`: packages that could not be queried at OSV (no purl, a local or Docker action, a
+  Terraform provider) with the reason. Name them in your report.
 - `rule_problems`: decisions whose rule cannot be read, with the reason. Report them; they are never
   `violated`.
+
+For `check`, read `violations` (the file, the line for an import, the decision and the rule) and
+`unresolved` (imports or files that cannot be judged, such as an import computed at run time). An
+`unresolved` entry is not a pass; report it. A superseded decision is listed apart and not judged.
 
 When you report back, quote the path and the decision for each violation, and name the digest the
 person needs to approve.

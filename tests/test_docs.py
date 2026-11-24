@@ -67,3 +67,29 @@ def test_the_readme_check_example_prints_what_the_readme_shows(capsys, no_networ
     capsys.readouterr()
     assert cli.main(["check", *args]) == 1
     assert capsys.readouterr().out.strip() == shown.group(2).strip()
+
+
+def help_commands(capsys) -> list[str]:
+    capsys.readouterr()
+    try:
+        cli.main(["--help"])
+    except SystemExit as e:
+        assert e.code == 0
+    usage = capsys.readouterr().out
+    return re.search(r"\{([a-z,]+)\}", usage).group(1).split(",")
+
+
+def test_every_subcommand_in_the_help_has_a_row_in_the_readme_commands_table(capsys):
+    commands = help_commands(capsys)
+    assert len(commands) >= 13 and "serve" in commands and "check" in commands
+    start = README.index("\n## Commands")
+    table = README[start:README.index("\n## ", start + 1)]
+    missing = [c for c in commands if not re.search(rf"^\| `{c}[ `]", table, re.M)]
+    assert missing == []
+
+
+def test_the_readme_says_the_old_name_was_removed_and_nothing_installs_it():
+    history = README[README.index("## Name and history"):]
+    assert "vinc-relate" in history and "removed in 0.2.0" in history
+    assert "vinc-relate" not in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert not (ROOT / "src" / "vinc_relate").exists()
