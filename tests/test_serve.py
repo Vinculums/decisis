@@ -318,7 +318,7 @@ def test_serve_without_the_extra_says_how_to_install_it(monkeypatch, capsys):
     assert e.value.code == 2 and "pip install 'decisis[mcp]'" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("doc", ["README.md", "skills/decisis/SKILL.md"])
+@pytest.mark.parametrize("doc", ["docs/mcp.md", "skills/decisis/SKILL.md"])
 def test_the_docs_show_the_claude_code_configuration(doc):
     text = (ROOT / doc).read_text(encoding="utf-8")
     assert "pip install \"decisis[mcp]\"" in text

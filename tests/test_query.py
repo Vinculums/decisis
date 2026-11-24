@@ -344,15 +344,15 @@ def test_a_cypher_error_is_a_message_not_a_traceback(capsys):
     assert "at line 2, col 20" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("doc", ["README.md", "skills/decisis/SKILL.md"])
+@pytest.mark.parametrize("doc", ["docs/mcp.md", "skills/decisis/SKILL.md"])
 def test_the_docs_say_when_to_use_query_and_how_detail_works(doc):
     text = (ROOT / doc).read_text(encoding="utf-8")
     assert "`query`" in text and ('"detail": "full"' in text or '`"full"`' in text)
     assert "COLLECT { }" in text and "500 rows and 1 MiB" in text
 
 
-def test_the_readme_query_example_runs(capsys):
-    line = next(x for x in (ROOT / "README.md").read_text(encoding="utf-8").splitlines() if x.startswith("decisis query "))
+def test_the_mcp_doc_query_example_runs(capsys):
+    line = next(x for x in (ROOT / "docs" / "mcp.md").read_text(encoding="utf-8").splitlines() if x.startswith("decisis query "))
     assert cli.main(shlex.split(line)[1:]) == 0
     assert [r["id"] for r in json.loads(capsys.readouterr().out)["rows"]] == ["decision:demo-oversized-pages-are-refused",
                                                                              "record:demo-page-size-check-review"]

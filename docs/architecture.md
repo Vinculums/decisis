@@ -200,4 +200,4 @@ paths its text names (`bench/holdout/SOURCES.md` has the sources and licenses). 
 bench/holdout/tasks.json` runs it from a checkout of this repository; the held-out inputs are not in the
 wheel. The committed results are `bench/results.json` and `bench/holdout/results.json`, with their
 tables in the `results.md` next to each; a slow test checks that the command still gives the held-out
-results. The README gives the numbers and their caveats.
+results. [benchmark.md](benchmark.md) gives the numbers and their caveats.
