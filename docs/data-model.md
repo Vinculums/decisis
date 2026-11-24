@@ -361,8 +361,10 @@ OSV has no Terraform ecosystem, and its providers are judged against rules only.
 A workflow `uses:` that is a local `./` path, a `docker://` image, built from an expression (`${{ ... }}`)
 or not an `owner/repo[/path]@ref` name (such as `../x@v1`) gets the id `pkg:unknown/<uses>@`, ecosystem
 `GitHub Actions`, an empty version and an `unresolved` reason. An action's `name` is `owner/repo` in lower
-case, as GitHub matches it, and its id and purl use that name; `spellings` lists each spelling the
-workflows use, and OSV, which tells case apart, is asked for the name and every spelling. A workflow file
+case, as GitHub matches it, and its id and purl use that name; the evidence keeps the `uses:` as written.
+OSV tells case apart and stores some names in mixed case, so OSV is asked under the spelling it stores
+(see the OSV cache below), and the package gets `osv_index`, which says which spellings were asked, or
+that the name is not in OSV's list and so has no advisory. A workflow file
 that is not valid YAML, or has neither `jobs` nor `runs.steps`, gets the id `pkg:unknown/<file>@` with the
 parser's message as the reason, and the other workflows are still read. So does a workflow beside it that
 cannot be read: not UTF-8, or a symbolic link that leads outside the root. Every Terraform provider has the
@@ -479,10 +481,16 @@ When the severity does not come from the record itself, the advisory node and ea
 package id such as `pkg:npm/lodash@4.17.15` to the list of advisory ids OSV returned for it) and `vulns`
 (an advisory id to the OSV record as `api.osv.dev/v1/vulns/<id>` returns it). A package or advisory the
 file does not hold stops the run. The keys follow the package ids, so a cache works for every ecosystem.
-OSV returns nothing for a GitHub Actions query with a version, so `audit` asks for those by name only, once
-for the lower-case name and once for each other spelling; their keys are the id without the version
-(`pkg:githubactions/tj-actions/changed-files`, `pkg:githubactions/Azure/setup-kubectl`), and the
-`AFFECTED_BY` evidence says the version is compared by decisis.
+OSV returns nothing for a GitHub Actions query with a version, so `audit` asks for those by name only.
+OSV also matches names with case, so `audit` first reads which names OSV stores from OSV's export
+`https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip`: once per run, only when
+the inventory has GitHub Actions packages, read up to 64 MiB, at most 100,000 records of at most 4 MiB
+each, every record parsed as JSON. Each action is asked under every spelling OSV stores for its
+lower-case name; a name OSV does not store is not queried. The cache keys are the id without the
+version, in OSV's spelling (`pkg:githubactions/Azure/setup-kubectl`), and the `AFFECTED_BY` evidence
+says the version is compared by decisis. A cache holds that list as `names`: an ecosystem to
+`{"fetched_at", "names"}`. A cached run with GitHub Actions packages and no `names` entry for them stops
+with the same refusal as a missing query.
 `fixtures/audit/osv-cache.json` covers the demo lockfile, `fixtures/inventory/osv-cache.json` covers
 the examples in `fixtures/inventory/`, `fixtures/inventory/ci/osv-cache.json` the workflows and
 Terraform lock file in `fixtures/inventory/ci/` (real records of `tj-actions/changed-files`), and `fixtures/inventory/jvm/osv-cache.json` the Gradle and Maven

@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from typing import Callable
 
 from . import semver
+from .inventory.actions import DOCKER as DOCKER_USE
+from .inventory.actions import LOCAL as LOCAL_USE
+from .inventory.actions import local
 from .inventory.shape import UNKNOWN_LICENSES
 
 SEVERITY = ["LOW", "MODERATE", "MEDIUM", "HIGH", "CRITICAL"]
@@ -221,7 +224,9 @@ def unnamed_use(facts: dict) -> str | None:
     if (facts.get("ecosystem") or "").lower() != PINNED.lower() or facts.get("version"):
         return None
     name = facts.get("name") or ""
-    return "local" if name.startswith("./") else "docker" if name.startswith("docker://") else "unknown"
+    if facts.get("unresolved") == LOCAL_USE and local(name):
+        return "local"
+    return "docker" if facts.get("unresolved") == DOCKER_USE and name.startswith("docker://") else "unknown"
 
 
 def _package_allowed(value: tuple, facts: dict) -> tuple[str, str]:

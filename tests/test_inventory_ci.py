@@ -4,6 +4,7 @@ import copy
 import io
 import json
 import re
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -152,17 +153,57 @@ def test_a_yaml_file_without_on_and_jobs_is_not_taken_for_a_workflow():
         inventory.detect("version: 2.1\njobs:\n  build: {}\n", "config.yml")
 
 
-def test_osv_is_asked_by_action_name_and_decisis_compares_the_ref():
+def zipped(records: dict[str, dict]) -> bytes:
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for name, record in records.items():
+            z.writestr(name, record if isinstance(record, str) else json.dumps(record))
+    return out.getvalue()
+
+
+EXPORT = zipped({"GHSA-a.json": {"affected": [{"package": {"ecosystem": "GitHub Actions", "name": "tj-actions/changed-files"}}]},
+                 "GHSA-b.json": {"affected": [{"package": {"ecosystem": "GitHub Actions", "name": "Azure/setup-kubectl"}},
+                                              {"package": {"ecosystem": "npm", "name": "left-pad"}}]}})
+
+
+def test_osv_is_asked_by_the_name_osv_stores_from_its_own_export_fetched_once():
     sent = []
 
     def opener(req, timeout=None):
+        sent.append(req.full_url)
+        if req.full_url == external.OSV_NAMES.format(ecosystem="GitHub%20Actions"):
+            return io.BytesIO(EXPORT)
         sent.append(json.loads(req.data)["queries"])
         return io.BytesIO(json.dumps({"results": [{} for _ in sent[-1]]}).encode())
 
     nodes, _ = read_path(WORKFLOW)
-    external.fetch_advisories([n for n in nodes if n["kind"] == "Package"], opener=opener)
-    assert {"package": {"ecosystem": "GitHub Actions", "name": "tj-actions/changed-files"}} in sent[0]
-    assert all("version" not in q for q in sent[0]) and len(sent[0]) == 7
+    pkgs = [n for n in nodes if n["kind"] == "Package"]
+    external.fetch_advisories(pkgs, opener=opener)
+    assert sent[0] == "https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip"
+    assert sent[1:] == [external.OSV_BATCH, [{"package": {"ecosystem": "GitHub Actions", "name": "tj-actions/changed-files"}}] * 2]
+    props = {n["id"]: n["props"] for n in pkgs}
+    assert props[CHANGED]["osv_index"].endswith("asked OSV for tj-actions/changed-files")
+    assert props["pkg:githubactions/actions/setup-node@v4.1.0"]["osv_index"].endswith("not listed, so OSV holds no advisory for it")
+
+
+def test_the_export_is_read_with_a_size_cap_and_must_be_a_zip_of_json(monkeypatch):
+    assert external.stored_names(EXPORT, "GitHub Actions", "x") == ["Azure/setup-kubectl", "tj-actions/changed-files"]
+    with pytest.raises(external.NetworkFailed, match="is not a zip archive"):
+        external.stored_names(b"not a zip", "GitHub Actions", "x")
+    with pytest.raises(external.NetworkFailed, match="is not JSON"):
+        external.stored_names(zipped({"a.json": "{]"}), "GitHub Actions", "x")
+    monkeypatch.setattr(external, "MAX_EXPORT", 10)
+    with pytest.raises(external.NetworkFailed, match="is larger than 10 bytes"):
+        external.fetch_advisories(read_path(WORKFLOW)[0], opener=lambda req, timeout=None: io.BytesIO(EXPORT))
+
+
+def test_a_cached_run_with_actions_and_no_name_index_refuses():
+    cache = external.read_osv_cache(CACHE.read_text(encoding="utf-8"))
+    del cache["names"]
+    with pytest.raises(external.NetworkRefused, match="has no GitHub Actions package names"):
+        external.cached_advisories(cache)(read_path(WORKFLOW)[0])
+    with pytest.raises(ValueError, match="names map each ecosystem"):
+        external.read_osv_cache(json.dumps({**cache, "names": {"GitHub Actions": ["x"]}}))
 
 
 @pytest.mark.parametrize("ref, affected", [
@@ -204,17 +245,15 @@ def test_the_report_holds_the_real_tj_actions_advisories_pins_and_the_allowlist(
     assert rep["inventory_notes"] == list(actions.NOTES)
 
 
-def test_an_owner_or_repo_written_in_another_case_is_one_action_and_osv_is_asked_for_each_spelling(tmp_path):
-    (tmp_path / "ci.yml").write_text("on: push\njobs:\n  a:\n    steps:\n      - uses: TJ-Actions/Changed-Files@v35\n"
-                                     "      - uses: Azure/setup-kubectl@v1\n  b:\n    steps:\n      - uses: tj-actions/changed-files@v35\n",
-                                     encoding="utf-8")
+@pytest.mark.parametrize("written", ["azure/setup-kubectl", "AZURE/SETUP-KUBECTL", "Azure/setup-kubectl"])
+def test_an_action_written_in_any_case_gets_the_advisories_osv_stores_under_its_own_spelling(written, tmp_path):
+    (tmp_path / "ci.yml").write_text(f"on: push\njobs:\n  a:\n    steps:\n      - uses: {written}@v1\n"
+                                     "      - uses: TJ-Actions/Changed-Files@v35\n", encoding="utf-8")
     pkgs = packages(tmp_path / "ci.yml")
-    assert pkgs[CHANGED]["name"] == "tj-actions/changed-files" and pkgs[CHANGED]["purl"] == "pkg:githubactions/tj-actions/changed-files@v35"
-    assert pkgs[CHANGED]["spellings"] == ["TJ-Actions/Changed-Files", "tj-actions/changed-files"]
-    assert ("pkg:githubactions/tj-actions/changed-files@v35", "ci.yml jobs.a.steps[0] uses TJ-Actions/Changed-Files@v35") in {
+    assert sorted(pkgs) == ["pkg:githubactions/azure/setup-kubectl@v1", CHANGED]
+    assert pkgs[CHANGED]["purl"] == "pkg:githubactions/tj-actions/changed-files@v35"
+    assert ("pkg:githubactions/azure/setup-kubectl@v1", f"ci.yml jobs.a.steps[0] uses {written}@v1") in {
         (e["target"], e["evidence"]) for e in read_path(tmp_path / "ci.yml")[1]}
-    assert [q["package"]["name"] for q in external.osv_queries(pkgs["pkg:githubactions/azure/setup-kubectl@v1"])] == [
-        "azure/setup-kubectl", "Azure/setup-kubectl"]
     rep = report(tmp_path / "ci.yml", ("decision:ci", [{"advisory_severity_at_least": "LOW"}]))
     assert {(f["package"], f["advisory"], f["status"]) for f in rep["findings"]} == {
         (CHANGED, "adv:GHSA-mrrh-fwg8-r2c3", "affected"), (CHANGED, "adv:GHSA-mcph-m25j-8j63", "affected"),
@@ -231,7 +270,7 @@ def test_a_sibling_file_a_reader_names_but_cannot_read_is_a_note_not_dropped(tmp
 
 def test_unnamed_uses_are_unresolved_under_pin_and_allowlist_rules_and_local_actions_pass():
     pin, allow = rules.parse(PINNED).rules[0], rules.parse(ALLOW).rules[0]
-    for value in ("${{ matrix.action }}", "../x@v1"):
+    for value in ("${{ matrix.action }}", "../x@v1", "./../evil", "./a/../../evil"):
         facts = actions.action(value)
         assert rules.outcome(pin, facts)[0] == rules.UNKNOWN and rules.outcome(allow, facts)[0] == rules.UNKNOWN
     docker = actions.action("docker://alpine:3.20")

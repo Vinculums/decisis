@@ -187,8 +187,12 @@ other `*.yml` and `*.yaml` workflow in the same directory through the same bound
 sibling files (`serve --mcp` reads only the file it is given). Each `uses:` of a step, and of a job that
 calls a reusable workflow, becomes a package in the OSV `GitHub Actions` ecosystem named `owner/repo`
 (`owner/repo/path@ref` too) in lower case, since GitHub does not tell case apart, with its ref as written:
-a tag, a branch or a commit SHA. OSV does tell case apart, so it is asked for the lower-case name and for
-each spelling the workflows use. A local `./` action, a `docker://` image, a `uses:` built from an
+a tag, a branch or a commit SHA. OSV does tell case apart and stores some names in mixed case
+(`Azure/setup-kubectl`), so when the inventory has actions `audit` also downloads OSV's own list of
+GitHub Actions records, `https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip`
+(once per run, at most 64 MiB), and asks OSV for each action under the spelling OSV stores; an action
+that is not in that list has no advisories and is not queried. `--osv-cache` carries that list as
+`names`, and a cached run with actions refuses without it. A local `./` action, a `docker://` image, a `uses:` built from an
 expression and one that is not a name (`../x@v1`) are listed under `unresolved_packages` with the reason
 and not queried, and so is a workflow file that is not valid YAML or cannot be read (not UTF-8, or a link
 that leads outside the repository). YAML anchors and aliases are
@@ -244,7 +248,7 @@ flowchart LR
 | `init --out <file>` | nothing; with `--github`, the network for api.github.com | a snapshot from the repository's ADRs, CODEOWNERS and postmortems, and its merged pull requests |
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
-| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
+| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev (and OSV's GitHub Actions export for workflows), unless `--osv-cache` | advisories the repository reaches and the decisions they break |
 | `propose <report> <snapshot> <lockfile or SBOM> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
 | `compare` | nothing | the benchmark below |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |

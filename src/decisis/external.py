@@ -3,7 +3,9 @@ from __future__ import annotations
 import functools
 import io
 import json
+import urllib.parse
 import urllib.request
+import zipfile
 
 from . import cvss
 from .inventory.npm import parse_npm_lock
@@ -11,8 +13,12 @@ from .inventory.shape import digest, now, package_id
 
 OSV_BATCH = "https://api.osv.dev/v1/querybatch"
 OSV_VULN = "https://api.osv.dev/v1/vulns/{id}"
+OSV_NAMES = "https://osv-vulnerabilities.storage.googleapis.com/{ecosystem}/all.zip"
 BATCH = 500
 NAME_ONLY = ("GitHub Actions",)
+MAX_EXPORT = 64 * 1024 * 1024
+MAX_RECORD = 4 * 1024 * 1024
+MAX_RECORDS = 100_000
 
 
 class NetworkRefused(RuntimeError):
@@ -41,11 +47,74 @@ def _get(url: str, opener) -> dict:
     return _open(urllib.request.Request(url), opener)
 
 
+def _download(url: str, opener, cap: int) -> bytes:
+    try:
+        with opener(urllib.request.Request(url), timeout=60) as resp:
+            data = resp.read(cap + 1)
+    except OSError as e:
+        raise NetworkFailed(f"could not reach OSV at {url} ({getattr(e, 'reason', None) or e}); to run without the network, "
+                            "pass --osv-cache FILE") from None
+    if len(data) > cap:
+        raise NetworkFailed(f"{url} is larger than {cap} bytes; refused")
+    return data
+
+
+def stored_names(data: bytes, ecosystem: str, source: str) -> list[str]:
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+        members = archive.infolist()
+    except zipfile.BadZipFile:
+        raise NetworkFailed(f"{source} is not a zip archive") from None
+    if len(members) > MAX_RECORDS:
+        raise NetworkFailed(f"{source} holds more than {MAX_RECORDS} records; refused")
+    names = set()
+    for member in members:
+        try:
+            with archive.open(member) as f:
+                body = f.read(MAX_RECORD + 1)
+        except (zipfile.BadZipFile, NotImplementedError, EOFError) as e:
+            raise NetworkFailed(f"{member.filename} in {source} cannot be read ({e})") from None
+        if len(body) > MAX_RECORD:
+            raise NetworkFailed(f"{member.filename} in {source} is larger than {MAX_RECORD} bytes; refused")
+        try:
+            record = json.loads(body)
+        except ValueError:
+            raise NetworkFailed(f"{member.filename} in {source} is not JSON") from None
+        for a in (record.get("affected") or []) if isinstance(record, dict) else []:
+            package = (a.get("package") or {}) if isinstance(a, dict) else {}
+            if package.get("ecosystem") == ecosystem and isinstance(package.get("name"), str):
+                names.add(package["name"])
+    return sorted(names)
+
+
+def name_index(ecosystem: str, names: dict | None, opener) -> tuple[dict[str, list[str]], str]:
+    if names is not None:
+        entry = names.get(ecosystem)
+        if entry is None:
+            raise NetworkRefused(f"the OSV cache has no {ecosystem} package names, and a cached run does not use the network")
+        stored, fetched = entry["names"], entry["fetched_at"]
+    else:
+        url = OSV_NAMES.format(ecosystem=urllib.parse.quote(ecosystem))
+        stored, fetched = stored_names(_download(url, opener, MAX_EXPORT), ecosystem, url), now()
+    index: dict[str, list[str]] = {}
+    for name in stored:
+        index.setdefault(name.lower(), []).append(name)
+    return index, fetched
+
+
+def _names_entry(entry) -> bool:
+    return isinstance(entry, dict) and isinstance(entry.get("fetched_at"), str) and isinstance(entry.get("names"), list) \
+        and all(isinstance(n, str) for n in entry["names"])
+
+
 def read_osv_cache(text: str) -> dict:
     cache = json.loads(text)
     if not isinstance(cache, dict) or not isinstance(cache.get("queries"), dict) or not isinstance(cache.get("vulns"), dict) \
             or not isinstance(cache.get("fetched_at"), str):
         raise ValueError("an OSV cache needs fetched_at, queries (package id to advisory ids) and vulns (advisory id to record)")
+    names = cache.get("names", {})
+    if not isinstance(names, dict) or not all(_names_entry(e) for e in names.values()):
+        raise ValueError("an OSV cache's names map each ecosystem to {fetched_at, names}, the package names OSV stores")
     return cache
 
 
@@ -71,7 +140,8 @@ def cache_opener(cache: dict):
 
 
 def cached_advisories(cache: dict):
-    return functools.partial(fetch_advisories, opener=cache_opener(cache), cache=dict(cache["vulns"]), fetched_at=cache["fetched_at"])
+    return functools.partial(fetch_advisories, opener=cache_opener(cache), cache=dict(cache["vulns"]), fetched_at=cache["fetched_at"],
+                             names=cache.get("names", {}))
 
 
 def query_id(q: dict) -> str:
@@ -79,11 +149,16 @@ def query_id(q: dict) -> str:
     return pid if "version" in q else pid.removesuffix("@")
 
 
-def osv_queries(props: dict) -> list[dict]:
+def osv_queries(props: dict, index: dict[str, list[str]] | None = None) -> list[dict]:
     if props["ecosystem"] not in NAME_ONLY:
         return [{"package": {"ecosystem": props["ecosystem"], "name": props["name"]}, "version": props["version"]}]
-    names = dict.fromkeys([props["name"], *(props.get("spellings") or [])])
-    return [{"package": {"ecosystem": props["ecosystem"], "name": name}} for name in names]
+    return [{"package": {"ecosystem": props["ecosystem"], "name": name}} for name in (index or {}).get(props["name"].lower(), [])]
+
+
+def index_note(props: dict, index: dict[str, list[str]], fetched: str) -> str:
+    stored = index.get(props["name"].lower(), [])
+    head = f"checked against OSV's {props['ecosystem']} package names of {fetched}: "
+    return head + (f"asked OSV for {', '.join(stored)}" if stored else "not listed, so OSV holds no advisory for it")
 
 
 def queryable(node: dict) -> bool:
@@ -92,11 +167,15 @@ def queryable(node: dict) -> bool:
 
 
 def fetch_advisories(packages: list[dict], opener=urllib.request.urlopen, cache: dict | None = None,
-                     fetched_at: str | None = None) -> tuple[list[dict], list[dict]]:
+                     fetched_at: str | None = None, names: dict | None = None) -> tuple[list[dict], list[dict]]:
     cache = cache if cache is not None else {}
     pkgs = [p for p in packages if queryable(p)]
+    indexes = {eco: name_index(eco, names, opener) for eco in sorted({p["props"]["ecosystem"] for p in pkgs} & set(NAME_ONLY))}
+    for p in pkgs:
+        if p["props"]["ecosystem"] in indexes:
+            p["props"]["osv_index"] = index_note(p["props"], *indexes[p["props"]["ecosystem"]])
     hits: dict[str, list[str]] = {p["id"]: [] for p in pkgs}
-    asks = [(p["id"], q) for p in pkgs for q in osv_queries(p["props"])]
+    asks = [(p["id"], q) for p in pkgs for q in osv_queries(p["props"], indexes.get(p["props"]["ecosystem"], (None,))[0])]
     for i in range(0, len(asks), BATCH):
         chunk = asks[i:i + BATCH]
         reply = _post(OSV_BATCH, {"queries": [q for _, q in chunk]}, opener)
@@ -116,7 +195,7 @@ def fetch_advisories(packages: list[dict], opener=urllib.request.urlopen, cache:
                                 "affected_json": json.dumps(v.get("affected") or [], sort_keys=True),
                                 "source_system": "osv", "source_ref": vid, "source_url": f"https://osv.dev/vulnerability/{vid}",
                                 "fetched_at": fetched, "content_hash": digest(v)}})
-    asked = {p["id"]: "name; decisis compares the version" if p["props"]["ecosystem"] in NAME_ONLY else "name and version" for p in pkgs}
+    asked = {p["id"]: "name as OSV stores it; decisis compares the version" if p["props"]["ecosystem"] in NAME_ONLY else "name and version" for p in pkgs}
     edges = [{"source": pid, "target": f"adv:{vid}", "type": "AFFECTED_BY", "evidence": f"OSV returned {vid} for this {asked[pid]}"}
              for pid, vids in sorted(hits.items()) for vid in vids]
     return nodes, edges

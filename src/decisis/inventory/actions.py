@@ -44,6 +44,10 @@ def sibling_names(read, resolve=None, listing=None, filename: str = "") -> tuple
     return names
 
 
+def local(value: str) -> bool:
+    return value.startswith("./") and "${{" not in value and not any(part == ".." for part in value.split("/"))
+
+
 def _unknown(value: str, reason: str, ecosystem: str = "") -> dict:
     return {"id": f"pkg:unknown/{value}@", "ecosystem": ecosystem, "name": value, "version": "", "purl": "", "unresolved": reason}
 
@@ -54,14 +58,14 @@ def action(value: str) -> dict:
         return _unknown(value, EXPRESSION, ECOSYSTEM)
     if value.startswith("docker://"):
         return _unknown(value, DOCKER, ECOSYSTEM)
-    if value.startswith("./") and "/../" not in f"{value}/":
+    if local(value):
         return _unknown(value, LOCAL, ECOSYSTEM)
     m = USES.fullmatch(value)
     if m is None or any(part in (".", "..") for part in m[3].split("/")):
         return _unknown(value, f"{value!r} is not owner/repo@ref, owner/repo/path@ref, ./path or docker://image", ECOSYSTEM)
     name, ref = f"{m[1]}/{m[2]}".lower(), m[4]
     return {"id": package_id(ECOSYSTEM, name, ref), "ecosystem": ECOSYSTEM, "name": name, "version": ref,
-            "purl": make_purl("githubactions", name, ref), "unresolved": "", "spelling": f"{m[1]}/{m[2]}"}
+            "purl": make_purl("githubactions", name, ref), "unresolved": ""}
 
 
 def _steps(steps, where: str) -> list[tuple[str, object]]:
@@ -105,9 +109,6 @@ def _file(inv: Inventory, name: str, text: str) -> None:
     for where, value in found:
         pkg = action(value) if isinstance(value, str) else _unknown(f"{name}#{where}", f"{name} {where} uses is not a string")
         inv.add(pkg["id"], pkg, f"{inv.repo}:{name}#{where}")
-        if pkg.get("spelling"):
-            spellings = inv.nodes[pkg["id"]]["props"].setdefault("spellings", [])
-            spellings += [pkg["spelling"]] if pkg["spelling"] not in spellings else []
         inv.depends(None, pkg["id"], f"{name} {where} uses {value}")
 
 
