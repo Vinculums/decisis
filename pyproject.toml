@@ -30,6 +30,7 @@ Issues = "https://github.com/Vinculums/decisis/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+mcp = ["mcp>=2.2,<3", "jsonschema>=4.20,<5"]
 
 [project.scripts]
 decisis = "decisis.cli:main"

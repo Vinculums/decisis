@@ -115,7 +115,8 @@ def unresolved_packages(graph: Subgraph) -> list[dict]:
 
 
 def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories,
-        limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None) -> dict:
+        limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None,
+        root=None) -> dict:
     graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
-    with sandbox(limits=limits) as box:
+    with sandbox(root, limits) as box:
         return analyze(box, graph, repo, depth)
