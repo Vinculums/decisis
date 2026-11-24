@@ -164,6 +164,9 @@ def collect(rows: list[dict], graph: Subgraph, path: str, repo: str | None = Non
         node = by_id.get(nid, {})
         item = {"id": nid, "kind": node.get("kind") or row["kind"], "title": node.get("title") or "", "hops": row["hops"],
                 "via": row["anchor"], "nodes": row["ids"], "path": _steps(row, edges)}
+        status = (node.get("props") or {}).get("status")
+        if item["kind"] == "decision" and isinstance(status, str) and status:
+            item["status"] = status
         if row["hops"] == 0:
             refs = [(r, code_path(r, repo)) for r in refs_of(node)]
             item["code_ref"] = [{"ref": r, "match": m} for r, p in refs if p and (m := match_kind(p, path))]
@@ -183,29 +186,68 @@ def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = Non
     prepared = prepare(graph, repo)
     cypher = query("governing_nodes", hops=hops)
     results = []
+    replaced = superseded_by(graph)
     with sandbox(root) as box:
         counts = box.load(Subgraph(prepared.nodes, governance_edges(prepared), prepared.meta))
         for raw, p in wanted:
             rows = [from_anchor(r) for r in box.query(cypher, {"path": p, "dir": p + "/", "kinds": GOVERNING})]
-            results.append({"path": raw, "matched_as": p, "governing": collect(rows, prepared, p, repo)})
+            results.append(split_superseded({"path": raw, "matched_as": p}, collect(rows, prepared, p, repo), replaced))
     return {"loaded": counts, "hops": hops, "repo": repo, "impact": results}
+
+
+def superseded_by(graph: Subgraph) -> dict[str, list[str]]:
+    """Each superseded decision and what replaces it: the target of a SUPERSEDES edge, or a decision whose status says superseded."""
+    out: dict[str, set[str]] = {}
+    for n in graph.nodes:
+        status = (n.get("props") or {}).get("status")
+        if n["kind"] == "decision" and isinstance(status, str) and status.strip().lower().startswith("superseded"):
+            out.setdefault(n["id"], set())
+    for e in graph.edges:
+        if e["type"] == "SUPERSEDES":
+            out.setdefault(e["target"], set()).add(e["source"])
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def split_superseded(result: dict, items: list[dict], replaced: dict[str, list[str]]) -> dict:
+    governing, old = [], []
+    for item in items:
+        if item["id"] in replaced and item["kind"] == "decision":
+            old.append({**item, "superseded_by": replaced[item["id"]]})
+        else:
+            governing.append(item)
+    result["governing"] = governing
+    if old:
+        result["superseded"] = old
+    return result
 
 
 def render(report: dict) -> str:
     lines = []
     for r in report["impact"]:
-        gov = r["governing"]
-        lines.append(f"{r['path']}: {len(gov)} node(s) within {report['hops']} hop(s)")
-        if not gov:
+        gov, old = r["governing"], r.get("superseded", [])
+        tail = f", and {len(old)} superseded decision(s)" if old else ""
+        lines.append(f"{r['path']}: {len(gov)} node(s) within {report['hops']} hop(s){tail}")
+        if not gov and not old:
             lines.append("  nothing in the snapshot names this path")
         for g in gov:
-            head = f"  [{g['hops']}] {g['kind']:<8} {g['id']}"
-            if g["hops"] == 0:
-                head += "  code_ref " + ", ".join(f"{c['ref']} ({c['match']})" for c in g.get("code_ref", []))
-            else:
-                head += f"  via {g['via']}"
-            lines.append(head)
-            for s in g["path"]:
-                ev = f"  ({s['evidence']})" if s["evidence"] else ""
-                lines.append(f"        {s['source']} -{s['type']}-> {s['target']}{ev}")
+            lines += item_lines(g, "  ")
+        if old:
+            lines.append("  superseded, listed for the record:")
+        for g in old:
+            lines += item_lines(g, "  ", " superseded by " + ", ".join(g["superseded_by"]) if g["superseded_by"] else "")
     return "\n".join(lines)
+
+
+def item_lines(g: dict, indent: str, note: str = "") -> list[str]:
+    head = f"{indent}[{g['hops']}] {g['kind']:<8} {g['id']}"
+    if g["hops"] == 0:
+        head += "  code_ref " + ", ".join(f"{c['ref']} ({c['match']})" for c in g.get("code_ref", []))
+    else:
+        head += f"  via {g['via']}"
+    if g.get("status"):
+        head += f"  status {g['status']}"
+    lines = [head + (f"  ({note.strip()})" if note else "")]
+    for s in g["path"]:
+        ev = f"  ({s['evidence']})" if s["evidence"] else ""
+        lines.append(f"{indent}      {s['source']} -{s['type']}-> {s['target']}{ev}")
+    return lines

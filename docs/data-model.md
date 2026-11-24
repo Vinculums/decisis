@@ -83,7 +83,8 @@ decisis impact snapshot.json src/payments/retry.py --repo Shop --format text
 command loads. It reads no code and no prose beyond the fields below, and it never guesses: a file it cannot
 read or parse is listed in `meta.problems` with the reason and left out. Each entry has `file`, `reason` and
 `action`: `skipped` (the file or line is not in the snapshot), `kept without code paths` (the node is there
-but no code path anchors it), `no edge` (a reference did not resolve to exactly one ADR) or `not read`.
+but no code path anchors it), `no edge` (a reference did not resolve to exactly one ADR), `no effect` (a
+CODEOWNERS line that owns no file) or `not read`.
 `fixtures/init/shop` is an example repository with each format and each kind of problem.
 
 | Flag | Meaning |
@@ -96,8 +97,7 @@ but no code path anchors it), `no edge` (a reference did not resolve to exactly 
 
 Every `.md` file directly in those directories is read, except `README.md`, `index.md` and names that
 contain `template`. Every node carries `source_file` (the path from the repository root) and
-`content_hash` (`sha256:` and the hex digest of the file, or of the CODEOWNERS line for an owners
-entry). Ids come from the repository name and the file path, such as
+`content_hash` (`sha256:` and the hex digest of the file it was read from). Ids come from the repository name and the file path, such as
 `decision:shop-docs-adr-0003-retry-payment-calls-once`, so they stay the same while the file keeps its
 path. Nodes, edges and problems are sorted and nothing depends on the clock, so two runs on the same tree
 write the same bytes.
@@ -116,23 +116,50 @@ write the same bytes.
 
 An ADR without code paths is kept and listed under `kept without code paths`; `impact` reaches it only
 through an edge. An ADR that replaces another gets a `SUPERSEDES` edge from the new one to the old one when
-either says so: front matter `supersedes`, `superseded_by` or `superseded-by`, or a `Supersedes ...` or
+either says so: front matter `supersedes`, `superseded_by` or `superseded-by`, a front matter `status` such as
+`superseded by [ADR-0002](0002-use-postgres.md)` or `superseded by ADR-0002` (MADR 3 and 4), or a `Supersedes ...` or
 `Superseded by ...` line in `## Status` (the adr-tools form) or in a `Status:` line under the title (MADR 2). A status that is only
 `Superseded by` reads as `superseded`. A reference may be a Markdown link to the file, the file name with or
 without `.md`, or a number such as `3`, `0003` or `ADR-0003`, which matches the file whose name starts with
-that number. A reference that matches no ADR or more than one makes no edge and is listed. `impact` does not
-follow `SUPERSEDES`, so a superseded ADR that still names a path is still listed for it; its `status` prop says `superseded`.
+that number. A reference that matches no ADR or more than one makes no edge and is listed.
 
-### CODEOWNERS entries become concepts
+`impact` gives each listed decision its `status` when the snapshot has one. A decision whose `status` starts
+with `superseded`, or that is the target of a `SUPERSEDES` edge, is not listed under `governing`: it goes
+under `superseded`, with `superseded_by` (the decisions that replace it), so a path shows what governs it now
+and, apart, what used to. `--format text` prints it after the governing nodes; Mermaid draws it dashed with
+the `SUPERSEDES` edge, and HTML lists it in its own part. The `superseded` key is left out when it would be
+empty, so a snapshot without superseded decisions gives the same output as before.
 
-`init` reads the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS`, as GitHub does, and lists
-the others as `not read`. Each line becomes a concept with `code_ref`, `owners`, the `pattern` as written
-and `source_line`. Only patterns that name one path are read: `/src/payments/`, `/src/logging/**` (a
-directory) and `/package-lock.json`. A pattern with wildcards (`*`, `*.md`, `docs/*.md`) or one that matches
-at any depth (`docs/`, `Makefile`) is listed and skipped, as is an owner that is not `@user`, `@org/team` or
-an email address. When two lines name the same path, the later one applies and the earlier one is listed.
-The concepts have no edges, so an owner never carries a decision to the code it owns; `impact` lists them at
-hop 0 for the paths they name.
+### CODEOWNERS owner sets become concepts
+
+`init` reads the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS` that is inside the
+repository, as GitHub does, and lists the others as `not read`. It matches every line against the files in
+`--repo-dir` the way GitHub does and gives each file the owners of the last line that matches it:
+
+- a pattern with a `/` at the start or in the middle is anchored at the root; any other pattern matches at
+  any depth (`apps/`, `*.js`);
+- a trailing `/` matches a directory and everything below it;
+- `*` and `?` match within one path segment; `**` matches any number of segments (`**/logs`, `docs/**`);
+- a pattern whose last segment is a plain name also owns everything below a directory of that name
+  (`/apps/github`); one whose last segment has a wildcard matches files only (`docs/*` owns `docs/a.md`
+  but not `docs/b/c.md`);
+- a line with a pattern and no owners leaves its files without an owner.
+
+The files are what `git ls-files --cached --others --exclude-standard` lists when `--repo-dir` is in a git
+work tree, and otherwise every file below it outside `.git`. A tree of more than 100,000 files is listed and
+its owners are not read.
+
+Each distinct set of owners becomes one concept. Its `code_ref` is the fewest paths that cover exactly the
+files that set owns: a directory (with a trailing `/`) when every file below it has that owner set, otherwise
+the single file. It also has `owners` (sorted), `source_lines` (the lines that own those files), and
+`source_file` and `content_hash` of the CODEOWNERS file. Its id is `concept:<repo>-codeowners-`, the owners
+as a slug, and the first 12 hex digits of the SHA-256 of the owners, so two owner sets never share an id.
+Title: `Owned by` and the owners.
+
+A line is listed and skipped when GitHub does not support its pattern (`!` negation, `[...]` ranges, `\`
+escapes) or when an owner is not `@user`, `@org/team` or an email address. A line that matches no file, or
+whose files are all owned by later lines, is listed under `no effect`. The concepts have no edges, so an
+owner never carries a decision to the code it owns; `impact` lists them at hop 0 for the paths they cover.
 
 ### Postmortems become records
 

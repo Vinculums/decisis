@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,7 +17,7 @@ SHOP = ROOT / "fixtures" / "init" / "shop"
 ADR = "decision:shop-docs-adr-"
 MADR = "decision:shop-docs-decisions-"
 PM = "record:shop-docs-postmortems-"
-OWNERS = "concept:shop-github-codeowners-"
+OWNERS = "concept:shop-codeowners-"
 
 
 def run_init(tmp_path: Path, capsys, *extra: str) -> tuple[Path, dict]:
@@ -37,9 +39,14 @@ def governing(report: dict, i: int) -> list[tuple[int, str]]:
     return [(g["hops"], g["id"]) for g in report["impact"][i]["governing"]]
 
 
+def owned_by(snap: dict, *owners: str) -> dict:
+    [node] = [n for n in snap["nodes"] if n["kind"] == "concept" and n["props"]["owners"] == list(owners)]
+    return node
+
+
 def test_init_then_impact_finds_the_decisions_each_file_is_governed_by(tmp_path, capsys):
     out, printed = run_init(tmp_path, capsys)
-    assert printed["nodes"] == 11 and printed["edges"] == 4
+    assert printed["nodes"] == 12 and printed["edges"] == 4
     graph = co.load(out.read_text(encoding="utf-8"))
     paths = ["src/payments/retry.py", "src/payments/gateway.py", "src/payments/refund.py", "src/logging/redact.py", "package-lock.json"]
     box = tmp_path / "box"
@@ -47,14 +54,17 @@ def test_init_then_impact_finds_the_decisions_each_file_is_governed_by(tmp_path,
     report = impact.run(graph, paths, repo="Shop", root=box)
     decisions = [sorted(i for _, i in governing(report, n) if i.startswith("decision:")) for n in range(len(paths))]
     assert decisions == [
-        [f"{ADR}0002-retry-payment-calls-three-times", f"{ADR}0003-retry-payment-calls-once"],
+        [f"{ADR}0003-retry-payment-calls-once"],
         [f"{ADR}0003-retry-payment-calls-once"],
         [],
         [f"{MADR}0011-card-numbers-never-reach-logs"],
         [f"{MADR}0010-no-high-advisories-in-shipped-dependencies"],
     ]
     assert (1, f"{PM}2026-05-02-card-number-in-logs") in governing(report, 3)
-    assert governing(report, 2) == [(0, f"{OWNERS}src-payments")]
+    assert governing(report, 2) == [(0, owned_by(snapshot(), "@shop/payments-core")["id"])]
+    assert [(g["id"], g["status"], g["superseded_by"]) for g in report["impact"][0]["superseded"]] == [
+        (f"{ADR}0002-retry-payment-calls-three-times", "superseded", [f"{ADR}0003-retry-payment-calls-once"])]
+    assert "superseded" not in report["impact"][1]
 
 
 def test_a_codeowners_concept_carries_no_governance_to_the_files_it_owns():
@@ -78,8 +88,6 @@ def test_every_node_carries_its_source_file_and_a_hash_of_what_it_was_built_from
         props = node["props"]
         source = SHOP / props["source_file"]
         built_from = source.read_bytes()
-        if "source_line" in props:
-            built_from = source.read_text(encoding="utf-8").split("\n")[props["source_line"] - 1].strip().encode("utf-8")
         assert props["content_hash"] == "sha256:" + hashlib.sha256(built_from).hexdigest(), node["id"]
 
 
@@ -114,12 +122,19 @@ def test_madr_front_matter_and_bullets_give_status_date_deciders_and_the_rule_un
     assert (logs["status"], logs["date"], logs["deciders"]) == ("accepted", "2026-02-10", ["Ben", "Chen"])
 
 
-def test_a_codeowners_entry_is_a_concept_with_its_path_and_owners():
-    nodes = by_id(snapshot())
-    logging = nodes[f"{OWNERS}src-logging"]
-    assert logging["kind"] == "concept"
-    assert logging["props"]["code_ref"] == ["Shop:src/logging/"] and logging["props"]["owners"] == ["@shop/platform", "@ana"]
-    assert nodes[f"{OWNERS}src-payments"]["props"]["owners"] == ["@shop/payments-core"]
+def test_each_owner_set_is_one_concept_over_the_paths_github_gives_it():
+    snap = snapshot()
+    concepts = sorted((n["props"]["owners"], n["props"]["code_ref"], n["props"]["source_lines"]) for n in snap["nodes"] if n["kind"] == "concept")
+    assert concepts == [
+        (["@ana", "@shop/platform"], ["Shop:src/logging/"], [4]),
+        (["@shop/docs"], ["Shop:docs/"], [5]),
+        (["@shop/payments-core"], ["Shop:src/payments/"], [7]),
+        (["@shop/platform"], ["Shop:.github/", "Makefile", "Shop:src/session/"], [2]),
+        (["security@shop.example"], ["Shop:package-lock.json"], [8]),
+    ]
+    node = owned_by(snap, "@shop/payments-core")
+    assert node["kind"] == "concept" and node["title"] == "Owned by @shop/payments-core"
+    assert node["props"]["source_file"] == ".github/CODEOWNERS"
 
 
 def test_a_postmortem_is_a_record_about_the_decisions_it_names():
@@ -136,9 +151,9 @@ def test_a_postmortem_is_a_record_about_the_decisions_it_names():
 def test_each_unreadable_or_malformed_file_is_reported_with_its_reason_and_skipped():
     problems = [(p["file"], p["action"], p["reason"]) for p in snapshot()["meta"]["problems"]]
     assert problems == [
-        (".github/CODEOWNERS", "skipped", "line 2: the pattern * uses wildcards, which a code path cannot express"),
-        (".github/CODEOWNERS", "skipped", "line 3: line 7 names the same path, and the later line applies"),
-        (".github/CODEOWNERS", "skipped", "line 5: the pattern docs/ matches at any depth; write /docs/ to name one path from the root"),
+        (".github/CODEOWNERS", "no effect", "line 3: a later line owns every file the pattern /src/payments/ matches"),
+        (".github/CODEOWNERS", "no effect", "line 6: a later line owns every file the pattern /src/payments/retry.py matches"),
+        (".github/CODEOWNERS", "skipped", "line 10: the pattern /src/[ab]/ uses character ranges ([), which GitHub does not support"),
         (".github/CODEOWNERS", "skipped", "line 9: platform-team is not @user, @org/team or an email address"),
         ("docs/CODEOWNERS", "not read", "GitHub reads only the first of .github/CODEOWNERS, CODEOWNERS, docs/CODEOWNERS; this one is .github/CODEOWNERS"),
         ("docs/adr/0001-record-architecture-decisions.md", "kept without code paths",
@@ -266,3 +281,198 @@ def test_a_madr_status_line_that_says_superseded_by_makes_the_edge_from_the_new_
     snap = init.build(root)
     assert {n["id"]: n["props"]["status"] for n in snap["nodes"]} == {"decision:docs-adr-0001-a": "superseded", "decision:docs-adr-0002-new": "accepted"}
     assert [(e["source"], e["type"], e["target"]) for e in snap["edges"]] == [("decision:docs-adr-0002-new", "SUPERSEDES", "decision:docs-adr-0001-a")]
+
+
+def madr_repo(tmp_path: Path, status: str) -> Path:
+    d = tmp_path / "docs" / "decisions"
+    d.mkdir(parents=True)
+    (d / "0001-use-mysql.md").write_text(f"---\nstatus: {status}\ncode_ref: src/db/\n---\n# Use MySQL\n", encoding="utf-8")
+    (d / "0002-use-postgres.md").write_text("---\nstatus: accepted\ncode_ref: src/db/\n---\n# Use Postgres\n", encoding="utf-8")
+    return tmp_path
+
+
+@pytest.mark.parametrize("status", ["superseded by [ADR-0002](0002-use-postgres.md)", "superseded by ADR-0002", "Superseded by 0002-use-postgres"])
+def test_a_madr_front_matter_status_that_says_superseded_by_makes_the_edge(tmp_path, status):
+    snap = init.build(madr_repo(tmp_path, status))
+    assert by_id(snap)["decision:docs-decisions-0001-use-mysql"]["props"]["status"] == "superseded"
+    assert [(e["source"], e["type"], e["target"]) for e in snap["edges"]] == [
+        ("decision:docs-decisions-0002-use-postgres", "SUPERSEDES", "decision:docs-decisions-0001-use-mysql")]
+
+
+def test_a_front_matter_superseded_by_that_matches_no_adr_is_reported(tmp_path):
+    snap = init.build(madr_repo(tmp_path, "superseded by ADR-0009"))
+    assert snap["edges"] == []
+    assert snap["meta"]["problems"][-1] == {"file": "docs/decisions/0001-use-mysql.md", "action": "no edge",
+                                            "reason": "it is superseded by ADR-0009, but no ADR file matches 'ADR-0009'"}
+
+
+def impact_of(tmp_path: Path, snap: dict, *paths: str, repo: str | None = None) -> dict:
+    box = tmp_path / "box"
+    box.mkdir(exist_ok=True)
+    return impact.run(co.load(init.dump(snap)), list(paths), repo=repo, root=box)
+
+
+def test_impact_lists_a_superseded_decision_apart_from_the_ones_that_govern(tmp_path):
+    report = impact_of(tmp_path, init.build(madr_repo(tmp_path, "superseded by ADR-0002")), "src/db/conn.py")
+    [result] = report["impact"]
+    assert [(g["id"], g["status"]) for g in result["governing"]] == [("decision:docs-decisions-0002-use-postgres", "accepted")]
+    assert [(g["id"], g["status"], g["superseded_by"]) for g in result["superseded"]] == [
+        ("decision:docs-decisions-0001-use-mysql", "superseded", ["decision:docs-decisions-0002-use-postgres"])]
+    assert impact.render(report).split("\n") == [
+        "src/db/conn.py: 1 node(s) within 3 hop(s), and 1 superseded decision(s)",
+        "  [0] decision decision:docs-decisions-0002-use-postgres  code_ref src/db/ (encloses)  status accepted",
+        "  superseded, listed for the record:",
+        "  [0] decision decision:docs-decisions-0001-use-mysql  code_ref src/db/ (encloses)  status superseded"
+        "  (superseded by decision:docs-decisions-0002-use-postgres)",
+    ]
+
+
+def test_a_decision_is_superseded_by_its_status_alone_or_by_an_edge_alone(tmp_path):
+    snap = {"nodes": [
+        {"id": "decision:a", "kind": "decision", "title": "A", "props": {"code_ref": "x.py", "status": "Superseded"}},
+        {"id": "decision:b", "kind": "decision", "title": "B", "props": {"code_ref": "x.py"}},
+        {"id": "decision:c", "kind": "decision", "title": "C", "props": {"code_ref": "x.py", "status": "accepted"}}],
+        "edges": [{"source": "decision:c", "target": "decision:b", "type": "SUPERSEDES", "evidence": ""}]}
+    [result] = impact_of(tmp_path, snap, "x.py")["impact"]
+    assert [g["id"] for g in result["governing"]] == ["decision:c"]
+    assert [(g["id"], g["superseded_by"]) for g in result["superseded"]] == [("decision:a", []), ("decision:b", ["decision:c"])]
+
+
+def test_mermaid_and_html_show_the_superseded_decision_marked(tmp_path, capsys):
+    out, _ = run_init(tmp_path, capsys)
+    mermaid = run_view(capsys, out, "mermaid")
+    assert 'decision:shop-docs-adr-0002-retry-payment-calls-three-times<br/>2. Retry payment calls three times<br/>superseded"' in mermaid
+    assert "classDef superseded" in mermaid and '-->|"SUPERSEDES"|' in mermaid
+    page = run_view(capsys, out, "html")
+    assert "<h3>Superseded, listed for the record</h3>" in page
+    assert '<li class="item decision superseded" style="border-style:dashed">' in page and "<dt>superseded by</dt>" in page
+
+
+def run_view(capsys, snap: Path, fmt: str) -> str:
+    capsys.readouterr()
+    assert cli.main(["impact", str(snap), "src/payments/retry.py", "--repo", "Shop", "--format", fmt]) == 0
+    return capsys.readouterr().out
+
+
+def owners_repo(tmp_path: Path, codeowners: str, files: list[str]) -> Path:
+    for f in files + [".github/CODEOWNERS"]:
+        (tmp_path / f).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / f).write_text("x\n", encoding="utf-8")
+    (tmp_path / ".github" / "CODEOWNERS").write_text(codeowners, encoding="utf-8")
+    return tmp_path
+
+
+def owner_of(snap: dict, path: str, tmp_path: Path) -> list[list[str]]:
+    by = by_id(snap)
+    [result] = impact_of(tmp_path, snap, path)["impact"]
+    return [by[g["id"]]["props"]["owners"] for g in result["governing"] if g["kind"] == "concept"]
+
+
+GITHUB_EXAMPLE = """*       @global-owner1 @global-owner2
+*.js    @js-owner
+*.go    docs@example.com
+*.txt   @octo-org/octocats
+/build/logs/ @doctocat
+docs/*  docs@example.com
+apps/ @octocat
+/docs/ @doctocat
+/scripts/ @doctocat @octocat
+**/logs @octocat
+/apps/ @octocat
+/apps/github
+"""
+GITHUB_FILES = ["README.md", "app.js", "src/main.go", "notes.txt", "build/logs/app.log", "docs/getting-started.md",
+                "docs/build-app/troubleshooting.md", "lib/apps/x.py", "scripts/run.sh", "deeply/nested/logs/a.log", "apps/github/a.py", "apps/web/b.py"]
+
+
+@pytest.mark.parametrize("path,owners", [
+    ("README.md", [["@global-owner1", "@global-owner2"]]),
+    ("app.js", [["@js-owner"]]),
+    ("src/main.go", [["docs@example.com"]]),
+    ("notes.txt", [["@octo-org/octocats"]]),
+    ("build/logs/app.log", [["@octocat"]]),
+    ("docs/getting-started.md", [["@doctocat"]]),
+    ("docs/build-app/troubleshooting.md", [["@doctocat"]]),
+    ("lib/apps/x.py", [["@octocat"]]),
+    ("scripts/run.sh", [["@doctocat", "@octocat"]]),
+    ("deeply/nested/logs/a.log", [["@octocat"]]),
+    ("apps/github/a.py", []),
+    ("apps/web/b.py", [["@octocat"]]),
+])
+def test_codeowners_follows_github_matching_and_the_last_matching_line_wins(tmp_path, path, owners):
+    snap = init.build(owners_repo(tmp_path, GITHUB_EXAMPLE, GITHUB_FILES))
+    assert owner_of(snap, path, tmp_path) == owners
+
+
+def test_docs_star_matches_direct_files_only_and_docs_double_star_everything_below(tmp_path):
+    files = ["docs/a.md", "docs/b/c.md"]
+    one = init.build(owners_repo(tmp_path / "one", "docs/* @x\n", files))
+    two = init.build(owners_repo(tmp_path / "two", "docs/** @x\n", files))
+    assert owned_by(one, "@x")["props"]["code_ref"] == ["docs/a.md"]
+    assert owned_by(two, "@x")["props"]["code_ref"] == ["docs/"]
+
+
+def test_paths_that_slug_alike_keep_their_own_owners_and_ids(tmp_path):
+    snap = init.build(owners_repo(tmp_path, "/api/v1/ @a/b\n/api-v1/ @a-b\n", ["api/v1/x.py", "api/readme.md", "api-v1/y.py"]))
+    concepts = {n["id"]: (n["props"]["owners"], n["props"]["code_ref"]) for n in snap["nodes"]}
+    assert sorted(concepts.values()) == [(["@a-b"], ["api-v1/"]), (["@a/b"], ["api/v1/"])]
+    assert len(concepts) == 2
+
+
+def test_one_owner_set_covers_whole_directories_and_single_files_and_nothing_else(tmp_path):
+    files = ["src/a.py", "src/b/c.py", "src/b/d.py", "src/x/e.py", "src/x/f/g.py", "top.md"]
+    snap = init.build(owners_repo(tmp_path, "/src/ @a\n/src/b/c.py @b\n", files))
+    assert owned_by(snap, "@a")["props"]["code_ref"] == ["src/a.py", "src/b/d.py", "src/x/"]
+    assert owned_by(snap, "@b")["props"]["code_ref"] == ["src/b/c.py"]
+    assert owner_of(snap, "top.md", tmp_path) == []
+
+
+def test_owner_concepts_have_stable_ids_and_hash_the_codeowners_file(tmp_path):
+    root = owners_repo(tmp_path, "/src/ @b @a\n", ["src/a.py"])
+    first, second = init.build(root), init.build(root)
+    node = owned_by(first, "@a", "@b")
+    assert init.dump(first) == init.dump(second)
+    assert node["props"]["content_hash"] == "sha256:" + hashlib.sha256((root / ".github" / "CODEOWNERS").read_bytes()).hexdigest()
+    assert re.fullmatch(r"concept:codeowners-a-b-[0-9a-f]{12}", node["id"])
+
+
+@pytest.mark.parametrize("pattern,reason", [
+    ("\\#notes.md", "escaping with a backslash"),
+    ("!src/", "negates with !"),
+    ("src/[ab].py", "character ranges"),
+    ("/", "names no path below the root"),
+])
+def test_a_pattern_github_does_not_support_is_reported_not_guessed(tmp_path, pattern, reason):
+    snap = init.build(owners_repo(tmp_path, f"{pattern} @x\n", ["src/a.py"]))
+    assert snap["nodes"] == []
+    [problem] = snap["meta"]["problems"][-1:]
+    assert problem["action"] == "skipped" and problem["reason"].startswith("line 1: ") and reason in problem["reason"]
+
+
+def test_a_codeowners_link_to_a_file_outside_the_repository_is_refused(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "CODEOWNERS").write_text("* @leak\n", encoding="utf-8")
+    root = tmp_path / "repo"
+    (root / ".github").mkdir(parents=True)
+    (root / "a.py").write_text("x\n", encoding="utf-8")
+    (root / ".github" / "CODEOWNERS").symlink_to(outside / "CODEOWNERS")
+    snap = init.build(root)
+    assert snap["nodes"] == []
+    assert {"file": ".github/CODEOWNERS", "reason": "it is a link to a file outside the repository", "action": "skipped"} in snap["meta"]["problems"]
+
+
+def test_a_tree_with_too_many_files_is_reported_and_its_owners_not_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(init.owners, "MAX_FILES", 2)
+    snap = init.build(owners_repo(tmp_path, "* @x\n", ["a.py", "b.py"]))
+    assert snap["nodes"] == []
+    assert snap["meta"]["problems"][-1]["reason"] == "the repository has 3 files, more than the 2 init resolves owners for; owners are not read"
+
+
+def test_in_a_git_work_tree_ignored_files_are_not_owned(tmp_path):
+    root = owners_repo(tmp_path, "* @x\n", ["src/a.py", "build/out.js", ".gitignore"])
+    (root / ".gitignore").write_text("build/\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    assert owned_by(init.build(root), "@x")["props"]["code_ref"] == [".github/", ".gitignore", "src/"]
+    shutil.rmtree(root / ".git")
+    assert owned_by(init.build(root), "@x")["props"]["code_ref"] == [".github/", ".gitignore", "build/", "src/"]

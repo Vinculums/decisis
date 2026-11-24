@@ -16,6 +16,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Callable
 
+from . import codeowners as owners
 from .impact import REF_KEYS, code_path
 
 ADR_DIRS = ("docs/adr", "docs/decisions", "adr", "doc/adr")
@@ -23,7 +24,7 @@ POSTMORTEM_DIRS = ("docs/postmortems",)
 CODEOWNERS_FILES = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 NOT_RECORDS = ("readme.md", "index.md")
 REPO_NAME = re.compile(r"[A-Za-z0-9_-]+")
-SKIPPED, KEPT, NO_EDGE, NOT_READ = "skipped", "kept without code paths", "no edge", "not read"
+SKIPPED, KEPT, NO_EDGE, NOT_READ, NO_EFFECT = "skipped", "kept without code paths", "no edge", "not read", "no effect"
 
 TEXT_KEYS = ("title", "status", "date")
 LIST_KEYS = ("deciders", "decision-makers", "supersedes", "superseded_by", "superseded-by", "decisions", *REF_KEYS)
@@ -35,7 +36,6 @@ LINK = re.compile(r"\[[^\]]*\]\(\s*([^)\s]+)[^)]*\)")
 MENTION = re.compile(r"\bADR[- ]?(\d+)\b")
 NUMBERED = re.compile(r"(?:adr[- ]?)?0*(\d+)", re.I)
 LEADING_NUMBER = re.compile(r"(\d+)")
-WILDCARDS = set("*?[]!\\")
 
 
 class Malformed(ValueError):
@@ -103,8 +103,9 @@ class Tree:
         return f"{kind}:" + "-".join(s for s in (slug(p) for p in parts) if s)
 
     def ref(self, raw: str) -> str:
-        if self.repo and code_path(raw, "\0") is not None:
-            return f"{self.repo}:{raw}"
+        named = f"{self.repo}:{raw}"
+        if self.repo and code_path(raw, "\0") is not None and code_path(named, self.repo) == code_path(raw):
+            return named
         return raw
 
     def resolve_adr(self, ref: str, base: Path) -> str:
@@ -369,13 +370,14 @@ def adr_fields(parsed: Parsed) -> tuple[dict, list[str], list[str]]:
     fm, doc = parsed.fm, parsed.doc
     head = status_of([doc.preamble["status"]]) if "status" in doc.preamble else (None, [], [])
     body = status_of(doc.sections.get("status", []))
-    status = normal_status(fm["status"]) if "status" in fm else head[0] or body[0]
+    front = status_of([fm["status"]]) if "status" in fm else (None, [], [])
+    status = front[0] or head[0] or body[0]
     date = fm.get("date") or doc.preamble.get("date")
     deciders = fm.get("deciders") or fm.get("decision-makers") or split_names(doc.preamble.get("deciders") or doc.preamble.get("decision-makers"))
     statement = paragraph(doc.sections.get("decision") or doc.sections.get("decision outcome") or [])
     fields = {"status": status, "date": date, "deciders": deciders, "statement": statement}
-    supersedes = fm.get("supersedes", []) + head[1] + body[1]
-    superseded_by = fm.get("superseded_by", []) + fm.get("superseded-by", []) + head[2] + body[2]
+    supersedes = fm.get("supersedes", []) + front[1] + head[1] + body[1]
+    superseded_by = fm.get("superseded_by", []) + fm.get("superseded-by", []) + front[2] + head[2] + body[2]
     return {k: v for k, v in fields.items() if v}, supersedes, superseded_by
 
 
@@ -452,31 +454,35 @@ def named_decisions(tree: Tree, path: Path, parsed: Parsed) -> list[tuple[str, s
 
 
 def codeowners_file(tree: Tree) -> Path | None:
-    found = [tree.root / f for f in CODEOWNERS_FILES if (tree.root / f).is_file()]
+    found = []
+    for name in CODEOWNERS_FILES:
+        path = tree.root / name
+        if not path.is_file():
+            continue
+        if not path.resolve().is_relative_to(tree.root.resolve()):
+            tree.problem(path, "it is a link to a file outside the repository")
+            continue
+        found.append(path)
     for extra in found[1:]:
-        tree.problem(extra, f"GitHub reads only the first of {', '.join(CODEOWNERS_FILES)}; this one is {found[0].relative_to(tree.root).as_posix()}", NOT_READ)
+        tree.problem(extra, f"GitHub reads only the first of {', '.join(CODEOWNERS_FILES)}; this one is {tree.rel(found[0])}", NOT_READ)
     return found[0] if found else None
 
 
-def owner_path(pattern: str) -> tuple[str | None, str]:
-    directory = pattern.endswith("/") or pattern.endswith("/**")
-    bare = pattern[:-3] if pattern.endswith("/**") else pattern
-    if WILDCARDS & set(bare):
-        return None, f"the pattern {pattern} uses wildcards, which a code path cannot express"
-    if not (bare.startswith("/") or "/" in bare.rstrip("/")):
-        return None, f"the pattern {pattern} matches at any depth; write /{pattern} to name one path from the root"
-    path = bare.strip("/")
-    if not path or ".." in path.split("/"):
-        return None, f"the pattern {pattern} names no path below the root"
-    return path + ("/" if directory else ""), ""
-
-
-def owners_entry(line: str) -> tuple[str, list[str]] | None:
-    text = re.sub(r"(^|\s)#.*$", "", line).strip()
-    if not text:
-        return None
-    pattern, *owners = text.split()
-    return pattern, owners
+def owner_rules(tree: Tree, path: Path, text: str) -> list[owners.Rule]:
+    rules = []
+    for n, line in enumerate(text.split("\n"), start=1):
+        entry = re.sub(r"(^|\s)#.*$", "", line).strip().split()
+        if not entry:
+            continue
+        pattern, names = entry[0], tuple(entry[1:])
+        bad = [o for o in names if "@" not in o]
+        try:
+            if bad:
+                raise owners.Unsupported(f"{bad[0]} is not @user, @org/team or an email address")
+            rules.append(owners.Rule(n, pattern, tuple(sorted(set(names))), owners.compile_pattern(pattern)))
+        except owners.Unsupported as e:
+            tree.problem(path, f"line {n}: {e}")
+    return rules
 
 
 def read_codeowners(tree: Tree) -> tuple[list[dict], list[dict]]:
@@ -484,31 +490,38 @@ def read_codeowners(tree: Tree) -> tuple[list[dict], list[dict]]:
     read = read_text(tree, path) if path else None
     if read is None:
         return [], []
-    entries: dict[str, dict] = {}
-    for n, line in enumerate(read[0].split("\n"), start=1):
-        node = owners_node(tree, path, n, line)
-        if node is None:
+    rules = owner_rules(tree, path, read[0])
+    try:
+        files, _ = owners.repository_files(tree.root)
+    except owners.TooLarge as e:
+        tree.problem(path, f"{e}; owners are not read")
+        return [], []
+    won = owners.owning_rules(rules, files)
+    report_idle_rules(tree, path, rules, files, won)
+    sets = owners.cover(files, {f: r.owners for f, r in won.items()})
+    lines: dict[tuple[str, ...], set[int]] = {}
+    for rule in won.values():
+        lines.setdefault(rule.owners, set()).add(rule.line)
+    return [owners_concept(tree, path, read[1], names, refs, sorted(lines[names])) for names, refs in sets.items()], []
+
+
+def report_idle_rules(tree: Tree, path: Path, rules: list[owners.Rule], files: list[str], won: dict[str, owners.Rule]) -> None:
+    winning = {r.line for r in won.values()}
+    for rule in rules:
+        if rule.line in winning or not rule.owners:
             continue
-        prior = entries.get(node["id"])
-        if prior:
-            tree.problem(path, f"line {prior['props']['source_line']}: line {n} names the same path, and the later line applies")
-        entries[node["id"]] = node
-    return list(entries.values()), []
+        if any(rule.regex.fullmatch(f) for f in files):
+            tree.problem(path, f"line {rule.line}: a later line owns every file the pattern {rule.pattern} matches", NO_EFFECT)
+        else:
+            tree.problem(path, f"line {rule.line}: the pattern {rule.pattern} matches no file in the repository", NO_EFFECT)
 
 
-def owners_node(tree: Tree, path: Path, n: int, line: str) -> dict | None:
-    entry = owners_entry(line)
-    if entry is None:
-        return None
-    pattern, owners = entry
-    bad = [o for o in owners if "@" not in o]
-    code, why = owner_path(pattern)
-    if bad or code is None:
-        tree.problem(path, f"line {n}: " + (why or f"{bad[0]} is not @user, @org/team or an email address"))
-        return None
-    props = {"source_file": tree.rel(path), "source_line": n, "content_hash": content_hash(line.strip().encode("utf-8")),
-             "pattern": pattern, "code_ref": [tree.ref(code)], "owners": owners}
-    return {"id": tree.node_id("concept", path, code), "kind": "concept", "title": f"Owners of {code}", "props": props}
+def owners_concept(tree: Tree, path: Path, data: bytes, names: tuple[str, ...], refs: list[str], lines: list[int]) -> dict:
+    digest = hashlib.sha256("\n".join(names).encode("utf-8")).hexdigest()[:12]
+    nid = "concept:" + "-".join(s for s in (slug(tree.repo or ""), "codeowners", slug(" ".join(names))[:60].strip("-"), digest) if s)
+    props = {"source_file": tree.rel(path), "content_hash": content_hash(data), "owners": list(names), "source_lines": lines,
+             "code_ref": [tree.ref(r) for r in refs]}
+    return {"id": nid, "kind": "concept", "title": "Owned by " + ", ".join(names), "props": props}
 
 
 READERS: tuple[Reader, ...] = (read_adrs, read_codeowners, read_postmortems)

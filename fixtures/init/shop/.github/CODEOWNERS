@@ -7,3 +7,4 @@ docs/                    @shop/docs
 /src/payments/           @shop/payments-core
 /package-lock.json       security@shop.example
 /src/session/            platform-team
+/src/[ab]/              @shop/x
