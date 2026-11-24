@@ -30,8 +30,8 @@ TEXT_KEYS = ("title", "status", "date")
 LIST_KEYS = ("deciders", "decision-makers", "supersedes", "superseded_by", "superseded-by", "decisions", *REF_KEYS)
 KEY_LINE = re.compile(r"([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?$")
 LIST_ITEM = re.compile(r"\s*-(?:[ \t]+(.*))?$")
-PREAMBLE = re.compile(r"\s*(?:[*-]\s+)?(status|date|deciders|decision-makers)\s*:\s*(.+)$", re.I)
-RELATION = re.compile(r"(supersedes|superseded by|amends|amended by|clarifies|clarified by)\b\s*:?\s*(.*)$", re.I)
+PREAMBLE = re.compile(r"\s*(?:[*-]\s+)?(\*\*|__)?(status|date|deciders|decision-makers)(?(1)(?::\1|\1\s*:)|\s*:)\s*(.+)$", re.I)
+RELATION = re.compile(r"(super[sc]edes|super[sc]eded by|amends|amended by|clarifies|clarified by)\b\s*:?\s*(.*)$", re.I)
 LINK = re.compile(r"\[[^\]]*\]\(\s*([^)\s]+)[^)]*\)")
 MENTION = re.compile(r"\bADR[- ]?(\d+)\b")
 NUMBERED = re.compile(r"(?:adr[- ]?)?0*(\d+)", re.I)
@@ -288,7 +288,7 @@ def markdown(text: str) -> Doc:
         if current is not None:
             sections[current].append(line)
         elif title is not None and (m := PREAMBLE.match(line)):
-            preamble.setdefault(m.group(1).lower(), m.group(2).strip())
+            preamble.setdefault(m.group(2).lower(), m.group(3).strip())
     return Doc(title, preamble, sections, text)
 
 
@@ -309,7 +309,7 @@ def status_of(lines: list[str]) -> tuple[str | None, list[str], list[str]]:
         if not text:
             continue
         if m := RELATION.match(text):
-            verb = m.group(1).lower()
+            verb = m.group(1).lower().replace("supercede", "supersede")
             targets = LINK.findall(m.group(2)) or [m.group(2).strip()]
             {"supersedes": supersedes, "superseded by": superseded_by}.get(verb, []).extend(t for t in targets if t)
         elif status is None:
@@ -320,7 +320,7 @@ def status_of(lines: list[str]) -> tuple[str | None, list[str], list[str]]:
 
 
 def normal_status(text: str) -> str:
-    return re.sub(r"\s+", " ", LINK.sub("", text)).strip().rstrip(".").lower()
+    return re.sub(r"\s+", " ", LINK.sub("", text)).strip().rstrip(".").lower().replace("supercede", "supersede")
 
 
 def code_refs(tree: Tree, fm: dict) -> dict[str, list[str]]:

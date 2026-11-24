@@ -206,13 +206,19 @@ write the same bytes.
 | `code_ref`, `subject_path`, `also_touches` | the keys of the same name, a path or a list of paths from the repository root | none: code paths come only from front matter |
 | `rule` | `rule`, an inline JSON object, kept as it is | |
 
+The `Status:`, `Date:`, `Deciders:` and `Decision-makers:` lines under the title may stand alone or be list items
+(`- ` or `* `), and the key may be bold with the colon inside or outside the bold: `- **Status:** accepted`,
+`* **Status**: accepted` and `**Status:** accepted` read like `Status: accepted`. They are read only between the
+title and the first `## ` heading.
+
 An ADR without code paths is kept and listed under `kept without code paths`; `impact` reaches it only
 through an edge. An ADR that replaces another gets a `SUPERSEDES` edge from the new one to the old one when
 either says so: front matter `supersedes`, `superseded_by` or `superseded-by`, a front matter `status` such as
 `superseded by [ADR-0002](0002-use-postgres.md)` or `superseded by ADR-0002` (MADR 3 and 4), or a `Supersedes ...` or
 `Superseded by ...` line in `## Status` (the adr-tools form) or in a `Status:` line under the title (MADR 2). A status that is only
-`Superseded by` reads as `superseded`. A reference may be a Markdown link to the file, the file name with or
-without `.md`, or a number such as `3`, `0003` or `ADR-0003`, which matches the file whose name starts with
+`Superseded by` reads as `superseded`. `Superceded` and `Supercedes`, in any case, read as `superseded` and
+`supersedes`. A reference may be a Markdown link to the file, the file name with or without `.md`, or a number
+such as `3`, `0003` or `ADR-0003`, which matches the file whose name starts with
 that number. A reference that matches no ADR or more than one makes no edge and is listed.
 
 `impact` gives each listed decision its `status` when the snapshot has one. A decision whose `status` starts
