@@ -61,9 +61,50 @@ Properties the commands read:
   `Repo:path:symbol`. `audit --repo Shop` links the repository to every node whose `code_ref` is `Shop` or
   starts with `Shop:`; `impact` matches the path part. Decisions may also name code with `subject_path`
   and `also_touches`.
-- `rule` on a decision: `{"advisory_severity_at_least": "LOW" | "MODERATE" | "MEDIUM" | "HIGH" | "CRITICAL",
-  "dependencies": "shipped"}` (the second key is optional), as an object or a JSON string. A decision
-  without a valid rule is reported as `relevant`, never `violated`.
+- `rule` on a decision: what the decision forbids, in the format below. A decision without a `rule` is
+  reported as `relevant`, never `violated`.
+
+### Rules
+
+A `rule` is a mapping, a list of mappings, or a JSON string of either. Each mapping names one or more rule
+kinds and may add the modifier `dependencies`:
+
+| Kind | Value | Judges | Violated when |
+|---|---|---|---|
+| `advisory_severity_at_least` | `LOW`, `MODERATE`, `MEDIUM`, `HIGH` or `CRITICAL` | each package and advisory pair | the package is `affected` and the advisory's severity is at or above the value |
+| `license_denied` | a list of SPDX license ids | each package | the package's license expression cannot be met without a listed license |
+| `license_allowed` | a list of SPDX license ids | each package | the package's license expression cannot be met with listed licenses only |
+| `package_denied` | a list of `{"ecosystem", "name", "versions"}` (`versions` optional) | each package | the package has that ecosystem and name, and, when `versions` is given, one of those versions |
+
+`dependencies` is `shipped` or `all` (the default). With `shipped`, a package reached only through
+development dependencies is `not_violated` for that rule. Examples:
+
+```json
+{"advisory_severity_at_least": "HIGH", "dependencies": "shipped"}
+[{"license_denied": ["GPL-3.0-only", "AGPL-3.0-only"], "dependencies": "shipped"},
+ {"package_denied": [{"ecosystem": "npm", "name": "event-stream", "versions": ["3.3.6"]},
+                     {"ecosystem": "PyPI", "name": "pycrypto"}]}]
+```
+
+License expressions are read as SPDX expressions with `AND`, `OR`, `WITH` and parentheses; operators are
+read without regard to case, and ids are compared without regard to case. An `OR` expression passes when
+any branch passes, an `AND` expression when every part passes, and `X WITH exception` is judged as `X`. Ids
+are compared as written: `GPL-2.0+` and `GPL-2.0-or-later` are different ids. When the inventory gives no
+expression but a list of ids, the ids are read as joined by `AND`. A package whose license is empty,
+`NOASSERTION`, `NONE` or not an SPDX expression (such as `SEE LICENSE IN LICENSE.md`) is `unresolved`
+for both license kinds, never `violated`.
+
+`package_denied` compares the ecosystem without regard to case and the name as OSV does (PyPI names are
+normalized). `versions` is a list of exact versions, as in an OSV record's `versions` field, not ranges. A
+version matches when it is the same string, or when it orders equal under the package's ecosystem (`v1.0.0`
+and `1.0.0` for npm, `6.0` and `6.0.0` for PyPI). Without `versions` every version is denied.
+
+A rule that cannot be read is never dropped: an unknown kind, a value of the wrong shape, a `dependencies`
+other than `shipped` or `all`, an empty list, or a string that is not JSON gives a policy with verdict
+`relevant` and the reason in `why`, on every finding the decision governs, and an entry in the report's
+`rule_problems`. Other entries of the same rule are still judged. Kinds are entries of the table `KINDS` in
+`src/decisis/rules.py`: each names the findings it judges (`advisory`, `license` or `package`), how its
+value is read, and how one package is judged.
 
 Edge types `checkout` keeps from Vinc: `ABOUT`, `RELATED_TO`, `PREREQUISITE_OF`, `DERIVES_FROM`,
 `INHERITS_FROM`, `SUPERSEDES`, `CONNECTS_VIA`, `RETURNS_TO`. A record's edge that Vinc returns as
@@ -216,7 +257,7 @@ YAML and needs no YAML library:
 - a value is plain text (a trailing ` # comment` is dropped), `'single quoted'` (`''` is a quote) or
   `"double quoted"` (JSON escapes);
 - a list is `[a, b]`, a JSON array, or `- item` lines under a `key:` with no value;
-- `rule` is one inline JSON object, such as `{"advisory_severity_at_least": "HIGH"}`.
+- `rule` is one inline JSON object, such as `{"advisory_severity_at_least": "HIGH"}`. The value is kept as it is and read as described in [Rules](#rules).
 
 Anything else is refused with the line number and the file is skipped: nested mappings, block text (`|`,
 `>`), anchors and aliases (`&`, `*`), tags (`!`), nested lists, and text that holds `: ` without quotes.
@@ -229,7 +270,7 @@ Keys other than those above are ignored.
 | `Concept`, `Decision`, `Record`, ... | the snapshot | `id`, `title`, `domain`, flattened `props` |
 | `Repository` | the inventory | `id` = `repo:<name>`, `source_system` (see below), `source_ref`, `fetched_at`, `content_hash` of the inventory |
 | `Package` | the inventory | `id` = `pkg:<purl type>/<name>@<version>`, `ecosystem`, `name`, `version`, `dev`, `licenses`, `license_expression`, `purl`, `unresolved`, `source_system`, `source_ref`, `fetched_at` |
-| `Advisory` | OSV | `id` = `adv:<osv id>`, `osv_id`, `severity`, `aliases`, `published`, `affected_json`, `source_url`, `fetched_at`, `content_hash` of the OSV record |
+| `Advisory` | OSV | `id` = `adv:<osv id>`, `osv_id`, `severity`, `severity_source` (only when the severity is not the record's own), `aliases`, `published`, `affected_json`, `source_url`, `fetched_at`, `content_hash` of the OSV record |
 
 | Edge | Meaning | `evidence` |
 |---|---|---|
@@ -344,6 +385,23 @@ qualifier. A version at or above a range's `limit` is
 not affected. A version that cannot be ordered, or an `ECOSYSTEM` range of another ecosystem, gives
 `unresolved`, never `affected`.
 
+## Severity
+
+An advisory's `severity` is the OSV record's `database_specific.severity` when it has one (GHSA records
+do). A record without one (PYSEC, RUSTSEC and GO records) takes, in this order:
+
+1. the `database_specific.severity` of a GHSA record in the same OSV data (the records this run fetched, or
+   the `--osv-cache` file) that the record names in `aliases` or that names the record in its own `aliases`;
+   the first such GHSA id in sorted order wins;
+2. the band of the CVSS v3.0 or v3.1 base score of its `CVSS_V3` vector, computed with the formula of the
+   CVSS v3.1 specification: `LOW` from 0.1, `MODERATE` from 4.0, `HIGH` from 7.0, `CRITICAL` from 9.0, as
+   GHSA bands them; a score of 0.0 gives `UNKNOWN`;
+3. otherwise `UNKNOWN`. `CVSS_V4` and `CVSS_V2` vectors are not scored.
+
+When the severity does not come from the record itself, the advisory node and each finding on it carry
+`severity_source`, such as `GHSA alias GHSA-248v-346w-9cwc in the same OSV data`,
+`CVSS v3 base score 7.5 of CVSS:3.1/...`, or the reason it stayed `UNKNOWN`.
+
 ## The OSV cache
 
 `--osv-cache` reads a JSON object with `fetched_at` (when the advisories were read), `queries` (a
@@ -357,22 +415,72 @@ examples next to it.
 ## The report and the plan
 
 `audit --out report.json` writes `meta`, `loaded` (node and edge counts), `governing` (decisions and the
-node they reach the repository through), `summary` (counts by status), `violations`, and `findings`. A
-finding has `package`, `advisory`, `severity`, `status` (`affected`, `not_affected`, `unresolved`),
-`dev_only`, `path` (ids from `repo:<name>` to the advisory), `source_url`, `fetched_at`, `content_hash`,
-`advisory_summary` and `policies` (one `decision`, `verdict` and `why` per governing decision).
+node they reach the repository through), `summary` (counts by status), `violations` (violated policies
+over all findings), and `findings`. When a decision's rule cannot be read, `rule_problems` lists each
+problem (`decision`, `rule`, the kind or null, and `problem`); the key is absent otherwise.
+
+An advisory finding has `package`, `advisory`, `severity`, `severity_source` (only when the severity was
+derived, see [Severity](#severity)), `status` (`affected`, `not_affected`, `unresolved`), `dev_only`, `path`
+(ids from `repo:<name>` to the advisory, see below), `source_url`, `fetched_at`, `content_hash`, `advisory_summary`
+and `policies`: one `decision`, `verdict` and `why` for each `advisory_severity_at_least` rule of each
+governing decision, one `relevant` policy for a decision without a rule, and one `relevant` policy with
+`rule` for each rule entry that cannot be read. A decision whose rules judge only licenses or packages adds
+no policy to an advisory finding.
+
+A license or package finding has `kind` (`license` or `package`), `package`, the facts it was judged on
+(`ecosystem`, `license_expression` and `licenses`, or `ecosystem`, `name` and `version`), `status`, `dev_only`, `path`
+(ids from `repo:<name>` to the package, see below), `source_system`, `fetched_at` of
+the inventory, and `policies`, each of which names its `rule` kind. Verdicts are `violated`,
+`not_violated`, `unresolved` (an unknown license) or `relevant`. `status` is `affected` when at least one
+rule of that kind matches the package, whatever its `dependencies` modifier says, and `unresolved` when
+none matches and at least one cannot judge it. A package that no rule matches and every rule can judge
+gives no finding, and a report whose decisions have no license or package rules has none of these
+findings. A package that the repository does not reach within `--depth` gives no finding, as for advisories. Example:
+
+```json
+{"kind": "license", "package": "pkg:npm/gpl-lib@1.0.0", "ecosystem": "npm", "license_expression": "GPL-3.0-only",
+ "licenses": ["GPL-3.0-only"], "status": "affected", "dev_only": false,
+ "path": ["repo:Shop", "pkg:npm/gpl-lib@1.0.0"], "source_system": "npm-lockfile",
+ "fetched_at": "2026-11-25T09:00:00Z",
+ "policies": [{"decision": "decision:no-gpl", "verdict": "violated", "rule": "license_denied",
+               "why": "license GPL-3.0-only cannot be used without a denied license (GPL-3.0-only)"}]}
+```
+
+A finding's `path` is the shortest path within `--depth` that fits its scope: for a package that is not
+`dev_only`, the shortest path on which no package is a development dependency, so a shipped package that
+is also reached through a development tool keeps its shipped route. When no path fits, the shortest is
+kept.
+
 `unresolved_packages` lists each package that was not queried (`package`, `reason`), and
 `inventory_notes` lists sentences on what the inventory does not cover, from the reader (an include not followed,
 a dev split that is unknown) or from its format (the Gradle and Maven readers do not resolve transitive
 dependencies); it is empty when there are none.
 
 `propose --out plan.json` writes `space`, `nodes` (records), `edges` (`relates_to` from a record to a
-decision, with the verdict as evidence), `held` (findings not recorded and why; a record that failed a re-derivation check has `record` and `failed`, the list of
-failed checks) and `digest`: the first 16
-hex digits of SHA-256 over the space, nodes and edges as sorted JSON. A record's id is
-`record:<repo>-<package>-<shipped|development>-<advisory>`, and its props hold the claim (`entity`,
-`predicate`, `value`, `statement`), the evidence (`source`, `advisory_fetched_at`, `advisory_content_hash`,
-`dependency_paths`, `lockfile_hash`) and `violates`.
+decision, with the verdict as evidence), `held` (findings not recorded and why; a record that failed a
+re-derivation check has `record` and `failed`, the list of failed checks) and `digest`: the first 16 hex
+digits of SHA-256 over the space, nodes and edges as sorted JSON. Only `affected` findings become records;
+one record covers every version of a package in one scope with the same claim.
+
+| Finding | Record id | `predicate` | `value` |
+|---|---|---|---|
+| advisory | `record:<repo>-<package>-<shipped\|development>-<advisory>` | `affected_by_advisory` | the OSV id |
+| license | `record:<repo>-<purl type>-<package>-<scope>-license-<expression slug>` | `licensed_under` | the license expression |
+| package | `record:<repo>-<purl type>-<package>-<scope>-denied-package` | `uses_denied_package` | `<ecosystem>:<name>` |
+
+An expression slug longer than 24 characters is cut to 16 and ends with 7 hex digits of the expression's SHA-256. Every
+record's props hold the claim (`entity`, `predicate`, `value`, `scope`, `versions`, `statement`), the
+evidence (`dependency_paths`, `measured_at`, `measured_ref`, `lockfile_hash`, `subject_path`) and
+`violates`. An advisory record adds `severity`, `source` (the OSV page), `advisory_fetched_at` and
+`advisory_content_hash`. A license or package record adds `ecosystem` (so one name in two ecosystems gives two records), `rules` (the rule kinds behind its edges),
+`source` (the inventory path), `source_system` and `inventory_fetched_at`.
+
+Before the write set is shown, `propose` derives every record again from a fresh sandbox built from the
+snapshot and the inventory. For an advisory record it checks the advisory hash and severity, each version
+inside the advisory's ranges, each path and its scope, and each edge target. For a license or package
+record it checks that each version is a package of the record's ecosystem in the inventory whose license expression (or ecosystem
+and name) is the record's `value`, that each path is in the graph and matches the scope, that each
+decision in `violates` has a rule of that kind the package violates, and each edge target.
 
 ## The demo transcript
 
