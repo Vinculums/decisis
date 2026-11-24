@@ -269,6 +269,12 @@ def _package_target(to: tuple[str, ...], target: str) -> str | None:
     return matches(tuple(g for g in to if "node_modules" in g), target)
 
 
+def _unresolved(to: tuple[str, ...], shown: str, target: str | None, why: str) -> tuple[str, str]:
+    if target and matches(to, target) is None and _package_target(to, target) is None:
+        return CLEAR, f"{shown}: {why}; even read as an import it names {target}, which no forbidden glob names"
+    return UNKNOWN, f"{shown}: {why}; it cannot be judged"
+
+
 def _import(value: tuple, facts: dict) -> tuple[str, str]:
     source, to = value
     glob = matches(source, facts["file"])
@@ -276,7 +282,7 @@ def _import(value: tuple, facts: dict) -> tuple[str, str]:
         return CLEAR, "the rule does not cover this file"
     shown, resolution, target = facts["specifier"], facts["resolution"], facts.get("target")
     if resolution == "unresolved":
-        return UNKNOWN, f"{shown}: {facts['why']}; it cannot be judged"
+        return _unresolved(to, shown, target, facts["why"])
     hit = _package_target(to, target) if resolution == "external" else matches(to, target)
     if hit is None:
         where = "an external package" if resolution == "external" else target

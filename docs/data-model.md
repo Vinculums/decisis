@@ -111,17 +111,35 @@ A team handle, `@org/team`, matches only when written exactly the same. One list
 
 `imports_forbidden` reads Python files (`.py`, `.pyi`) with `ast` and JavaScript and TypeScript files
 (`.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`) with a scanner that skips comments,
-strings, template literals and regular expressions. It reads `import`, `from ... import`, and
-`importlib.import_module` or `__import__` with a literal name in Python; `import ... from`, `import "x"`,
-`export ... from`, and `require` or `import()` with a literal specifier in JavaScript and TypeScript. A
-Python module resolves to a file under the repository root or `src/`, a relative import from the file's
-own package. A relative JavaScript specifier resolves to the file, the file with a usual extension, the
-`.ts` file of a `.js` specifier, or an `index` file; `paths` and `baseUrl` from the root `tsconfig.json`
-apply to other specifiers. A specifier that names no repository file is an external package: it is not a
-violation, unless a `to` glob that names `node_modules` covers `node_modules/<specifier>`. An import whose
-specifier is computed at run time, a relative import that names no file, a file that cannot be parsed and
-a file that leads outside the repository through a symbolic link are `unresolved`. No code of the
-repository is run.
+strings, template literals, regular expressions and JSX text (JSX is read in every file but `.ts`, `.mts`
+and `.cts`, where `<` starts a type). It reads `import`, `from ... import`, and `importlib.import_module`
+or `__import__` with a literal name in Python; `import ... from`, `import "x"`, `export ... from`, and
+`require` or `import()` with a literal specifier in JavaScript and TypeScript.
+
+A Python module resolves to a file under the root of the importing file's package (the first directory
+above it without an `__init__.py`), the nearest directory above the file with a `pyproject.toml`,
+`setup.py` or `setup.cfg` and its `src/`, the repository root or `src/`; a relative import resolves from the
+file's own package. A module found under none of them is external, unless its first name is a package or
+module somewhere else in the repository and not a standard library module: then it is `unresolved`.
+
+A relative JavaScript specifier resolves to the file, the file with a usual extension, the `.ts` file of a
+`.js` specifier, or an `index` file. Other specifiers go through `paths` and `baseUrl` of the nearest
+`tsconfig.json` or `jsconfig.json` above the file, with its `extends` chain followed through relative
+paths inside the repository (at most 16 deep). `baseUrl` is read relative to the config that sets it, and
+`paths` relative to `baseUrl`, or to their own config when there is no `baseUrl`. A specifier that
+matches a `paths` pattern but names no file is `unresolved`. Any other specifier is an external package:
+not a violation, unless a `to` glob that names `node_modules` covers `node_modules/<specifier>`.
+
+A plain text search for the same import forms runs over each JavaScript and TypeScript file too. A
+specifier it finds that the scanner did not read as code (in a comment or a string, or after a point the
+scanner misread) is `unresolved` with the reason "the scanner and the text search disagree" and the file
+it would name as `target`; it is `not_violated` only when that target is known and no `to` glob covers it.
+
+`unresolved` is also given to an import whose specifier is computed at run time, a relative import that
+names no file, a file that cannot be parsed or scanned to its end (an unclosed string, template literal,
+comment, regular expression or JSX element), a config that cannot be read, extends a package or extends
+itself, and a file that leads outside the repository through a symbolic link. No code of the repository is
+run.
 
 `package_denied` compares the ecosystem without regard to case and the name as OSV does (PyPI names are
 normalized). `versions` is a list of exact versions, as in an OSV record's `versions` field, not ranges. A
@@ -537,7 +555,9 @@ decision in `violates` has a rule of that kind the package violates, and each ed
   any `review_required` or `imports_forbidden` entry that cannot be read.
 
 `check` exits 1 when `violations` is not empty and 0 otherwise, including when no rule applies. An
-`unresolved` result or a rule problem does not change the exit code. With `--base REF`, the changed files
+`unresolved` result or a rule problem does not change the exit code, unless `--fail-on-unresolved` is
+given: then an `unresolved` result also exits 1. A CI gate that must not pass what it could not judge
+uses that flag. With `--base REF`, the changed files
 are `git diff --name-only --relative REF...HEAD` in `--repo-dir`, so a commit not yet made is not
 included; a REF that starts with `-` is refused.
 

@@ -144,7 +144,8 @@ In CI, give it the base branch instead of a file list: `decisis check snapshot.j
 --reviewers @alice`. It reads the changed files with `git diff --name-only origin/main...HEAD`, with the
 repository's hooks, fsmonitor and pager turned off. Imports are parsed, never run: Python with `ast`,
 JavaScript and TypeScript with a scanner that skips comments and strings. An import whose target is
-computed at run time is listed as `unresolved`, not as a violation. The rule format, the glob rules and
+computed at run time, or that the scanner and a plain text search read differently, is listed as
+`unresolved`, not as a violation; add `--fail-on-unresolved` to make those fail the check too. The rule format, the glob rules and
 the JSON report are in [`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md#the-check-report).
 
 **5. Audit a lockfile against those decisions:**
@@ -245,7 +246,7 @@ flowchart LR
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
 | `gc` | nothing | removes task directories that a killed run left behind, and prints them |
 
-Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `check --repo-dir DIR --reviewers HANDLE... --format text`, `paths --hops N --limit N`,
+Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --format text`, `paths --hops N --limit N`,
 `audit --osv-cache FILE --depth N`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
 
 Limits: `paths`, `impact`, `check`, `audit` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
@@ -410,10 +411,11 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
   each dependency path from the repository to the record's own package and advisory, the record's scope
   against the development flags on its paths, and each `relates_to` target as a decision in the snapshot. A record that fails is held back with the failed
   checks, and `propose` exits non-zero. The demo runs the same checks.
-- `check` judges `review_required` against the reviewers given and `imports_forbidden` on Python and
-  TypeScript imports, absolute, relative and through `tsconfig.json` paths, without running the
-  repository's code or its git hooks; an import computed at run time is `unresolved`, and a superseded
-  decision is not judged.
+- `check` judges `review_required` against the reviewers given and `imports_forbidden` on Python,
+  JavaScript, TypeScript and JSX imports, absolute, relative, from a nested package root and through the
+  nearest `tsconfig.json` and its `extends`, without running the repository's code or its git hooks. An
+  import computed at run time, a file the scanner cannot finish, and a specifier a plain text search finds
+  where the scanner did not are `unresolved`, never clean; a superseded decision is not judged.
 - `commit` refuses a digest that does not match the plan as it stands, writes with `create_only`, and
   fails when a node, a property or an edge's type or direction does not come back.
 - A live run against a real Vinc space wrote and read back seven records with `create_only`, and a second

@@ -51,16 +51,18 @@ def test_forbidden_imports_in_python_and_typescript_are_violations_with_file_lin
 
 def test_a_dynamic_import_is_unresolved_not_violated(capsys, no_network):
     _, r = report(capsys, "--changed", *CHANGED, "--reviewers", "@alice")
-    assert rows(r["unresolved"]) == {("src/shop/ui/view.py", 10, "decision:ui-does-not-import-db", "imports_forbidden"),
-                                     ("web/src/ui/page.ts", 9, "decision:ui-does-not-import-db", "imports_forbidden")}
-    assert all("computed at run time" in u["why"] for u in r["unresolved"])
-    assert r["summary"]["unresolved"] == 2
+    computed = [u for u in r["unresolved"] if "computed at run time" in u["why"]]
+    assert rows(computed) == {("src/shop/ui/view.py", 10, "decision:ui-does-not-import-db", "imports_forbidden"),
+                              ("web/src/ui/page.ts", 9, "decision:ui-does-not-import-db", "imports_forbidden")}
+    assert r["summary"]["unresolved"] == 3
 
 
-def test_comments_strings_regexes_and_templates_are_not_read_as_imports(capsys, no_network):
+def test_comments_strings_regexes_and_templates_are_not_read_as_imports_but_a_text_search_flags_them(capsys, no_network):
     _, r = report(capsys, "--changed", "web/src/ui/page.ts")
     assert [(i["line"], i["import"], i["resolution"]) for i in r["imports"]] == [
-        (1, "../db/client", "repository"), (2, "react", "external"), (9, "import() with a computed specifier", "unresolved")]
+        (1, "../db/client", "repository"), (2, "react", "external"), (3, "../db/secret", "unresolved"),
+        (9, "import() with a computed specifier", "unresolved")]
+    assert "the scanner and the text search disagree" in r["imports"][2]["why"]
 
 
 def test_a_missing_reviewer_is_a_violation_and_a_present_one_is_not(capsys, no_network):
@@ -110,7 +112,7 @@ def test_text_output_names_each_violation(capsys, no_network):
     code, out = cli_run(capsys, "--changed", *CHANGED, "--format", "text")
     assert code == 1
     assert "src/shop/ui/view.py:4  decision:ui-does-not-import-db  imports_forbidden: src/shop/ui/** must not import src/shop/db/**" in out
-    assert "violations: 4" in out and "cannot be judged: 2" in out
+    assert "violations: 4" in out and "cannot be judged: 3" in out
 
 
 def git_repo(tmp_path: Path) -> Path:
@@ -305,3 +307,118 @@ def test_the_check_fixture_renders_to_the_committed_golden_output(fmt, suffix, c
 def test_the_check_module_runs_without_the_cli(no_network):
     r = check.run(co.load(SNAPSHOT.read_text(encoding="utf-8")), ["./src/payments/charge.py"], REPO, ["@alice"])
     assert r["changed"] == ["src/payments/charge.py"] and r["violations"] == []
+
+
+JSX_CASES = {
+    "a closing tag then require": 'const el = <b>hi</b>; const c = require("../db/client");\n',
+    "an import inside a JSX attribute": '<Suspense fallback={<p>Loading</p>}><Route load={() => import("../db/client")} /></Suspense>\n',
+    "a glob in JSX text": '<p>Files under src/* are built</p>\nexport { q } from "../db/client";\n',
+    "a fragment with expressions": 'const a = <><A b="x" c={`${y}`}>t {/* c */} {n / 2}</A></>; require("../db/client");\n',
+    "a generic arrow": 'const f = <T,>(x: T) => x / 2; import "../db/client";\n',
+}
+
+
+@pytest.mark.parametrize("ext", [".tsx", ".jsx", ".js"])
+@pytest.mark.parametrize("case", sorted(JSX_CASES))
+def test_jsx_is_read_as_jsx_and_the_import_after_it_is_judged(tmp_path, case, ext):
+    got = judge_import(tmp_path, {"db/client.ts": "", "a/x" + ext: JSX_CASES[case]}, "a/x" + ext, {"from": ["a/**"], "to": ["db/**"]})
+    assert ("../db/client", "repository", "db/client.ts", "violated") in [g[1:] for g in got]
+    assert all(g[2] != "unresolved" for g in got), got
+
+
+@pytest.mark.parametrize("text", ['i++ / 2; import { q } from "../db/client";\n', 'let b = a-- / 2; import "../db/client";\n',
+                                  'if (a < b && c > d) { x = y / 2 } import "../db/client";\n', 'x = (a) / 2 / b; import "../db/client";\n'])
+def test_division_after_a_value_is_not_read_as_a_regex(tmp_path, text):
+    got = judge_import(tmp_path, {"db/client.ts": "", "a/x.ts": text}, "a/x.ts", {"from": ["a/**"], "to": ["db/**"]})
+    assert [g[1:] for g in got] == [("../db/client", "repository", "db/client.ts", "violated")]
+
+
+@pytest.mark.parametrize("text,reason", [
+    ("const a = `oops\nimport { q } from '../db/client';\n", "template literal"),
+    ("/* oops\nimport { q } from '../db/client';\n", "comment"),
+    ("const s = 'oops\nimport { q } from '../db/client';\n", "string"),
+    ("const r = /oops\nimport { q } from '../db/client';\n", "regular expression"),
+    ("const el = <div>\nimport { q } from '../db/client';\n", "JSX element"),
+])
+@pytest.mark.parametrize("ext", [".ts", ".tsx"])
+def test_a_file_the_scanner_cannot_finish_is_unresolved_and_its_imports_still_count(tmp_path, text, reason, ext):
+    if reason == "JSX element" and ext == ".ts":
+        return
+    got = judge_import(tmp_path, {"db/client.ts": "", "a/x" + ext: text}, "a/x" + ext, {"from": ["a/**"], "to": ["db/**"]})
+    found = imports.read(imports.Repo(tmp_path), "a/x" + ext)
+    assert any(i.line is None and "cannot be scanned to its end" in i.why and reason in i.why for i in found), found
+    assert (2, "../db/client", "unresolved", "db/client.ts", "unresolved") in got
+
+
+def test_a_text_search_hit_that_names_no_forbidden_file_is_not_violated(tmp_path):
+    got = judge_import(tmp_path, {"b/ok.ts": "", "a/x.ts": '// import "../b/ok";\n'}, "a/x.ts", {"from": ["a/**"], "to": ["db/**"]})
+    assert got == [(1, "../b/ok", "unresolved", "b/ok.ts", "not_violated")]
+
+
+def test_python_imports_resolve_from_the_files_own_package_root(tmp_path):
+    files = {"backend/app/__init__.py": "", "backend/app/db/__init__.py": "", "backend/app/db/models.py": "", "backend/app/ui/__init__.py": "",
+             "backend/app/ui/v.py": "from app.db import models\nimport app.db.models\n", "tools/run.py": "import helper\n", "tools/helper.py": ""}
+    got = judge_import(tmp_path, files, "backend/app/ui/v.py", {"from": ["backend/app/ui/**"], "to": ["backend/app/db/**"]})
+    assert [g[2:] for g in got] == [("repository", "backend/app/db/models.py", "violated")] * 2
+    assert [g[2:] for g in judge_import(tmp_path, {}, "tools/run.py", {"from": ["tools/**"], "to": ["tools/helper.py"]})] == [
+        ("repository", "tools/helper.py", "violated")]
+
+
+def test_python_imports_resolve_from_the_nearest_project_and_its_src(tmp_path):
+    files = {"libs/client/pyproject.toml": "", "libs/client/src/client/__init__.py": "", "libs/client/src/client/db.py": "",
+             "libs/client/tests/test_db.py": "from client import db\n"}
+    got = judge_import(tmp_path, files, "libs/client/tests/test_db.py", {"from": ["libs/client/tests/**"], "to": ["libs/client/src/client/db.py"]})
+    assert [g[2:] for g in got] == [("repository", "libs/client/src/client/db.py", "violated")]
+
+
+def test_a_python_name_found_elsewhere_in_the_repository_is_unresolved_not_external(tmp_path):
+    files = {"services/api/app/__init__.py": "", "services/api/app/db.py": "", "web/ui.py": "import app.db\nimport json\nimport requests\n",
+             ".venv/lib/site-packages/requests/__init__.py": ""}
+    got = judge_import(tmp_path, files, "web/ui.py", {"from": ["web/**"], "to": ["services/**"]})
+    assert [(g[1], g[2], g[4]) for g in got] == [("import app.db", "unresolved", "unresolved"), ("import json", "external", "not_violated"),
+                                                 ("import requests", "external", "not_violated")]
+
+
+TS_RULE = {"from": ["web/src/ui/**"], "to": ["web/src/db/**"]}
+TS_BASE = {"web/src/db/client.ts": "", "web/src/ui/x.ts": 'import { q } from "@db/client";\n'}
+
+
+@pytest.mark.parametrize("configs", [
+    {"web/tsconfig.json": '{"compilerOptions": {"baseUrl": "src", "paths": {"@db/*": ["db/*"]}}}'},
+    {"web/jsconfig.json": '{"compilerOptions": {"paths": {"@db/*": ["./src/db/*"]}}}'},
+    {"web/tsconfig.json": '{"extends": "../configs/base"}', "configs/base.json": '{"compilerOptions": {"baseUrl": "../web/src", "paths": {"@db/*": ["db/*"]}}}'},
+    {"web/tsconfig.json": '{"extends": ["./a.json", "./b.json"]}', "web/a.json": '{"compilerOptions": {"baseUrl": "src"}}',
+     "web/b.json": '{"compilerOptions": {"paths": {"@db/*": ["db/*"]}}}'},
+])
+def test_the_nearest_config_and_its_extends_chain_resolve_aliases(tmp_path, configs):
+    got = judge_import(tmp_path, {**TS_BASE, **configs}, "web/src/ui/x.ts", TS_RULE)
+    assert got == [(1, "@db/client", "repository", "web/src/db/client.ts", "violated")]
+
+
+def test_a_paths_match_that_names_no_file_is_unresolved(tmp_path):
+    files = {"web/src/ui/x.ts": 'import { q } from "@db/gone";\n', "web/tsconfig.json": '{"compilerOptions": {"paths": {"@db/*": ["src/db/*"]}}}'}
+    assert [g[2:] for g in judge_import(tmp_path, files, "web/src/ui/x.ts", TS_RULE)] == [("unresolved", None, "unresolved")]
+
+
+@pytest.mark.parametrize("configs,note", [
+    ({"web/tsconfig.json": '{"extends": "@tsconfig/node20/tsconfig.json"}'}, "is not a file in the repository"),
+    ({"web/tsconfig.json": '{"extends": "./a.json"}', "web/a.json": '{"extends": "./tsconfig.json"}'}, "cycle"),
+    ({"web/tsconfig.json": '{"compilerOptions": '}, "cannot be read as JSON"),
+])
+def test_a_config_that_cannot_be_followed_is_unresolved(tmp_path, configs, note):
+    got = judge_import(tmp_path, {**TS_BASE, **configs}, "web/src/ui/x.ts", TS_RULE)
+    found = imports.read(imports.Repo(tmp_path), "web/src/ui/x.ts")
+    assert any(i.line is None and note in i.why for i in found), found
+    assert "unresolved" in [g[4] for g in got]
+
+
+def test_fail_on_unresolved_turns_an_unresolved_import_into_a_failure(tmp_path, capsys, no_network):
+    root = tmp_path / "repo"
+    shutil.copytree(REPO, root)
+    (root / "web" / "src" / "ui" / "lazy.ts").write_text("export const load = (name: string) => import(name);\n", encoding="utf-8")
+    args = ["check", str(SNAPSHOT), "--repo-dir", str(root), "--changed", "web/src/ui/lazy.ts"]
+    capsys.readouterr()
+    assert cli.main(args) == 0
+    r = json.loads(capsys.readouterr().out)
+    assert r["violations"] == [] and len(r["unresolved"]) == 1
+    assert cli.main([*args, "--fail-on-unresolved"]) == 1
