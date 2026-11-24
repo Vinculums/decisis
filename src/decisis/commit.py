@@ -96,6 +96,7 @@ def render(plan: dict) -> str:
         out.append(f"  + {e['from']} -{e['type']}-> {e['to']}")
     if plan["held"]:
         out += ["", f"  held back, not written: {len(plan['held'])}"]
+        out += [f"    {h['record']}: {problem}" for h in plan["held"] for problem in h.get("failed", [])]
     out += ["", f"Approve with: decisis commit <plan file> --approve {plan['digest']}"]
     return "\n".join(out)
 

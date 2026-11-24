@@ -87,8 +87,14 @@ lockfile only when its resolved path, after symlinks, lies under `--root`, and u
   (the skill tells the agent to stop and show the write set); the full key is the real authority.
 - **Whether a finding is true.** The audit checks versions against the advisory's ranges and the
   decision's rule, but OSV data can be wrong or late. A content hash records what was read; it does not
-  authenticate OSV. In the demo a Checker re-derives each record before approval; `propose` on real data
-  does not run that step yet.
+  authenticate OSV. Before the digest is shown, `propose` and the demo check each record against a graph
+  rebuilt from the snapshot, the lockfile and OSV: the advisory's content hash and severity equal the OSV
+  record's; each version is a package of that name in the lockfile, inside the advisory's ranges, and
+  reached by one of the record's paths; each path runs from the repository to the record's own package and
+  advisory and exists in the graph; the development flags along each path match the record's scope; and
+  each `relates_to` target is a decision in the snapshot. A record that fails is held back. This catches a
+  report edited in those fields; it does not check the statement text, the verdict wording, or whether OSV
+  itself is right.
 - **Text in outside data.** Advisory summaries and lockfile fields are stored as data and never run as
   queries, but an agent that reads them can still be misled by what they say.
 - **Resource limits.** `paths` and `impact` bound hops and result counts; `audit --depth` is an integer

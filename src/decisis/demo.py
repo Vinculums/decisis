@@ -5,7 +5,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import audit, external, semver
+from . import audit, checker, external
 from . import checkout as co
 from . import commit as wb
 from .fake_vinc import FakeVinc
@@ -49,34 +49,6 @@ def _finding_line(f: dict) -> str:
     if _violated(f):
         line += "  violates " + ", ".join(_violated(f))
     return line
-
-
-def check_plan(plan: dict, box, vinc, cache: dict) -> list[dict]:
-    decisions = {n["id"] for n in vinc.nodes if n["kind"] == "decision"}
-    out = []
-    for n in plan["nodes"]:
-        p, problems, checks = n["props"], [], 0
-        record = cache["vulns"].get(p["value"])
-        name = p["entity"].split(":", 1)[1]
-        checks += 1
-        if record is None or external.digest(record) != p["advisory_content_hash"]:
-            problems.append("the advisory text differs from the cached OSV record")
-        for version in p["versions"]:
-            checks += 1
-            if record is None or semver.affects(version, "npm", name, record.get("affected") or []) is not True:
-                problems.append(f"{name} {version} is not inside the advisory's affected ranges")
-        found = {tuple(r["path"]) for r in box.query(query("dependency_paths", depth=8), {"repo": f"repo:{REPO}"})}
-        for path in p["dependency_paths"]:
-            checks += 1
-            if tuple(path) not in found:
-                problems.append("a dependency path is not in the sandbox graph: " + " -> ".join(path))
-        for e in plan["edges"]:
-            if e["from"] == n["id"]:
-                checks += 1
-                if e["to"] not in decisions:
-                    problems.append(f"{e['to']} is not a decision in the checkout")
-        out.append({"record": n["id"], "checks": checks, "problems": problems})
-    return out
 
 
 def expected(report: dict, plan: dict, path: dict) -> dict:
@@ -164,7 +136,8 @@ def run(out: Path, fixtures: Path | None = None, approve: str | None = None, yes
 
         today = cache["fetched_at"][:10]
         plan = wb.propose(report, REPO, SPACE, today=today)
-        checked = check_plan(plan, box, vinc, cache)
+        checked = checker.check_plan(plan, box, checker.decisions(vinc), REPO)
+        plan = checker.withhold(plan, checked)
         failed = [c for c in checked if c["problems"]]
         demo.step("Checker and approval", [
             f"The Checker re-derives each proposed record from the sandbox: {sum(c['checks'] for c in checked)} checks over "
