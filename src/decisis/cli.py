@@ -11,6 +11,7 @@ from . import compare
 from . import demo
 from . import external
 from . import impact
+from . import init
 from . import inventory
 from . import render
 from . import commit as wb
@@ -55,6 +56,12 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("seeds", nargs="+")
     c.add_argument("--depth", type=int, default=1)
     c.add_argument("--out", required=True)
+    ini = sub.add_parser("init", help="build a snapshot from a repository's ADRs, CODEOWNERS and postmortems")
+    ini.add_argument("--repo-dir", default=".", help="the repository to read (default: the current directory)")
+    ini.add_argument("--repo", help="the repository name to put before each code path, for example Shop")
+    ini.add_argument("--adr-dir", help=f"read ADRs only from this directory, relative to --repo-dir (default: {', '.join(init.ADR_DIRS)})")
+    ini.add_argument("--postmortem-dir", help=f"read postmortems only from this directory, relative to --repo-dir (default: {', '.join(init.POSTMORTEM_DIRS)})")
+    ini.add_argument("--out", required=True)
     p = sub.add_parser("paths", help="load a snapshot into a throwaway Relate file and list paths between two ids")
     p.add_argument("snapshot")
     p.add_argument("source")
@@ -184,6 +191,12 @@ def run(a: argparse.Namespace) -> int:
                               "unresolved_packages": len(report["unresolved_packages"]), "out": a.out}))
         else:
             sys.stdout.write(text + "\n")
+        return 0
+    if a.cmd == "init":
+        snapshot = init.build(a.repo_dir, a.repo, adr_dir=a.adr_dir, postmortem_dir=a.postmortem_dir)
+        Path(a.out).write_text(init.dump(snapshot), encoding="utf-8")
+        meta = snapshot["meta"]
+        print(json.dumps({"out": a.out, "nodes": meta["nodes"], "edges": meta["edges"], "problems": meta["problems"]}, ensure_ascii=False, indent=1))
         return 0
     if a.cmd == "checkout":
         graph = co.checkout(co.VincMCP.from_env(), a.seeds, a.depth)

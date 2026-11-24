@@ -53,7 +53,7 @@ shipped `lodash` violate it).
 | `edges[].source`, `edges[].target` | yes | Node ids in this snapshot. An edge whose endpoint is missing fails the load and is named in the error. |
 | `edges[].type` | yes | The relationship type, kept with its direction. |
 | `edges[].evidence` | no | Why the edge holds; carried on the Relate edge and printed with each path. |
-| `meta` | no | `seeds`, `space` and `extracted_at` from `checkout`. When `meta.nodes` or `meta.edges` is a number, the load refuses a file whose lists have a different length. |
+| `meta` | no | `seeds`, `space` and `extracted_at` from `checkout`; `source`, `repo` and `problems` from `init`. When `meta.nodes` or `meta.edges` is a number, the load refuses a file whose lists have a different length. |
 
 Properties the commands read:
 
@@ -71,6 +71,119 @@ Edge types `checkout` keeps from Vinc: `ABOUT`, `RELATED_TO`, `PREREQUISITE_OF`,
 snapshot may use any type; `impact` follows only `ABOUT`, `DERIVES_FROM`, `INHERITS_FROM`, a record's
 `RELATED_TO`, `PREREQUISITE_OF`, `DERIVES_FROM` or `INHERITS_FROM`, and `RELATED_TO` between concepts
 from one that names no code (see `CARRIES` in `src/decisis/impact.py`).
+
+## A snapshot from a repository: `init`
+
+```
+decisis init --repo-dir . --repo Shop --out snapshot.json
+decisis impact snapshot.json src/payments/retry.py --repo Shop --format text
+```
+
+`init` reads three kinds of file a repository often already has and writes a snapshot that every other
+command loads. It reads no code and no prose beyond the fields below, and it never guesses: a file it cannot
+read or parse is listed in `meta.problems` with the reason and left out. Each entry has `file`, `reason` and
+`action`: `skipped` (the file or line is not in the snapshot), `kept without code paths` (the node is there
+but no code path anchors it), `no edge` (a reference did not resolve to exactly one ADR), `no effect` (a
+CODEOWNERS line that owns no file) or `not read`.
+`fixtures/init/shop` is an example repository with each format and each kind of problem.
+
+| Flag | Meaning |
+|---|---|
+| `--repo-dir DIR` | the repository to read (default: the current directory) |
+| `--repo NAME` | put `NAME:` before each code path that names no repository, so `impact --repo` and `audit --repo` match it; letters, digits, `-` and `_` |
+| `--adr-dir DIR` | read ADRs only from this directory, relative to `--repo-dir` (default: every one of `docs/adr`, `docs/decisions`, `adr`, `doc/adr` that exists) |
+| `--postmortem-dir DIR` | read postmortems only from this directory, relative to `--repo-dir` (default: `docs/postmortems`) |
+| `--out FILE` | where the snapshot goes; the command prints its counts and problems |
+
+Every `.md` file directly in those directories is read, except `README.md`, `index.md` and names that
+contain `template`. Every node carries `source_file` (the path from the repository root) and
+`content_hash` (`sha256:` and the hex digest of the file it was read from). Ids come from the repository name and the file path, such as
+`decision:shop-docs-adr-0003-retry-payment-calls-once`, so they stay the same while the file keeps its
+path. Nodes, edges and problems are sorted and nothing depends on the clock, so two runs on the same tree
+write the same bytes.
+
+### ADRs become decisions
+
+| Field | From front matter | Or, without it, from the Markdown |
+|---|---|---|
+| `title` | `title` | the first `# ` heading |
+| `status` | `status` | a `Status:` line under the title (MADR 2), or the first line of the `## Status` section (Nygard); lower case |
+| `date` | `date` | a `Date:` line under the title |
+| `deciders` | `deciders` or `decision-makers` (a list, or names split at commas) | a `Deciders:` or `Decision-makers:` line under the title |
+| `statement` | | the first paragraph of `## Decision` or `## Decision Outcome` |
+| `code_ref`, `subject_path`, `also_touches` | the keys of the same name, a path or a list of paths from the repository root | none: code paths come only from front matter |
+| `rule` | `rule`, an inline JSON object, kept as it is | |
+
+An ADR without code paths is kept and listed under `kept without code paths`; `impact` reaches it only
+through an edge. An ADR that replaces another gets a `SUPERSEDES` edge from the new one to the old one when
+either says so: front matter `supersedes`, `superseded_by` or `superseded-by`, a front matter `status` such as
+`superseded by [ADR-0002](0002-use-postgres.md)` or `superseded by ADR-0002` (MADR 3 and 4), or a `Supersedes ...` or
+`Superseded by ...` line in `## Status` (the adr-tools form) or in a `Status:` line under the title (MADR 2). A status that is only
+`Superseded by` reads as `superseded`. A reference may be a Markdown link to the file, the file name with or
+without `.md`, or a number such as `3`, `0003` or `ADR-0003`, which matches the file whose name starts with
+that number. A reference that matches no ADR or more than one makes no edge and is listed.
+
+`impact` gives each listed decision its `status` when the snapshot has one. A decision whose `status` starts
+with `superseded`, or that is the target of a `SUPERSEDES` edge, is not listed under `governing`: it goes
+under `superseded`, with `superseded_by` (the decisions that replace it), so a path shows what governs it now
+and, apart, what used to. `--format text` prints it after the governing nodes; Mermaid draws it dashed with
+the `SUPERSEDES` edge, and HTML lists it in its own part. The `superseded` key is left out when it would be
+empty, so a snapshot without superseded decisions gives the same output as before.
+
+### CODEOWNERS owner sets become concepts
+
+`init` reads the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS` that is inside the
+repository, as GitHub does, and lists the others as `not read`. It matches every line against the files in
+`--repo-dir` the way GitHub does and gives each file the owners of the last line that matches it:
+
+- a pattern with a `/` at the start or in the middle is anchored at the root; any other pattern matches at
+  any depth (`apps/`, `*.js`);
+- a trailing `/` matches a directory and everything below it;
+- `*` and `?` match within one path segment; `**` matches any number of segments (`**/logs`, `docs/**`);
+- a pattern whose last segment is a plain name also owns everything below a directory of that name
+  (`/apps/github`); one whose last segment has a wildcard matches files only (`docs/*` owns `docs/a.md`
+  but not `docs/b/c.md`);
+- a line with a pattern and no owners leaves its files without an owner.
+
+The files are what `git ls-files --cached --others --exclude-standard` lists when `--repo-dir` is in a git
+work tree, and otherwise every file below it outside `.git`. A tree of more than 100,000 files is listed and
+its owners are not read.
+
+Each distinct set of owners becomes one concept. Its `code_ref` is the fewest paths that cover exactly the
+files that set owns: a directory (with a trailing `/`) when every file below it has that owner set, otherwise
+the single file. It also has `owners` (sorted), `source_lines` (the lines that own those files), and
+`source_file` and `content_hash` of the CODEOWNERS file. Its id is `concept:<repo>-codeowners-`, the owners
+as a slug, and the first 12 hex digits of the SHA-256 of the owners, so two owner sets never share an id.
+Title: `Owned by` and the owners.
+
+A line is listed and skipped when GitHub does not support its pattern (`!` negation, `[...]` ranges, `\`
+escapes) or when an owner is not `@user`, `@org/team` or an email address. A line that matches no file, or
+whose files are all owned by later lines, is listed under `no effect`. The concepts have no edges, so an
+owner never carries a decision to the code it owns; `impact` lists them at hop 0 for the paths they cover.
+
+### Postmortems become records
+
+A postmortem gives a record with `title`, `date` and the three code path keys, read as for an ADR. It gets
+an `ABOUT` edge to each decision it names: the `decisions` front matter key (a list of references as for
+`supersedes`), an `ADR-<number>` in the text, or a Markdown link to an ADR file. A name in front matter or
+text that matches no ADR is listed under `no edge`; a link to a file that is not an ADR is ignored.
+`impact` follows the edge from the record to the decision, so a path that a decision names also lists the
+postmortems about it.
+
+### The front matter subset
+
+Front matter is the block between a first line `---` and the next `---` or `...`. `init` reads a subset of
+YAML and needs no YAML library:
+
+- `key: value` at the start of a line, each key once; lines that start with `#` are comments;
+- a value is plain text (a trailing ` # comment` is dropped), `'single quoted'` (`''` is a quote) or
+  `"double quoted"` (JSON escapes);
+- a list is `[a, b]`, a JSON array, or `- item` lines under a `key:` with no value;
+- `rule` is one inline JSON object, such as `{"advisory_severity_at_least": "HIGH"}`.
+
+Anything else is refused with the line number and the file is skipped: nested mappings, block text (`|`,
+`>`), anchors and aliases (`&`, `*`), tags (`!`), nested lists, and text that holds `: ` without quotes.
+Keys other than those above are ignored.
 
 ## The Relate graph of an audit
 

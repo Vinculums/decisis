@@ -23,6 +23,7 @@ CLASSES = {
     "advisory": "fill:#fde2e2,stroke:#b91c1c,color:#3f0a0a",
     "endpoint": "fill:#ede9fe,stroke:#6d28d9,color:#1e1037",
     "violated": "fill:#fecaca,stroke:#b91c1c,stroke-width:3px,color:#3f0a0a",
+    "superseded": "fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray:4 3,color:#4b5563",
 }
 VIOLATED_LINK = "stroke:#b91c1c,stroke-width:3px"
 
@@ -91,19 +92,28 @@ def mermaid_lines(g: Graph) -> list[str]:
 
 def impact_graph(report: dict) -> Graph:
     g = Graph()
-    titles = {i["id"]: i.get("title") or "" for r in report.get("impact", []) for i in r.get("governing", [])}
+    titles = {i["id"]: i.get("title") or "" for r in report.get("impact", []) for i in r.get("governing", []) + r.get("superseded", [])}
     for r in report.get("impact", []):
         code = f"path:{r['path']}"
         g.node(code, (r["path"],), "code")
         for item in r.get("governing", []):
-            g.node(item["id"], label(item["id"], item.get("title") or ""), kind_class(item.get("kind") or ""), replace=True)
-            for c in item.get("code_ref", []):
-                g.edge(item["id"], f"code_ref {c['match']}", code)
-            for s in item.get("path", []):
-                for nid in (s["source"], s["target"]):
-                    g.node(nid, label(nid, titles.get(nid, "")), kind_class(nid.split(":", 1)[0]))
-                g.edge(s["source"], s["type"], s["target"])
+            impact_node(g, item, code, titles, kind_class(item.get("kind") or ""))
+        for item in r.get("superseded", []):
+            impact_node(g, item, code, titles, "superseded", ("superseded",))
+            for new in item.get("superseded_by", []):
+                g.node(new, label(new, titles.get(new, "")), "decision")
+                g.edge(new, "SUPERSEDES", item["id"])
     return g
+
+
+def impact_node(g: Graph, item: dict, code: str, titles: dict, cls: str, extra: tuple[str, ...] = ()) -> None:
+    g.node(item["id"], label(item["id"], item.get("title") or "") + extra, cls, replace=True)
+    for c in item.get("code_ref", []):
+        g.edge(item["id"], f"code_ref {c['match']}", code)
+    for s in item.get("path", []):
+        for nid in (s["source"], s["target"]):
+            g.node(nid, label(nid, titles.get(nid, "")), kind_class(nid.split(":", 1)[0]))
+        g.edge(s["source"], s["type"], s["target"])
 
 
 def path_steps(path: dict) -> list[dict]:
@@ -183,11 +193,18 @@ def steps_html(steps: list[dict]) -> str:
     return '<ol class="steps">' + "".join(items) + "</ol>"
 
 
-def impact_item(item: dict) -> str:
+def impact_item(item: dict, cls: str = "") -> str:
     rows = [("hops", esc(item.get("hops"))), ("via", code(item.get("via")))]
+    if item.get("status"):
+        rows.append(("status", esc(item["status"])))
     if item.get("code_ref"):
         rows.append(("code_ref", ", ".join(f"{code(c['ref'])} ({esc(c['match'])})" for c in item["code_ref"])))
-    return (f'<li class="item {esc(item.get("kind"))}"><div class="head"><span class="badge">{esc(item.get("kind"))}</span> '
+    if item.get("superseded_by"):
+        rows.append(("superseded by", ", ".join(code(n) for n in item["superseded_by"])))
+    kind = esc(item.get("kind")) + (f" {cls}" if cls else "")
+    badge = '<span class="badge">superseded</span> ' if cls else ""
+    style = ' style="border-style:dashed"' if cls else ""
+    return (f'<li class="item {kind}"{style}><div class="head"><span class="badge">{esc(item.get("kind"))}</span> {badge}'
             f'{code(item["id"])}</div><div class="title">{esc(item.get("title"))}</div>{dl(rows)}{steps_html(item.get("path", []))}</li>')
 
 
@@ -196,6 +213,9 @@ def impact_sections(report: dict) -> list[str]:
     for r in report.get("impact", []):
         gov = r.get("governing", [])
         body = '<ul class="items">' + "".join(impact_item(i) for i in gov) + "</ul>" if gov else '<p class="none">nothing in the snapshot names this path</p>'
+        old = r.get("superseded", [])
+        if old:
+            body += (f'<h3>Superseded, listed for the record</h3><ul class="items">' + "".join(impact_item(i, "superseded") for i in old) + "</ul>")
         out.append(f"<section><h2>{code(r['path'])}</h2><p>{esc(len(gov))} node(s), matched as {code(r.get('matched_as'))}</p>{body}</section>")
     return out
 
