@@ -192,16 +192,20 @@ token, at GitHub's lower limit for anonymous requests.
 | `source` | `https://github.com/OWNER/REPO/pull/{n}` |
 | `content_hash` | `sha256:` and the hex digest of the number, title, description, merge time, merge commit, labels, author, files and reviews that were read |
 
-Its id is `decision:github-<owner>-<repo>-pr-<number>`, so it stays the same across runs and never meets an
-ADR's id. No fetch time is stored, so the same answers from GitHub give the same bytes.
+Its id is `decision:github-<owner>-<repo>-<key>-pr-<number>`, where `<key>` is the first 8 hex digits of the
+SHA-256 of `owner/repo` in lower case, so it stays the same across runs, never meets an ADR's id, and differs
+between repositories whose names slug alike (`a-b/c` and `a/b-c`, `foo.bar` and `foo_bar`). No fetch time is stored, so the same answers from GitHub give the same bytes.
 
 The listing follows GitHub's `Link` headers and stops at `--limit` closed pull requests, or at the first one
 last updated before `--since`; a stop at the limit is listed as `not read` on `github:OWNER/REPO`. GitHub
-lists at most 3,000 changed files of a pull request; a pull request at that cap is kept and listed. A rate
+lists at most 3,000 changed files of a pull request; a pull request at that cap is kept and listed. `init`
+reads at most 1,000 reviews of a pull request; one with more is kept and listed as `not read`, since its
+`deciders` can miss an approval. A changed file whose path has a colon (`C:/win`, `a:b/c.py`) is left out of
+`code_ref` and listed as `skipped`, because a `code_ref` reads what comes before a colon as a repository. A rate
 limit (HTTP 429, or 403 with `x-ratelimit-remaining: 0` or `retry-after`) stops the read: the pull requests
 read before it stay in the snapshot, and the stop is listed as `not read` with GitHub's reset time. Any other
-error answer, an answer that is not JSON, and a redirect or `Link` to another host stop the command with exit
-code 1 and write nothing.
+error answer, a broken or cut-off answer, an answer that is not JSON or is nested too deeply to read, and a
+redirect or `Link` to another host stop the command with exit code 1 and write nothing.
 
 ### The front matter subset
 
