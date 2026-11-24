@@ -152,25 +152,38 @@ file, a path whose first element has no `.` is the standard library and external
 
 A Rust path is read inside the crate of the nearest `Cargo.toml` above the file that has a `[package]`.
 The crate root is `src/lib.rs` (or the `[lib]` `path`) for files under its directory, `src/main.rs`
-for files under `src/` in a crate without a library, and for `src/bin/`, `tests/`, `examples/` and `benches/` the file itself, or the `main.rs` of
-its subdirectory; a file's module path follows from where it lies under that root (`src/a/b.rs` and
-`src/a/b/mod.rs` are `a::b`), and an inline `mod x { ... }` adds `x`. A path that starts with `crate::`
-reads from the crate root, `self::` from the current module, and each `super::` one module up; a path whose
-first name is a child module of the current module (Rust 2018 paths) reads like `self::`. The path resolves
-to the module file it names, `a/b.rs` or `a/b/mod.rs` below the crate root's directory, or else to the
-longest prefix that is an existing module file, down to the crate root itself: `crate::db::models::Order`
-is `src/db/models.rs`, and `crate::Error` is `src/lib.rs`. A module file `a/b.rs` also matches a `to` glob
-that covers its directory `a/b/`, so the verdict does not depend on which of the two layouts the crate
-uses. `mod x;` names `x.rs` or `x/mod.rs` below the current module, or the file a `#[path = "..."]`
-attribute gives, read from the file's own directory. A path that starts with the name of a crate in the
-repository (its `[package]` `name` or `[lib]` `name` in its `Cargo.toml`, with `-` read as `_`, or a
-dependency of the current crate given by `path`, under the name the current crate uses for it), with or
-without a leading `::`, resolves the same way inside that crate, from its library root. Any other path
-(`std`, a crate from a registry) is external and never a violation.
+for files under `src/` in a crate without a library, a target a `[[bin]]`, `[[test]]`, `[[example]]` or
+`[[bench]]` `path` declares, and, unless the matching `auto*` flag is `false`, a file directly in `src/bin/`,
+`tests/`, `examples/` or `benches/` or the `main.rs` of its subdirectory. The crate's modules are the tree
+of `mod` declarations followed from that root: `mod x;` names `x.rs` or `x/mod.rs` in the module's
+directory, a `#[path = "..."]` or `#[cfg_attr(..., path = "...")]` attribute names a file read from the
+declaring file's directory (or the inline module's directory), and `mod x { ... }` is an inline module. The
+importing file's own module is found in that tree, by its place under the root or else by walking the
+tree.
+
+A path that starts with `crate::` is read from the crate root, `self::` from the current module, and each
+`super::` one module up. Any other first name is looked up in the current module, then taken as a crate of
+the repository, then as external. Each name of the path is looked up in turn in the module reached so far,
+as a child module, as an item the module declares (`struct`, `enum`, `trait`, `type`, `fn`, `const`,
+`static`, `union` or `macro_rules!`), as a name it binds with `use`, `pub use` or `extern crate` (followed to
+what it binds, also through a `use` inside a function), or as a name a `use ...::*` in it brings in. A
+child module moves on to that module. An item ends the path at the file that declares it, so
+`crate::db::models::Order` is `src/db/models.rs` and `crate::Error` is `src/lib.rs` when `lib.rs`
+declares or re-exports `Error`. A name found none of those ways is `unresolved`, never the root file: a
+module that does not exist, an item a macro generates, and a module whose file leads outside the
+repository are not judged. A module file `a/b.rs` found as `mod b;` also matches a `to` glob that covers
+its directory `a/b/`, so the verdict does not depend on which of the two layouts the crate uses.
+
+A crate of the repository is named by its `[package]` `name` or `[lib]` `name` (with `-` read as `_`), or
+by the name the current crate gives a dependency: with `path`, with `package = "..."` naming a crate of the
+repository, or with `workspace = true` and the entry of that name in the nearest `[workspace.dependencies]`
+above; target-specific dependency tables count too. A path into such a crate, with or without a leading
+`::`, is read from its library root the same way. Any other path (`std`, a crate from a registry) is
+external and never a violation.
 
 A plain text search for the same import forms runs over each JavaScript, TypeScript and Go file, and over
-each Rust file for `use` paths that start with `crate`, `self`, `super` or the name of a crate in the
-repository, and for `mod x;`. A specifier it finds that the scanner did not read as code (in a comment or a
+each Rust file for `use` paths that start with `crate`, `self`, `super`, the name of a crate in the
+repository or a name the file binds, and for `mod x;`. A specifier it finds that the scanner did not read as code (in a comment or a
 string, or after a point the scanner misread) is `unresolved` with the reason "the scanner and the text
 search disagree" and the file it would name as `target`; it is `not_violated` only when that target is
 known and no `to` glob covers it. A Go or Rust hit that would be external is not listed, since read as an
@@ -181,13 +194,16 @@ names no file, a file that cannot be parsed or scanned to its end (an unclosed s
 comment, regular expression, JSX element, raw string or character literal), a config that cannot be read,
 extends a package or extends itself, and a file that leads outside the repository through a symbolic link.
 In Go it is given to a path under the module path with no directory in the repository, a path with `.`,
-`..` or an empty element, a path with an escape sequence, and a `go.mod` with no `module` line. In Rust it
-is given to a `crate::`, `self::` or `super::` path or a `mod` declaration in a file with no `Cargo.toml`
-above it or whose nearest `Cargo.toml` has no `[package]` or cannot be read, a path that resolves to no
-file (the crate has no root file the scanner finds and no prefix of the path names a module file), a
-`super::` that goes above the crate root, a `mod x;` with no file, a repository crate with no library root,
-and a `use` declaration that cannot be read (such as `use $x;` in a macro). No code of the repository is
-run.
+`..` or an empty element, a path with an escape sequence, and a `go.mod` whose `module` directive is
+missing or cannot be read (both the one-line and the `module ( ... )` block form are read). Go packages
+under `vendor/`, and modules a `replace` directive or `go.work` places inside the repository, are external
+like any other path outside the module, so no `to` glob can name them. In Rust it is given to a `crate::`,
+`self::` or `super::` path or a `mod` declaration in a file with no `Cargo.toml` above it or whose nearest
+`Cargo.toml` has no `[package]` or cannot be read, a path with a name found no way above, a crate with no
+root file the scanner finds, a `super::` above the crate root or from a file the tree does not reach, a
+`mod x;` with no file, one whose file leads outside the repository, one whose `cfg_attr` paths name more
+than one existing file (when a path goes through it), a repository crate with no library root, and a
+`use` declaration that cannot be read (such as `use $x;` in a macro). No code of the repository is run.
 
 `package_denied` compares the ecosystem without regard to case and the name as OSV does (PyPI names are
 normalized). `versions` is a list of exact versions, as in an OSV record's `versions` field, not ranges. A

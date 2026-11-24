@@ -28,13 +28,15 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - `check` judges `review_required` against the reviewers given and `imports_forbidden` on Python,
   JavaScript, TypeScript and JSX imports, absolute, relative, from a nested package root and through the
   nearest `tsconfig.json` and its `extends`; on Go imports, single and grouped, with alias, dot and blank
-  names, through the module path of the nearest `go.mod`; and on Rust `use`, `mod` and `extern crate`
-  declarations, from `crate::`, `self::` and `super::`, through child modules and inline modules, and into
-  other crates of the repository by their `Cargo.toml` names. It does so without running the repository's
-  code or its git hooks. An import computed at run time, a file the scanner cannot finish, a Go path under
-  the module path with no directory, a Rust path that resolves to no file, and a specifier a plain text
-  search finds where the scanner did not are `unresolved`, never clean; a superseded decision is not
-  judged.
+  names, through the module path of the nearest `go.mod` in either form of its `module` directive; and on
+  Rust `use`, `mod` and `extern crate` declarations, through the tree of `mod` declarations from the crate
+  root (with `#[path]`, `cfg_attr` paths and inline modules), the items and `use` bindings of each module,
+  and into other crates of the repository by their `Cargo.toml` names, `package` renames and workspace
+  dependencies. It does so without running the repository's code or its git hooks. An import computed at
+  run time, a file the scanner cannot finish, a Go path under the module path with no directory, a Rust
+  path with a name that is no module, item or `use` binding of the module it reaches, and a specifier a
+  plain text search finds where the scanner did not are `unresolved`, never clean; a superseded decision
+  is not judged.
 - The action's comment, against a fake GitHub: a hostile decision title and file path reach it only as
   escaped text, the body stays under GitHub's limit and says what it cut, the bot's own marked comment is
   found across pages and updated (a marked comment by anyone else is left alone), only the latest approving
@@ -70,7 +72,10 @@ Future work, not built:
   `package_denied` and `package_allowed` only.
 - Imports in languages other than Python, JavaScript, TypeScript, Go and Rust: `check` reads none, so a
   Java or Kotlin file under an `imports_forbidden` glob gives no verdict. Rust macros that expand to
-  `use` or `mod`, and Go `go.work` workspaces and `replace` directives, are not followed.
+  `use` or `mod`, items a macro generates (these are `unresolved`), and Go `go.work` workspaces and
+  `replace` directives, are not followed.
+- Go packages under `vendor/`, and modules that a `replace` directive or `go.work` places inside the
+  repository, are read as external, so no `to` glob can name them.
 - A memory limit on the query process (see `docs/threat-model.md`).
 - A listing on the GitHub Marketplace; refer to the action by repository and commit.
 - A benchmark that exercises the `RELATED_TO` carry rule and the audit policy rules on real repositories;
