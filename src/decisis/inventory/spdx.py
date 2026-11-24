@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from .shape import UNKNOWN_LICENSES, Inventory, digest, from_purl, json_object
+from .shape import UNKNOWN_LICENSES, Inventory, digest, from_purl, json_object, without_purl
 
 FORMAT = "spdx"
 SIBLINGS: tuple[str, ...] = ()
@@ -18,8 +18,14 @@ def detect(text: str, filename: str) -> bool:
     return obj is not None and str(obj.get("spdxVersion", "")).startswith("SPDX-")
 
 
-def _purl(p: dict) -> str | None:
-    return next((r.get("referenceLocator") for r in p.get("externalRefs") or [] if r.get("referenceType") == "purl"), None)
+def _ref(p: dict, *kinds: str) -> str | None:
+    return next((r.get("referenceLocator") for r in p.get("externalRefs") or [] if r.get("referenceType") in kinds), None)
+
+
+def _package(p: dict) -> dict:
+    version = p.get("versionInfo") or ""
+    return from_purl(_ref(p, "purl"), version) or without_purl(p.get("name") or p.get("SPDXID", ""), version,
+                                                             _ref(p, "cpe23Type", "cpe22Type") or "")
 
 
 def _license(p: dict) -> str:
@@ -60,9 +66,8 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
     for key in roots:
         inv.root(key)
     for p in doc.get("packages") or []:
-        pkg = None if p.get("SPDXID") in roots else from_purl(_purl(p), p.get("versionInfo") or "")
-        if pkg is not None:
-            inv.add(p["SPDXID"], pkg, f"{repo}:{filename}#{p['SPDXID']}", _license(p))
+        if p.get("SPDXID") not in roots:
+            inv.add(p["SPDXID"], _package(p), f"{repo}:{filename}#{p['SPDXID']}", _license(p))
     for r in doc.get("relationships") or []:
         _link(inv, roots, r)
     inv.adopt_orphans(ORPHAN)

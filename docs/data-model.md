@@ -115,10 +115,15 @@ Package props:
 - `purl` is the package URL without qualifiers.
 - `unresolved` is empty when the package can be queried at OSV, and otherwise says why not (no ecosystem,
   no version). Unresolved packages stay in the graph, are not queried, and are listed in the report.
-- `dev` is true when the package is reached only through development dependencies.
+- `dev` is true when the package is reached only through development dependencies. When an SBOM lists
+  one package id more than once, one production instance makes it shipped; it is development only when
+  every instance is marked development and nothing shipped reaches it.
 
-An SBOM component without a purl is left out. An SBOM package that nothing depends on is linked from the
-repository with the evidence `listed in the SBOM with no dependency on it`.
+An SBOM component without a purl gets the id `pkg:unknown/<name>@<version>`, ecosystem `""` and
+`unresolved` `the inventory gives no purl`, with its CPE when it has one. An SBOM package that nothing
+depends on is linked from the repository with the evidence `listed in the SBOM with no dependency on it`.
+`audit` refuses an inventory that lists no packages, or none that can be queried at OSV, instead of
+reporting it clean.
 
 For Go, `audit` is given `go.mod` and reads `go.sum` from the same directory. It stops when there is no
 `go.sum`, or when a required module version has no line in it. A `replace` to a local path drops the
@@ -135,8 +140,9 @@ A finding is `affected` when the version is listed in the advisory, or falls in 
 `ECOSYSTEM` ranges. Range events are sorted by version before they are read. `SEMVER` ranges and the
 `ECOSYSTEM` ranges of npm, crates.io and Go are ordered as semantic versions (a leading `v` and build
 metadata are ignored; Go pseudo-versions order as pre-releases). PyPI `ECOSYSTEM` ranges are ordered by
-PEP 440 (epoch, release, pre, post, dev and local segments). A version that cannot be ordered, or an
-`ECOSYSTEM` range of another ecosystem, gives `unresolved`, never `affected`.
+PEP 440 (epoch, release, pre, post, dev and local segments). A version at or above a range's `limit` is
+not affected. A version that cannot be ordered, or an `ECOSYSTEM` range of another ecosystem, gives
+`unresolved`, never `affected`.
 
 ## The OSV cache
 

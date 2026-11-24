@@ -103,6 +103,11 @@ def ecosystem_of(p: dict) -> tuple[str, str]:
     return eco, f"{ns}/{name}" if ns and eco else name
 
 
+def without_purl(name: str, version: str, cpe: str = "") -> dict:
+    reason = "the inventory gives no purl" + (f"; CPE {cpe}" if cpe else "")
+    return {"id": f"pkg:unknown/{name}@{version}", "ecosystem": "", "name": name, "version": version, "purl": "", "unresolved": reason}
+
+
 def from_purl(purl: str, version: str = "") -> dict | None:
     p = parse_purl(purl)
     if p is None:
@@ -130,17 +135,19 @@ class Inventory:
                                      "props": {"source_system": source_system, "source_ref": repo, "fetched_at": self.fetched,
                                                "content_hash": content_hash}}}
         self.keys: dict = {}
-        self.marked: set[str] = set()
+        self.key_dev: dict = {}
+        self.marks: dict[str, list[bool]] = {}
         self.links: dict[tuple[str, str], tuple[str, bool]] = {}
 
     def root(self, key) -> None:
         self.keys[key] = self.repo_id
 
-    def add(self, key, pkg: dict, source_ref: str, license: str = "", dev: bool = False) -> str:
+    def add(self, key, pkg: dict, source_ref: str, license: str = "", dev: bool | None = None) -> str:
         pid = pkg["id"]
         self.keys[key] = pid
-        if dev:
-            self.marked.add(pid)
+        if dev is not None:
+            self.key_dev[key] = dev
+            self.marks.setdefault(pid, []).append(dev)
         self.nodes.setdefault(pid, {"id": pid, "kind": "Package", "title": f"{pkg['name']}@{pkg['version']}", "props": {
             "ecosystem": pkg["ecosystem"], "name": pkg["name"], "version": pkg["version"], "dev": False,
             "licenses": license_ids(license), "license_expression": license or "", "purl": pkg["purl"],
@@ -153,7 +160,7 @@ class Inventory:
         dst = self.keys.get(dst_key)
         if src is None or dst is None or src == dst or dst == self.repo_id:
             return
-        dev = dev or dst in self.marked
+        dev = dev or self.key_dev.get(dst_key, False)
         old = self.links.get((src, dst))
         if old is None or (old[1] and not dev):
             self.links[(src, dst)] = (why, dev)
@@ -162,7 +169,16 @@ class Inventory:
         targets = {dst for _, dst in self.links}
         for pid, node in sorted(self.nodes.items()):
             if node["kind"] == "Package" and pid not in targets:
-                self.links[(self.repo_id, pid)] = (why, pid in self.marked)
+                self.links[(self.repo_id, pid)] = (why, self._marked(pid))
+
+    def _marked(self, pid: str) -> bool:
+        marks = self.marks.get(pid) or []
+        return bool(marks) and all(marks)
+
+    def _dev(self, pid: str, reached: set[str], shipped: set[str]) -> bool:
+        if pid in shipped or False in (self.marks.get(pid) or []):
+            return False
+        return pid in reached or self._marked(pid)
 
     def _reach(self, shipped_only: bool) -> set[str]:
         out: dict[str, list[str]] = {}
@@ -181,7 +197,7 @@ class Inventory:
         reached, shipped = self._reach(False), self._reach(True)
         for pid, node in self.nodes.items():
             if node["kind"] == "Package":
-                node["props"]["dev"] = pid in self.marked or (pid in reached and pid not in shipped)
+                node["props"]["dev"] = self._dev(pid, reached, shipped)
         edges = [{"source": src, "target": dst, "type": "DEPENDS_ON", "evidence": why}
                  for (src, dst), (why, _) in sorted(self.links.items())]
         return list(self.nodes.values()), edges

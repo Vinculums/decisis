@@ -40,7 +40,11 @@ def in_range(version: str, events: list[dict], key=parse) -> bool | None:
     try:
         v = (1, key(version))
         affected = False
-        for kind, at in _sorted(events, key):
+        ordered = _sorted(events, key)
+        limits = [at for kind, at in ordered if kind == "limit"]
+        if limits and v >= max(limits):
+            return False
+        for kind, at in ordered:
             if kind == "introduced" and v >= at:
                 affected = True
             elif kind == "fixed" and v >= at:

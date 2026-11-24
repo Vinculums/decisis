@@ -158,7 +158,8 @@ def run(a: argparse.Namespace) -> int:
             sys.stdout.write(VIEWS[a.format]("audit", report))
         elif a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
-            print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"], "out": a.out}))
+            print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"],
+                              "unresolved_packages": len(report["unresolved_packages"]), "out": a.out}))
         else:
             sys.stdout.write(text + "\n")
         return 0

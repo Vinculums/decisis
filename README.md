@@ -127,8 +127,9 @@ decision above.
 For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
 line there. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, and for
 SBOMs also Maven, NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
-whose purl type has no OSV ecosystem stays in the graph and is listed under `unresolved_packages` in the
-report; it is not queried. `fixtures/inventory/` holds one small example of each format and an OSV cache
+without a purl, or whose purl type has no OSV ecosystem, stays in the graph and is listed under
+`unresolved_packages` in the report; it is not queried. An inventory with no packages, or none that can
+be queried, is refused. `fixtures/inventory/` holds one small example of each format and an OSV cache
 that covers them all.
 
 ## How it works

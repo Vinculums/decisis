@@ -18,7 +18,11 @@ def detect(text: str, filename: str) -> str:
 
 
 def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
-    return READERS[detect(text, filename)].read(text, Path(filename).name, repo, siblings)
+    name = detect(text, filename)
+    nodes, edges = READERS[name].read(text, Path(filename).name, repo, siblings)
+    if not any(n["kind"] == "Package" for n in nodes):
+        raise ValueError(f"{Path(filename).name or 'the inventory'} ({name}) lists no packages, so there is nothing to audit")
+    return nodes, edges
 
 
 def load(path: Path) -> tuple[str, dict[str, str]]:

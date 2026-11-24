@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from .shape import Inventory, digest, from_purl, json_object
+from .shape import Inventory, digest, from_purl, json_object, without_purl
 
 FORMAT = "cyclonedx"
 SIBLINGS: tuple[str, ...] = ()
@@ -34,6 +34,10 @@ def _license(c: dict) -> str:
     return parts[0] if len(parts) == 1 else " AND ".join(f"({p})" if " " in p else p for p in parts)
 
 
+def _full_name(c: dict) -> str:
+    return f"{c['group']}/{c.get('name', '')}" if c.get("group") else c.get("name", "")
+
+
 def _dev(c: dict) -> bool:
     flags = {p.get("name"): p.get("value") for p in c.get("properties") or [] if isinstance(p, dict)}
     return c.get("scope") == "excluded" or str(flags.get("cdx:npm:package:development", "")).lower() == "true"
@@ -50,9 +54,9 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
     for c in _components(bom.get("components")):
         if root and c.get("bom-ref") == root:
             continue
-        pkg = from_purl(c.get("purl"), c.get("version") or "")
-        if pkg is not None:
-            inv.add(c.get("bom-ref") or c["purl"], pkg, f"{repo}:{filename}#{c.get('bom-ref') or c['purl']}", _license(c), _dev(c))
+        pkg = from_purl(c.get("purl"), c.get("version") or "") or without_purl(_full_name(c), c.get("version") or "", c.get("cpe") or "")
+        key = c.get("bom-ref") or c.get("purl") or pkg["id"]
+        inv.add(key, pkg, f"{repo}:{filename}#{key}", _license(c), _dev(c))
     for d in bom.get("dependencies") or []:
         src = None if d.get("ref") == root else d.get("ref")
         for dst in d.get("dependsOn") or []:

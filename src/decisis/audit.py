@@ -35,6 +35,7 @@ def rule_of(decision: dict) -> dict | None:
 def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories, filename: str = "package-lock.json",
             siblings: dict[str, str] | None = None) -> Subgraph:
     pkg_nodes, dep_edges = inventory.read(lock_text, filename, repo, siblings)
+    nothing_to_query(pkg_nodes, filename)
     adv_nodes, adv_edges = advisories(pkg_nodes)
     links = governance_links(vinc.nodes, repo)
     lock_hash = next((n["props"].get("content_hash") for n in pkg_nodes if n["kind"] == "Repository"), "")
@@ -42,6 +43,14 @@ def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch
     meta = {**vinc.meta, "nodes": len(nodes), "edges": len(edges), "repo": repo, "lockfile_hash": lock_hash, "packages": sum(1 for n in pkg_nodes if n["kind"] == "Package"),
             "advisories": len(adv_nodes), "governance_links": len(links)}
     return Subgraph(nodes, edges, meta)
+
+
+def nothing_to_query(pkg_nodes: list[dict], filename: str) -> None:
+    pkgs = [n for n in pkg_nodes if n["kind"] == "Package"]
+    if not any(external.queryable(n) for n in pkgs):
+        first = pkgs[0]
+        raise ValueError(f"none of the {len(pkgs)} packages in {filename} can be queried at OSV, so there is nothing to audit "
+                         f"({first['id']}: {first['props']['unresolved']})")
 
 
 def judge(governing: dict, rule: dict | None, status: str, severity: str, dev: bool) -> dict:

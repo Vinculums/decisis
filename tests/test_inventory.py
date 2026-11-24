@@ -336,3 +336,83 @@ def test_propose_checks_pypi_records_by_their_pep440_ranges(tmp_path, capsys, no
                      "--osv-cache", str(stripped), "--out", str(tmp_path / "plan.json")])
     plan = json.loads((tmp_path / "plan.json").read_text(encoding="utf-8"))
     assert code == 0 and plan["nodes"] and plan["held"] == []
+
+
+def lodash_twice() -> dict:
+    prod, dev = "lodash@4.17.20|node_modules/lodash", "lodash@4.17.20|node_modules/jest/node_modules/lodash"
+    flag = {"name": "cdx:npm:package:development", "value": "true"}
+    return {"bomFormat": "CycloneDX", "specVersion": "1.5", "metadata": {"component": {"bom-ref": "root", "name": "app", "version": "1.0.0"}},
+            "components": [{"bom-ref": prod, "name": "lodash", "version": "4.17.20", "purl": "pkg:npm/lodash@4.17.20"},
+                           {"bom-ref": dev, "name": "lodash", "version": "4.17.20", "purl": "pkg:npm/lodash@4.17.20", "properties": [flag]},
+                           {"bom-ref": "jest@1.0.0", "name": "jest", "version": "1.0.0", "purl": "pkg:npm/jest@1.0.0", "properties": [flag]}],
+            "dependencies": [{"ref": "root", "dependsOn": [prod, "jest@1.0.0"]}, {"ref": "jest@1.0.0", "dependsOn": [dev]}]}
+
+
+def test_a_production_instance_of_a_package_wins_over_a_development_one():
+    nodes, edges = inventory.read(json.dumps(lodash_twice()), "bom.json", "Demo")
+    dev = {n["id"]: n["props"]["dev"] for n in nodes if n["kind"] == "Package"}
+    assert dev == {"pkg:npm/lodash@4.17.20": False, "pkg:npm/jest@1.0.0": True}
+    adv = {"id": "GHSA-test-0000-0001", "summary": "test", "database_specific": {"severity": "HIGH"},
+           "affected": [{"package": {"ecosystem": "npm", "name": "lodash"}, "ranges": [{"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "4.17.21"}]}]}]}
+    cache = {"fetched_at": "2026-11-25T00:00:00Z", "queries": {"pkg:npm/lodash@4.17.20": ["GHSA-test-0000-0001"], "pkg:npm/jest@1.0.0": []},
+             "vulns": {"GHSA-test-0000-0001": adv}}
+    rep = audit.run(co.load(VINC.read_text(encoding="utf-8")), json.dumps(lodash_twice()), "Demo",
+                    advisories=external.cached_advisories(cache), filename="bom.json")
+    assert rep["violations"] >= 1
+    assert all(not f["dev_only"] for f in rep["findings"])
+
+
+def test_a_package_marked_development_everywhere_and_reached_only_that_way_stays_development():
+    bom = lodash_twice()
+    bom["components"][0]["properties"] = [{"name": "cdx:npm:package:development", "value": "true"}]
+    nodes, _ = inventory.read(json.dumps(bom), "bom.json", "Demo")
+    assert {n["id"]: n["props"]["dev"] for n in nodes if n["kind"] == "Package"} == {"pkg:npm/lodash@4.17.20": True, "pkg:npm/jest@1.0.0": True}
+
+
+@pytest.mark.parametrize("kind,ecosystem,version", [("SEMVER", "npm", "2.0.0"), ("ECOSYSTEM", "PyPI", "2.0.0"),
+                                                    ("SEMVER", "crates.io", "2.0.0"), ("ECOSYSTEM", "Go", "1.5.0")])
+def test_a_version_at_or_above_the_range_limit_is_not_affected(kind, ecosystem, version):
+    affected = [{"package": {"ecosystem": ecosystem, "name": "p"}, "ranges": [{"type": kind, "events": [{"introduced": "0"}, {"limit": "1.5.0"}]}]}]
+    assert semver.affects(version, ecosystem, "p", affected) is False
+    assert semver.affects("1.4.0", ecosystem, "p", affected) is True
+
+
+def cpe_only_sboms() -> dict[str, str]:
+    cpe = "cpe:2.3:a:openssl:openssl:1.1.1k:*:*:*:*:*:*:*"
+    bom = {"bomFormat": "CycloneDX", "specVersion": "1.5", "components": [
+        {"bom-ref": "a", "type": "library", "name": "openssl", "version": "1.1.1k", "cpe": cpe},
+        {"bom-ref": "b", "type": "library", "name": "log4j-core", "group": "org.apache.logging.log4j", "version": "2.14.1"}]}
+    doc = {"spdxVersion": "SPDX-2.3", "SPDXID": "SPDXRef-DOCUMENT", "packages": [
+        {"SPDXID": "SPDXRef-a", "name": "openssl", "versionInfo": "1.1.1k", "licenseConcluded": "NOASSERTION",
+         "externalRefs": [{"referenceCategory": "SECURITY", "referenceType": "cpe23Type", "referenceLocator": cpe}]}], "relationships": []}
+    return {"bom.cdx.json": json.dumps(bom), "sbom.spdx.json": json.dumps(doc)}
+
+
+@pytest.mark.parametrize("name", ["bom.cdx.json", "sbom.spdx.json"])
+def test_a_component_without_a_purl_is_unresolved_with_its_cpe(name):
+    nodes, _ = inventory.read(cpe_only_sboms()[name], name, "Demo")
+    pkgs = {n["id"]: n["props"] for n in nodes if n["kind"] == "Package"}
+    assert pkgs["pkg:unknown/openssl@1.1.1k"]["unresolved"] == "the inventory gives no purl; CPE cpe:2.3:a:openssl:openssl:1.1.1k:*:*:*:*:*:*:*"
+    assert all(set(p) == PACKAGE_PROPS and p["ecosystem"] == "" for p in pkgs.values())
+
+
+@pytest.mark.parametrize("name", ["bom.cdx.json", "sbom.spdx.json"])
+def test_an_sbom_with_nothing_to_query_is_refused_not_reported_clean(tmp_path, capsys, no_network, name):
+    path = tmp_path / name
+    path.write_text(cpe_only_sboms()[name], encoding="utf-8")
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["audit", str(VINC), str(path), "--repo", "Demo", "--osv-cache", str(CACHE)])
+    assert stop.value.code != 0 and "can be queried at OSV, so there is nothing to audit" in capsys.readouterr().err
+
+
+def test_an_sbom_with_some_unresolved_packages_lists_them_beside_the_findings(tmp_path, capsys, no_network):
+    out = tmp_path / "report.json"
+    assert cli.main(["audit", str(VINC), str(FILES["cyclonedx"]), "--repo", "Demo", "--osv-cache", str(CACHE), "--out", str(out)]) == 0
+    assert json.loads(capsys.readouterr().out)["unresolved_packages"] == 1
+
+
+@pytest.mark.parametrize("name,text", [("uv.lock", "version = 1\nrequires-python = \">=3.11\"\n"), ("Cargo.lock", "version = 3\n"),
+                                       ("package-lock.json", '{"lockfileVersion": 3, "packages": {"": {"name": "app"}}}')])
+def test_an_inventory_with_no_packages_is_refused(name, text):
+    with pytest.raises(ValueError, match="lists no packages, so there is nothing to audit"):
+        inventory.read(text, name, "Demo")
