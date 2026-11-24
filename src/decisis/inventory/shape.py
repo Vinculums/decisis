@@ -130,6 +130,26 @@ def from_purl(purl: str, version: str = "") -> dict | None:
             "unresolved": reason}
 
 
+def reached(starts: list[str], links: dict[tuple[str, str], bool], shipped_only: bool) -> set[str]:
+    out: dict[str, list[str]] = {}
+    for (src, dst), dev in links.items():
+        if not (shipped_only and dev):
+            out.setdefault(src, []).append(dst)
+    seen, todo = set(starts), list(starts)
+    while todo:
+        for dst in out.get(todo.pop(), []):
+            if dst not in seen:
+                seen.add(dst)
+                todo.append(dst)
+    return seen
+
+
+def development(starts: list[str], shipped_starts: list[str], links: dict[tuple[str, str], bool], packages: list[str],
+                marked) -> dict[str, bool]:
+    every, shipped = reached(starts, links, False), reached(shipped_starts, links, True)
+    return {pid: pid not in shipped if pid in every else marked(pid) for pid in packages}
+
+
 class Inventory:
     def __init__(self, repo: str, source_system: str, content_hash: str):
         self.fetched = now()
@@ -193,29 +213,11 @@ class Inventory:
         marks = self.marks.get(pid) or []
         return bool(marks) and all(marks)
 
-    def _dev(self, pid: str, reached: set[str], shipped: set[str]) -> bool:
-        if pid in shipped or False in (self.marks.get(pid) or []):
-            return False
-        return pid in reached or self._marked(pid)
-
-    def _reach(self, shipped_only: bool) -> set[str]:
-        out: dict[str, list[str]] = {}
-        for (src, dst), (_, dev) in self.links.items():
-            if not (shipped_only and dev):
-                out.setdefault(src, []).append(dst)
-        seen, todo = set(), [self.repo_id]
-        while todo:
-            for dst in out.get(todo.pop(), []):
-                if dst not in seen:
-                    seen.add(dst)
-                    todo.append(dst)
-        return seen
-
     def result(self) -> tuple[list[dict], list[dict]]:
-        reached, shipped = self._reach(False), self._reach(True)
-        for pid, node in self.nodes.items():
-            if node["kind"] == "Package":
-                node["props"]["dev"] = self._dev(pid, reached, shipped)
+        packages = [pid for pid, node in self.nodes.items() if node["kind"] == "Package"]
+        dev = development([self.repo_id], [self.repo_id], {pair: d for pair, (_, d) in self.links.items()}, packages, self._marked)
+        for pid in packages:
+            self.nodes[pid]["props"]["dev"] = dev[pid]
         if self.notes:
             self.nodes[self.repo_id]["props"]["inventory_notes"] = list(self.notes)
         edges = [{"source": src, "target": dst, "type": "DEPENDS_ON", "evidence": why}
