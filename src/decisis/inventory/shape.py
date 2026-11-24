@@ -34,6 +34,11 @@ def pypi_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
+def terraform_name(name: str) -> str:
+    name = name.lower()
+    return name if name.count("/") >= 2 else f"registry.terraform.io/{name}"
+
+
 def json_object(text: str) -> dict | None:
     if not text.lstrip().startswith("{"):
         return None
@@ -138,6 +143,11 @@ class Inventory:
         self.key_dev: dict = {}
         self.marks: dict[str, list[bool]] = {}
         self.links: dict[tuple[str, str], tuple[str, bool]] = {}
+        self.notes: list[str] = []
+
+    def note(self, text: str) -> None:
+        if text not in self.notes:
+            self.notes.append(text)
 
     def root(self, key) -> None:
         self.keys[key] = self.repo_id
@@ -154,6 +164,14 @@ class Inventory:
             "unresolved": pkg.get("unresolved") or "", "source_system": self.source_system, "source_ref": source_ref,
             "fetched_at": self.fetched}})
         return pid
+
+    def workspace(self, key, path: str, name: str, source_ref: str) -> str:
+        wid = f"workspace:{self.repo}:{path}"
+        self.keys[key] = wid
+        self.nodes.setdefault(wid, {"id": wid, "kind": "Workspace", "title": name or path, "props": {
+            "name": name, "path": path, "source_system": self.source_system, "source_ref": source_ref, "fetched_at": self.fetched}})
+        self.links.setdefault((self.repo_id, wid), (f"workspace {path}", False))
+        return wid
 
     def depends(self, src_key, dst_key, why: str, dev: bool = False) -> None:
         src = self.repo_id if src_key is None else self.keys.get(src_key)
@@ -198,6 +216,8 @@ class Inventory:
         for pid, node in self.nodes.items():
             if node["kind"] == "Package":
                 node["props"]["dev"] = self._dev(pid, reached, shipped)
+        if self.notes:
+            self.nodes[self.repo_id]["props"]["inventory_notes"] = list(self.notes)
         edges = [{"source": src, "target": dst, "type": "DEPENDS_ON", "evidence": why}
                  for (src, dst), (why, _) in sorted(self.links.items())]
         return list(self.nodes.values()), edges

@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-dependencies = ["relate-db==1.0.2"]
+dependencies = ["relate-db==1.0.2", "PyYAML>=6.0.1"]
 keywords = ["decisions", "knowledge-graph", "cypher", "relate", "dependency-audit", "impact-analysis", "ai-agents"]
 classifiers = [
     "Development Status :: 3 - Alpha",

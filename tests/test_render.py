@@ -46,6 +46,19 @@ def hostile_reports() -> dict[str, dict]:
                                 "path": ["repo:" + HOSTILE, "pkg:npm/" + HOSTILE, "adv:" + HOSTILE], "source_url": "javascript:alert(1)",
                                 "fetched_at": HOSTILE, "content_hash": HOSTILE, "advisory_summary": HOSTILE,
                                 "policies": [{"decision": "decision:" + HOSTILE, "verdict": "violated", "why": HOSTILE}]}]},
+        "check": {"loaded": {"nodes": 2, "edges": 1}, "hops": 1, "repo": None, "base": HOSTILE, "changed": ["src/" + HOSTILE],
+                  "reviewers": [HOSTILE], "governing": [{"decision": "decision:" + HOSTILE, "title": HOSTILE, "files": ["src/" + HOSTILE]}],
+                  "superseded": [{"decision": "decision:old" + HOSTILE, "title": HOSTILE, "files": ["src/" + HOSTILE], "superseded_by": [HOSTILE]}],
+                  "rules": [], "rule_problems": [{"decision": "decision:" + HOSTILE, "rule": HOSTILE, "problem": HOSTILE}],
+                  "imports": [{"file": "src/" + HOSTILE, "line": 1, "import": HOSTILE, "resolution": "repository", "target": "db/" + HOSTILE}],
+                  "violations": [{"file": "src/" + HOSTILE, "line": 1, "decision": "decision:" + HOSTILE, "rule": "imports_forbidden",
+                                  "verdict": "violated", "why": HOSTILE, "import": HOSTILE, "target": "db/" + HOSTILE},
+                                 {"file": "src/" + HOSTILE, "line": None, "decision": "decision:" + HOSTILE, "rule": "review_required",
+                                  "verdict": "violated", "why": HOSTILE}],
+                  "unresolved": [], "summary": {"violated": 2, "unresolved": 0, "not_violated": 0},
+                  "impact": [{"path": "src/" + HOSTILE, "matched_as": "src/x", "governing": [
+                      {"id": nid, "kind": "concept", "title": HOSTILE, "hops": 0, "via": nid, "nodes": [nid], "path": [],
+                       "code_ref": [{"ref": HOSTILE, "match": "exact"}]}]}]},
     }
 
 
@@ -156,5 +169,5 @@ def test_the_paths_html_shows_the_evidence_on_each_step(capsys, no_network):
 
 
 def test_an_unknown_kind_is_refused():
-    with pytest.raises(ValueError, match="no renderer for 'check'"):
-        render.mermaid("check", {})
+    with pytest.raises(ValueError, match="no renderer for 'verdict'"):
+        render.mermaid("verdict", {})

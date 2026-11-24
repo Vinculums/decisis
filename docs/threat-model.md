@@ -33,6 +33,21 @@ parameters; hop and result bounds are substituted as integers (`paths --hops` 1 
 1 to 100, `impact --hops` 0 to 6). (`_label`; `test_a_label_that_could_inject_cypher_is_refused`,
 `test_paths_bounds_hops_and_limit_with_an_argparse_error`.)
 
+The schema in the MCP `query` tool's description is built from the snapshot, so it is data an agent
+reads. It is bounded and escaped: a label, edge type or property key is shown as is only when it is a
+plain ASCII identifier, in backticks when it is printable and at most 64 characters, and otherwise left
+out with a count; the label and edge sections stop at 4,096 bytes; the example node id is a Cypher string
+literal with quotes, backslashes, line breaks and every character outside printable ASCII escaped, and
+ids over 128 characters are not used. No text from the snapshot starts a line of its own, and the
+description says the names are data, not instructions. (`cypher.describe`;
+`test_snapshot_names_and_ids_reach_the_description_escaped_and_bounded`,
+`test_a_non_ascii_kind_is_backticked_and_every_example_passes_the_check_and_runs`.)
+
+**Bounded tool replies.** Every MCP reply, text and structured content together as the server
+serializes them, stays under 1 MiB: the longest list is shortened from its end until the reply fits,
+and a `cut` note names each shortened list. (`compact.fit`, `serve.sent_size`;
+`test_what_the_server_sends_stays_under_the_byte_cap`.)
+
 **Deletion.** The directory is removed when the command ends, in a `finally`, so a failed task removes
 it too. The demo prints whether the removal happened and the tests assert the scratch root is empty.
 
@@ -78,16 +93,26 @@ key comes from `VINC_API_KEY` and is not written to any file the tool produces.
 each advisory keeps its source URL and a SHA-256 of the record that was read, and each written record
 carries them. `--osv-cache` replays a saved set of advisories and refuses the network.
 
+**Outbound requests to OSV.** `audit` and `propose` send OSV queries to `https://api.osv.dev`. When the
+inventory has GitHub Actions packages they also download, once per run, OSV's export of GitHub Actions
+records from `https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip`, run by the
+same OSV project, to learn the spelling OSV stores for each action name. The download is cut off at
+64 MiB, and the archive at 100,000 records of 4 MiB each; only package names are kept from it. With
+`--osv-cache` neither host is asked.
+
 **Outbound requests to GitHub.** `init --github` sends only GET requests, only to `https://api.github.com`
 on port 443: a `Link` header, a redirect or a final answer that points anywhere else is refused before
 anything is sent there or read from it. `GITHUB_TOKEN` is read from the environment, never from a flag, and
 goes only in the `Authorization` header; a token with a space, a line break or a character outside
 printable ASCII is refused without echoing it, and every error message has the token replaced by `[token]`.
-The token is not written to the snapshot or printed. Answers over 20 MB are refused, and the listing stops at
+The token is not written to the snapshot or printed, and the `repr()` of the client and of the bound reader
+leaves it out. A broken answer ends in the same one-line error and exit code 1 as a network error. Answers over 20 MB are refused, and the listing stops at
 `--limit` (at most 5,000) closed pull requests. (`src/decisis/github.py`;
 `test_it_sends_only_get_requests_to_api_github_com_and_follows_link_headers`,
 `test_a_next_page_or_an_answer_on_another_host_is_refused`, `test_a_redirect_to_another_host_is_not_followed`,
-`test_the_token_goes_only_in_the_authorization_header_and_never_into_an_error`, `test_init_never_prints_the_token`.)
+`test_the_token_goes_only_in_the_authorization_header_and_never_into_an_error`, `test_init_never_prints_the_token`,
+`test_the_repr_of_the_client_and_the_bound_reader_never_holds_the_token`,
+`test_a_broken_answer_fails_the_command_with_a_message_and_no_traceback`.)
 
 **A read-only MCP server.** `decisis serve --mcp` lists only `impact`, `paths` and `audit`, and refuses
 any other tool name and any argument its schema does not list. Bounds are checked before a sandbox is
@@ -141,6 +166,10 @@ cleanup above removes it with the sandboxes inside. (`src/decisis/serve.py`; `te
   itself is right.
 - **Text in outside data.** Advisory summaries and lockfile fields are stored as data and never run as
   queries, but an agent that reads them can still be misled by what they say.
+- **YAML alias bombs.** pnpm and Yarn Berry lockfiles are parsed only after a scan of their YAML events
+  refuses any anchor or alias, nesting deeper than 64 levels, and input over 64 MiB, so a few hundred bytes
+  cannot expand into gigabytes. (`src/decisis/yamltext.py`;
+  `test_a_lockfile_with_a_yaml_anchor_is_refused_before_anything_expands`.)
 - **Memory and disk.** The caps bound the number of nodes and edges, not the size of their properties,
   and a query can use a lot of memory before its time limit; there is no memory limit on the query
   process. Loading is not under the time limit; the size caps bound it.

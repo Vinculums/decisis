@@ -222,9 +222,9 @@ def test_ranges_are_ordered_by_the_package_ecosystem(vid, ecosystem, name, insid
 def test_a_version_that_cannot_be_ordered_is_unresolved_never_affected():
     pypi = ranges_only(osv_cache()["vulns"]["GHSA-jjg7-2v4v-x38h"])
     assert semver.affects("not.a version", "PyPI", "idna", pypi) is None
-    maven = [{"package": {"ecosystem": "Maven", "name": "g:a"}, "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "2.0"}]}]}]
-    assert semver.affects("1.0", "Maven", "g:a", maven) is None
-    assert semver.affects("1.0", "Maven", "g:a", [{**maven[0], "versions": ["1.0"]}]) is True
+    nuget = [{"package": {"ecosystem": "NuGet", "name": "g"}, "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "2.0"}]}]}]
+    assert semver.affects("1.0", "NuGet", "g", nuget) is None
+    assert semver.affects("1.0", "NuGet", "g", [{**nuget[0], "versions": ["1.0"]}]) is True
     assert semver.affects("3.6", "PyPI", "IDNA", pypi) is True
 
 

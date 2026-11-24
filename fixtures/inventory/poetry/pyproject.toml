@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "inventory-worker"
+version = "0.1.0"
+description = "A small worker used as the poetry.lock example."
+authors = ["Example <example@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+Click = "^8.1"
+ItsDangerous = "^2.2"
+certifi = "2023.7.22"
+idna = "^3.6"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+packaging = "^24.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

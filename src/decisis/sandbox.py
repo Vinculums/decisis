@@ -3,6 +3,7 @@ from __future__ import annotations
 import atexit
 import builtins
 import json
+import math
 import os
 import pickle
 import queue
@@ -56,6 +57,10 @@ class TooLarge(LimitExceeded):
 
 
 class QueryTimeout(LimitExceeded):
+    pass
+
+
+class NotReadOnly(ValueError):
     pass
 
 
@@ -156,6 +161,15 @@ class Sandbox:
         if reply[0] == "error":
             _reraise(*reply[1:])
         return reply[1]
+
+    def page(self, cypher: str, params: dict | None, max_rows: int, max_bytes: int) -> dict:
+        if not self.loaded:
+            raise RuntimeError("load the sandbox before querying it")
+        reply = _ask((str(self.path), cypher, params or {}, (max_rows, max_bytes)), self.limits.query_seconds)
+        if reply[0] == "error":
+            _reraise(*reply[1:])
+        columns, rows, total = reply[1:]
+        return {"columns": columns, "rows": rows, "total": total}
 
     def destroy(self) -> None:
         shutil.rmtree(self.dir, ignore_errors=True)
@@ -277,9 +291,9 @@ def _read_jobs(jobs: queue.Queue) -> None:
     os._exit(0)
 
 
-def _reply(path: str, cypher: str, params: dict) -> bytes:
+def _reply(path: str, cypher: str, params: dict, page: tuple | None = None) -> bytes:
     try:
-        return pickle.dumps(_answer(path, cypher, params))
+        return pickle.dumps(_answer(path, cypher, params) if page is None else _page_answer(path, cypher, params, *page))
     except Exception as e:
         return pickle.dumps(("error", "builtins", "TypeError", f"the query result cannot be returned: {e}"))
 
@@ -295,8 +309,65 @@ def _answer(path: str, cypher: str, params: dict) -> tuple:
         return ("error", type(e).__module__, type(e).__name__, str(e))
 
 
+READ_ONLY_PLAN = "r"
+
+
+def _page_answer(path: str, cypher: str, params: dict, max_rows: int, max_bytes: int) -> tuple:
+    try:
+        con = relate.connect(path, read_only=True)
+        try:
+            kind = _plan(con, cypher, params)
+            if kind != READ_ONLY_PLAN:
+                return ("error", __name__, "NotReadOnly", f"Relate plans this query as query type {kind!r}, not read only ({READ_ONLY_PLAN!r}); "
+                                                         "it was not run")
+            cursor = con.execute(cypher, params)
+            rows = cursor.fetchall()
+            return ("page", list(cursor.keys()), _cut(rows, max_rows, max_bytes), len(rows))
+        finally:
+            con.close()
+    except Exception as e:
+        return ("error", type(e).__module__, type(e).__name__, str(e))
+
+
+def _plan(con, cypher: str, params: dict) -> str:
+    try:
+        return con.execute("EXPLAIN\n" + cypher, params).consume().query_type
+    except relate.Error as e:
+        text = re.sub(r"at line (\d+)", lambda m: f"at line {int(m.group(1)) - 1}", str(e))
+        raise type(e)(text) from None
+
+
+def _cut(rows: list, max_rows: int, max_bytes: int) -> list[dict]:
+    kept, size = [], 2
+    for row in rows[:max_rows]:
+        plain = {str(k): _plain(v) for k, v in dict(row).items()}
+        size += len(json.dumps(plain, ensure_ascii=False).encode("utf-8")) + 1
+        if size > max_bytes:
+            break
+        kept.append(plain)
+    return kept
+
+
+def _plain(value):
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_plain(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _plain(v) for k, v in value.items()}
+    if isinstance(value, relate.Node):
+        return {"labels": list(value.labels), "properties": _plain(dict(value.items()))}
+    if isinstance(value, relate.Relationship):
+        return {"type": value.type, "properties": _plain(dict(value.items()))}
+    if isinstance(value, relate.Path):
+        return {"nodes": _plain(list(value.nodes)), "relationships": _plain(list(value.relationships))}
+    return str(value)
+
+
 def _reraise(module: str, name: str, text: str) -> None:
-    home = relate if module.split(".")[0] == "relate" else builtins
+    home = relate if module.split(".")[0] == "relate" else sys.modules[__name__] if module == __name__ else builtins
     cls = getattr(home, name, None)
     if isinstance(cls, type) and issubclass(cls, Exception):
         raise cls(text)

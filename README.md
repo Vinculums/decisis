@@ -43,7 +43,7 @@ As an isolated command-line tool:
 uv tool install decisis      # or: pipx install decisis
 ```
 
-The install fetches `relate-db` from PyPI once; every command after it runs offline, except `audit`
+The install fetches `relate-db` and `PyYAML` from PyPI once; every command after it runs offline, except `audit`
 asking api.osv.dev when you give it no `--osv-cache`. The [npm package](https://www.npmjs.com/package/decisis)
 only points here.
 
@@ -118,7 +118,37 @@ src/checkout/pay.py: 4 node(s) within 3 hop(s)
         record:checkout-timeout-october -RELATED_TO-> concept:checkout-flow  (the timeout was in this flow)
 ```
 
-**4. Audit a lockfile against those decisions:**
+**4. Check a change against the review and import rules of those decisions.** A decision's `rule` can
+name the reviewers a path needs (`review_required`) and the imports one part of the code must not make
+(`imports_forbidden`). `check` lists the decisions that govern each changed file, judges both kinds, and
+exits 1 when a rule is violated:
+
+```
+$ decisis check fixtures/check/vinc.json --repo-dir fixtures/check/repo --changed src/shop/ui/view.py src/payments/charge.py --reviewers @bob --format text
+2 changed file(s); reviewers: @bob
+governing decisions: 2
+  decision:payments-need-a-payments-review  Payment changes need a review from the payments team  (src/payments/charge.py)
+  decision:ui-does-not-import-db  The user interface reads data through the API, never the database layer  (src/shop/ui/view.py)
+superseded, not judged:
+  decision:payments-reviewed-by-carol  superseded by decision:payments-need-a-payments-review
+rules that cover a changed file: 2
+violations: 3
+  src/payments/charge.py  decision:payments-need-a-payments-review  review_required: src/payments/** needs a review from @alice or @shop/payments; none of them is among the reviewers given
+  src/shop/ui/view.py:4  decision:ui-does-not-import-db  imports_forbidden: src/shop/ui/** must not import src/shop/db/**; from shop.db import models is src/shop/db/models.py
+  src/shop/ui/view.py:5  decision:ui-does-not-import-db  imports_forbidden: src/shop/ui/** must not import src/shop/db/**; from ..db.session import open_session is src/shop/db/session.py
+cannot be judged: 1
+  src/shop/ui/view.py:10  decision:ui-does-not-import-db  imports_forbidden: import_module() with a computed name: the specifier is computed at run time; it cannot be judged
+```
+
+In CI, give it the base branch instead of a file list: `decisis check snapshot.json --base origin/main
+--reviewers @alice`. It reads the changed files with `git diff --name-only origin/main...HEAD`, with the
+repository's hooks, fsmonitor and pager turned off. Imports are parsed, never run: Python with `ast`,
+JavaScript and TypeScript with a scanner that skips comments and strings. An import whose target is
+computed at run time, or that the scanner and a plain text search read differently, is listed as
+`unresolved`, not as a violation; add `--fail-on-unresolved` to make those fail the check too. The rule format, the glob rules and
+the JSON report are in [`docs/data-model.md`](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md#the-check-report).
+
+**5. Audit a lockfile against those decisions:**
 
 ```bash
 decisis audit my-snapshot.json package-lock.json --repo Shop --out report.json
@@ -140,14 +170,81 @@ decision above.
 | uv | `uv.lock` | dependency groups (`dev-dependencies`) |
 | Cargo | `Cargo.lock` | not marked in the lockfile; every crate counts as shipped |
 | Go modules | `go.mod`, with `go.sum` in the same directory | not marked; every module counts as shipped |
+| Gradle lockfile | `gradle.lockfile`, `settings-gradle.lockfile` | every configuration that locks it is a test, compile-only or annotation processor one |
+| Maven POM | `pom.xml` | scope `test` or `provided` |
+| Poetry, lock-version 1.x and 2.x | `poetry.lock`, with `pyproject.toml` in the same directory when present | `category = "dev"` (1.x), `groups` without `main` (2.1), or the non-main groups in `pyproject.toml` |
+| pip requirements | `requirements*.txt` | not marked; every package counts as shipped |
+| pnpm lockfile v6 or v9 | `pnpm-lock.yaml` | an importer's `devDependencies`; v6 also `dev: true` |
+| Yarn v1 and Yarn Berry (2 and later) | `yarn.lock`, with the root `package.json` and the workspaces' `package.json` files next to it | `devDependencies` in the `package.json` files |
+| Bun text lockfile | `bun.lock` | a workspace's `devDependencies` |
+| GitHub Actions workflows | any `.github/workflows/*.yml` (the other workflows beside it are read too), or an `action.yml` | not marked; every action counts as shipped |
+| Terraform lock file | `.terraform.lock.hcl` | not marked; every provider counts as shipped |
 
 For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
-line there. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, and for
-SBOMs also Maven, NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
+line there. In a pnpm, Yarn or Bun monorepo each workspace package (a pnpm importer, a Yarn or Bun
+workspace) is a `Workspace` node between the repository and its dependencies, so a path reads
+`repo:<name> -> workspace:<name>:<path> -> pkg:npm/... -> pkg:npm/...`; the root package's dependencies hang
+from the repository. Peer and optional dependencies are edges with `(peer)` or `(optional)` in the evidence.
+For `yarn.lock`, `audit` reads the root `package.json` and the `package.json` of each directory its
+`workspaces` globs match; without them the packages are linked straight from the repository. A binary
+`bun.lockb` is refused: run `bun install --save-text-lockfile` and audit the `bun.lock` it writes. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, Maven, GitHub Actions, and for
+SBOMs also NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
 without a purl, or whose purl type has no OSV ecosystem, stays in the graph and is listed under
 `unresolved_packages` in the report; it is not queried. An inventory with no packages, or none that can
 be queried, is refused. `fixtures/inventory/` holds one small example of each format and an OSV cache
-that covers them all.
+that covers them all; the Gradle and Maven examples and their cache are in `fixtures/inventory/jvm/`, and the
+workflows and Terraform lock file with theirs in `fixtures/inventory/ci/`.
+
+A Gradle lockfile pins every resolved version but not which dependency brings in which, and a `pom.xml`
+declares direct dependencies only. `audit` reads `pom.xml` versions that are literals or properties
+defined in the same file, and lists a version from a parent, an imported BOM, a range, `LATEST` or
+`RELEASE`, or a missing one under `unresolved_packages`. For both formats the report carries `notes`
+saying that transitive dependencies are not resolved. For the full graph, generate CycloneDX JSON with
+`cyclonedx-gradle-plugin` or `cyclonedx-maven-plugin` and audit that instead; the HTML view shows the
+notes above the findings.
+
+For Poetry, a `poetry.lock` that marks no package as development and has no `pyproject.toml` next to it
+is read with every package shipped, and the report says the dev split is unknown. A requirements file
+gives packages only for `name==version` pins; every other line (a range, no version, a URL) is listed
+under `unresolved_packages` with the line and the reason, and no version is guessed. `-r` includes are
+followed only inside the repository, and each file is read once. A requirements file
+lists direct dependencies only, so the report says the packages they depend on were not seen and
+recommends a lockfile or an SBOM. Such notes are in the report's `inventory_notes`. Python names are
+normalized as in PEP 503 and queried under the PyPI ecosystem.
+
+For GitHub Actions, pass one workflow file, such as `.github/workflows/ci.yml`; `audit` also reads every
+other `*.yml` and `*.yaml` workflow in the same directory through the same bounded reader as other
+sibling files (`serve --mcp` reads only the file it is given). Each `uses:` of a step, and of a job that
+calls a reusable workflow, becomes a package in the OSV `GitHub Actions` ecosystem named `owner/repo`
+(`owner/repo/path@ref` too) in lower case, since GitHub does not tell case apart, with its ref as written:
+a tag, a branch or a commit SHA. OSV does tell case apart and stores some names in mixed case
+(`Azure/setup-kubectl`), so when the inventory has actions `audit` also downloads OSV's own list of
+GitHub Actions records, `https://osv-vulnerabilities.storage.googleapis.com/GitHub%20Actions/all.zip`
+(once per run, at most 64 MiB), and asks OSV for each action under the spelling OSV stores; an action
+that is not in that list has no advisories and is not queried. `--osv-cache` carries that list as
+`names`, and a cached run with actions refuses without it. A local `./` action, a `docker://` image, a `uses:` built from an
+expression and one that is not a name (`../x@v1`) are listed under `unresolved_packages` with the reason
+and not queried, and so is a workflow file that is not valid YAML or cannot be read (not UTF-8, or a link
+that leads outside the repository). YAML anchors and aliases are
+allowed in workflows, up to 100,000 expanded nodes. OSV does not match GitHub Actions versions itself, so
+`audit` asks OSV for every advisory of each action and compares the ref with the ranges: a tag such as
+`v4.1.0` is a version, a major or minor tag such as `v4` covers every release under it and is `unresolved`
+when a range starts or ends inside it, and a branch or a commit SHA cannot be ordered, so its advisories
+are `unresolved` unless the record lists that ref. An `action.yml` is read for the `uses:` of its
+composite `runs.steps`.
+
+A `.terraform.lock.hcl` is read by a small strict parser: `provider "<address>" { ... }` blocks with
+quoted strings and lists of quoted strings, and comments; anything else stops the run with the line.
+Each provider is a package in the ecosystem `Terraform` with its full address as the name and its locked
+version. OSV has no Terraform ecosystem (checked 2026-11-24), so providers are not queried: they are
+checked against decision rules only (`package_denied`, `package_allowed`), each is listed under
+`unresolved_packages` with that reason, and `inventory_notes` says so.
+
+Files next to the inventory (`go.sum`, `pyproject.toml`, `-r` includes, the `package.json` files of Yarn
+workspaces) are read only inside the repository: the nearest directory above the inventory that holds a
+`.git` entry, found without running git, or the inventory's own directory when there is none. `--root DIR` sets it. Paths that lead outside,
+symbolic links included, are not read. Includes are followed 64 levels deep, and a leading UTF-8 byte order
+mark is dropped from every file.
 
 ## How it works
 
@@ -180,31 +277,37 @@ flowchart LR
 | `demo` | nothing | the whole procedure on synthetic data, against an in-process fake Vinc |
 | `init --out <file>` | nothing; with `--github`, the network for api.github.com | a snapshot from the repository's ADRs, CODEOWNERS and postmortems, and its merged pull requests |
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
+| `check <snapshot> (--changed <file>... \| --base <ref>)` | nothing; with `--base`, git | the decisions that govern a change set, and the `review_required` and `imports_forbidden` rules it breaks; exits 1 on a violation |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
-| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
+| `query <snapshot> <cypher> [--param KEY=VALUE]` | nothing | one read-only Cypher statement on a throwaway graph of the snapshot, rows as JSON |
+| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev (and OSV's GitHub Actions export for workflows), unless `--osv-cache` | advisories the repository reaches and the decisions they break |
 | `propose <report> <snapshot> <lockfile or SBOM> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
 | `compare` | nothing | the benchmark below |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
 | `gc` | nothing | removes task directories that a killed run left behind, and prints them |
 
-Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `paths --hops N --limit N`,
+Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --format text`, `paths --hops N --limit N`,
 `audit --osv-cache FILE --depth N`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
 
-Limits: `paths`, `impact`, `audit` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
+Limits: `paths`, `impact`, `check`, `audit`, `query` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
 anything, and stop any query that runs longer than 60 seconds; the task directory is removed either way
 and the command exits with 1. Raise a limit with `--max-nodes`, `--max-edges` or `--query-timeout`, or with
 `DECISIS_MAX_NODES`, `DECISIS_MAX_EDGES` or `DECISIS_QUERY_TIMEOUT`, up to 1,000,000 nodes, 5,000,000 edges
 and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --hops` 1 to 6 and `paths --limit`
 1 to 100.
-`impact`, `paths` and `audit` print JSON (`impact --format text` reads better for people); `demo`, `propose`
+`impact`, `check`, `paths`, `audit` and `query` print JSON (`impact --format text` and `check --format text` read better for people); `demo`, `propose`
 and `compare` print text. `decisis <command> --help` lists the rest.
 
-`impact`, `paths` and `audit` also take `--format mermaid` and `--format html`:
+`impact`, `check`, `paths` and `audit` also take `--format mermaid` and `--format html`:
 
 - `impact --format mermaid` prints a fenced Mermaid block that GitHub draws: each code path, the nodes
   that name it and the edges to what governs them. `--format html` prints one page with each node, its
   edge path and the evidence on each edge.
+- `check --format mermaid` draws what `impact` draws for each changed file, and marks each violation in red:
+  the forbidden import from the file to its target, or the file to the decision whose review it lacks.
+  `--format html` lists the violations, the imports that cannot be judged, the governing and superseded
+  decisions, and every import read with its resolution.
 - `paths --format mermaid` draws each path between the two ids; `--format html` lists each step with the
   evidence the snapshot gives for its edge, and each node's title and `source` when it has one.
 - `audit --format mermaid` draws the dependency paths to each advisory and marks the ones that break a
@@ -219,6 +322,7 @@ Try them on the fixtures in this repository:
 ```
 decisis paths fixtures/vinc_subgraph.json record:tls-advisory-example concept:service-api
 decisis impact fixtures/impact/vinc.json reports/export.py storage/ --format text
+decisis check fixtures/check/vinc.json --repo-dir fixtures/check/repo --changed src/shop/ui/view.py web/src/ui/page.ts --format html > check.html
 decisis audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json --format html > audit.html
 decisis propose report.json fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --space demo-space --osv-cache fixtures/audit/osv-cache.json --out plan.json
 ```
@@ -237,9 +341,9 @@ evidence, and a write path that needs a person's digest.
 
 ### Serve it over MCP
 
-`decisis serve --mcp` gives an agent the same `impact`, `paths` and `audit` as MCP tools over stdio, on
+`decisis serve --mcp` gives an agent the same `impact`, `paths`, `audit` and `query` as MCP tools over stdio, on
 one snapshot fixed when the server starts. It needs the optional `mcp` extra; the base install keeps
-`relate-db` as its only dependency. For Claude Code:
+`relate-db` and `PyYAML` as its only dependencies. For Claude Code:
 
 ```
 pip install "decisis[mcp]"
@@ -267,6 +371,43 @@ bounds as the commands (`hops` 0 to 6 for `impact`, 1 to 6 for `paths`, `limit` 
 `audit` takes the lockfile path as an argument and reads it only under `--root` (default: the current
 directory), after following symlinks. It reads advisories from `--osv-cache`; without a cache it asks
 api.osv.dev only when the server was started with `--allow-network`, and otherwise returns an error.
+
+Each tool takes `detail`: `"summary"`, the default over MCP, gives counts, ids, titles and the first 10
+items of each list with a note on how to get the rest; `"full"` gives the whole report, the same JSON the
+command prints. The commands always print the whole report.
+
+#### When to use `query` and when the fixed tools
+
+Ask the fixed tools first. `impact` answers which decisions and records govern a code path, and follows
+only the edges that carry governance, in their governing direction; `paths` lists the routes between two
+ids; `audit` joins a lockfile and advisories with the snapshot and judges each decision's rule. Their
+answers carry the evidence on each edge, and the same question gets the same report every time.
+
+Use `query` for a question they do not answer: which decisions have no `ABOUT` edge, how many records
+each concept has, which nodes name a field, a path that must pass through a given kind. It runs one
+read-only Cypher statement on a fresh sandbox of the server's snapshot and returns the rows:
+
+```
+decisis query fixtures/impact/vinc.json 'MATCH p = (g)-[*1..3]->(c) WHERE c.code_ref CONTAINS $path AND (g:Decision OR g:Record) RETURN DISTINCT g.id AS id ORDER BY id' --param path=storage/page_store.py
+```
+
+The tool's description carries the snapshot's schema, made when the server starts: each label (a node
+kind with the first letter in upper case) with its count and property keys, each edge type with its
+count and the labels it joins, and two example queries. A query must be one statement that starts with
+`MATCH`, `OPTIONAL MATCH`, `WITH`, `UNWIND`, `RETURN` or `CALL`. The text is checked before anything
+runs: `CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`, `FOREACH`, `LOAD CSV`, `DROP`, `SHOW`, `USE` and the
+other admin clauses are refused in any case, after comments and inside subqueries, and only the
+`db.labels`, `db.relationshipTypes`, `db.propertyKeys` and `db.schema.*` procedures may be called. Clause
+words inside strings, comments and backticked names do not count; a label, type or key named like a clause
+goes in backticks. Relate plans every `CALL { }` subquery as read-write, so those are refused too; use
+`COLLECT { }`, `COUNT { }`, `EXISTS { }` or `UNION`. Then the query process plans the statement with
+`EXPLAIN` on a read-only connection and runs it only when Relate plans it as a read, and the read-only
+connection refuses any write on its own. Results stop at 500 rows and 1 MiB with a note that says how many
+rows there were, and every MCP reply, as the server sends it, stays under 1 MiB: in full detail the
+longest list is shortened and a `cut` note says so. The schema names come from the snapshot: names that
+are not plain ASCII identifiers are shown in backticks, and long or unprintable ones are left out.
+The node, edge and time limits are the ones above. Nodes, edges and paths come back as
+labels or type and properties; return ids and properties to keep the rows small.
 
 ## Connect Vinc (optional)
 
@@ -405,6 +546,11 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
   each dependency path from the repository to the record's own package and advisory, the record's scope
   against the development flags on its paths, and each `relates_to` target as a decision in the snapshot. A record that fails is held back with the failed
   checks, and `propose` exits non-zero. The demo runs the same checks.
+- `check` judges `review_required` against the reviewers given and `imports_forbidden` on Python,
+  JavaScript, TypeScript and JSX imports, absolute, relative, from a nested package root and through the
+  nearest `tsconfig.json` and its `extends`, without running the repository's code or its git hooks. An
+  import computed at run time, a file the scanner cannot finish, and a specifier a plain text search finds
+  where the scanner did not are `unresolved`, never clean; a superseded decision is not judged.
 - `commit` refuses a digest that does not match the plan as it stands, writes with `create_only`, and
   fails when a node, a property or an edge's type or direction does not come back.
 - A live run against a real Vinc space wrote and read back seven records with `create_only`, and a second
@@ -413,7 +559,6 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 
 Future work, not built:
 
-- A Relate MCP server as the agent's read-only query surface; today the agent drives the CLI.
 - pnpm, Yarn, Bun, Poetry, requirements.txt, Gradle and Maven inputs, and repository metadata beyond the inventory.
 - Removing stale task directories on Windows; there `decisis gc` says so and removes nothing.
 - Encrypted scratch storage with key destruction for sensitive data (see `docs/threat-model.md`).

@@ -1,0 +1,12 @@
+# Production requirements for the worker.
+--index-url https://pypi.org/simple
+-r base.txt
+certifi==2023.7.22 \
+    --hash=sha256:b745aaaf6dc123e0410db883529d25978c7de867c40a31dbb8ea0502ad0be625 \
+    --hash=sha256:b7ad92134a7bace47356e206bd75f50c116cf9e2bb700d77ddd56cad1189a812
+idna==3.6 ; python_version >= "3.8"
+pluggy[dev]==1.5.0
+ItsDangerous == 2.2.0  # the name as the project spells it
+click>=8.0,<9
+pytest
+packaging>=23

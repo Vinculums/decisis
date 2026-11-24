@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import argparse
-import functools
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
 from . import audit
+from . import check
 from . import checker
 from . import compare
+from . import cypher
 from . import demo
 from . import external
 from . import github as gh
@@ -25,6 +27,8 @@ from .sandbox import sandbox
 
 MAX_LIMIT = 100
 VIEWS = {"mermaid": render.mermaid, "html": render.html}
+ROOT_HELP = ("files next to the inventory (go.sum, pyproject.toml, -r includes) are read only under this directory "
+             "(default: the nearest directory above the inventory that holds .git, else the inventory's directory)")
 
 
 def bounded(lo: int, hi: int):
@@ -83,14 +87,27 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
     im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     im.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
+    ck = sub.add_parser("check", help="judge a change set against the review and import rules of the decisions in a snapshot; exits 1 on a violation")
+    ck.add_argument("snapshot")
+    ck.add_argument("--repo-dir", default=".", help="the repository the changed files are read from (default: the current directory)")
+    which = ck.add_mutually_exclusive_group(required=True)
+    which.add_argument("--changed", nargs="+", metavar="FILE", help="the changed files, relative to --repo-dir")
+    which.add_argument("--base", metavar="REF", help="list the changed files with git diff --name-only REF...HEAD in --repo-dir")
+    ck.add_argument("--reviewers", nargs="+", default=[], metavar="HANDLE", help="the handles that reviewed the change, for example @alice @org/team")
+    ck.add_argument("--fail-on-unresolved", action="store_true", help="also exit 1 when an import or a file cannot be judged")
+    ck.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far impact looks from a matching concept (0 to {impact.MAX_HOPS})")
+    ck.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
+    ck.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
     au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
-    au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, or go.mod (read with the go.sum next to it)")
+    au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, go.mod (read with the go.sum next to it), "
+                    "a GitHub Actions workflow (read with the workflows next to it), action.yml, .terraform.lock.hcl, or another format in the README")
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"longest dependency chain to follow (1 to {audit.MAX_DEPTH})")
     au.add_argument("--out", help="write the JSON report here; with --format mermaid or html the view still goes to stdout")
     au.add_argument("--format", choices=["json", *VIEWS], default="json")
     au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
+    au.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
     pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
     pr.add_argument("snapshot", help="the snapshot the audit read")
@@ -102,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("--ref", help="the commit the lockfile was read at, for measured_ref")
     pr.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"the audit's --depth, for the dependency paths (1 to {audit.MAX_DEPTH})")
     pr.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
+    pr.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
     cm = sub.add_parser("commit", help="write an approved write set to Vinc and read it back (needs a full key)")
     cm.add_argument("plan")
     cm.add_argument("--approve", required=True, help="the approval digest printed by propose")
@@ -119,9 +137,14 @@ def main(argv: list[str] | None = None) -> int:
     gc.add_argument("--root", type=Path, help="the directory that holds the task directories (default: /dev/shm, or the system temporary directory)")
     gc.add_argument("--grace", type=bounded(0, 86400), default=sb.GRACE_SECONDS, metavar="SECONDS",
                     help=f"leave directories younger than this (default {sb.GRACE_SECONDS})")
-    for s in (p, im, au, pr):
+    qy = sub.add_parser("query", help="run one read-only Cypher statement on a throwaway Relate graph of a snapshot and print the rows as JSON")
+    qy.add_argument("snapshot")
+    qy.add_argument("cypher", help="one statement that starts with MATCH, OPTIONAL MATCH, WITH, UNWIND, RETURN or CALL; writes are refused")
+    qy.add_argument("--param", action="append", default=[], type=param, metavar="KEY=VALUE",
+                    help="a value for $KEY; VALUE is read as JSON when it parses (12, true, [1, 2]), else as text")
+    for s in (p, im, ck, au, pr, qy):
         limit_flags(s)
-    sv = sub.add_parser("serve", help="serve impact, paths and audit to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
+    sv = sub.add_parser("serve", help="serve impact, paths, audit and query to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
     sv.add_argument("--mcp", action="store_true", required=True, help="speak MCP over stdin and stdout")
     sv.add_argument("--snapshot", type=Path, required=True, help="the JSON snapshot every tool call reads")
     sv.add_argument("--osv-cache", type=Path, metavar="FILE", help="audit reads OSV advisories from this file and never from the network")
@@ -132,8 +155,30 @@ def main(argv: list[str] | None = None) -> int:
         return run(a)
     except ValueError as e:
         ap.error(str(e))
-    except (external.NetworkRefused, external.NetworkFailed, gh.GitHubFailed, sb.LimitExceeded) as e:
+    except (external.NetworkRefused, external.NetworkFailed, gh.GitHubFailed, sb.LimitExceeded, sb.relate.Error) as e:
         ap.exit(1, f"{ap.prog}: error: {e}\n")
+
+
+PARAM_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
+
+
+def param(text: str) -> tuple[str, object]:
+    key, sep, raw = text.partition("=")
+    if not sep or not PARAM_KEY.fullmatch(key):
+        raise argparse.ArgumentTypeError(f"{text!r} is not KEY=VALUE with a parameter name for KEY")
+    try:
+        return key, json.loads(raw)
+    except ValueError:
+        return key, raw
+
+
+def params_of(pairs: list[tuple[str, object]]) -> dict:
+    out: dict = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(f"--param {key} is given twice")
+        out[key] = value
+    return out
 
 
 def serve(a: argparse.Namespace) -> int:
@@ -168,7 +213,7 @@ def run(a: argparse.Namespace) -> int:
     if a.cmd == "demo":
         return demo.run(Path(a.out), a.fixtures, approve=a.approve, yes=a.yes)[0]
     if a.cmd == "propose":
-        lock_text, siblings = inventory.load(Path(a.lockfile))
+        lock_text, siblings = inventory.load(Path(a.lockfile), root=a.root)
         plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
                           lockfile_path=a.lockfile_path or subject_file(lock_text, Path(a.lockfile)), ref=a.ref)
         advisories = external.fetch_advisories
@@ -189,6 +234,11 @@ def run(a: argparse.Namespace) -> int:
         receipt = wb.commit(plan, a.approve, client)
         print(json.dumps(receipt, ensure_ascii=False, indent=1))
         return 0 if receipt["verified"] else 1
+    if a.cmd == "query":
+        report = cypher.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.cypher, params_of(a.param), limits=limits(a))
+        json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
+        sys.stdout.write("\n")
+        return 0
     if a.cmd == "impact":
         report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo, limits=limits(a))
         if a.format == "text":
@@ -199,11 +249,13 @@ def run(a: argparse.Namespace) -> int:
             json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
             sys.stdout.write("\n")
         return 0
+    if a.cmd == "check":
+        return run_check(a)
     if a.cmd == "audit":
         advisories = external.fetch_advisories
         if a.osv_cache:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
-        text, siblings = inventory.load(Path(a.lockfile))
+        text, siblings = inventory.load(Path(a.lockfile), root=a.root)
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
                            advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings)
         text = json.dumps(report, ensure_ascii=False, indent=1)
@@ -214,7 +266,8 @@ def run(a: argparse.Namespace) -> int:
         elif a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
             print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"],
-                              "unresolved_packages": len(report["unresolved_packages"]), "out": a.out}))
+                              "unresolved_packages": len(report["unresolved_packages"]), "inventory_notes": report["inventory_notes"],
+                              "out": a.out}))
         else:
             sys.stdout.write(text + "\n")
         return 0
@@ -242,6 +295,23 @@ def run(a: argparse.Namespace) -> int:
     return 0
 
 
+def run_check(a: argparse.Namespace) -> int:
+    root = Path(a.repo_dir)
+    if not root.is_dir():
+        raise ValueError(f"--repo-dir {a.repo_dir} is not a directory")
+    changed = check.changed_since(root, a.base) if a.base is not None else a.changed
+    report = check.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), changed, root, a.reviewers, a.hops, a.repo,
+                       base=a.base, limits=limits(a))
+    if a.format == "text":
+        print(check.render(report))
+    elif a.format in VIEWS:
+        sys.stdout.write(VIEWS[a.format]("check", report))
+    else:
+        json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
+        sys.stdout.write("\n")
+    return 1 if report["violations"] or (a.fail_on_unresolved and report["unresolved"]) else 0
+
+
 def init_readers(a: argparse.Namespace) -> tuple:
     if a.github is None:
         if a.label is not None or a.since is not None or a.limit is not None:
@@ -253,8 +323,8 @@ def init_readers(a: argparse.Namespace) -> tuple:
         raise ValueError("--label must name a label")
     gh.repository(a.github)
     since = gh.since_date(a.since) if a.since is not None else None
-    pulls = functools.partial(gh.read_pulls, repo=a.github, token=gh.clean_token(os.environ.get("GITHUB_TOKEN")),
-                              label=(a.label or "decision").strip(), since=since, limit=a.limit or gh.DEFAULT_LIMIT)
+    pulls = gh.PullReader(a.github, gh.clean_token(os.environ.get("GITHUB_TOKEN")), (a.label or "decision").strip(), since,
+                          a.limit or gh.DEFAULT_LIMIT)
     return (*init.READERS, pulls) if a.repo_dir is not None else (pulls,)
 
 
