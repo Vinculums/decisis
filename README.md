@@ -241,8 +241,9 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - The audit joins the snapshot, the lockfile (nested copies resolved) and OSV, checks the installed
   version against the advisory ranges, and keeps each advisory's source URL, fetch time and content hash.
 - `propose` re-derives each record in a fresh graph built from the snapshot, the lockfile and OSV: the
-  advisory's content hash, each version against the advisory's ranges, each dependency path, and each
-  `relates_to` target as a decision in the snapshot. A record that fails is held back with the failed
+  advisory's content hash and severity, each version as a lockfile package inside the advisory's ranges,
+  each dependency path from the repository to the record's own package and advisory, the record's scope
+  against the development flags on its paths, and each `relates_to` target as a decision in the snapshot. A record that fails is held back with the failed
   checks, and `propose` exits non-zero. The demo runs the same checks.
 - `commit` refuses a digest that does not match the plan as it stands, writes with `create_only`, and
   fails when a node, a property or an edge's type or direction does not come back.

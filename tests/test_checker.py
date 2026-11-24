@@ -41,6 +41,7 @@ TAMPER = {
     "version out of range": (lambda f: f.update(package="pkg:npm/lodash@9.9.9"), "lodash 9.9.9 is not inside the advisory's affected ranges"),
     "made-up path": (made_up_path, "a dependency path is not in the sandbox graph: repo:Demo -> pkg:npm/made-up@1.0.0"),
     "target that is not a decision": (not_a_decision, "concept:demo-app is not a decision in the snapshot"),
+    "changed severity": (lambda f: f.update(severity="CRITICAL"), "severity CRITICAL differs from the OSV record's severity"),
 }
 
 
@@ -67,6 +68,49 @@ def test_a_tampered_record_is_held_with_its_failed_check_and_propose_exits_non_z
     assert [h["record"] for h in plan["held"]] == [rid]
     assert plan["digest"] == wb.digest(plan)
     assert "1 failed." in out and f"{rid}: {problem}" in out
+
+
+def held(plan: dict) -> dict[str, list[str]]:
+    return {h["record"]: h["failed"] for h in plan["held"]}
+
+
+def test_a_version_that_is_not_in_the_lockfile_is_held(tmp_path, capsys, no_network):
+    rep = report()
+    for f in rep["findings"]:
+        f["package"] = f["package"].replace("pkg:npm/lodash@4.17.15", "pkg:npm/lodash@4.0.0")
+    code, plan, _ = propose(tmp_path, capsys, rep)
+    assert code == 1
+    assert all(n["props"]["scope"] == "development" for n in plan["nodes"]) and len(plan["nodes"]) == 2
+    assert len(held(plan)) == 5
+    for problems in held(plan).values():
+        assert "lodash 4.0.0 is not a package in the lockfile" in problems
+        assert any(p.startswith("a dependency path does not run from repo:Demo") for p in problems)
+
+
+def test_a_path_borrowed_from_another_finding_is_held(tmp_path, capsys, no_network):
+    rep = report()
+    dev = next(f for f in rep["findings"] if f["dev_only"] and f["advisory"] == "adv:GHSA-r5fr-rjxr-66jc")
+    target = next(f for f in rep["findings"] if not f["dev_only"] and f["advisory"] == "adv:GHSA-29mw-wpgm-hmr9")
+    target["path"] = list(dev["path"])
+    code, plan, _ = propose(tmp_path, capsys, rep)
+    rid = wb.record_id("Demo", "lodash", "shipped", "GHSA-29mw-wpgm-hmr9")
+    assert code == 1 and list(held(plan)) == [rid]
+    assert held(plan)[rid] == ["no dependency path of this record reaches lodash 4.17.15",
+                               "a dependency path does not run from repo:Demo to this record's package and advisory: "
+                               + " -> ".join(dev["path"])]
+
+
+def test_development_findings_claimed_as_shipped_and_critical_are_held(tmp_path, capsys, no_network):
+    rep = report()
+    for f in rep["findings"]:
+        if f["dev_only"]:
+            f.update(dev_only=False, severity="CRITICAL")
+    code, plan, _ = propose(tmp_path, capsys, rep)
+    assert code == 1
+    assert sorted(held(plan)) == [wb.record_id("Demo", "lodash", "shipped", a) for a in ("GHSA-r5fr-rjxr-66jc", "GHSA-xxjr-mmjv-4gpg")]
+    assert all("4.17.21" not in n["props"]["versions"] and n["props"]["scope"] == "shipped" for n in plan["nodes"])
+    for problems in held(plan).values():
+        assert problems == [p for p in problems if p.startswith("a dependency path does not match scope shipped: repo:Demo -> pkg:npm/test-kit@1.0.3")]
 
 
 def test_the_demo_runs_the_same_checks(tmp_path, monkeypatch, no_network):

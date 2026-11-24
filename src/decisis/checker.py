@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from . import audit, semver
+from . import audit, external, semver
 from . import commit as wb
 from .queries import load as query
 from .sandbox import Sandbox, Subgraph
@@ -14,46 +14,77 @@ def decisions(vinc: Subgraph) -> set[str]:
     return {n["id"] for n in vinc.nodes if n["kind"] == "decision"}
 
 
-def _advisories(box, plan: dict) -> dict[str, dict]:
-    ids = sorted({f"adv:{n['props']['value']}" for n in plan["nodes"]})
-    if not ids:
-        return {}
-    return {r["advisory"]: r for r in box.query(query("advisory_records"), {"ids": ids})}
+def _name(node: dict) -> str:
+    return node["props"]["entity"].split(":", 1)[1]
 
 
-def _paths(box, repo: str, depth: int) -> set[tuple]:
-    return {tuple(r["path"]) for r in box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})}
+def _own(node: dict) -> set[str]:
+    return {external.package_id(ECOSYSTEM, _name(node), v) for v in node["props"]["versions"]}
 
 
-def check_record(node: dict, edges: list[dict], record: dict | None, found: set[tuple], known: set[str]) -> dict:
-    p, problems, checks = node["props"], [], 1
-    name = p["entity"].split(":", 1)[1]
+def _facts(box, plan: dict, repo: str, depth: int) -> dict:
+    advisories = sorted({f"adv:{n['props']['value']}" for n in plan["nodes"]})
+    packages = sorted(set().union(*(_own(n) for n in plan["nodes"]),
+                                  *(set(path) for n in plan["nodes"] for path in n["props"]["dependency_paths"])))
+    return {"repo": f"repo:{repo}",
+            "advisories": {r["advisory"]: r for r in box.query(query("advisory_records"), {"ids": advisories})},
+            "packages": {r["package"]: r for r in box.query(query("package_records"), {"ids": packages})},
+            "paths": {tuple(r["path"]) for r in box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})}}
+
+
+def _advisory(p: dict, record: dict | None) -> list[str]:
     if record is None:
-        problems.append(f"advisory {p['value']} is not in the sandbox graph")
-    elif record["content_hash"] != p["advisory_content_hash"]:
-        problems.append(f"the advisory hash differs from the OSV record of {p['value']}")
-    affected = json.loads(record["affected_json"]) if record else []
+        return [f"advisory {p['value']} is not in the sandbox graph"]
+    out = []
+    if record["content_hash"] != p["advisory_content_hash"]:
+        out.append(f"the advisory hash differs from the OSV record of {p['value']}")
+    if record["severity"] != p["severity"]:
+        out.append(f"severity {p['severity']} differs from the OSV record's severity {record['severity']}")
+    return out
+
+
+def _version(name: str, version: str, record: dict | None, facts: dict, ends: set[str]) -> list[str]:
+    pid, out = external.package_id(ECOSYSTEM, name, version), []
+    if pid not in facts["packages"]:
+        out.append(f"{name} {version} is not a package in the lockfile")
+    if record is None or semver.affects(version, ECOSYSTEM, name, json.loads(record["affected_json"])) is not True:
+        out.append(f"{name} {version} is not inside the advisory's affected ranges")
+    if pid not in ends:
+        out.append(f"no dependency path of this record reaches {name} {version}")
+    return out
+
+
+def _path(path: list[str], p: dict, own: set[str], facts: dict) -> list[str]:
+    shown = " -> ".join(path)
+    if len(path) < 3 or path[0] != facts["repo"] or path[-1] != f"adv:{p['value']}" or path[-2] not in own:
+        return [f"a dependency path does not run from {facts['repo']} to this record's package and advisory: {shown}"]
+    if tuple(path) not in facts["paths"]:
+        return [f"a dependency path is not in the sandbox graph: {shown}"]
+    dev = [bool((facts["packages"].get(x) or {}).get("dev")) for x in path[1:-1]]
+    if not (dev[-1] if p["scope"] == "development" else p["scope"] == "shipped" and not any(dev)):
+        return [f"a dependency path does not match scope {p['scope']}: {shown}"]
+    return []
+
+
+def check_record(node: dict, edges: list[dict], facts: dict, known: set[str]) -> dict:
+    p, name, own = node["props"], _name(node), _own(node)
+    record = facts["advisories"].get(f"adv:{p['value']}")
+    ends = {path[-2] for path in p["dependency_paths"] if len(path) > 1}
+    problems = _advisory(p, record)
     for version in p["versions"]:
-        checks += 1
-        if record is None or semver.affects(version, ECOSYSTEM, name, affected) is not True:
-            problems.append(f"{name} {version} is not inside the advisory's affected ranges")
+        problems += _version(name, version, record, facts, ends)
     for path in p["dependency_paths"]:
-        checks += 1
-        if tuple(path) not in found:
-            problems.append("a dependency path is not in the sandbox graph: " + " -> ".join(path))
-    for e in edges:
-        checks += 1
-        if e["to"] not in known:
-            problems.append(f"{e['to']} is not a decision in the snapshot")
+        problems += _path(path, p, own, facts)
+    problems += [f"{e['to']} is not a decision in the snapshot" for e in edges if e["to"] not in known]
+    checks = 1 + len(p["versions"]) + len(p["dependency_paths"]) + len(edges)
     return {"record": node["id"], "checks": checks, "problems": problems}
 
 
 def check_plan(plan: dict, box, known: set[str], repo: str, depth: int = 8) -> list[dict]:
-    records = _advisories(box, plan)
-    found = _paths(box, repo, depth) if plan["nodes"] else set()
-    return [check_record(n, [e for e in plan["edges"] if e["from"] == n["id"]],
-                         records.get(f"adv:{n['props']['value']}"), found, known)
-            for n in plan["nodes"]]
+    if not plan["nodes"]:
+        return []
+    facts = _facts(box, plan, repo, depth)
+    return [check_record(n, [e for e in plan["edges"] if e["from"] == n["id"]], facts, known) for n in plan["nodes"]]
 
 
 def withhold(plan: dict, checked: list[dict]) -> dict:
