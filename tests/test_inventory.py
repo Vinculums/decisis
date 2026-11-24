@@ -409,6 +409,24 @@ def test_records_from_reachability_pass_re_derivation_in_both_scopes():
     assert {"record:shop-npm-helper-development-license-mit", "record:shop-npm-shared-shipped-license-mit"} <= {n["id"] for n in kept["nodes"]}
 
 
+NPM_PROBES = FIX / "npm"
+
+
+@pytest.mark.parametrize("package,evidence", [("pkg:npm/opt@1.0.0", "opt: file:../src/opt/opt-1.0.0.tgz (optional)"),
+                                              ("pkg:npm/p@1.0.0", "p: file:../src/p/p-1.0.0.tgz (peer)")])
+def test_a_root_optional_or_peer_dependency_that_a_development_package_also_requires_is_shipped(package, evidence):
+    nodes, edges = inventory.read((NPM_PROBES / "root-optional-peer" / "package-lock.json").read_text(encoding="utf-8"),
+                                  "package-lock.json", "Proj")
+    assert dev_of(nodes)[package] is False and dev_of(nodes)["pkg:npm/lint@1.0.0"] is True
+    assert {"source": "repo:Proj", "target": package, "type": "DEPENDS_ON", "evidence": evidence} in edges
+
+
+def test_an_optional_peer_of_a_shipped_package_that_a_development_package_requires_is_shipped():
+    nodes, edges = inventory.read((NPM_PROBES / "optional-peer" / "package-lock.json").read_text(encoding="utf-8"),
+                                  "package-lock.json", "Proj")
+    assert dev_of(nodes) == {"pkg:npm/app@1.0.0": False, "pkg:npm/lint2@1.0.0": True, "pkg:npm/x@1.0.0": False}
+
+
 def test_the_shared_builder_lets_reachability_decide_over_a_production_mark():
     inv = shape.Inventory("Demo", "test", "hash")
     for name, dev in (("tool", True), ("lib", False), ("app", False), ("both", False), ("loose", False)):

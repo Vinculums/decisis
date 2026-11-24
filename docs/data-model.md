@@ -361,7 +361,7 @@ returns the same nodes and edges.
 
 | Format | `source_system` | Repository | `DEPENDS_ON` | `dev` |
 |---|---|---|---|---|
-| npm `package-lock.json` v2 or v3 | `npm-lockfile` | the root entry | `dependencies`, `devDependencies`, `optionalDependencies` and `peerDependencies` (marked peer), resolved through nested `node_modules` | reached only through `devDependencies` or entries the lockfile marks `dev`; a package nothing reaches keeps the lockfile's `dev` |
+| npm `package-lock.json` v2 or v3 | `npm-lockfile` | the root entry | `dependencies`, `devDependencies`, `optionalDependencies` and `peerDependencies` (marked optional or peer; from the root they are shipped like `dependencies`), resolved through nested `node_modules` | reached only through `devDependencies` or entries the lockfile marks `dev`; a package nothing reaches keeps the lockfile's `dev` |
 | CycloneDX JSON 1.4 to 1.6 | `cyclonedx-sbom` | `metadata.component` | `dependencies[].dependsOn` | scope `excluded`, or property `cdx:npm:package:development` `true` |
 | SPDX JSON 2.3 | `spdx-sbom` | the packages the document `DESCRIBES` | `DEPENDS_ON`, `CONTAINS` and the `*_DEPENDENCY_OF` relationships | reached only through `DEV_DEPENDENCY_OF`, `TEST_DEPENDENCY_OF`, `BUILD_DEPENDENCY_OF` or `DEV_TOOL_OF` |
 | `uv.lock` | `uv-lockfile` | packages with an `editable`, `virtual`, `directory` or `path` source | `dependencies`, `optional-dependencies`, `dev-dependencies` | reached only through a dependency group |

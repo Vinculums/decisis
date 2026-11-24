@@ -60,10 +60,15 @@ def parse_npm_lock(text: str, repo: str, include_dev: bool = True) -> tuple[list
         nodes.setdefault(pid, {"id": pid, "kind": "Package", "title": f"{name}@{meta['version']}",
                                "props": _props(name, meta, repo, path, fetched)})
     root = pkgs.get("", {})
-    shipped_direct = set(root.get("dependencies") or {})
-    direct = dict(root.get("dependencies") or {})
+    direct = {dep: f"{dep}: {spec}" for dep, spec in (root.get("dependencies") or {}).items()}
     if include_dev:
-        direct.update(root.get("devDependencies") or {})
+        direct.update({dep: f"{dep}: {spec}" for dep, spec in (root.get("devDependencies") or {}).items()})
+    shipped_direct = set(root.get("dependencies") or {})
+    for field, kind in (("peerDependencies", "peer"), ("optionalDependencies", "optional")):
+        for dep, spec in (root.get(field) or {}).items():
+            if dep not in shipped_direct:
+                direct[dep] = f"{dep}: {spec} ({kind})"
+        shipped_direct |= set(root.get(field) or {})
     edges, links = [], {}
 
     def link(src: str, dst: str, why: str, dev: bool) -> None:
@@ -74,7 +79,7 @@ def parse_npm_lock(text: str, repo: str, include_dev: bool = True) -> tuple[list
     for dep in sorted(direct):
         target = _resolve(pkgs, "", dep)
         if target in ids:
-            link(repo_id, ids[target], f"{dep}: {direct[dep]}", dep not in shipped_direct or bool(pkgs[target].get("dev")))
+            link(repo_id, ids[target], direct[dep], dep not in shipped_direct or bool(pkgs[target].get("dev")))
     for path, pid in sorted(ids.items()):
         meta = pkgs[path]
         required = {**(meta.get("dependencies") or {}), **(meta.get("optionalDependencies") or {})}
