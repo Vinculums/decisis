@@ -119,4 +119,6 @@ def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=ex
         root=None) -> dict:
     graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
     with sandbox(root, limits) as box:
-        return analyze(box, graph, repo, depth)
+        report = analyze(box, graph, repo, depth)
+    notes = inventory.notes(lock_text, filename)
+    return {**report, "notes": notes} if notes else report
