@@ -335,8 +335,12 @@ def _package_target(to: tuple[str, ...], target: str) -> str | None:
     return matches(tuple(g for g in to if "node_modules" in g), target)
 
 
-def _unresolved(to: tuple[str, ...], shown: str, target: str | None, why: str) -> tuple[str, str]:
-    if target and matches(to, target) is None and _package_target(to, target) is None:
+def _named(to: tuple[str, ...], paths: tuple[str, ...]) -> tuple[str | None, str | None]:
+    return next(((g, p) for p in paths if (g := matches(to, p))), (None, None))
+
+
+def _unresolved(to: tuple[str, ...], shown: str, target: str | None, also: tuple[str, ...], why: str) -> tuple[str, str]:
+    if target and _named(to, (target, *also))[0] is None and _package_target(to, target) is None:
         return CLEAR, f"{shown}: {why}; even read as an import it names {target}, which no forbidden glob names"
     return UNKNOWN, f"{shown}: {why}; it cannot be judged"
 
@@ -347,13 +351,15 @@ def _import(value: tuple, facts: dict) -> tuple[str, str]:
     if glob is None:
         return CLEAR, "the rule does not cover this file"
     shown, resolution, target = facts["specifier"], facts["resolution"], facts.get("target")
+    also = tuple(facts.get("also") or ())
     if resolution == "unresolved":
-        return _unresolved(to, shown, target, facts["why"])
-    hit = _package_target(to, target) if resolution == "external" else matches(to, target)
+        return _unresolved(to, shown, target, also, facts["why"])
+    hit, path = (_package_target(to, target), target) if resolution == "external" else _named(to, (target, *also))
     if hit is None:
         where = "an external package" if resolution == "external" else target
         return CLEAR, f"{shown} is {where}, which no forbidden glob names"
-    return MATCH, f"{glob} must not import {hit}; {shown} is {target}"
+    held = "" if path == target else f", which holds {path}"
+    return MATCH, f"{glob} must not import {hit}; {shown} is {target}{held}"
 
 
 KINDS: dict[str, Kind] = {

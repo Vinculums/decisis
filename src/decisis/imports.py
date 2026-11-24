@@ -19,9 +19,26 @@ specifier, or an `index` file in that directory. `paths` and `baseUrl` from the 
 one that matches a `paths` pattern but names no file is unresolved. Any other specifier is an external
 package, given the target `node_modules/<specifier>`.
 
-A plain text search for the same import forms runs over every JavaScript and TypeScript file as well. A
-specifier it finds that the scanner did not read as code is listed as unresolved, with the file it would
-name, so a scanner mistake can never make an import disappear.
+Go files are read with a scanner that skips comments, strings and runes. Single and grouped `import`
+declarations are listed, with an alias, dot or blank name. A path equal to or under the `module` path of the
+nearest `go.mod` names the package directory below it, given with a trailing `/`; the directory and each
+`.go` file directly in it are the paths a `to` glob is matched against. Any other path is external; with no
+`go.mod`, a path whose first element has a `.` is unresolved.
+
+Rust files are read with a scanner that skips comments (block comments nest), strings, raw, byte and C
+strings, and character literals, and tells lifetimes apart. `use` trees are expanded into one path each,
+and `mod x;` and `extern crate x;` are listed. The nearest `Cargo.toml` with a `[package]` gives the crate
+root (`src/lib.rs` or the `[lib]` path, `src/main.rs`, or a file of `src/bin/`, `tests/`, `examples/` or
+`benches/`). `crate::`, `self::`, `super::` and a first name that is a child module read from that root and
+the file's module path, and a crate of the repository (by its `Cargo.toml` name or a `path` dependency)
+from its library root. A path resolves to the module file `a/b.rs` or `a/b/mod.rs` it names, or else to the
+longest prefix that is a module file; `a/b.rs` is also matched as its directory `a/b/`. Any other path is
+external.
+
+A plain text search for the same import forms runs over every JavaScript, TypeScript, Go and Rust file as
+well. A specifier it finds that the scanner did not read as code is listed as unresolved, with the file it
+would name, so a scanner mistake can never make an import disappear; a Go or Rust hit that would be external
+is left out, since it could not be a violation.
 
 A call whose specifier is not a literal, a relative import that names no file, a file that cannot be parsed
 or scanned to its end, and a config that cannot be read or extends a package are unresolved. Every path is
@@ -35,6 +52,7 @@ import os
 import posixpath
 import re
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,6 +84,7 @@ class Import:
     resolution: str
     target: str | None
     why: str = ""
+    also: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -86,6 +105,10 @@ class Repo:
         self.seen: dict[str, str | None] = {}
         self.configs: dict[str, dict] = {}
         self.names: set[str] | None = None
+        self.go_mods: dict[str, tuple[str, str | None, str] | None] = {}
+        self.manifests: dict[str, dict | None] = {}
+        self.cargo_dirs: dict[str, str | None] = {}
+        self.crates: dict[str, str] | None = None
 
     def kind(self, rel: str) -> str | None:
         if rel not in self.seen:
@@ -162,6 +185,10 @@ def source(rel: str) -> str | None:
         return "python"
     if rel.endswith(SCRIPT):
         return "script"
+    if rel.endswith(".go"):
+        return "go"
+    if rel.endswith(".rs"):
+        return "rust"
     return None
 
 
@@ -181,7 +208,10 @@ def read(repo: Repo, rel: str) -> list[Import]:
         data = path.read_bytes()
     except OSError as e:
         return [Import(None, rel, UNRESOLVED, None, f"the file cannot be read ({e.strerror or type(e).__name__})")]
-    found = python_imports(repo, rel, data) if lang == "python" else script_imports(repo, rel, data.decode("utf-8", "replace"))
+    if lang == "python":
+        found = python_imports(repo, rel, data)
+    else:
+        found = READERS[lang](repo, rel, data.decode("utf-8", "replace"))
     return sorted(set(found), key=lambda i: (i.line or 0, i.specifier, i.target or ""))
 
 
@@ -747,3 +777,677 @@ def plain_json(text: str) -> str:
             out.append(c)
             i += 1
     return "".join(out)
+
+
+GO_SWEEP = re.compile(r"""\bimport\s*(?:[A-Za-z_]\w*\s+|[._]\s*)?(["`])([^"`\n]+?)\1""")
+GO_BLOCK = re.compile(r"\bimport\s*\(([^)]*)\)")
+GO_ITEM = re.compile(r"""(?:^|[\n;(])[ \t]*(?:[A-Za-z_]\w*[ \t]+|[._][ \t]*)?(["`])([^"`\n]+?)\1""")
+GO_MODULE = re.compile(r"""^\s*module\s+(?:"([^"\n]+)"|`([^`\n]+)`|(\S+))""", re.M)
+RUST_PREFIX = re.compile(r"""(?:b|c)?r(#*)"|(?:b|c)?"|b'""")
+RUST_KINDS = ("tests", "examples", "benches")
+RUST_TARGETS = {"src/bin": ("bin", "autobins"), "tests": ("test", "autotests"), "examples": ("example", "autoexamples"),
+                "benches": ("bench", "autobenches")}
+USE_START = ("::", "{", "*")
+RUST_DEPENDENCIES = ("dependencies", "dev-dependencies", "build-dependencies")
+RUST_SKIPPED_DIRS = SKIPPED_DIRS | {"target"}
+MAX_SNIPPET = 4096
+
+
+def is_punct(tok: Token | None, value: str) -> bool:
+    return tok is not None and tok.kind == "punct" and tok.value == value
+
+
+def at(toks: list[Token], i: int) -> Token | None:
+    return toks[i] if 0 <= i < len(toks) else None
+
+
+def read_small(repo: Repo, rel: str) -> str | None:
+    try:
+        path = repo.root / rel
+        if path.stat().st_size > MAX_BYTES:
+            return None
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def lexed(lex, text: str) -> tuple[list[Token], str | None]:
+    out: list[Token] = []
+    try:
+        lex(text, out)
+    except Broken as e:
+        return out, str(e)
+    return out, None
+
+
+def go_lex(text: str, out: list[Token]) -> None:
+    i, line, n = 0, 1, len(text)
+    while i < n:
+        c = text[i]
+        if c == "\n":
+            line += 1
+            i += 1
+        elif c.isspace():
+            i += 1
+        elif text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            if j < 0:
+                raise Broken(f"a comment opened at line {line} is not closed")
+            line += text.count("\n", i, j)
+            i = j + 2
+        elif c == "`":
+            j = text.find("`", i + 1)
+            if j < 0:
+                raise Broken(f"a raw string at line {line} is not closed")
+            out.append(Token("string", text[i + 1:j].replace("\r", ""), line))
+            line += text.count("\n", i, j)
+            i = j + 1
+        elif c in "\"'":
+            i = go_quoted(text, i, line, out)
+        elif name_char(c):
+            j = i
+            while j < n and name_char(text[j]):
+                j += 1
+            out.append(Token("num" if c.isdigit() else "name", text[i:j], line))
+            i = j
+        else:
+            out.append(Token("punct", c, line))
+            i += 1
+
+
+def go_quoted(text: str, i: int, line: int, out: list[Token]) -> int:
+    quote, j, escaped = text[i], i + 1, False
+    what = "string" if quote == '"' else "rune literal"
+    while j < len(text) and text[j] != quote:
+        if text[j] == "\n" or text[j:j + 2] == "\\\n":
+            raise Broken(f"a {what} at line {line} is not closed")
+        escaped = escaped or text[j] == "\\"
+        j += 2 if text[j] == "\\" else 1
+    if j >= len(text):
+        raise Broken(f"a {what} at line {line} is not closed")
+    out.append(Token("string" if quote == '"' else "rune", None if escaped else text[i + 1:j], line))
+    return j + 1
+
+
+def go_spec(toks: list[Token], i: int) -> tuple[list[tuple[int, str | None, str]], int]:
+    tok = toks[i]
+    if is_punct(tok, ";"):
+        return [], i + 1
+    nxt = at(toks, i + 1)
+    if (tok.kind == "name" or is_punct(tok, ".")) and nxt is not None and nxt.kind == "string":
+        tok, i = nxt, i + 1
+    if tok.kind != "string":
+        return [(tok.line, None, "the import declaration cannot be read")], i + 1
+    if tok.value is None:
+        return [(tok.line, None, "the import path has an escape sequence, which is not read")], i + 1
+    return [(tok.line, tok.value, "")], i + 1
+
+
+def go_refs(toks: list[Token]) -> list[tuple[int, str | None, str]]:
+    out, i = [], 0
+    while i < len(toks):
+        tok = toks[i]
+        i += 1
+        if tok.kind != "name" or tok.value != "import" or i >= len(toks):
+            continue
+        if not is_punct(toks[i], "("):
+            found, i = go_spec(toks, i)
+            out += found
+            continue
+        i += 1
+        while i < len(toks) and not is_punct(toks[i], ")"):
+            found, i = go_spec(toks, i)
+            out += found
+        i += 1
+    return out
+
+
+def go_sweep(text: str) -> list[tuple[int, str]]:
+    found = [(m.start(2), m.group(2)) for m in GO_SWEEP.finditer(text)]
+    for block in GO_BLOCK.finditer(text):
+        found += [(block.start(1) + m.start(2), m.group(2)) for m in GO_ITEM.finditer(block.group(1))]
+    return sorted({(text.count("\n", 0, at_) + 1, spec) for at_, spec in found})
+
+
+def go_module(repo: Repo, here: str) -> tuple[str, str | None, str] | None:
+    if here not in repo.go_mods:
+        path = posixpath.join(here, "go.mod") if here else "go.mod"
+        if repo.is_file(path):
+            text = read_small(repo, path)
+            lines = "\n".join(raw.partition("//")[0] for raw in (text or "").splitlines())
+            m = GO_MODULE.search(lines)
+            repo.go_mods[here] = (here, next(g for g in m.groups() if g) if m else None, path)
+        else:
+            repo.go_mods[here] = go_module(repo, posixpath.dirname(here)) if here else None
+    return repo.go_mods[here]
+
+
+def go_files(repo: Repo, d: str) -> tuple[str, ...]:
+    try:
+        names = sorted(e.name for e in os.scandir(repo.root / d) if e.name.endswith(".go"))
+    except OSError:
+        return ()
+    return tuple(p for p in (posixpath.join(d, n) if d else n for n in names) if repo.is_file(p))
+
+
+def go_target(repo: Repo, rel: str, spec: str) -> tuple[str, str | None, str, tuple[str, ...]]:
+    mod = go_module(repo, posixpath.dirname(rel))
+    if mod is None:
+        if "." in spec.split("/")[0]:
+            return UNRESOLVED, None, "no go.mod lies above the file, so it is not known whether the import is in the repository", ()
+        return EXTERNAL, None, "", ()
+    root, module, gomod = mod
+    if module is None:
+        return UNRESOLVED, None, f"{gomod} has no module line that can be read", ()
+    if spec != module and not spec.startswith(module + "/"):
+        return EXTERNAL, None, "", ()
+    sub = spec[len(module) + 1:]
+    if sub and any(part in ("", ".", "..") for part in sub.split("/")):
+        return UNRESOLVED, None, f"the import path is not a clean path under the module path {module}", ()
+    d = "/".join(p for p in (root, sub) if p)
+    kind = repo.kind(d) if d else "dir"
+    if kind == "outside":
+        return UNRESOLVED, None, f"{d} leads outside the repository", ()
+    if kind != "dir":
+        return UNRESOLVED, None, f"the import is under the module path {module} of {gomod}, but {d} is not a directory in the repository", ()
+    return REPOSITORY, d + "/" if d else ".", "", ((d,) if d else ()) + go_files(repo, d)
+
+
+def go_imports(repo: Repo, rel: str, text: str) -> list[Import]:
+    toks, broken = lexed(go_lex, text)
+    out, read_specs = [], set()
+    for line, spec, problem in go_refs(toks):
+        if spec is None:
+            out.append(Import(line, "import with a path that cannot be read", UNRESOLVED, None, problem))
+            continue
+        read_specs.add(spec)
+        resolution, target, why, also = go_target(repo, rel, spec)
+        out.append(Import(line, spec, resolution, target, why, also))
+    if broken:
+        out.append(Import(None, rel, UNRESOLVED, None, f"the file cannot be scanned to its end: {broken}"))
+    for line, spec in go_sweep(text):
+        if spec in read_specs:
+            continue
+        resolution, target, _, also = go_target(repo, rel, spec)
+        if resolution != EXTERNAL:
+            out.append(Import(line, spec, UNRESOLVED, target, DISAGREE, also))
+    return out
+
+
+def rust_lex(text: str, out: list[Token]) -> None:
+    i, line, n = 0, 1, len(text)
+    if text.startswith("#!") and not text[2:].lstrip().startswith("["):
+        i = n if text.find("\n") < 0 else text.find("\n")
+    while i < n:
+        c = text[i]
+        m = RUST_PREFIX.match(text, i) if c in "\"brc" else None
+        if c == "\n":
+            line += 1
+            i += 1
+        elif c.isspace():
+            i += 1
+        elif text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+        elif text.startswith("/*", i):
+            j = rust_comment(text, i, line)
+            line += text.count("\n", i, j)
+            i = j
+        elif m and m.group(0) == "b'":
+            i = rust_char(text, i + 1, line)
+        elif m:
+            j = rust_string(text, m, line, out)
+            line += text.count("\n", i, j)
+            i = j
+        elif c == "'":
+            i = rust_char(text, i, line)
+        elif name_char(c):
+            j = i + 2 if text.startswith("r#", i) else i
+            while j < n and name_char(text[j]):
+                j += 1
+            out.append(Token("num" if c.isdigit() else "name", text[i:j], line))
+            i = j
+        elif text.startswith("::", i):
+            out.append(Token("punct", "::", line))
+            i += 2
+        else:
+            out.append(Token("punct", c, line))
+            i += 1
+
+
+def rust_comment(text: str, i: int, line: int) -> int:
+    depth, j = 1, i + 2
+    while depth:
+        opened, closed = text.find("/*", j), text.find("*/", j)
+        if closed < 0:
+            raise Broken(f"a comment opened at line {line} is not closed")
+        if 0 <= opened < closed:
+            depth, j = depth + 1, opened + 2
+        else:
+            depth, j = depth - 1, closed + 2
+    return j
+
+
+def rust_string(text: str, m: re.Match, line: int, out: list[Token]) -> int:
+    start, hashes = m.end(), m.group(1)
+    if hashes is not None:
+        close = '"' + hashes
+        j = text.find(close, start)
+        if j < 0:
+            raise Broken(f"a raw string at line {line} is not closed")
+        out.append(Token("string", text[start:j], line))
+        return j + len(close)
+    j, escaped = start, False
+    while j < len(text) and text[j] != '"':
+        escaped = escaped or text[j] == "\\"
+        j += 2 if text[j] == "\\" else 1
+    if j >= len(text):
+        raise Broken(f"a string at line {line} is not closed")
+    out.append(Token("string", None if escaped else text[start:j], line))
+    return j + 1
+
+
+def rust_char(text: str, i: int, line: int) -> int:
+    if text.startswith("\\", i + 1):
+        j = i + 3
+        while j < len(text) and text[j] not in "'\n":
+            j += 1
+        if j >= len(text) or text[j] != "'":
+            raise Broken(f"a character literal at line {line} is not closed")
+        return j + 1
+    if i + 2 < len(text) and text[i + 2] == "'" and text[i + 1] != "\n":
+        return i + 3
+    return i + 1
+
+
+class Unreadable(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class RustRef:
+    line: int
+    kind: str
+    path: tuple[str, ...]
+    inline: tuple[str, ...]
+    attr: Token | None = None
+
+
+def use_tree(toks: list[Token], j: int, prefix: list[str]) -> tuple[list[list[str]], int]:
+    seg = list(prefix)
+    if is_punct(at(toks, j), "::"):
+        seg = seg or ["::"]
+        j += 1
+    while True:
+        tok = at(toks, j)
+        if tok is not None and tok.kind == "name" and tok.value.startswith("$") and tok.value != "$crate":
+            raise Unreadable
+        if tok is not None and tok.kind == "name":
+            seg.append(tok.value.removeprefix("r#").removeprefix("$"))
+            j += 1
+        elif is_punct(tok, "*"):
+            return [seg], j + 1
+        elif is_punct(tok, "{"):
+            j, paths = j + 1, []
+            while not is_punct(at(toks, j), "}"):
+                sub, j = use_tree(toks, j, seg)
+                paths += sub
+                if is_punct(at(toks, j), ","):
+                    j += 1
+                elif not is_punct(at(toks, j), "}"):
+                    raise Unreadable
+            return paths or [seg], j + 1
+        else:
+            raise Unreadable
+        if is_punct(at(toks, j), "::"):
+            j += 1
+            continue
+        if getattr(at(toks, j), "value", None) == "as":
+            j += 2
+        return [seg], j
+
+
+def use_decl(toks: list[Token], j: int) -> tuple[list[tuple[str, ...]] | None, int]:
+    try:
+        paths, j = use_tree(toks, j, [])
+    except (Unreadable, RecursionError):
+        return None, j
+    if not is_punct(at(toks, j), ";"):
+        return None, j
+    found = [tuple(s for k, s in enumerate(p) if k == 0 or s != "self") for p in paths if p]
+    return (found, j + 1) if found else (None, j)
+
+
+def path_attr(toks: list[Token], i: int) -> Token | None:
+    k = i - 1
+    while k >= 0 and toks[k].value in ("pub", "(", ")", "crate", "super", "self", "in", "::"):
+        k -= 1
+    while is_punct(at(toks, k), "]"):
+        depth, j = 0, k
+        while j >= 0:
+            depth += is_punct(toks[j], "]") - is_punct(toks[j], "[")
+            if depth == 0:
+                break
+            j -= 1
+        inner = toks[j + 1:k]
+        if len(inner) == 3 and inner[0].value == "path" and is_punct(inner[1], "=") and inner[2].kind == "string":
+            return inner[2]
+        k = j - 2
+    return None
+
+
+def rust_refs(toks: list[Token]) -> list[RustRef]:
+    out, stack, depth, pending, i = [], [], 0, None, 0
+    while i < len(toks):
+        tok, nxt, after = toks[i], at(toks, i + 1), at(toks, i + 2)
+        inline = tuple(name for name, _ in stack)
+        if is_punct(tok, "{"):
+            depth += 1
+            if pending is not None:
+                stack.append((pending, depth))
+                pending = None
+        elif is_punct(tok, "}"):
+            if stack and stack[-1][1] == depth:
+                stack.pop()
+            depth -= 1
+        elif tok.kind == "name" and tok.value == "use" and nxt is not None and (nxt.kind == "name" or nxt.value in USE_START):
+            paths, j = use_decl(toks, i + 1)
+            if paths is None:
+                out.append(RustRef(tok.line, "bad", ("use",), inline))
+            else:
+                out += [RustRef(tok.line, "use", p, inline) for p in paths]
+                i = j
+                continue
+        elif tok.kind == "name" and tok.value == "mod" and nxt is not None and nxt.kind == "name":
+            name = nxt.value.removeprefix("r#")
+            if is_punct(after, ";") and name.startswith("$"):
+                out.append(RustRef(tok.line, "bad", ("mod",), inline))
+            elif is_punct(after, ";"):
+                out.append(RustRef(tok.line, "mod", (name,), inline, path_attr(toks, i)))
+            elif is_punct(after, "{"):
+                pending = name
+            i += 2
+            continue
+        elif tok.kind == "name" and tok.value == "extern" and getattr(nxt, "value", None) == "crate" and after is not None and after.kind == "name":
+            out.append(RustRef(tok.line, "use", (after.value.removeprefix("r#"),), inline))
+            i += 3
+            continue
+        i += 1
+    return out
+
+
+def rust_shown(ref: RustRef) -> str:
+    if ref.kind == "bad":
+        return f"{ref.path[0]} declaration that cannot be read"
+    if ref.kind == "mod":
+        return f"mod {ref.path[0]}"
+    if ref.path[0] == "::":
+        return "use ::" + "::".join(ref.path[1:])
+    return "use " + "::".join(ref.path)
+
+
+def cargo_dir(repo: Repo, here: str) -> str | None:
+    if here not in repo.cargo_dirs:
+        path = posixpath.join(here, "Cargo.toml") if here else "Cargo.toml"
+        if repo.is_file(path):
+            repo.cargo_dirs[here] = here
+        else:
+            repo.cargo_dirs[here] = cargo_dir(repo, posixpath.dirname(here)) if here else None
+    return repo.cargo_dirs[here]
+
+
+def cargo_manifest(repo: Repo, cargo: str) -> dict | None:
+    if cargo not in repo.manifests:
+        repo.manifests[cargo] = read_manifest(repo, cargo)
+    return repo.manifests[cargo]
+
+
+def read_manifest(repo: Repo, cargo: str) -> dict | None:
+    text = read_small(repo, posixpath.join(cargo, "Cargo.toml") if cargo else "Cargo.toml")
+    try:
+        data = tomllib.loads(text) if text is not None else None
+    except tomllib.TOMLDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    package, lib = data.get("package"), data.get("lib")
+    package = package if isinstance(package, dict) else None
+    lib = lib if isinstance(lib, dict) else {}
+    deps = {}
+    for table in RUST_DEPENDENCIES:
+        entries = data.get(table)
+        for key, value in (entries.items() if isinstance(entries, dict) else ()):
+            if isinstance(value, dict) and isinstance(value.get("path"), str):
+                d = clean(posixpath.join(cargo, value["path"]))
+                if d is not None:
+                    deps[key.replace("-", "_")] = d
+    roots, auto = set(), {}
+    for kind, (table, flag) in RUST_TARGETS.items():
+        auto[kind] = (package or {}).get(flag) is not False
+        targets = data.get(table)
+        for target in targets if isinstance(targets, list) else ():
+            path = clean(posixpath.join(cargo, target["path"])) if isinstance(target, dict) and isinstance(target.get("path"), str) else None
+            if path is not None:
+                roots.add(path)
+    return {"package": package is not None, "name": text_value((package or {}).get("name")),
+            "lib_name": text_value(lib.get("name")), "lib_path": text_value(lib.get("path")), "deps": deps,
+            "roots": roots, "auto": auto}
+
+
+def text_value(value) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def lib_file(repo: Repo, cargo: str, manifest: dict) -> str | None:
+    path = clean(posixpath.join(cargo, manifest["lib_path"] or "src/lib.rs"))
+    return path if path is not None and repo.is_file(path) else None
+
+
+def repo_crates(repo: Repo) -> dict[str, str]:
+    if repo.crates is None:
+        found: dict[str, str] = {}
+        seen = 0
+        for dirpath, dirnames, filenames in os.walk(repo.root):
+            dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d not in RUST_SKIPPED_DIRS)
+            if "Cargo.toml" in filenames:
+                rel = Path(dirpath).relative_to(repo.root).as_posix()
+                manifest = cargo_manifest(repo, "" if rel == "." else rel)
+                for name in (manifest["name"], manifest["lib_name"]) if manifest else ():
+                    if name:
+                        found.setdefault(name.replace("-", "_"), "" if rel == "." else rel)
+            seen += len(filenames)
+            if seen > MAX_WALK:
+                break
+        repo.crates = found
+    return repo.crates
+
+
+def declared_root(manifest: dict, rel: str, top: str) -> tuple[str, str] | None:
+    here = posixpath.dirname(rel)
+    while here == top or here.startswith(top + "/") or not top:
+        found = sorted(r for r in manifest["roots"] if posixpath.dirname(r) == here)
+        if found:
+            return here, found[0]
+        if here == top or not here:
+            return None
+        here = posixpath.dirname(here)
+    return None
+
+
+def target_root(repo: Repo, manifest: dict, kind: str, d: str, rest: list[str], rel: str) -> tuple[str, str | None]:
+    if manifest["auto"][kind]:
+        if len(rest) == 1:
+            return d, rel
+        main = f"{d}/{rest[0]}/main.rs"
+        if repo.is_file(main):
+            return f"{d}/{rest[0]}", main
+    return declared_root(manifest, rel, d) or (d, None)
+
+
+def crate_root(repo: Repo, cargo: str, manifest: dict, rel: str) -> tuple[str, str | None]:
+    lib = lib_file(repo, cargo, manifest)
+    parts = (rel[len(cargo) + 1:] if cargo else rel).split("/")
+    base = lambda *p: "/".join(x for x in (cargo, *p) if x)
+    if rel == lib or rel in manifest["roots"]:
+        return posixpath.dirname(rel), rel
+    if parts[0] == "src" and len(parts) == 2 and parts[1] in ("main.rs", "lib.rs"):
+        return base("src"), rel
+    if parts[0] == "src" and len(parts) > 2 and parts[1] == "bin":
+        return target_root(repo, manifest, "src/bin", base("src", "bin"), parts[2:], rel)
+    if parts[0] in RUST_KINDS and len(parts) > 1:
+        return target_root(repo, manifest, parts[0], base(parts[0]), parts[1:], rel)
+    if lib and (not posixpath.dirname(lib) or rel.startswith(posixpath.dirname(lib) + "/")):
+        return posixpath.dirname(lib), lib
+    if parts[0] == "src" and len(parts) > 1:
+        main = base("src", "main.rs")
+        return base("src"), main if repo.is_file(main) else None
+    return declared_root(manifest, rel, cargo) or (posixpath.dirname(rel), rel)
+
+
+def module_of(d: str, root: str | None, rel: str) -> list[str]:
+    if rel == root:
+        return []
+    parts = (rel[len(d) + 1:] if d else rel)[:-3].split("/")
+    return parts[:-1] if parts[-1] == "mod" else parts
+
+
+def rust_place(repo: Repo, rel: str) -> dict | str:
+    cargo = cargo_dir(repo, posixpath.dirname(rel))
+    if cargo is None:
+        return "no Cargo.toml lies above the file, so its crate root is not known"
+    manifest = cargo_manifest(repo, cargo)
+    where = posixpath.join(cargo, "Cargo.toml") if cargo else "Cargo.toml"
+    if manifest is None:
+        return f"{where} cannot be read as TOML, so the crate root of the file is not known"
+    if not manifest["package"]:
+        return f"{where} has no [package], so the crate root of the file is not known"
+    d, root = crate_root(repo, cargo, manifest, rel)
+    return {"dir": d, "root": root, "module": module_of(d, root, rel), "manifest": manifest}
+
+
+def rust_crates(repo: Repo, place: dict | str) -> dict[str, str]:
+    crates = dict(repo_crates(repo))
+    if isinstance(place, dict):
+        for name, d in place["manifest"]["deps"].items():
+            if repo.is_file(posixpath.join(d, "Cargo.toml") if d else "Cargo.toml"):
+                crates[name] = d
+    return crates
+
+
+def rust_module(repo: Repo, d: str, root: str | None, path: list[str]) -> str | None:
+    if not path:
+        return root if root and repo.is_file(root) else None
+    base = "/".join(p for p in (d, *path) if p)
+    return next((c for c in (base + ".rs", base + "/mod.rs") if repo.is_file(c)), None)
+
+
+def module_dir(hit: str, root: str | None) -> tuple[str, ...]:
+    return () if hit == root or hit.endswith("/mod.rs") else (hit[:-3] + "/",)
+
+
+def in_crate(repo: Repo, d: str, root: str | None, path: list[str], shown: str) -> tuple[str, str | None, str, tuple[str, ...]]:
+    for k in range(len(path), -1, -1):
+        hit = rust_module(repo, d, root, path[:k])
+        if hit:
+            return REPOSITORY, hit, "", module_dir(hit, root)
+    return UNRESOLVED, None, f"{shown} names no module file in the crate at {d or '.'}", ()
+
+
+def other_crate(repo: Repo, cargo: str, path: list[str], name: str, shown: str) -> tuple[str, str | None, str, tuple[str, ...]]:
+    manifest = cargo_manifest(repo, cargo)
+    lib = lib_file(repo, cargo, manifest) if manifest else None
+    if lib is None:
+        return UNRESOLVED, None, f"{name} is the crate at {cargo or '.'} in the repository, but it has no library root that can be read", ()
+    return in_crate(repo, posixpath.dirname(lib), lib, path, shown)
+
+
+def mod_target(repo: Repo, rel: str, place: dict, ref: RustRef) -> tuple[str, str | None, str, tuple[str, ...]]:
+    name = ref.path[0]
+    if ref.attr is not None:
+        if ref.inline:
+            return UNRESOLVED, None, f"mod {name} has a path attribute inside an inline module, which is not read", ()
+        target = clean(posixpath.join(posixpath.dirname(rel), ref.attr.value)) if ref.attr.value is not None else None
+        if target is not None and repo.is_file(target):
+            return REPOSITORY, target, "", ()
+        return UNRESOLVED, None, f"the path attribute of mod {name} names no file in the repository", ()
+    path = [*place["module"], *ref.inline, name]
+    hit = rust_module(repo, place["dir"], place["root"], path)
+    if hit:
+        return REPOSITORY, hit, "", module_dir(hit, place["root"])
+    base = "/".join(p for p in (place["dir"], *path) if p)
+    return UNRESOLVED, None, f"mod {name} names no file: neither {base}.rs nor {base}/mod.rs is in the repository", ()
+
+
+def rust_target(repo: Repo, rel: str, place: dict | str, crates: dict[str, str], ref: RustRef) -> tuple[str, str | None, str, tuple[str, ...]]:
+    shown = rust_shown(ref)
+    if ref.kind == "bad":
+        return UNRESOLVED, None, f"the {ref.path[0]} declaration cannot be read: its tree is malformed or names a macro variable", ()
+    segs = list(ref.path)
+    first = segs[0]
+    local = first in ("crate", "self", "super") or ref.kind == "mod"
+    if local and isinstance(place, str):
+        return UNRESOLVED, None, place, ()
+    if ref.kind == "mod":
+        return mod_target(repo, rel, place, ref)
+    if first == "::":
+        if len(segs) > 1 and segs[1] in crates:
+            return other_crate(repo, crates[segs[1]], segs[2:], segs[1], shown)
+        return EXTERNAL, None, "", ()
+    current = [*place["module"], *ref.inline] if isinstance(place, dict) else []
+    if first == "crate":
+        return in_crate(repo, place["dir"], place["root"], segs[1:], shown)
+    if first == "self":
+        return in_crate(repo, place["dir"], place["root"], current + segs[1:], shown)
+    if first == "super":
+        ups = next((k for k, s in enumerate(segs) if s != "super"), len(segs))
+        if ups > len(current):
+            return UNRESOLVED, None, f"{shown} goes above the crate root", ()
+        return in_crate(repo, place["dir"], place["root"], current[:len(current) - ups] + segs[ups:], shown)
+    if isinstance(place, dict) and rust_module(repo, place["dir"], place["root"], current + [first]):
+        return in_crate(repo, place["dir"], place["root"], current + segs, shown)
+    if first in crates:
+        return other_crate(repo, crates[first], segs[1:], first, shown)
+    return EXTERNAL, None, "", ()
+
+
+def rust_sweep(repo: Repo, rel: str, text: str, place: dict | str, crates: dict[str, str], seen: set[tuple[int, str]]) -> list[Import]:
+    heads = ["crate", "self", "super", r"\$crate", *(re.escape(n) for n in sorted(crates))]
+    pattern = re.compile(r"\b(?:use\s+(?:::\s*)?(?:%s)\s*::|mod\s+(?:r#)?[A-Za-z_]\w*\s*;)" % "|".join(heads))
+    lines = {line for line, _ in seen}
+    out = []
+    for m in pattern.finditer(text):
+        line = text.count("\n", 0, m.start()) + 1
+        end = text.find(";", m.end() - 1, m.start() + MAX_SNIPPET)
+        snippet = text[m.start():end + 1 if end >= 0 else m.start() + MAX_SNIPPET]
+        refs = [r for r in rust_refs(lexed(rust_lex, snippet)[0]) if r.line == 1 and r.kind != "bad"]
+        if not refs and line not in lines:
+            out.append(Import(line, snippet.splitlines()[0].strip(), UNRESOLVED, None, DISAGREE))
+        for ref in refs:
+            shown = rust_shown(ref)
+            if (line, shown) in seen:
+                continue
+            resolution, target, _, also = rust_target(repo, rel, place, crates, ref)
+            if resolution != EXTERNAL:
+                out.append(Import(line, shown, UNRESOLVED, target, DISAGREE, also))
+    return out
+
+
+def rust_imports(repo: Repo, rel: str, text: str) -> list[Import]:
+    toks, broken = lexed(rust_lex, text)
+    place = rust_place(repo, rel)
+    crates = rust_crates(repo, place)
+    out, seen = [], set()
+    for ref in rust_refs(toks):
+        shown = rust_shown(ref)
+        seen.add((ref.line, shown))
+        resolution, target, why, also = rust_target(repo, rel, place, crates, ref)
+        out.append(Import(ref.line, shown, resolution, target, why, also))
+    if broken:
+        out.append(Import(None, rel, UNRESOLVED, None, f"the file cannot be scanned to its end: {broken}"))
+    return out + rust_sweep(repo, rel, text, place, crates, seen)
+
+
+READERS = {"script": script_imports, "go": go_imports, "rust": rust_imports}
