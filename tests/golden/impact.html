@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impact: reports/export.py, storage/</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--line:#d1d9e0;--card:#f6f8fa;--bad:#b91c1c;--badbg:#fdecec;--accent:#1d4ed8}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--line:#3d444d;--card:#151b23;--bad:#f87171;--badbg:#2d1214;--accent:#7aa2ff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:60rem;margin:0 auto;padding:1rem}
+h1{font-size:1.4rem;overflow-wrap:anywhere}
+h2{font-size:1.1rem;margin-top:1.5rem;overflow-wrap:anywhere}
+code{font:0.9em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:0.2rem 0.8rem;margin:0.5rem 0}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
+ul.items{list-style:none;padding:0}
+.item{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:0.75rem;margin:0.75rem 0}
+.item.violated{border-color:var(--bad);background:var(--badbg)}
+.badge{font-size:0.8em;border:1px solid var(--line);border-radius:4px;padding:0 0.3rem;color:var(--muted)}
+.badge.bad{border-color:var(--bad);color:var(--bad);font-weight:600}
+.title{font-weight:600}
+.steps{padding-left:1.4rem}
+.rel{color:var(--accent);font-size:0.85em}
+.evidence,.none{color:var(--muted)}
+.chain{overflow-wrap:anywhere}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{border-top:1px solid var(--line);padding:0.3rem;text-align:left;vertical-align:top}
+tr.violated td{color:var(--bad);font-weight:600}
+a{color:var(--accent);overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);padding:0.5rem;overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Impact: reports/export.py, storage/</h1>
+<dl><dt>hops</dt><dd>3</dd><dt>repo</dt><dd>any</dd><dt>loaded</dt><dd>12 nodes, 6 edges</dd></dl>
+<section><h2><code>reports/export.py</code></h2><p>4 node(s), matched as <code>reports/export.py</code></p><ul class="items"><li class="item concept"><div class="head"><span class="badge">concept</span> <code>concept:demo-report-export</code></div><div class="title">Report export endpoint</div><dl><dt>hops</dt><dd>0</dd><dt>via</dt><dd><code>concept:demo-report-export</code></dd><dt>code_ref</dt><dd><code>reports/export.py</code> (exact)</dd></dl></li><li class="item concept"><div class="head"><span class="badge">concept</span> <code>concept:demo-report-service</code></div><div class="title">Report service</div><dl><dt>hops</dt><dd>0</dd><dt>via</dt><dd><code>concept:demo-report-service</code></dd><dt>code_ref</dt><dd><code>Demo:reports/</code> (encloses)</dd></dl></li><li class="item decision"><div class="head"><span class="badge">decision</span> <code>decision:demo-report-exports-finish-in-time</code></div><div class="title">Report exports finish within a time limit</div><dl><dt>hops</dt><dd>1</dd><dt>via</dt><dd><code>concept:demo-report-export</code></dd></dl><ol class="steps"><li><code>decision:demo-report-exports-finish-in-time</code> <span class="rel">ABOUT</span> <code>concept:demo-report-export</code><div class="evidence">the limit applies to this endpoint</div></li></ol></li><li class="item record"><div class="head"><span class="badge">record</span> <code>record:demo-report-export-timed-out</code></div><div class="title">A report export timed out</div><dl><dt>hops</dt><dd>1</dd><dt>via</dt><dd><code>concept:demo-report-export</code></dd></dl><ol class="steps"><li><code>record:demo-report-export-timed-out</code> <span class="rel">RELATED_TO</span> <code>concept:demo-report-export</code><div class="evidence">the timeout was in this endpoint</div></li></ol></li></ul></section>
+<section><h2><code>storage/</code></h2><p>5 node(s), matched as <code>storage</code></p><ul class="items"><li class="item concept"><div class="head"><span class="badge">concept</span> <code>concept:demo-other-repo-cache</code></div><div class="title">Cache in another repository</div><dl><dt>hops</dt><dd>0</dd><dt>via</dt><dd><code>concept:demo-other-repo-cache</code></dd><dt>code_ref</dt><dd><code>Other:storage/cache.py</code> (under)</dd></dl></li><li class="item concept"><div class="head"><span class="badge">concept</span> <code>concept:demo-page-size-check</code></div><div class="title">Page size check</div><dl><dt>hops</dt><dd>0</dd><dt>via</dt><dd><code>concept:demo-page-size-check</code></dd><dt>code_ref</dt><dd><code>storage/page_store.py:check_page_size</code> (under)</dd></dl></li><li class="item concept"><div class="head"><span class="badge">concept</span> <code>concept:demo-page-store</code></div><div class="title">Page store</div><dl><dt>hops</dt><dd>0</dd><dt>via</dt><dd><code>concept:demo-page-store</code></dd><dt>code_ref</dt><dd><code>Demo:storage/page_store.py</code> (under)</dd></dl></li><li class="item decision"><div class="head"><span class="badge">decision</span> <code>decision:demo-oversized-pages-are-refused</code></div><div class="title">Oversized pages are refused</div><dl><dt>hops</dt><dd>2</dd><dt>via</dt><dd><code>concept:demo-page-size-check</code></dd></dl><ol class="steps"><li><code>concept:demo-page-budget</code> <span class="rel">RELATED_TO</span> <code>concept:demo-page-size-check</code><div class="evidence">the check enforces the budget</div></li><li><code>decision:demo-oversized-pages-are-refused</code> <span class="rel">ABOUT</span> <code>concept:demo-page-budget</code><div class="evidence">the decision sets the budget</div></li></ol></li><li class="item record"><div class="head"><span class="badge">record</span> <code>record:demo-page-size-check-review</code></div><div class="title">Review of the page size check</div><dl><dt>hops</dt><dd>3</dd><dt>via</dt><dd><code>concept:demo-page-size-check</code></dd></dl><ol class="steps"><li><code>concept:demo-page-budget</code> <span class="rel">RELATED_TO</span> <code>concept:demo-page-size-check</code><div class="evidence">the check enforces the budget</div></li><li><code>decision:demo-oversized-pages-are-refused</code> <span class="rel">ABOUT</span> <code>concept:demo-page-budget</code><div class="evidence">the decision sets the budget</div></li><li><code>record:demo-page-size-check-review</code> <span class="rel">RELATED_TO</span> <code>decision:demo-oversized-pages-are-refused</code><div class="evidence">the review checked the decision</div></li></ol></li></ul></section>
+<details><summary>Mermaid source</summary><pre>```mermaid
+flowchart LR
+  n0[&quot;reports/export.py&quot;]
+  n1[&quot;concept:demo-report-export&lt;br/&gt;Report export endpoint&quot;]
+  n2[&quot;concept:demo-report-service&lt;br/&gt;Report service&quot;]
+  n3[&quot;decision:demo-report-exports-finish-in-time&lt;br/&gt;Report exports finish within a time limit&quot;]
+  n4[&quot;record:demo-report-export-timed-out&lt;br/&gt;A report export timed out&quot;]
+  n5[&quot;storage/&quot;]
+  n6[&quot;concept:demo-other-repo-cache&lt;br/&gt;Cache in another repository&quot;]
+  n7[&quot;concept:demo-page-size-check&lt;br/&gt;Page size check&quot;]
+  n8[&quot;concept:demo-page-store&lt;br/&gt;Page store&quot;]
+  n9[&quot;decision:demo-oversized-pages-are-refused&lt;br/&gt;Oversized pages are refused&quot;]
+  n10[&quot;concept:demo-page-budget&quot;]
+  n11[&quot;record:demo-page-size-check-review&lt;br/&gt;Review of the page size check&quot;]
+  n1 --&gt;|&quot;code_ref exact&quot;| n0
+  n2 --&gt;|&quot;code_ref encloses&quot;| n0
+  n3 --&gt;|&quot;ABOUT&quot;| n1
+  n4 --&gt;|&quot;RELATED_TO&quot;| n1
+  n6 --&gt;|&quot;code_ref under&quot;| n5
+  n7 --&gt;|&quot;code_ref under&quot;| n5
+  n8 --&gt;|&quot;code_ref under&quot;| n5
+  n10 --&gt;|&quot;RELATED_TO&quot;| n7
+  n9 --&gt;|&quot;ABOUT&quot;| n10
+  n11 --&gt;|&quot;RELATED_TO&quot;| n9
+  classDef code fill:#f3f4f6,stroke:#4b5563,color:#111827
+  classDef concept fill:#ecfdf5,stroke:#047857,color:#032b1f
+  classDef decision fill:#dbeafe,stroke:#1d4ed8,color:#0b1b3f
+  classDef record fill:#fef3c7,stroke:#b45309,color:#3b2603
+  class n0,n5 code
+  class n1,n2,n6,n7,n8,n10 concept
+  class n3,n9 decision
+  class n4,n11 record
+```
+</pre></details>
+</main>
+</body>
+</html>

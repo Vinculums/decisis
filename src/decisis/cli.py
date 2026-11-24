@@ -10,12 +10,14 @@ from . import compare
 from . import demo
 from . import external
 from . import impact
+from . import render
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
 from .sandbox import sandbox
 
 MAX_LIMIT = 100
+VIEWS = {"mermaid": render.mermaid, "html": render.html}
 
 
 def bounded(lo: int, hi: int):
@@ -43,18 +45,20 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("target")
     p.add_argument("--hops", type=bounded(1, impact.MAX_HOPS), default=4, help=f"longest path to look for (1 to {impact.MAX_HOPS})")
     p.add_argument("--limit", type=bounded(1, MAX_LIMIT), default=10, help=f"most paths to return (1 to {MAX_LIMIT})")
+    p.add_argument("--format", choices=["json", *VIEWS], default="json")
     im = sub.add_parser("impact", help="list the decisions, records and concepts that govern one or more code paths")
     im.add_argument("snapshot")
     im.add_argument("code_paths", nargs="+", metavar="code_path", help="a file or directory, for example reports/export.py or storage/")
     im.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
     im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
-    im.add_argument("--format", choices=["json", "text"], default="json")
+    im.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
     au = sub.add_parser("audit", help="join a Vinc snapshot, an npm lockfile and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
     au.add_argument("lockfile")
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=int, default=8)
-    au.add_argument("--out")
+    au.add_argument("--out", help="write the JSON report here; with --format mermaid or html the view still goes to stdout")
+    au.add_argument("--format", choices=["json", *VIEWS], default="json")
     au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
     pr = sub.add_parser("propose", help="turn an audit report into the exact write set the owner approves")
     pr.add_argument("report")
@@ -116,6 +120,8 @@ def run(a: argparse.Namespace) -> int:
         report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo)
         if a.format == "text":
             print(impact.render(report))
+        elif a.format in VIEWS:
+            sys.stdout.write(VIEWS[a.format]("impact", report))
         else:
             json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
             sys.stdout.write("\n")
@@ -127,7 +133,11 @@ def run(a: argparse.Namespace) -> int:
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth,
                            advisories=advisories)
         text = json.dumps(report, ensure_ascii=False, indent=1)
-        if a.out:
+        if a.format in VIEWS:
+            if a.out:
+                Path(a.out).write_text(text + "\n", encoding="utf-8")
+            sys.stdout.write(VIEWS[a.format]("audit", report))
+        elif a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
             print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"], "out": a.out}))
         else:
@@ -142,7 +152,11 @@ def run(a: argparse.Namespace) -> int:
     with sandbox() as box:
         counts = box.load(graph)
         rows = box.query(query("paths_between", hops=a.hops, limit=a.limit), {"source": a.source, "target": a.target})
-    json.dump({"loaded": counts, "paths": rows}, sys.stdout, ensure_ascii=False, indent=1)
+    report = {"loaded": counts, "paths": rows}
+    if a.format in VIEWS:
+        sys.stdout.write(VIEWS[a.format]("paths", render.annotate_paths(report, graph, a.source, a.target)))
+        return 0
+    json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
     sys.stdout.write("\n")
     return 0
 
