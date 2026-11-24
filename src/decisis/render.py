@@ -141,6 +141,18 @@ def violated(finding: dict) -> bool:
     return any(p.get("verdict") == "violated" for p in finding.get("policies", []))
 
 
+def target(finding: dict) -> str:
+    return finding.get("advisory") or finding["package"]
+
+
+def detail(finding: dict) -> str:
+    if finding.get("kind") == "license":
+        return f"license {finding.get('license_expression') or 'unknown'}"
+    if finding.get("kind") == "package":
+        return "denied package"
+    return finding.get("severity") or ""
+
+
 def audit_graph(report: dict) -> Graph:
     g = Graph()
     repo = (report.get("meta") or {}).get("repo")
@@ -156,12 +168,13 @@ def audit_graph(report: dict) -> Graph:
         path = f.get("path", [])
         for nid in path[:-1]:
             g.node(nid, (nid,), "package" if nid.startswith("pkg:") else "repository")
-        g.node(f["advisory"], label(f["advisory"], f.get("severity") or ""), "violated" if bad else "advisory", replace=bad)
+        end = target(f)
+        g.node(end, label(end, detail(f)), "violated" if bad else "advisory" if "advisory" in f else "package", replace=bad)
         for a, b in zip(path, path[1:]):
-            g.edge(a, "AFFECTED_BY" if b == f["advisory"] else "DEPENDS_ON", b, bad)
+            g.edge(a, "AFFECTED_BY" if b == f.get("advisory") else "DEPENDS_ON", b, bad)
         for p in f.get("policies", []):
             if p.get("verdict") == "violated":
-                g.edge(f["advisory"], "violates", p["decision"], True)
+                g.edge(end, "violates", p["decision"], True)
     return g
 
 
@@ -249,17 +262,48 @@ def paths_sections(report: dict) -> list[str]:
     return out
 
 
+def finding_rows(f: dict) -> list[tuple[str, str]]:
+    tail = [("status", esc(f.get("status"))), ("dev only", esc("yes" if f.get("dev_only") else "no"))]
+    if f.get("kind") == "license":
+        return [("license", esc(f.get("license_expression") or "none given"))] + tail + [
+            ("source", esc(f.get("source_system"))), ("fetched at", esc(f.get("fetched_at")))]
+    if f.get("kind") == "package":
+        return [("package", esc(f"{f.get('ecosystem')}:{f.get('name')} {f.get('version')}"))] + tail + [
+            ("source", esc(f.get("source_system"))), ("fetched at", esc(f.get("fetched_at")))]
+    severity = [("severity", esc(f.get("severity")))]
+    if f.get("severity_source"):
+        severity.append(("severity from", esc(f["severity_source"])))
+    return severity + tail + [("source", source_link(f.get("source_url"))), ("fetched at", esc(f.get("fetched_at"))),
+                              ("content hash", code(f.get("content_hash")))]
+
+
+def policy_table(policies: list[dict]) -> str:
+    if not policies:
+        return ""
+    named = any("rule" in p for p in policies)
+    rule = lambda p: f'<td>{code(p.get("rule")) if p.get("rule") else ""}</td>' if named else ""
+    rows = "".join(f'<tr class="{esc(p.get("verdict"))}"><td>{code(p.get("decision"))}</td>{rule(p)}<td>{esc(p.get("verdict"))}</td>'
+                   f'<td>{esc(p.get("why"))}</td></tr>' for p in policies)
+    head = "<tr><th>decision</th>" + ("<th>rule</th>" if named else "") + "<th>verdict</th><th>why</th></tr>"
+    return f'<div class="scroll"><table>{head}{rows}</table></div>'
+
+
+def finding_title(f: dict) -> str:
+    if f.get("kind") == "license":
+        return f"{f['package']} is licensed {f.get('license_expression') or 'with no license the inventory gives'}"
+    if f.get("kind") == "package":
+        return f"{f['package']} is a package a decision denies"
+    return f.get("advisory_summary") or ""
+
+
 def finding_html(f: dict) -> str:
-    rows = [("severity", esc(f.get("severity"))), ("status", esc(f.get("status"))), ("dev only", esc("yes" if f.get("dev_only") else "no")),
-            ("source", source_link(f.get("source_url"))), ("fetched at", esc(f.get("fetched_at"))), ("content hash", code(f.get("content_hash")))]
     chain = " <span class=\"rel\">to</span> ".join(code(n) for n in f.get("path", []))
-    policies = "".join(f'<tr class="{esc(p.get("verdict"))}"><td>{code(p.get("decision"))}</td><td>{esc(p.get("verdict"))}</td>'
-                       f'<td>{esc(p.get("why"))}</td></tr>' for p in f.get("policies", []))
-    table = f'<div class="scroll"><table><tr><th>decision</th><th>verdict</th><th>why</th></tr>{policies}</table></div>' if policies else ""
     bad = violated(f)
     mark = '<span class="badge bad">violates a decision</span> ' if bad else ""
-    return (f'<li class="item{" violated" if bad else ""}"><div class="head">{mark}{code(f["package"])} {code(f["advisory"])}</div>'
-            f'<div class="title">{esc(f.get("advisory_summary"))}</div>{dl(rows)}<p class="chain">{chain}</p>{table}</li>')
+    what = code(f["advisory"]) if "advisory" in f else esc(f"{f.get('kind')} rule")
+    return (f'<li class="item{" violated" if bad else ""}"><div class="head">{mark}{code(f["package"])} {what}</div>'
+            f'<div class="title">{esc(finding_title(f))}</div>{dl(finding_rows(f))}<p class="chain">{chain}</p>'
+            f'{policy_table(f.get("policies", []))}</li>')
 
 
 def audit_sections(report: dict) -> list[str]:
@@ -271,7 +315,11 @@ def audit_sections(report: dict) -> list[str]:
     gov = "".join(f"<li>{code(d['decision'])} {esc(d.get('title'))} via {code(d.get('via'))}</li>" for d in report.get("governing", []))
     items = "".join(finding_html(f) for f in report.get("findings", []))
     notes = "".join(f"<li>{esc(n)}</li>" for n in report.get("inventory_notes") or report.get("notes") or [])
-    return [dl(head), *([section("Notes", "<ul>" + notes + "</ul>")] if notes else []), section("Governing decisions", "<ul>" + gov + "</ul>" if gov else NONE),
+    problems = "".join(f"<li>{code(p['decision'])} {code(p.get('rule') or 'rule')}: {esc(p['problem'])}</li>"
+                       for p in report.get("rule_problems", []))
+    return [dl(head), *([section("Notes", "<ul>" + notes + "</ul>")] if notes else []),
+            section("Governing decisions", "<ul>" + gov + "</ul>" if gov else NONE),
+            *([section("Rules that cannot be checked", "<ul>" + problems + "</ul>")] if problems else []),
             section("Findings", '<ul class="items">' + items + "</ul>" if items else NONE)]
 
 

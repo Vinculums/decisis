@@ -87,6 +87,11 @@ back as an error result that names the argument; fix the argument rather than re
   machine-checkable `rule`, otherwise `relevant`. A development-only path does not violate a rule
   about shipped dependencies.
 - `source_url`, `fetched_at`, `content_hash`: the advisory evidence each record keeps.
+- A finding with `kind` `license` or `package` comes from a decision whose rule forbids licenses or
+  packages (`license_denied`, `license_allowed`, `package_denied`); its `path` ends at the package and
+  each policy names its `rule`. An unknown license is `unresolved`, never `violated`.
+- `rule_problems`: decisions whose rule cannot be read, with the reason. Report them; they are never
+  `violated`.
 
 When you report back, quote the path and the decision for each violation, and name the digest the
 person needs to approve.
