@@ -76,6 +76,12 @@ def main(argv: list[str] | None = None) -> int:
     cp.add_argument("--tasks", type=Path, help="the task file with expected findings (default: bench/tasks.json in this repository)")
     cp.add_argument("--out", type=Path, help="write the full results as JSON here")
     cp.add_argument("--table", type=Path, help="write the results table as Markdown here")
+    sv = sub.add_parser("serve", help="serve impact, paths and audit to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
+    sv.add_argument("--mcp", action="store_true", required=True, help="speak MCP over stdin and stdout")
+    sv.add_argument("--snapshot", type=Path, required=True, help="the JSON snapshot every tool call reads")
+    sv.add_argument("--osv-cache", type=Path, metavar="FILE", help="audit reads OSV advisories from this file and never from the network")
+    sv.add_argument("--allow-network", action="store_true", help="let audit ask api.osv.dev when there is no --osv-cache")
+    sv.add_argument("--root", type=Path, default=Path("."), help="audit reads lockfiles only under this directory (default: the current one)")
     a = ap.parse_args(argv)
     try:
         return run(a)
@@ -85,7 +91,19 @@ def main(argv: list[str] | None = None) -> int:
         ap.exit(1, f"{ap.prog}: error: {e}\n")
 
 
+def serve(a: argparse.Namespace) -> int:
+    try:
+        from . import serve as mcp_server
+    except ModuleNotFoundError as e:
+        if (e.name or "").split(".")[0] not in ("mcp", "jsonschema", "anyio"):
+            raise
+        raise ValueError("serve --mcp needs the mcp extra: pip install 'decisis[mcp]'") from None
+    return mcp_server.main(mcp_server.load_tools(a.snapshot, a.root, a.osv_cache, a.allow_network))
+
+
 def run(a: argparse.Namespace) -> int:
+    if a.cmd == "serve":
+        return serve(a)
     if a.cmd == "compare":
         root = demo.default_fixtures().parent
         result = compare.run(root, a.tasks or root / "bench" / "tasks.json")

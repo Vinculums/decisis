@@ -57,6 +57,14 @@ key comes from `VINC_API_KEY` and is not written to any file the tool produces.
 each advisory keeps its source URL and a SHA-256 of the record that was read, and each written record
 carries them. `--osv-cache` replays a saved set of advisories and refuses the network.
 
+**A read-only MCP server.** `decisis serve --mcp` lists only `impact`, `paths` and `audit`, and refuses
+any other tool name and any argument its schema does not list. Bounds are checked before a sandbox is
+built; a code path with `..`, an absolute path or another repository's prefix is refused. `audit` reads a
+lockfile only when its resolved path, after symlinks, lies under `--root`, and uses the network only with
+`--allow-network` and no `--osv-cache`. Each call builds and deletes its own sandbox.
+(`src/decisis/serve.py`; `test_a_write_shaped_request_is_refused_and_nothing_is_written`,
+`test_the_audit_reads_only_under_the_root_and_refuses_an_escaping_symlink`, `test_the_audit_uses_the_network_only_when_allowed`.)
+
 ## What it does not protect
 
 - **Erasure.** Deleting a file is not secure erasure. tmpfs can be swapped to disk, and where `/dev/shm`
@@ -66,6 +74,9 @@ carries them. `--osv-cache` replays a saved set of advisories and refuses the ne
   and leaves the directory behind; nothing cleans up stale `decisis-*` directories.
 - **The same user and root.** 0700 keeps out other users, not other processes of the same user or an
   administrator.
+- **A root that changes under the server.** `serve --mcp` resolves a lockfile path, checks it is under
+  `--root`, then reads it. A process that can write under `--root` can swap a file for a symlink between
+  the check and the read. Give the server a root that only you write to.
 - **Files you ask for.** The snapshot from `checkout`, the report from `audit --out` and the plan from
   `propose` are written where `--out` says, on whatever disk that is, and are never deleted by the tool.
   A snapshot of a private space is private data; keep it out of public repositories (the root

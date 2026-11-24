@@ -172,6 +172,39 @@ decisis itself calls no language model. The agent is the reasoner that chooses s
 queries and explains the paths; the tool gives it a graph it cannot write to, findings that carry their
 evidence, and a write path that needs a person's digest.
 
+### Serve it over MCP
+
+`decisis serve --mcp` gives an agent the same `impact`, `paths` and `audit` as MCP tools over stdio, on
+one snapshot fixed when the server starts. It needs the optional `mcp` extra; the base install keeps
+`relate-db` as its only dependency. For Claude Code:
+
+```
+pip install "decisis[mcp]"
+claude mcp add decisis -- decisis serve --mcp --snapshot snapshot.json --osv-cache osv-cache.json
+```
+
+`claude mcp add --scope project ...` writes the same entry to `.mcp.json` in the project, to share it
+with the team:
+
+```json
+{
+  "mcpServers": {
+    "decisis": {
+      "command": "decisis",
+      "args": ["serve", "--mcp", "--snapshot", "snapshot.json", "--osv-cache", "osv-cache.json"]
+    }
+  }
+}
+```
+
+Relative paths are read from the directory the server starts in; use absolute paths if you are not sure
+which one that is. The server has no tool that writes, proposes or commits. The tools take the same
+bounds as the commands (`hops` 0 to 6 for `impact`, 1 to 6 for `paths`, `limit` 1 to 100; `audit` takes
+`depth` 1 to 16), refuse a code path outside the repository, and build and delete a sandbox for each call.
+`audit` takes the lockfile path as an argument and reads it only under `--root` (default: the current
+directory), after following symlinks. It reads advisories from `--osv-cache`; without a cache it asks
+api.osv.dev only when the server was started with `--allow-network`, and otherwise returns an error.
+
 ## Connect Vinc (optional)
 
 ```

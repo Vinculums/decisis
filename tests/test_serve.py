@@ -1,0 +1,230 @@
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+
+import pytest
+
+from test_audit import no_network
+
+pytest.importorskip("mcp")
+pytest.importorskip("jsonschema")
+
+import anyio
+from mcp import Client, ClientSession, StdioServerParameters
+
+from decisis import cli, impact
+from decisis import sandbox as sb
+from decisis import serve
+
+ROOT = Path(__file__).resolve().parents[1]
+FIX = ROOT / "fixtures"
+AUDIT = FIX / "audit"
+IMPACT_SNAPSHOT = FIX / "impact" / "vinc.json"
+AUDIT_SNAPSHOT = AUDIT / "vinc.json"
+CACHE = AUDIT / "osv-cache.json"
+
+
+def tools(snapshot=AUDIT_SNAPSHOT, root=AUDIT, cache=CACHE, allow_network=False):
+    return serve.load_tools(snapshot, root, cache, allow_network)
+
+
+def over_mcp(t: serve.Tools, *calls):
+    async def drive():
+        async with Client(serve.build(t)) as client:
+            assert isinstance(client.session, ClientSession)
+            listed = await client.list_tools()
+            results = [await client.call_tool(name, args) for name, args in calls]
+            return listed, results
+    return anyio.run(drive)
+
+
+def text_of(result) -> str:
+    return "".join(c.text for c in result.content if c.type == "text")
+
+
+@pytest.fixture
+def boxes(monkeypatch, tmp_path):
+    root = tmp_path / "boxes"
+    root.mkdir()
+    made = []
+    real = sb.Sandbox.__init__
+
+    def init(self, r=None):
+        real(self, r)
+        made.append(self.dir)
+    monkeypatch.setattr(sb, "default_root", lambda: root)
+    monkeypatch.setattr(sb.Sandbox, "__init__", init)
+    return root, made
+
+
+def test_the_server_lists_only_the_three_read_only_tools_with_the_cli_bounds():
+    listed, _ = over_mcp(tools())
+    by = {t.name: t for t in listed.tools}
+    assert sorted(by) == ["audit", "impact", "paths"]
+    assert all(t.annotations.read_only_hint and not t.annotations.destructive_hint for t in listed.tools)
+    assert not by["audit"].annotations.open_world_hint
+    hops = by["impact"].input_schema["properties"]["hops"]
+    assert (hops["minimum"], hops["maximum"]) == (0, impact.MAX_HOPS)
+    p = by["paths"].input_schema["properties"]
+    assert (p["hops"]["minimum"], p["hops"]["maximum"], p["limit"]["maximum"]) == (1, impact.MAX_HOPS, cli.MAX_LIMIT)
+    assert all(t.input_schema["additionalProperties"] is False for t in listed.tools)
+
+
+def test_one_call_per_tool_gives_what_the_cli_gives(boxes, no_network, capsys):
+    root, made = boxes
+    _, (im, pa, au) = over_mcp(
+        tools(IMPACT_SNAPSHOT, ROOT),
+        ("impact", {"code_paths": ["reports/export.py"]}),
+        ("paths", {"source": "concept:demo-report-export", "target": "decision:demo-report-exports-finish-in-time", "hops": 2}),
+        ("audit", {"lockfile": "fixtures/audit/demo-lockfile.json", "repo": "Demo"}),
+    )
+    assert not (im.is_error or pa.is_error or au.is_error)
+    assert len(set(made)) == 3 and list(root.iterdir()) == []
+    assert [g["id"] for g in im.structured_content["impact"][0]["governing"]][:1] == ["concept:demo-report-export"]
+    assert json.loads(text_of(im)) == im.structured_content
+    assert pa.structured_content["paths"][0]["ids"] == ["concept:demo-report-export", "decision:demo-report-exports-finish-in-time"]
+    assert au.structured_content["loaded"]["nodes"] > 0
+    assert cli.main(["impact", str(IMPACT_SNAPSHOT), "reports/export.py"]) == 0
+    assert json.loads(capsys.readouterr().out) == im.structured_content
+
+
+def test_the_audit_over_mcp_matches_the_cli_audit(no_network, capsys):
+    _, (au,) = over_mcp(tools(), ("audit", {"lockfile": "demo-lockfile.json", "repo": "Demo"}))
+    assert cli.main(["audit", str(AUDIT_SNAPSHOT), str(AUDIT / "demo-lockfile.json"), "--repo", "Demo", "--osv-cache", str(CACHE)]) == 0
+    shown = json.loads(capsys.readouterr().out)
+    got = au.structured_content
+    assert (got["summary"], got["violations"]) == (shown["summary"], shown["violations"]) and got["violations"] > 0
+
+
+def test_a_write_shaped_request_is_refused_and_nothing_is_written(boxes, no_network, tmp_path):
+    root, made = boxes
+    _, results = over_mcp(
+        tools(root=tmp_path),
+        ("commit", {"plan": "plan.json", "approve": "d761d1c8a44d62e2"}),
+        ("propose", {"report": "report.json", "repo": "Demo", "space": "s", "out": "plan.json"}),
+        ("impact", {"code_paths": ["a.py"], "out": "report.json"}),
+    )
+    assert all(r.is_error for r in results)
+    assert "'commit' is not a decisis tool; this server is read only" in text_of(results[0])
+    assert "'propose' is not a decisis tool" in text_of(results[1])
+    assert "Additional properties are not allowed" in text_of(results[2])
+    assert made == [] and list(tmp_path.iterdir()) == [root]
+
+
+@pytest.mark.parametrize("name,args,said", [
+    ("impact", {"code_paths": ["../secrets.py"]}, "leaves the snapshot's repository"),
+    ("impact", {"code_paths": ["reports/../../etc"]}, "leaves the snapshot's repository"),
+    ("impact", {"code_paths": ["/etc/passwd"]}, "is not a path inside the snapshot's repository"),
+    ("impact", {"code_paths": ["Other:reports/export.py"], "repo": "Demo"}, "names another repository"),
+    ("impact", {"code_paths": ["reports"], "hops": impact.MAX_HOPS + 1}, "hops"),
+    ("impact", {"code_paths": []}, "code_paths"),
+    ("impact", {"code_paths": "reports"}, "code_paths"),
+    ("impact", {}, "'code_paths' is a required property"),
+    ("paths", {"source": "a", "target": "b", "hops": 0}, "hops"),
+    ("paths", {"source": "a", "target": "b", "limit": cli.MAX_LIMIT + 1}, "limit"),
+    ("paths", {"source": "a" * (serve.MAX_TEXT + 1), "target": "b"}, "source"),
+    ("audit", {"lockfile": "demo-lockfile.json", "repo": "Demo", "depth": serve.MAX_DEPTH + 1}, "depth"),
+])
+def test_bad_input_is_an_error_result_not_a_crash(name, args, said, boxes):
+    root, made = boxes
+    _, (bad, good) = over_mcp(tools(), (name, args), ("paths", {"source": "concept:demo-app", "target": "concept:demo-app"}))
+    assert bad.is_error and said in text_of(bad)
+    assert not good.is_error and list(root.iterdir()) == []
+
+
+def test_the_audit_reads_only_under_the_root_and_refuses_an_escaping_symlink(tmp_path, no_network):
+    root = tmp_path / "repo"
+    root.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text((AUDIT / "demo-lockfile.json").read_text(encoding="utf-8"), encoding="utf-8")
+    (root / "package-lock.json").symlink_to(outside)
+    (root / "inside.json").write_text(outside.read_text(encoding="utf-8"), encoding="utf-8")
+    (root / "nested").mkdir()
+    (root / "nested" / "lock.json").symlink_to(root / "inside.json")
+    calls = [("audit", {"lockfile": f, "repo": "Demo"}) for f in
+             ["package-lock.json", str(outside), "../outside.json", "missing.json", "nested", "nested/lock.json", str(root / "inside.json"),
+              str(tmp_path / "nothing-here.json")]]
+    _, results = over_mcp(tools(root=root), *calls)
+    said = [text_of(r) for r in results]
+    assert [r.is_error for r in results] == [True, True, True, True, True, False, False, True]
+    assert "outside the server's root" in said[0] and "outside the server's root" in said[1] and "outside the server's root" in said[2]
+    assert "does not exist" in said[3] and "is not a file" in said[4]
+    assert "outside the server's root" in said[7]
+
+
+def test_the_audit_uses_the_network_only_when_allowed(monkeypatch, no_network):
+    asked = []
+    real = serve.external.fetch_advisories
+
+    def fetch(pkgs, opener=None, **kw):
+        if opener is None:
+            asked.append(len(pkgs))
+            return [], []
+        return real(pkgs, opener=opener, **kw)
+    monkeypatch.setattr(serve.external, "fetch_advisories", fetch)
+    _, (closed,) = over_mcp(tools(cache=None), ("audit", {"lockfile": "demo-lockfile.json", "repo": "Demo"}))
+    assert closed.is_error and "--allow-network" in text_of(closed) and asked == []
+    listed, (opened,) = over_mcp(tools(cache=None, allow_network=True), ("audit", {"lockfile": "demo-lockfile.json", "repo": "Demo"}))
+    assert not opened.is_error and asked and {t.name: t for t in listed.tools}["audit"].annotations.open_world_hint
+    asked.clear()
+    _, (cached,) = over_mcp(tools(allow_network=True), ("audit", {"lockfile": "demo-lockfile.json", "repo": "Demo"}))
+    assert not cached.is_error and asked == []
+
+
+def test_a_cache_miss_is_an_error_result(tmp_path, no_network):
+    cache = json.loads(CACHE.read_text(encoding="utf-8"))
+    del cache["queries"]["pkg:npm/minimist@1.2.8"]
+    partial = tmp_path / "partial.json"
+    partial.write_text(json.dumps(cache), encoding="utf-8")
+    _, (r,) = over_mcp(tools(cache=partial), ("audit", {"lockfile": "demo-lockfile.json", "repo": "Demo"}))
+    assert r.is_error and "pkg:npm/minimist@1.2.8 is not in the OSV cache" in text_of(r)
+
+
+def test_the_cli_serves_over_stdio(no_network):
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+    params = StdioServerParameters(command=sys.executable, args=["-m", "decisis.cli", "serve", "--mcp", "--snapshot", str(IMPACT_SNAPSHOT)],
+                                   env=env, cwd=str(ROOT))
+
+    async def drive():
+        with anyio.fail_after(60):
+            async with Client(params) as client:
+                names = sorted(t.name for t in (await client.list_tools()).tools)
+                result = await client.call_tool("impact", {"code_paths": ["reports/export.py"], "hops": 1})
+                return names, result
+    names, result = anyio.run(drive)
+    assert names == ["audit", "impact", "paths"]
+    assert not result.is_error and result.structured_content["hops"] == 1
+
+
+def test_the_base_install_has_one_dependency_and_does_not_import_mcp():
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert project["dependencies"] == ["relate-db==1.0.2"]
+    assert any(re.match(r"mcp>=2\.\d+,<3$", d) for d in project["optional-dependencies"]["mcp"])
+    code = "import sys, decisis.cli; print(sorted(m for m in ('mcp', 'jsonschema') if m in sys.modules))"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, env={**os.environ, "PYTHONPATH": str(ROOT / "src")})
+    assert out.stdout.strip() == "[]"
+
+
+def test_serve_without_the_extra_says_how_to_install_it(monkeypatch, capsys):
+    monkeypatch.delitem(sys.modules, "decisis.serve")
+    monkeypatch.delattr(sys.modules["decisis"], "serve")
+    monkeypatch.setitem(sys.modules, "mcp", None)
+    with pytest.raises(SystemExit) as e:
+        cli.main(["serve", "--mcp", "--snapshot", str(IMPACT_SNAPSHOT)])
+    assert e.value.code == 2 and "pip install 'decisis[mcp]'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("doc", ["README.md", "skills/decisis/SKILL.md"])
+def test_the_docs_show_the_claude_code_configuration(doc):
+    text = (ROOT / doc).read_text(encoding="utf-8")
+    assert "pip install \"decisis[mcp]\"" in text
+    assert "claude mcp add decisis -- decisis serve --mcp --snapshot " in text
+    block = next(b for b in re.findall(r"```json\n(.*?)```", text, re.S) if "mcpServers" in b)
+    server = json.loads(block)["mcpServers"]["decisis"]
+    assert server["command"] == "decisis" and server["args"][:2] == ["serve", "--mcp"] and "--snapshot" in server["args"]
