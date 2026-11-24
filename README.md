@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Vinculums/decisis/main/docs/media/logo.png" alt="decisis logo" width="240">
+</p>
+
 # decisis
 
 **Check work against the decisions your team already made, in a throwaway graph, offline.**

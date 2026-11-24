@@ -31,7 +31,11 @@ def social(out: Path):
     im = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(im)
     x0 = 72
-    d.text((x0, 64), "decisis", font=font(SANS_BOLD, 88), fill=TEXT)
+    mark = Image.open(out.parent / "logo-mark.png").convert("RGBA")
+    mh = 100
+    mark = mark.resize((round(mark.width * mh / mark.height), mh), Image.Resampling.LANCZOS)
+    im.paste(mark, (x0 - 6, 58), mark)
+    d.text((x0 + mark.width + 18, 58 + mh // 2), "decisis", font=font(SANS_BOLD, 88), fill=TEXT, anchor="lm")
     d.text((x0, 176), "Stand by what was decided.", font=font(SANS_BOLD, 34), fill=VINC)
     sub = font(SANS, 24)
     d.text((x0, 230), "Join a team's decisions with code and outside facts in a throwaway graph,", font=sub, fill=MUTED)
