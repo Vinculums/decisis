@@ -171,12 +171,12 @@ def test_reviews_past_the_cap_are_not_counted_and_the_comment_says_so(tmp_path, 
     reviews = [{"user": {"login": "ana"}, "state": "COMMENTED"}, {"user": {"login": "bob"}, "state": "COMMENTED"},
                {"user": {"login": "alice"}, "state": "APPROVED"}]
     approved, note = action.approvals(gh.Client(TOKEN, FakeGitHub(reviews)), pull())
-    assert approved == [] and "Only the first 2 reviews were read" in note
+    assert approved == [] and "more than 2 reviews" in note and "counts no approval" in note
     root, base = shop(tmp_path)
     fake = FakeGitHub(reviews)
     assert action.main(environment(tmp_path, root, base), fake) == 0
     (_, _, data), = fake.writes()
-    assert "Only the first 2 reviews were read" in data["body"]
+    assert "counts no approval" in data["body"]
 
 
 def test_past_the_comment_cap_no_new_comment_is_posted_and_the_summary_says_so(tmp_path, monkeypatch, capsys, no_network):
@@ -336,3 +336,17 @@ def test_the_action_has_its_inputs_and_the_workflow_asks_for_the_least_permissio
     assert job["permissions"] == {"contents": "read", "pull-requests": "write"}
     assert list(flow[True]) == ["pull_request"]
     assert not any(s.get("with", {}).get("fail-on-violation") for s in job["steps"])
+
+
+def test_an_approval_withdrawn_after_a_flood_of_reviews_is_not_counted(tmp_path, monkeypatch, no_network):
+    monkeypatch.setattr(gh, "MAX_REVIEWS", 3)
+    reviews = ([{"user": {"login": "alice"}, "state": "APPROVED"}]
+               + [{"user": {"login": "mallory"}, "state": "COMMENTED"}] * 3
+               + [{"user": {"login": "alice"}, "state": "CHANGES_REQUESTED"}])
+    approved, note = action.approvals(gh.Client(TOKEN, FakeGitHub(reviews)), pull())
+    assert approved == [] and "counts no approval" in note
+    root, base = shop(tmp_path)
+    fake = FakeGitHub(reviews)
+    action.main(environment(tmp_path, root, base), fake)
+    (_, _, data), = fake.writes()
+    assert "payments-need-a-payments-review" in data["body"]

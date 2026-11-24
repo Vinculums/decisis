@@ -258,9 +258,9 @@ def approvals(client: gh.Client, pull: Pull) -> tuple[list[str], str | None]:
     reviews, cut_note = [], None
     for review in client.pages(f"{gh.API}/repos/{pull.repo}/pulls/{pull.number}/reviews?per_page={gh.PER_PAGE}", gh.MAX_REVIEWS):
         if review is None:
-            cut_note = (f"Only the first {gh.MAX_REVIEWS:,} reviews were read; a later review is not counted, "
-                        "so a review rule may show a violation that a later approval would clear.")
-            break
+            cut_note = (f"The pull request has more than {gh.MAX_REVIEWS:,} reviews, so decisis did not read them all and counts "
+                        "no approval: a later review could withdraw one. A review rule shows a violation until a reviewer checks it.")
+            return [], cut_note
         reviews.append(review)
     return ["@" + who for who in gh.approvers(reviews, pull.author)], cut_note
 
