@@ -324,7 +324,7 @@ labels or type and properties; return ids and properties to keep the rows small.
 
 | Format | File | Development dependencies |
 |---|---|---|
-| npm lockfile v2 or v3 | `package-lock.json`, `npm-shrinkwrap.json` | `dev` in the lockfile |
+| npm lockfile v2 or v3 | `package-lock.json`, `npm-shrinkwrap.json` | reached only through `devDependencies` or entries the lockfile marks `dev`; the root's `optionalDependencies` and `peerDependencies` count as shipped |
 | CycloneDX JSON 1.4, 1.5, 1.6 | any name | a component with scope `excluded` or `cdx:npm:package:development` |
 | SPDX JSON 2.3 | any name | `DEV_DEPENDENCY_OF`, `TEST_DEPENDENCY_OF`, `BUILD_DEPENDENCY_OF`, `DEV_TOOL_OF` |
 | uv | `uv.lock` | dependency groups (`dev-dependencies`) |
@@ -345,6 +345,9 @@ line there. In a pnpm, Yarn or Bun monorepo each workspace package (a pnpm impor
 workspace) is a `Workspace` node between the repository and its dependencies, so a path reads
 `repo:<name> -> workspace:<name>:<path> -> pkg:npm/... -> pkg:npm/...`; the root package's dependencies hang
 from the repository. Peer and optional dependencies are edges with `(peer)` or `(optional)` in the evidence.
+For every format, a package is development when each route from the repository to it passes through a
+development dependency or a development package, whatever the inventory's own flag says; one route that
+passes through none makes it shipped.
 For `yarn.lock`, `audit` reads the root `package.json` and the `package.json` of each directory its
 `workspaces` globs match; without them the packages are linked straight from the repository. A binary
 `bun.lockb` is refused: run `bun install --save-text-lockfile` and audit the `bun.lock` it writes. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, Maven, GitHub Actions, and for
@@ -735,9 +738,10 @@ checks that the built wheel runs `demo` and `compare` outside the repository. Th
 takes minutes and runs only when asked: `DECISIS_SLOW=1 .venv/bin/python -m pytest -q -m slow`.
 
 `fixtures/` and `bench/` hold lockfiles with known advisories on purpose: they are what the tests and the
-benchmarks audit. GitHub's Dependabot alerts on those paths are expected, and they are dismissed as test
-fixtures by the repository's Dependabot auto-triage rule. A new fixture path that holds a lockfile or
-manifest belongs in that rule too, so that its alerts are dismissed the same way.
+benchmarks audit. GitHub's Dependabot alerts on those paths are expected, and they were dismissed as test
+fixtures. The owner may add a Dependabot auto-triage rule for those paths (Settings, Code security,
+Dependabot rules) so that alerts on new fixtures are dismissed automatically; until then, an alert on a
+new fixture is dismissed by hand.
 
 To approve the demo, as the person would:
 
