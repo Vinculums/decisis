@@ -228,10 +228,15 @@ atexit.register(_stop_shared)
 BOOT = "import pickle, sys; sys.path[:] = pickle.load(sys.stdin.buffer); from decisis.sandbox import _serve; _serve()"
 
 
+def _worker_path() -> list[str]:
+    root = str(Path(__file__).resolve().parents[1])
+    return [root, *(p for p in sys.path if p != root)]
+
+
 class _Worker:
     def __init__(self):
         self.proc = subprocess.Popen([sys.executable, "-I", "-c", BOOT], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        self._send(sys.path)
+        self._send(_worker_path())
 
     def _send(self, obj) -> None:
         pickle.dump(obj, self.proc.stdin)

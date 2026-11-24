@@ -738,9 +738,14 @@ included; a REF that starts with `-` is refused.
 ## MCP replies
 
 Every tool of `serve --mcp` takes `detail`. With `"full"` the reply is the report the command prints:
-the `impact`, `paths` or `audit` JSON above, or the query result. With `"summary"`, the default over MCP,
+the `impact`, `paths`, `check` or `audit` JSON above, or the query result. With `"summary"`, the default over MCP,
 the reply has `"detail": "summary"`, the counts, ids and titles of the report, at most 10 items of each
-list, and a `note` that says how to get the rest. A reply that would pass 1 MiB as the server sends it has
+list, and a `note` that says how to get the rest. The `check` summary keeps `summary`, `base` and
+`reviewers`, counts each list (`changed_count`, `governing_count`, `violations_count`, `unresolved_count`,
+`rules_count`, `rules_covering_a_change`, `imports_count`), and lists the first 10 violations and
+unjudged entries with `file`, `line`, `decision`, `rule`, `why` and `import`. When the snapshot file
+changed and failed to reload, the reply also has `reload_failed`: the reason, and that the reply comes
+from the snapshot loaded before. A reply that would pass 1 MiB as the server sends it has
 its longest list shortened from the end, and a `cut` entry names each list that was shortened. A refused
 argument comes back as an MCP error result that names it, not as a report.
 

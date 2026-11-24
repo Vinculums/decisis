@@ -47,7 +47,10 @@ def directory_resolver(base: Path, root: Path | None = None) -> Resolver:
     def resolve(name: str) -> str:
         if not name or absolute(name):
             raise ValueError(f"{name!r} is not a relative path")
-        real = (base / name).resolve()
+        try:
+            real = (base / name).resolve()
+        except RuntimeError:
+            raise ValueError(f"{name!r} is a symbolic link loop") from None
         if not real.is_relative_to(root):
             raise ValueError(f"{name!r} leads outside {root}")
         return str(real)

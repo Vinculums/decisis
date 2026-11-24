@@ -37,8 +37,8 @@ an unattended demo. The run writes `demo/transcript.json`, `demo/expected_findin
 
 ## As an MCP server
 
-With the `mcp` extra, the same `impact`, `paths`, `audit` and `query` are MCP tools over stdio, on one snapshot
-fixed when the server starts. For Claude Code:
+With the `mcp` extra, the same `impact`, `paths`, `audit`, `check` and `query` are MCP tools over stdio, on the
+snapshot file named when the server starts. For Claude Code:
 
 ```
 pip install "decisis[mcp]"
@@ -63,6 +63,17 @@ The tools are read only: there is no `propose` or `commit` tool, so the write pa
 command the person sees. `audit` takes a lockfile path under the server's `--root`; it uses the network
 only when the server was started with `--allow-network` and has no `--osv-cache`. A refused input comes
 back as an error result that names the argument; fix the argument rather than retrying the same call.
+
+Before you commit a change, call `check` to judge it against the snapshot's review and import rules:
+`{"base": "origin/main", "reviewers": ["@alice"]}`, or `{"changed": ["src/shop/ui/view.py"]}` with paths
+relative to the server's `--root`. It returns the same report as `decisis check` on that root. A `base` that
+starts with `-` or holds whitespace or a control character, and a changed path outside the root, are
+refused. Fix each violation, or say why it stands, before you commit; an `unresolved` entry is not a pass.
+
+The server reloads the snapshot file before a call when its mtime or size changed, rebuilds the schema in
+the `query` description and sends `notifications/tools/list_changed`; list the tools again when it does.
+If the new file fails to load, the reply comes from the previous snapshot and carries `reload_failed` with
+the reason: tell the person, and do not treat that answer as coming from the new snapshot.
 
 Each tool returns a summary by default: counts, ids, titles and the first 10 items of each list, with a
 note. Call it again with `"detail": "full"` only when you need every item or field, such as a finding's

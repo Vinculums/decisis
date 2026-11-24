@@ -194,7 +194,7 @@ teaches an agent when to use each tool. [MCP setup and the `query` rules](https:
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
 | `gc` | nothing | removes task directories that a killed run left behind, and prints them |
-| `serve --mcp --snapshot <file>` | the `mcp` extra; the network for api.osv.dev only with `--allow-network` | `impact`, `paths`, `audit` and `query` as read-only MCP tools over stdio ([MCP](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md)) |
+| `serve --mcp --snapshot <file>` | the `mcp` extra; the network for api.osv.dev only with `--allow-network` | `impact`, `paths`, `audit`, `check` and `query` as read-only MCP tools over stdio ([MCP](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md)) |
 
 [Flags, limits and the Mermaid and HTML views](https://github.com/Vinculums/decisis/blob/main/docs/commands.md).
 

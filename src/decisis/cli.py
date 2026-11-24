@@ -154,12 +154,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="a value for $KEY; VALUE is read as JSON when it parses (12, true, [1, 2]), else as text")
     for s in (p, im, ck, au, pr, qy):
         limit_flags(s)
-    sv = sub.add_parser("serve", help="serve impact, paths, audit and query to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
+    sv = sub.add_parser("serve", help="serve impact, paths, audit, check and query to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
     sv.add_argument("--mcp", action="store_true", required=True, help="speak MCP over stdin and stdout")
     sv.add_argument("--snapshot", type=Path, required=True, help="the JSON snapshot every tool call reads")
     sv.add_argument("--osv-cache", type=Path, metavar="FILE", help="audit reads OSV advisories from this file and never from the network")
     sv.add_argument("--allow-network", action="store_true", help="let audit ask api.osv.dev when there is no --osv-cache")
-    sv.add_argument("--root", type=Path, default=Path("."), help="audit reads lockfiles only under this directory (default: the current one)")
+    sv.add_argument("--root", type=Path, default=Path("."), help="audit reads lockfiles and check reads changed files and runs git diff only under this directory (default: the current one)")
     a = ap.parse_args(argv)
     try:
         return run(a)

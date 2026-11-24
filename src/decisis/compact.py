@@ -72,7 +72,24 @@ def query(report: dict) -> dict:
     return out
 
 
-SHORT = {"impact": impact, "paths": paths, "audit": audit, "query": query}
+def check(report: dict) -> dict:
+    out = {"loaded": report["loaded"], "hops": report["hops"], "repo": report["repo"], "base": report["base"],
+           "reviewers": report["reviewers"], "summary": report["summary"], **counted("changed", report["changed"]),
+           **counted("governing", report["governing"], lambda g: {"decision": g["decision"], "title": g["title"]}),
+           **counted("superseded", report["superseded"], lambda g: {"decision": g["decision"], "superseded_by": g.get("superseded_by", [])}),
+           "rules_count": len(report["rules"]), "rules_covering_a_change": sum(1 for r in report["rules"] if r["files"]),
+           "imports_count": len(report["imports"]),
+           **counted("violations", report["violations"], judged), **counted("unresolved", report["unresolved"], judged)}
+    if report.get("rule_problems"):
+        out.update(counted("rule_problems", report["rule_problems"]))
+    return out
+
+
+def judged(r: dict) -> dict:
+    return {k: r[k] for k in ("file", "line", "decision", "rule", "why", "import") if r.get(k) is not None}
+
+
+SHORT = {"impact": impact, "paths": paths, "audit": audit, "check": check, "query": query}
 
 
 def fit(report: dict, size, limit: int) -> dict:

@@ -28,7 +28,7 @@ jobs:
       - uses: Vinculums/decisis@<commit SHA>
         with:
           snapshot: decisions.json        # or init: true
-          inventory: package-lock.json    # optional: also run audit
+          inventory: auto                 # optional: also run audit; or one path per line
           fail-on-violation: false
 ```
 
@@ -37,8 +37,8 @@ jobs:
 | `snapshot` | none | a snapshot file, relative to the workspace; give this or `init` |
 | `init` | `false` | `true` builds the snapshot from the repository's ADRs, CODEOWNERS and postmortems |
 | `github-token` | `github.token` | reads the reviews and writes the comment |
-| `inventory` | none | a lockfile or SBOM; when given, `audit` runs too (with `osv-cache`, offline) |
-| `fail-on-violation` | `false` | `true` fails the step when `check` or `audit` finds a violation, after the comment is written |
+| `inventory` | none | `auto`, or a lockfile or SBOM, or several, one per line; when given, `audit` runs on each (with `osv-cache`, offline) |
+| `fail-on-violation` | `false` | `true` fails the step when `check` or any audit finds a violation, after the comment is written |
 | `decisis-version` | the action's own checkout | a version to install from PyPI instead |
 | `repo`, `working-directory`, `osv-cache`, `comment-author`, `python-version` | | see `action.yml` |
 
@@ -59,7 +59,35 @@ jobs:
   comments on a pull request the action stops looking for its own and writes only the job summary.
 - The comment stays under GitHub's 65,536-character limit: the graph is left out first, then the lists
   are cut, and the comment says what was cut.
-- The outputs `violations` and `comment-url` are set for later steps.
+- The outputs `violations` and `comment-url` are set for later steps. `violations` is the check's
+  violations plus the audit violations of every inventory.
+
+## Inventories
+
+`inventory` takes one path, several paths one per line, or `auto`:
+
+```yaml
+        with:
+          inventory: |
+            auto
+            web/package-lock.json
+```
+
+- A path is relative to the workspace and is read as `decisis audit` reads it. A path that cannot be
+  audited (missing, unreadable, no packages) stops the step with an error, as with one path.
+- `auto` audits the inventories in the root of `working-directory`: `package-lock.json`,
+  `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`, `uv.lock`, `poetry.lock`,
+  `requirements*.txt`, `Cargo.lock`, `go.mod`, `gradle.lockfile`, `pom.xml`, `.terraform.lock.hcl`, and
+  `.github/workflows` when one of its YAML files is a workflow (all the workflows there are read together).
+  No other directory is searched, so fixtures and vendored code are never audited; list a nested
+  lockfile as a path next to `auto`. An SBOM is never found by `auto`; give its path.
+- A file `auto` finds is read only when it resolves inside `working-directory`: a symbolic link that leads
+  outside is not followed, and neither is one beside it (a `go.sum`, a sibling workflow). Such a file, or
+  one that cannot be audited, gets a section saying why; it is not a violation and does not stop the step.
+- Each inventory has its own audit section in the comment and the job summary, and its own graph.
+  `fail-on-violation` counts the violations of all of them. When `auto` finds nothing, the comment says
+  so and nothing fails.
+- A file found twice (by `auto` and by its path) is audited once.
 
 `.github/workflows/decisis.yml` runs the action from this checkout on this repository's own pull requests,
 with `fixtures/action/vinc.json` (synthetic decisions about decisis's own files) and the audit fixtures.
