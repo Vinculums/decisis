@@ -132,6 +132,8 @@ decision above.
 | uv | `uv.lock` | dependency groups (`dev-dependencies`) |
 | Cargo | `Cargo.lock` | not marked in the lockfile; every crate counts as shipped |
 | Go modules | `go.mod`, with `go.sum` in the same directory | not marked; every module counts as shipped |
+| Poetry, lock-version 1.x and 2.x | `poetry.lock`, with `pyproject.toml` in the same directory when present | `category = "dev"` (1.x), `groups` without `main` (2.1), or the non-main groups in `pyproject.toml` |
+| pip requirements | `requirements*.txt` | not marked; every package counts as shipped |
 
 For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
 line there. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, and for
@@ -140,6 +142,15 @@ without a purl, or whose purl type has no OSV ecosystem, stays in the graph and 
 `unresolved_packages` in the report; it is not queried. An inventory with no packages, or none that can
 be queried, is refused. `fixtures/inventory/` holds one small example of each format and an OSV cache
 that covers them all.
+
+For Poetry, a `poetry.lock` that marks no package as development and has no `pyproject.toml` next to it
+is read with every package shipped, and the report says the dev split is unknown. A requirements file
+gives packages only for `name==version` pins; every other line (a range, no version, a URL) is listed
+under `unresolved_packages` with the line and the reason, and no version is guessed. `-r` includes are
+followed only under the requirements file's directory, and each file is read once. A requirements file
+lists direct dependencies only, so the report says the packages they depend on were not seen and
+recommends a lockfile or an SBOM. Such notes are in the report's `inventory_notes`. Python names are
+normalized as in PEP 503 and queried under the PyPI ecosystem.
 
 ## How it works
 

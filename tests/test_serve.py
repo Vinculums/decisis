@@ -280,12 +280,23 @@ def test_a_server_stopped_during_a_slow_call_leaves_no_sandbox(stop, code, tmp_p
         p.wait()
 
 
-@pytest.mark.parametrize("inventory", ["go/go.mod", "cyclonedx.json", "uv.lock"])
+@pytest.mark.parametrize("inventory", ["go/go.mod", "cyclonedx.json", "uv.lock", "poetry/poetry.lock", "requirements/requirements.txt"])
 def test_audit_reads_every_inventory_format_and_go_sum_only_from_under_the_root(inventory, no_network):
     t = tools(AUDIT_SNAPSHOT, FIX / "inventory", FIX / "inventory" / "osv-cache.json")
     report = t.call("audit", {"lockfile": inventory, "repo": "Demo"})
     assert report["summary"]["affected"] >= 1
     assert all(f["package"].startswith("pkg:") for f in report["findings"])
+
+
+def test_audit_follows_requirements_includes_through_the_server_root_check(tmp_path, no_network):
+    reqs = FIX / "inventory" / "requirements"
+    (tmp_path / "requirements.txt").write_text((reqs / "requirements.txt").read_text(encoding="utf-8") + "-r ../outside.txt\n",
+                                               encoding="utf-8")
+    (tmp_path / "base.txt").write_text((reqs / "base.txt").read_text(encoding="utf-8"), encoding="utf-8")
+    t = tools(AUDIT_SNAPSHOT, tmp_path, FIX / "inventory" / "osv-cache.json")
+    report = t.call("audit", {"lockfile": "requirements.txt", "repo": "Demo"})
+    assert report["meta"]["packages"] == 7
+    assert report["inventory_notes"][0].startswith("requirements.txt line 13 includes ../outside.txt, which was not followed")
 
 
 def test_audit_does_not_read_a_go_sum_outside_the_root(tmp_path, no_network):

@@ -214,6 +214,8 @@ returns the same nodes and edges.
 | `uv.lock` | `uv-lockfile` | packages with an `editable`, `virtual`, `directory` or `path` source | `dependencies`, `optional-dependencies`, `dev-dependencies` | reached only through a dependency group |
 | `Cargo.lock` | `cargo-lockfile` | packages without a `source` (the workspace) | `dependencies` (`name`, `name version` or `name version (source)`) | always false; the lockfile does not mark it |
 | `go.mod` with `go.sum` | `go-modules` | the module | every `require`, after `replace`; `// indirect` is kept in the evidence | always false |
+| `poetry.lock` 1.x or 2.x, with `pyproject.toml` when present | `poetry-lockfile` | the project in `pyproject.toml`; without it, packages that nothing in the lock requires | `[package.dependencies]`; from the repository, `tool.poetry` dependencies, dev-dependencies and groups, and `project` dependencies, optional dependencies and `dependency-groups` | `category` other than `main` (1.x), `groups` without `main` (2.1), or reached only through a non-main group in `pyproject.toml`; with none of these, false and noted |
+| `requirements*.txt` | `pip-requirements` | the file and the files it includes with `-r` | the repository to each requirement line; no transitive edges | always false |
 
 Package props:
 
@@ -232,11 +234,29 @@ Package props:
   one package id more than once, one production instance makes it shipped; it is development only when
   every instance is marked development and nothing shipped reaches it.
 
+A requirements line that is not a `name==version` pin gets the id `pkg:pypi/<name>@` with an empty
+`version` and an `unresolved` that names the file, the line and what it gives; a direct URL or path
+without a name gets `pkg:unknown/<target>@`. A ranged line for a name that another line pins links to
+that pin instead. `-r` includes are read through the sibling reader (below). A Poetry package from a
+`directory`, `file`, `url` or `git` source is unresolved.
+
 An SBOM component without a purl gets the id `pkg:unknown/<name>@<version>`, ecosystem `""` and
 `unresolved` `the inventory gives no purl`, with its CPE when it has one. An SBOM package that nothing
 depends on is linked from the repository with the evidence `listed in the SBOM with no dependency on it`.
 `audit` refuses an inventory that lists no packages, or none that can be queried at OSV, instead of
 reporting it clean.
+
+The `Repository` node has `inventory_notes`, a list of strings, when the reader saw a gap in what the
+inventory covers: a requirements file lists direct dependencies only, an include was not followed, a
+local project or constraints file was not read, or a `poetry.lock` does not say which packages are
+development ones.
+
+A reader gets the files it needs next to the inventory as `siblings`. `inventory.load(path)` reads the
+fixed names a reader lists (`go.sum`, `pyproject.toml`) and keeps a reader function for other files,
+such as `-r` includes. The function takes a path relative to the inventory's directory and returns the
+text, or nothing when the file does not exist; it refuses absolute paths, `..`, and symbolic links that
+lead outside the directory. A caller can pass its own function, as the MCP server does with its root
+check: `inventory.load(path, reader)` or `inventory.gather(text, filename, reader)`.
 
 For Go, `audit` is given `go.mod` and reads `go.sum` from the same directory. It stops when there is no
 `go.sum`, or when a required module version has no line in it. A `replace` to a local path drops the
@@ -273,7 +293,8 @@ node they reach the repository through), `summary` (counts by status), `violatio
 finding has `package`, `advisory`, `severity`, `status` (`affected`, `not_affected`, `unresolved`),
 `dev_only`, `path` (ids from `repo:<name>` to the advisory), `source_url`, `fetched_at`, `content_hash`,
 `advisory_summary` and `policies` (one `decision`, `verdict` and `why` per governing decision).
-`unresolved_packages` lists each package that was not queried (`package`, `reason`).
+`unresolved_packages` lists each package that was not queried (`package`, `reason`), and
+`inventory_notes` lists the reader's notes on what the inventory does not cover (empty when none).
 
 `propose --out plan.json` writes `space`, `nodes` (records), `edges` (`relates_to` from a record to a
 decision, with the verdict as evidence), `held` (findings not recorded and why; a record that failed a re-derivation check has `record` and `failed`, the list of

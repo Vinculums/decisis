@@ -1,0 +1,3 @@
+# Shared pins; this file includes requirements.txt back, which audit reads once.
+-r requirements.txt
+packaging==24.0

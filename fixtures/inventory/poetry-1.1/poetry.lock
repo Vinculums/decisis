@@ -1,0 +1,123 @@
+[[package]]
+name = "certifi"
+version = "2023.7.22"
+description = "Python package for providing Mozilla's CA Bundle."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[[package]]
+name = "click"
+version = "8.1.7"
+description = "Composable command line interface toolkit"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+colorama = {version = "*", markers = "platform_system == \"Windows\""}
+
+[[package]]
+name = "colorama"
+version = "0.4.6"
+description = "Cross-platform colored terminal text."
+category = "main"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
+
+[[package]]
+name = "idna"
+version = "3.6"
+description = "Internationalized Domain Names in Applications (IDNA)"
+category = "main"
+optional = false
+python-versions = ">=3.5"
+
+[[package]]
+name = "iniconfig"
+version = "2.0.0"
+description = "brain-dead simple config-ini parsing"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
+name = "itsdangerous"
+version = "2.2.0"
+description = "Safely pass data to untrusted environments and back."
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[[package]]
+name = "packaging"
+version = "24.0"
+description = "Core utilities for Python packages"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
+name = "pluggy"
+version = "1.5.0"
+description = "plugin and hook calling mechanisms for python"
+category = "dev"
+optional = false
+python-versions = ">=3.8"
+
+[[package]]
+name = "pytest"
+version = "8.2.0"
+description = "pytest: simple powerful testing with Python"
+category = "dev"
+optional = false
+python-versions = ">=3.8"
+
+[package.dependencies]
+colorama = {version = "*", markers = "sys_platform == \"win32\""}
+iniconfig = "*"
+packaging = "*"
+Pluggy = ">=1.5,<2.0"
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.8"
+content-hash = "2818df6c3b702af8befac7e1bf040481456ffe1700fdc978156c4fdc216c2854"
+
+[metadata.files]
+certifi = [
+    {file = "certifi-2023.7.22-py3-none-any.whl", hash = "sha256:b745aaaf6dc123e0410db883529d25978c7de867c40a31dbb8ea0502ad0be625"},
+    {file = "certifi-2023.7.22.tar.gz", hash = "sha256:b7ad92134a7bace47356e206bd75f50c116cf9e2bb700d77ddd56cad1189a812"},
+]
+click = [
+    {file = "click-8.1.7-py3-none-any.whl", hash = "sha256:522836119b7383b214ab374ea35d65a3857b18f88d806dc194604eb7adeba31f"},
+    {file = "click-8.1.7.tar.gz", hash = "sha256:79bd720a93b05043b30d7c6a9f3e1baeb6fc540fcef9e767034fb79fe298fc2c"},
+]
+colorama = [
+    {file = "colorama-0.4.6-py3-none-any.whl", hash = "sha256:bdad91b8b9e0ca612cb27e46c861ed4b2202d8eccaafaadd32ed7ddc98038149"},
+    {file = "colorama-0.4.6.tar.gz", hash = "sha256:3e874d25f90ebccae879754fbe7d313c071d5226eb96938a6d13092c455106a3"},
+]
+idna = [
+    {file = "idna-3.6-py3-none-any.whl", hash = "sha256:c288528d55cd77e4ec86b4c96845c21108af3305c93e658af6eb9d41465702a4"},
+    {file = "idna-3.6.tar.gz", hash = "sha256:ea285159b5ef9185be98e50d9fcdd65555f0d411b8bfee8d834a987e829521a8"},
+]
+iniconfig = [
+    {file = "iniconfig-2.0.0-py3-none-any.whl", hash = "sha256:ca2613b381d3bd37edf76e6b9097be13cbe34e2f0f7b6d2d574df309bc773b0d"},
+    {file = "iniconfig-2.0.0.tar.gz", hash = "sha256:73f12f7fbfda1741e5a870dacfb99a3542fbb17c48494597e5b2d486bdbba2d1"},
+]
+itsdangerous = [
+    {file = "itsdangerous-2.2.0-py3-none-any.whl", hash = "sha256:72c2e451ad2ace33825fc3cc2fd60818c3513ef8152500a32dc4e3910b65019f"},
+    {file = "itsdangerous-2.2.0.tar.gz", hash = "sha256:4f801d91d5d90972efb9c5f9ab1e7f23a2cc4180c29e50b107c416d278dfda29"},
+]
+packaging = [
+    {file = "packaging-24.0-py3-none-any.whl", hash = "sha256:a410eca80df4634b5fb6bd0703e727df7a208d17773b3ea63cf348670d5a541d"},
+    {file = "packaging-24.0.tar.gz", hash = "sha256:c3d94a1dcaa1695106f27e2ada2a481fc76195cf8680994ec3b0344733e6d63e"},
+]
+pluggy = [
+    {file = "pluggy-1.5.0-py3-none-any.whl", hash = "sha256:2a15ac89f7c91c6e3faf54a662c95cd8faeb79c6d4e3718144a3e8993bcc7849"},
+    {file = "pluggy-1.5.0.tar.gz", hash = "sha256:ff2870f4fa0f5d771ccf9765b182f7e49137c22c46c6f5be9abda6da11527132"},
+]
+pytest = [
+    {file = "pytest-8.2.0-py3-none-any.whl", hash = "sha256:f041b9002413cd3f62c7042bb426fb05233f963420d0adbe13309a808892aa2b"},
+    {file = "pytest-8.2.0.tar.gz", hash = "sha256:2e8a4d6fff94cc946781bc74e2075fe3ce3ba4accfc160fac36fc01f50f6030f"},
+]

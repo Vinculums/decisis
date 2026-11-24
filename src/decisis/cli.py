@@ -206,7 +206,8 @@ def run(a: argparse.Namespace) -> int:
         elif a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
             print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"],
-                              "unresolved_packages": len(report["unresolved_packages"]), "out": a.out}))
+                              "unresolved_packages": len(report["unresolved_packages"]), "inventory_notes": report["inventory_notes"],
+                              "out": a.out}))
         else:
             sys.stdout.write(text + "\n")
         return 0

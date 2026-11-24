@@ -3,10 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from types import ModuleType
 
-from . import cargo, cyclonedx, gomod, npm, spdx, uv
+from . import cargo, cyclonedx, gomod, npm, poetry, requirements, spdx, uv
+from .siblings import Reader, Siblings, directory_reader
 
-READERS: dict[str, ModuleType] = {m.FORMAT: m for m in (npm, cyclonedx, spdx, uv, cargo, gomod)}
-FORMATS = "an npm package-lock.json, CycloneDX JSON 1.4 to 1.6, SPDX JSON 2.3, uv.lock, Cargo.lock, or go.mod with go.sum next to it"
+READERS: dict[str, ModuleType] = {m.FORMAT: m for m in (npm, cyclonedx, spdx, uv, cargo, gomod, poetry, requirements)}
+FORMATS = "an npm package-lock.json, CycloneDX JSON 1.4 to 1.6, SPDX JSON 2.3, uv.lock, Cargo.lock, go.mod with go.sum next to it, poetry.lock, or a pip requirements file"
 
 
 def detect(text: str, filename: str) -> str:
@@ -25,8 +26,18 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
     return nodes, edges
 
 
-def load(path: Path) -> tuple[str, dict[str, str]]:
+def gather(text: str, filename: str, reader: Reader) -> Siblings:
+    out = Siblings(reader=reader)
+    for name in READERS[detect(text, Path(filename).name)].SIBLINGS:
+        try:
+            found = reader(name)
+        except ValueError:
+            continue
+        if found is not None:
+            out[name] = found
+    return out
+
+
+def load(path: Path, reader: Reader | None = None) -> tuple[str, Siblings]:
     text = path.read_text(encoding="utf-8")
-    reader = READERS[detect(text, path.name)]
-    siblings = {n: (path.parent / n).read_text(encoding="utf-8") for n in reader.SIBLINGS if (path.parent / n).is_file()}
-    return text, siblings
+    return text, gather(text, path.name, reader or directory_reader(path.parent))

@@ -124,13 +124,8 @@ class Tools:
                          filename=name, siblings=siblings)
 
     def siblings(self, raw: str, text: str, name: str) -> dict[str, str]:
-        out = {}
-        for sibling in inventory.READERS[inventory.detect(text, name)].SIBLINGS:
-            try:
-                out[sibling] = read_under(self.root, str(PurePosixPath(raw).parent / sibling))
-            except Refused:
-                continue
-        return out
+        parent = PurePosixPath(raw).parent
+        return inventory.gather(text, name, lambda rel: read_under(self.root, str(parent / rel)))
 
     def advisories(self):
         if self.osv_cache is not None:
