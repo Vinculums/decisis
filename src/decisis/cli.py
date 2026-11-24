@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from . import audit
+from . import checker
 from . import compare
 from . import demo
 from . import external
@@ -60,13 +61,17 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--out", help="write the JSON report here; with --format mermaid or html the view still goes to stdout")
     au.add_argument("--format", choices=["json", *VIEWS], default="json")
     au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
-    pr = sub.add_parser("propose", help="turn an audit report into the exact write set the owner approves")
+    pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
+    pr.add_argument("snapshot", help="the snapshot the audit read")
+    pr.add_argument("lockfile", help="the lockfile the audit read")
     pr.add_argument("--repo", required=True)
     pr.add_argument("--space", required=True)
     pr.add_argument("--out", required=True)
     pr.add_argument("--lockfile-path", default="package-lock.json", help="the lockfile path inside the repository, for subject_path")
     pr.add_argument("--ref", help="the commit the lockfile was read at, for measured_ref")
+    pr.add_argument("--depth", type=int, default=8, help="the audit's --depth, for the dependency paths")
+    pr.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
     cm = sub.add_parser("commit", help="write an approved write set to Vinc and read it back (needs a full key)")
     cm.add_argument("plan")
     cm.add_argument("--approve", required=True, help="the approval digest printed by propose")
@@ -105,9 +110,16 @@ def run(a: argparse.Namespace) -> int:
     if a.cmd == "propose":
         plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
                           lockfile_path=a.lockfile_path, ref=a.ref)
+        advisories = external.fetch_advisories
+        if a.osv_cache:
+            advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
+        plan, checked = checker.rederive(plan, co.load(Path(a.snapshot).read_text(encoding="utf-8")),
+                                         Path(a.lockfile).read_text(encoding="utf-8"), a.repo, advisories, a.depth)
         Path(a.out).write_text(json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        failed = sum(1 for c in checked if c["problems"])
+        print(f"Re-derived {len(checked)} records with {sum(c['checks'] for c in checked)} checks; {failed} failed.\n")
         print(wb.render(plan))
-        return 0
+        return 1 if failed else 0
     if a.cmd == "commit":
         plan = json.loads(Path(a.plan).read_text(encoding="utf-8"))
         wb.check_approval(plan, a.approve)
