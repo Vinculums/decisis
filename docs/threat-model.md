@@ -40,8 +40,11 @@ it too. The demo prints whether the removal happened and the tests assert the sc
 time (Linux) and the host name. A new sandbox, and `decisis gc`, remove a `decisis-<32 hex>` directory
 under the same root only when it is a real directory owned by the current user, older than 10 minutes,
 and its owner process is gone (on Linux, a reused process id is told apart by its start time). A live
-owner, another user's directory, a symbolic link, a directory under another root and a directory without
-a readable owner record are left alone, and removal never follows a symbolic link.
+owner, another user's directory, a `decisis-*` entry that is a symbolic link, a directory under another
+root and a directory without a readable owner record (or with a process id outside 1 to 2^31 - 1) are left
+alone, and removal never follows a symbolic link inside the root. A root that is itself a symbolic link is
+followed and used as the root. An error on one entry keeps that entry and the sweep goes on; the sweep a
+new sandbox runs never stops the command, and `decisis gc` names each entry it kept because of an error.
 (`sweep` in `src/decisis/sandbox.py`; the cleanup tests in `tests/test_sandbox_limits.py`.)
 
 **Size and time limits.** A graph over 50,000 nodes or 250,000 edges is refused before the database is
@@ -96,8 +99,14 @@ carries them. `--osv-cache` replays a saved set of advisories and refuses the ne
   (the skill tells the agent to stop and show the write set); the full key is the real authority.
 - **Whether a finding is true.** The audit checks versions against the advisory's ranges and the
   decision's rule, but OSV data can be wrong or late. A content hash records what was read; it does not
-  authenticate OSV. In the demo a Checker re-derives each record before approval; `propose` on real data
-  does not run that step yet.
+  authenticate OSV. Before the digest is shown, `propose` and the demo check each record against a graph
+  rebuilt from the snapshot, the lockfile and OSV: the advisory's content hash and severity equal the OSV
+  record's; each version is a package of that name in the lockfile, inside the advisory's ranges, and
+  reached by one of the record's paths; each path runs from the repository to the record's own package and
+  advisory and exists in the graph; the development flags along each path match the record's scope; and
+  each `relates_to` target is a decision in the snapshot. A record that fails is held back. This catches a
+  report edited in those fields; it does not check the statement text, the verdict wording, or whether OSV
+  itself is right.
 - **Text in outside data.** Advisory summaries and lockfile fields are stored as data and never run as
   queries, but an agent that reads them can still be misled by what they say.
 - **Memory and disk.** The caps bound the number of nodes and edges, not the size of their properties,

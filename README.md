@@ -129,9 +129,10 @@ flowchart LR
    when it is writable). The loader checks that every node and edge landed.
 3. **Reason** read only with bounded Cypher queries (`src/decisis/queries/*.cypher`), so every answer is
    a path you can follow edge by edge.
-4. **Propose and approve.** `propose` turns findings into an exact write set with a digest. Nothing is
-   written until a person passes that digest to `commit`, which writes with `create_only` and reads every
-   node and edge back.
+4. **Propose and approve.** `propose` turns findings into records, re-derives each one in a fresh graph
+   built from the snapshot, the lockfile and OSV, holds back any record that fails, and prints the exact
+   write set with a digest. Nothing is written until a person passes that digest to `commit`, which
+   writes with `create_only` and reads every node and edge back.
 5. **Delete** the graph when the task ends.
 
 ## Commands
@@ -142,29 +143,45 @@ flowchart LR
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
 | `audit <snapshot> <lockfile> --repo <name>` | the network for api.osv.dev, unless `--osv-cache` | advisories the repository reaches and the decisions they break |
-| `propose <report> --repo <name> --space <space>` | nothing; it only writes a file | the exact write set and its approval digest |
+| `propose <report> <snapshot> <lockfile> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
 | `compare` | nothing | the benchmark below |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
 | `gc` | nothing | removes task directories that a killed run left behind, and prints them |
 
-Useful flags: `impact --hops N --format text`, `paths --hops N --limit N`, `audit --osv-cache FILE --depth N`.
+Useful flags: `impact --hops N --format text`, `paths --hops N --limit N`, `audit --osv-cache FILE --depth N`,
+`propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
 
-Limits: `paths`, `impact` and `audit` refuse a graph over 50,000 nodes or 250,000 edges before writing
+Limits: `paths`, `impact`, `audit` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
 anything, and stop any query that runs longer than 60 seconds; the task directory is removed either way
 and the command exits with 1. Raise a limit with `--max-nodes`, `--max-edges` or `--query-timeout`, or with
 `DECISIS_MAX_NODES`, `DECISIS_MAX_EDGES` or `DECISIS_QUERY_TIMEOUT`, up to 1,000,000 nodes, 5,000,000 edges
-and 3,600 seconds. `audit --depth` is 1 to 16, `paths --hops` 1 to 6 and `paths --limit` 1 to 100.
+and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --hops` 1 to 6 and `paths --limit`
+1 to 100.
 `impact`, `paths` and `audit` print JSON (`impact --format text` reads better for people); `demo`, `propose`
 and `compare` print text. `decisis <command> --help` lists the rest.
+
+`impact`, `paths` and `audit` also take `--format mermaid` and `--format html`:
+
+- `impact --format mermaid` prints a fenced Mermaid block that GitHub draws: each code path, the nodes
+  that name it and the edges to what governs them. `--format html` prints one page with each node, its
+  edge path and the evidence on each edge.
+- `paths --format mermaid` draws each path between the two ids; `--format html` lists each step with the
+  evidence the snapshot gives for its edge, and each node's title and `source` when it has one.
+- `audit --format mermaid` draws the dependency paths to each advisory and marks the ones that break a
+  decision in red; `--format html` lists each finding with its path, its policies and a link to its OSV
+  source. With `--out report.json` the JSON report still goes to that file and the view to stdout.
+
+The HTML page is one file with inline styles only: no scripts, fonts or network requests, so it opens
+offline. Its only links are the sources of the findings.
 
 Try them on the fixtures in this repository:
 
 ```
 decisis paths fixtures/vinc_subgraph.json record:tls-advisory-example concept:service-api
 decisis impact fixtures/impact/vinc.json reports/export.py storage/ --format text
-decisis audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json
-decisis propose report.json --repo Demo --space demo-space --out plan.json
+decisis audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json --format html > audit.html
+decisis propose report.json fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --space demo-space --osv-cache fixtures/audit/osv-cache.json --out plan.json
 ```
 
 ## Use it from an AI agent
@@ -247,9 +264,16 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
   is stopped, and in both cases the task directory is removed and the command exits non-zero.
 - Each task directory records its owner process. On Linux and macOS a new sandbox, or `decisis gc`,
   removes `decisis-*` directories under the same root whose owner is gone; it leaves another user's
-  directory, a live run's directory and anything reached through a symbolic link.
+  directory, a live run's directory, a `decisis-*` entry that is a symbolic link, and anything a symbolic
+  link inside a task directory points to. A root that is itself a symbolic link is followed and used as
+  the root.
 - The audit joins the snapshot, the lockfile (nested copies resolved) and OSV, checks the installed
   version against the advisory ranges, and keeps each advisory's source URL, fetch time and content hash.
+- `propose` re-derives each record in a fresh graph built from the snapshot, the lockfile and OSV: the
+  advisory's content hash and severity, each version as a lockfile package inside the advisory's ranges,
+  each dependency path from the repository to the record's own package and advisory, the record's scope
+  against the development flags on its paths, and each `relates_to` target as a decision in the snapshot. A record that fails is held back with the failed
+  checks, and `propose` exits non-zero. The demo runs the same checks.
 - `commit` refuses a digest that does not match the plan as it stands, writes with `create_only`, and
   fails when a node, a property or an edge's type or direction does not come back.
 - A live run against a real Vinc space wrote and read back seven records with `create_only`, and a second
@@ -260,7 +284,6 @@ Future work, not built:
 
 - A Relate MCP server as the agent's read-only query surface; today the agent drives the CLI.
 - Ecosystems other than npm, and repository metadata beyond the lockfile.
-- The demo's Checker (re-deriving each record) also in the `propose` path for real data.
 - Removing stale task directories on Windows; there `decisis gc` says so and removes nothing.
 - Encrypted scratch storage with key destruction for sensitive data (see `docs/threat-model.md`).
 - A held-out benchmark set, and real repositories, to test whether the comparison holds.

@@ -265,3 +265,58 @@ def test_gc_degrades_where_ownership_cannot_be_checked(tmp_path, dead_pid, capsy
     assert cli.main(["gc", "--root", str(tmp_path)]) == 0
     assert "nothing was removed" in capsys.readouterr().out and stale.is_dir()
     assert sb.sweep(tmp_path) == [] and stale.is_dir()
+
+
+def test_propose_rederives_under_the_same_caps_and_depth_bounds(scratch, capsys):
+    report = scratch / "report.json"
+    assert cli.main(["audit", *AUDIT, "--out", str(report)]) == 0
+    args = ["propose", str(report), AUDIT[0], AUDIT[1], "--repo", "Demo", "--space", "demo-space", "--osv-cache", AUDIT[5],
+            "--out", str(scratch / "plan.json")]
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as e:
+        cli.main([*args, "--max-nodes", "4"])
+    err = capsys.readouterr().err
+    assert e.value.code == 1 and "over the cap of 4" in err and "Traceback" not in err
+    with pytest.raises(SystemExit) as e:
+        cli.main([*args, "--depth", str(audit.MAX_DEPTH + 1)])
+    assert e.value.code == 2 and "argument --depth" in capsys.readouterr().err
+    assert cli.main([*args, "--query-timeout", "30"]) == 0
+    assert left(scratch) == []
+
+
+@sweeps
+def test_a_pid_too_large_for_the_platform_keeps_the_directory_without_an_error(tmp_path, capsys):
+    huge = task_dir(tmp_path, 2**40)
+    assert sb._read_owner(huge) is None
+    assert sb._alive({"pid": 2**40, "start": None}) is True
+    assert sb.sweep(tmp_path) == []
+    with sandbox(tmp_path) as box:
+        assert left(tmp_path) == sorted([huge.name, box.dir.name])
+    assert cli.main(["gc", "--root", str(tmp_path)]) == 0
+    assert "removed 0 task directories" in capsys.readouterr().out and huge.is_dir()
+
+
+@sweeps
+def test_an_unexpected_error_on_one_entry_keeps_it_and_the_sweep_goes_on(tmp_path, dead_pid, monkeypatch, capsys):
+    broken, stale = task_dir(tmp_path, dead_pid), task_dir(tmp_path, dead_pid)
+    real = sb._stale
+
+    def flaky(path, grace):
+        if path == broken:
+            raise RuntimeError("cannot judge this one")
+        return real(path, grace)
+
+    monkeypatch.setattr(sb, "_stale", flaky)
+    assert cli.main(["gc", "--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert f"removed {stale}" in out and f"kept {broken}: RuntimeError: cannot judge this one" in out
+    assert broken.is_dir() and not stale.exists()
+
+
+def test_a_failing_sweep_never_stops_a_new_sandbox(tmp_path, monkeypatch):
+    def boom(root, grace=sb.GRACE_SECONDS, errors=None):
+        raise OverflowError("signed integer is greater than maximum")
+
+    monkeypatch.setattr(sb, "sweep", boom)
+    with sandbox(tmp_path) as box:
+        assert box.load(graph()) == {"nodes": 5, "edges": 4}

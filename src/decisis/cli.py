@@ -6,10 +6,12 @@ import sys
 from pathlib import Path
 
 from . import audit
+from . import checker
 from . import compare
 from . import demo
 from . import external
 from . import impact
+from . import render
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
@@ -17,6 +19,7 @@ from . import sandbox as sb
 from .sandbox import sandbox
 
 MAX_LIMIT = 100
+VIEWS = {"mermaid": render.mermaid, "html": render.html}
 
 
 def bounded(lo: int, hi: int):
@@ -57,26 +60,32 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("target")
     p.add_argument("--hops", type=bounded(1, impact.MAX_HOPS), default=4, help=f"longest path to look for (1 to {impact.MAX_HOPS})")
     p.add_argument("--limit", type=bounded(1, MAX_LIMIT), default=10, help=f"most paths to return (1 to {MAX_LIMIT})")
+    p.add_argument("--format", choices=["json", *VIEWS], default="json")
     im = sub.add_parser("impact", help="list the decisions, records and concepts that govern one or more code paths")
     im.add_argument("snapshot")
     im.add_argument("code_paths", nargs="+", metavar="code_path", help="a file or directory, for example reports/export.py or storage/")
     im.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
     im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
-    im.add_argument("--format", choices=["json", "text"], default="json")
+    im.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
     au = sub.add_parser("audit", help="join a Vinc snapshot, an npm lockfile and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
     au.add_argument("lockfile")
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"longest dependency chain to follow (1 to {audit.MAX_DEPTH})")
-    au.add_argument("--out")
+    au.add_argument("--out", help="write the JSON report here; with --format mermaid or html the view still goes to stdout")
+    au.add_argument("--format", choices=["json", *VIEWS], default="json")
     au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
-    pr = sub.add_parser("propose", help="turn an audit report into the exact write set the owner approves")
+    pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
+    pr.add_argument("snapshot", help="the snapshot the audit read")
+    pr.add_argument("lockfile", help="the lockfile the audit read")
     pr.add_argument("--repo", required=True)
     pr.add_argument("--space", required=True)
     pr.add_argument("--out", required=True)
     pr.add_argument("--lockfile-path", default="package-lock.json", help="the lockfile path inside the repository, for subject_path")
     pr.add_argument("--ref", help="the commit the lockfile was read at, for measured_ref")
+    pr.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"the audit's --depth, for the dependency paths (1 to {audit.MAX_DEPTH})")
+    pr.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
     cm = sub.add_parser("commit", help="write an approved write set to Vinc and read it back (needs a full key)")
     cm.add_argument("plan")
     cm.add_argument("--approve", required=True, help="the approval digest printed by propose")
@@ -94,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     gc.add_argument("--root", type=Path, help="the directory that holds the task directories (default: /dev/shm, or the system temporary directory)")
     gc.add_argument("--grace", type=bounded(0, 86400), default=sb.GRACE_SECONDS, metavar="SECONDS",
                     help=f"leave directories younger than this (default {sb.GRACE_SECONDS})")
-    for s in (p, im, au):
+    for s in (p, im, au, pr):
         limit_flags(s)
     a = ap.parse_args(argv)
     try:
@@ -123,9 +132,16 @@ def run(a: argparse.Namespace) -> int:
     if a.cmd == "propose":
         plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
                           lockfile_path=a.lockfile_path, ref=a.ref)
+        advisories = external.fetch_advisories
+        if a.osv_cache:
+            advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
+        plan, checked = checker.rederive(plan, co.load(Path(a.snapshot).read_text(encoding="utf-8")),
+                                         Path(a.lockfile).read_text(encoding="utf-8"), a.repo, advisories, a.depth, limits=limits(a))
         Path(a.out).write_text(json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        failed = sum(1 for c in checked if c["problems"])
+        print(f"Re-derived {len(checked)} records with {sum(c['checks'] for c in checked)} checks; {failed} failed.\n")
         print(wb.render(plan))
-        return 0
+        return 1 if failed else 0
     if a.cmd == "commit":
         plan = json.loads(Path(a.plan).read_text(encoding="utf-8"))
         wb.check_approval(plan, a.approve)
@@ -138,6 +154,8 @@ def run(a: argparse.Namespace) -> int:
         report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo, limits=limits(a))
         if a.format == "text":
             print(impact.render(report))
+        elif a.format in VIEWS:
+            sys.stdout.write(VIEWS[a.format]("impact", report))
         else:
             json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
             sys.stdout.write("\n")
@@ -149,7 +167,11 @@ def run(a: argparse.Namespace) -> int:
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), Path(a.lockfile).read_text(encoding="utf-8"), a.repo, a.depth,
                            advisories=advisories, limits=limits(a))
         text = json.dumps(report, ensure_ascii=False, indent=1)
-        if a.out:
+        if a.format in VIEWS:
+            if a.out:
+                Path(a.out).write_text(text + "\n", encoding="utf-8")
+            sys.stdout.write(VIEWS[a.format]("audit", report))
+        elif a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
             print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"], "out": a.out}))
         else:
@@ -164,7 +186,11 @@ def run(a: argparse.Namespace) -> int:
     with sandbox(limits=limits(a)) as box:
         counts = box.load(graph)
         rows = box.query(query("paths_between", hops=a.hops, limit=a.limit), {"source": a.source, "target": a.target})
-    json.dump({"loaded": counts, "paths": rows}, sys.stdout, ensure_ascii=False, indent=1)
+    report = {"loaded": counts, "paths": rows}
+    if a.format in VIEWS:
+        sys.stdout.write(VIEWS[a.format]("paths", render.annotate_paths(report, graph, a.source, a.target)))
+        return 0
+    json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
     sys.stdout.write("\n")
     return 0
 
@@ -173,9 +199,12 @@ def gc(root: Path, grace: int) -> int:
     if not sb.can_sweep():
         print("decisis gc: this platform cannot check the owner of a task directory safely; nothing was removed")
         return 0
-    removed = sb.sweep(root, grace)
+    errors: list = []
+    removed = sb.sweep(root, grace, errors)
     for path in removed:
         print(f"removed {path}")
+    for path, why in errors:
+        print(f"kept {path}: {why}")
     print(f"removed {len(removed)} task director{'y' if len(removed) == 1 else 'ies'} under {root}")
     return 0
 

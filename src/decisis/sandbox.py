@@ -28,6 +28,7 @@ TMPFS = Path("/dev/shm")
 TASK_DIR = re.compile(r"decisis-[0-9a-f]{32}")
 OWNER = "owner.json"
 GRACE_SECONDS = 600
+MAX_PID = 2**31 - 1
 
 MAX_NODES = 50_000
 MAX_EDGES = 250_000
@@ -119,7 +120,7 @@ class Sandbox:
     def __init__(self, root: Path | None = None, limits: Limits | None = None):
         self.limits = limits or Limits.resolve()
         root = root or default_root()
-        sweep(root)
+        _quiet_sweep(root)
         self.dir = root / f"decisis-{uuid.uuid4().hex}"
         self.dir.mkdir(mode=0o700)
         _write_owner(self.dir)
@@ -324,21 +325,29 @@ def can_sweep() -> bool:
     return hasattr(os, "getuid") and shutil.rmtree.avoids_symlink_attacks
 
 
-def sweep(root: Path, grace: float = GRACE_SECONDS) -> list[Path]:
+def _quiet_sweep(root: Path) -> None:
+    try:
+        sweep(root)
+    except Exception:
+        pass
+
+
+def sweep(root: Path, grace: float = GRACE_SECONDS, errors: list | None = None) -> list[Path]:
     if not can_sweep():
         return []
     try:
-        entries = list(os.scandir(root))
+        entries = [Path(e.path) for e in os.scandir(root)]
     except OSError:
         return []
     removed = []
-    for entry in entries:
-        if _stale(Path(entry.path), grace):
-            try:
-                shutil.rmtree(entry.path)
-            except OSError:
-                continue
-            removed.append(Path(entry.path))
+    for path in entries:
+        try:
+            if _stale(path, grace):
+                shutil.rmtree(path)
+                removed.append(path)
+        except Exception as e:
+            if errors is not None:
+                errors.append((path, f"{type(e).__name__}: {e}"))
     return removed
 
 
@@ -369,7 +378,7 @@ def _read_owner(path: Path) -> dict | None:
         return None
     finally:
         os.close(fd)
-    if not isinstance(owner, dict) or type(owner.get("pid")) is not int or owner["pid"] <= 0:
+    if not isinstance(owner, dict) or type(owner.get("pid")) is not int or not 0 < owner["pid"] <= MAX_PID:
         return None
     return owner
 
@@ -380,7 +389,7 @@ def _alive(owner: dict) -> bool:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    except OSError:
+    except (OSError, OverflowError, ValueError):
         return True
     start = owner.get("start")
     return start is None or _start_time(pid) in (None, start)

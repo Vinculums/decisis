@@ -45,7 +45,7 @@ def governing(vinc: Subgraph, repo: str) -> list[dict]:
             if e["target"] == concept and by_id.get(e["source"], {}).get("kind") == "decision":
                 out.append({"decision": e["source"], "via": concept, "rule": audit.rule_of(by_id[e["source"]]),
                             "evidence": [_step(link["source"], "DESCRIBED_BY", concept), _step(e["source"], e["type"], concept)]})
-    return sorted(out, key=lambda d: d["decision"])
+    return audit.fold(sorted(out, key=lambda d: (d["decision"], d["via"], d["evidence"])))
 
 
 def _policy_claims(pkg: str, adv: str, status: str, severity: str, dev: bool, gov: list[dict], path_steps: list[list[str]]) -> list[dict]:
@@ -169,7 +169,7 @@ def method_c_audit(inp: dict, subject: str) -> list[dict]:
         decisions = box.query(query("governing_decisions"), {"repo": repo_id})
     rows = [r for r in rows if r["package"] == subject]
     by_rule = {d["decision"]: d for d in governing(inp["vinc"], repo)}
-    gov = [by_rule[d["decision"]] for d in sorted(decisions, key=lambda d: d["decision"]) if d["decision"] in by_rule]
+    gov = [by_rule[d["decision"]] for d in sorted(audit.fold(decisions), key=lambda d: d["decision"]) if d["decision"] in by_rule]
     claims = []
     for f in audit.verify(rows, graph, decisions):
         adv = f["advisory"]
