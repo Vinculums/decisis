@@ -77,6 +77,8 @@ kinds and may add the modifier `dependencies`:
 | `package_denied` | a list of `{"ecosystem", "name", "versions"}` (`versions` optional) | each package | the package has that ecosystem and name, and, when `versions` is given, one of those versions |
 | `package_allowed` | a list of `{"ecosystem", "name"}` | each package of an ecosystem the list names | the package's name is not in the list for its ecosystem |
 | `pinned_to_commit` | `true` | each `GitHub Actions` package | the ref is not a full 40-character lowercase commit SHA (a tag or a branch) |
+| `review_required` | `{"paths": [globs], "reviewers": [handles]}` | each changed file (`check`) | a `paths` glob covers the file and none of `reviewers` is among the reviewers given |
+| `imports_forbidden` | `{"from": [globs], "to": [globs]}` | each import of a changed file (`check`) | a `from` glob covers the file and the import resolves to a file a `to` glob covers |
 
 `dependencies` is `shipped` or `all` (the default). With `shipped`, a package reached only through
 development dependencies is `not_violated` for that rule. Examples:
@@ -99,6 +101,51 @@ expression but a list of ids, the ids are read as joined by `AND`. A package who
 `NOASSERTION`, `NONE` or not an SPDX expression (such as `SEE LICENSE IN LICENSE.md`) is `unresolved`
 for both license kinds, never `violated`.
 
+`audit` judges the first four kinds and `check` the last two; each command ignores the other's kinds.
+
+Globs in `review_required` and `imports_forbidden` follow the CODEOWNERS rules, matched against the path
+relative to the repository root: a leading or middle `/` anchors the glob at the root, otherwise it
+matches at any depth; a trailing `/` matches a directory and everything below it; `*` and `?` stay within
+one path segment and `**` spans segments. A glob whose last segment is literal also covers everything
+below a directory of that name, and one whose last segment has a wildcard matches files only. So
+`src/payments/**` covers every file below `src/payments/`, `src/payments` covers the same files, and
+`*.sql` covers every SQL file. `!`, `\`, `[` and `]` are refused as a rule problem.
+
+A reviewer handle matches without regard to case and with or without a leading `@` (`@Alice`, `alice`).
+A team handle, `@org/team`, matches only when written exactly the same. One listed reviewer is enough.
+
+`imports_forbidden` reads Python files (`.py`, `.pyi`) with `ast` and JavaScript and TypeScript files
+(`.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`) with a scanner that skips comments,
+strings, template literals, regular expressions and JSX text (JSX is read in every file but `.ts`, `.mts`
+and `.cts`, where `<` starts a type). It reads `import`, `from ... import`, and `importlib.import_module`
+or `__import__` with a literal name in Python; `import ... from`, `import "x"`, `export ... from`, and
+`require` or `import()` with a literal specifier in JavaScript and TypeScript.
+
+A Python module resolves to a file under the root of the importing file's package (the first directory
+above it without an `__init__.py`), the nearest directory above the file with a `pyproject.toml`,
+`setup.py` or `setup.cfg` and its `src/`, the repository root or `src/`; a relative import resolves from the
+file's own package. A module found under none of them is external, unless its first name is a package or
+module somewhere else in the repository and not a standard library module: then it is `unresolved`.
+
+A relative JavaScript specifier resolves to the file, the file with a usual extension, the `.ts` file of a
+`.js` specifier, or an `index` file. Other specifiers go through `paths` and `baseUrl` of the nearest
+`tsconfig.json` or `jsconfig.json` above the file, with its `extends` chain followed through relative
+paths inside the repository (at most 16 deep). `baseUrl` is read relative to the config that sets it, and
+`paths` relative to `baseUrl`, or to their own config when there is no `baseUrl`. A specifier that
+matches a `paths` pattern but names no file is `unresolved`. Any other specifier is an external package:
+not a violation, unless a `to` glob that names `node_modules` covers `node_modules/<specifier>`.
+
+A plain text search for the same import forms runs over each JavaScript and TypeScript file too. A
+specifier it finds that the scanner did not read as code (in a comment or a string, or after a point the
+scanner misread) is `unresolved` with the reason "the scanner and the text search disagree" and the file
+it would name as `target`; it is `not_violated` only when that target is known and no `to` glob covers it.
+
+`unresolved` is also given to an import whose specifier is computed at run time, a relative import that
+names no file, a file that cannot be parsed or scanned to its end (an unclosed string, template literal,
+comment, regular expression or JSX element), a config that cannot be read, extends a package or extends
+itself, and a file that leads outside the repository through a symbolic link. No code of the repository is
+run.
+
 `package_denied` compares the ecosystem without regard to case and the name as OSV does (PyPI names are
 normalized). `versions` is a list of exact versions, as in an OSV record's `versions` field, not ranges. A
 version matches when it is the same string, or when it orders equal under the package's ecosystem (`v1.0.0`
@@ -120,8 +167,9 @@ other than `shipped` or `all`, an empty list, or a string that is not JSON gives
 `relevant` and the reason in `why`, on every finding the decision governs, and an entry in the report's
 `rule_problems`. Other entries of the same rule are still judged. Kinds are entries of the table `KINDS` in
 `src/decisis/rules.py`: each names the findings it judges (`advisory`, `license`, `package` for
-`package_denied`, `allowlist` for `package_allowed`, `pin` for `pinned_to_commit`), how its value is read,
-and how one package is judged. A finding's `kind` is that subject, and `propose` turns an `affected`
+`package_denied`, `allowlist` for `package_allowed`, `pin` for `pinned_to_commit`, and `review` or `import` for the
+`check` kinds), how its value is read,
+and how one package, file or import is judged. A finding's `kind` is that subject, and `propose` turns an `affected`
 `package`, `allowlist` or `pin` finding into a record with the predicate `uses_denied_package`,
 `uses_unlisted_package` or `not_pinned_to_commit` and the value `<ecosystem>:<name>`, which the checker
 judges again against the decision's rules.
@@ -565,6 +613,38 @@ inside the advisory's ranges, each path and its scope, and each edge target. For
 record it checks that each version is a package of the record's ecosystem in the inventory whose license expression (or ecosystem
 and name) is the record's `value`, that each path is in the graph and matches the scope, that each
 decision in `violates` has a rule of that kind the package violates, and each edge target.
+
+## The check report
+
+`check` prints one JSON object:
+
+- `loaded`, `hops`, `repo`: as in `impact`.
+- `base`: the `--base` ref, or null with `--changed`. `changed`: the changed files, relative to `--repo-dir`,
+  sorted. `reviewers`: the handles given.
+- `governing`: each decision that `impact` reaches from a changed file, with `decision`, `title`, `status`
+  when it has one, and `files`. `superseded`: the same for superseded decisions, with `superseded_by`;
+  these are never judged.
+- `rules`: each `review_required` and `imports_forbidden` rule judged, with `decision`, `rule`, its value
+  (`paths` and `reviewers`, or `from` and `to`) and the changed `files` its `paths` or `from` globs cover.
+  Every decision in the snapshot that is not superseded is judged, whether or not `impact` reaches it,
+  because a rule's globs name the files it covers.
+- `imports`: each import read from a changed file that a `from` glob covers, with `file`, `line`,
+  `import`, `resolution` (`repository`, `external` or `unresolved`), `target` (a repository path,
+  `node_modules/<specifier>` for an external JavaScript package, or null) and `why` when it is unresolved.
+- `violations` and `unresolved`: one entry per file, import and rule, with `file`, `line` (null for
+  `review_required`), `decision`, `rule`, `verdict`, `why`, `import` and `target` (both null for
+  `review_required`).
+- `summary`: the count of `violated`, `unresolved` and `not_violated` results.
+- `impact`: the `impact` result for each changed file.
+- `rule_problems`, only when there are some: as in the audit report, for the governing decisions and for
+  any `review_required` or `imports_forbidden` entry that cannot be read.
+
+`check` exits 1 when `violations` is not empty and 0 otherwise, including when no rule applies. An
+`unresolved` result or a rule problem does not change the exit code, unless `--fail-on-unresolved` is
+given: then an `unresolved` result also exits 1. A CI gate that must not pass what it could not judge
+uses that flag. With `--base REF`, the changed files
+are `git diff --name-only --relative REF...HEAD` in `--repo-dir`, so a commit not yet made is not
+included; a REF that starts with `-` is refused.
 
 ## The demo transcript
 

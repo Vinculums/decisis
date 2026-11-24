@@ -142,7 +142,7 @@ def package_finding(node: dict, subject: str, governing: list[tuple[dict, rules.
 
 def package_findings(box, graph: Subgraph, decisions: list[dict], repo: str, depth: int) -> list[dict]:
     governing = ruled(graph, decisions)
-    wanted = [s for s in rules.subjects() if s != "advisory" and any(rules.judging(p, s) for _, p in governing)]
+    wanted = [s for s in rules.PACKAGE_SUBJECTS if any(rules.judging(p, s) for _, p in governing)]
     packages = sorted((n for n in graph.nodes if n["kind"] == "Package"), key=lambda n: n["id"])
     found = [f for n in packages for s in wanted if (f := package_finding(n, s, governing)) is not None]
     if not found:

@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Callable
 
-from . import semver
+from . import codeowners, semver
 from .inventory.actions import DOCKER as DOCKER_USE
 from .inventory.actions import LOCAL as LOCAL_USE
 from .inventory.actions import local
@@ -22,6 +23,7 @@ _TOKEN = re.compile(r"\s*(\(|\)|[^\s()]+)")
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+:-]*$")
 COMMIT = re.compile(r"[0-9a-f]{40}")
 PINNED = "GitHub Actions"
+_HANDLE = re.compile(r"^@?[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?(?:/[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9])?)?$")
 
 
 @dataclass(frozen=True)
@@ -269,6 +271,91 @@ def _pinned(value: tuple, facts: dict) -> tuple[str, str]:
     return MATCH, f"{name} is pinned to {version!r}, not to a full 40-character commit SHA"
 
 
+def _globs(name: str, key: str, value) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value or not all(isinstance(x, str) and x.strip() for x in value):
+        raise ValueError(f"{name} {key} must be a non-empty list of path globs")
+    for glob in value:
+        try:
+            codeowners.compile_pattern(glob.strip())
+        except codeowners.Unsupported as e:
+            raise ValueError(f"{name} {key}: {e}") from None
+    return tuple(x.strip() for x in value)
+
+
+def _mapping(name: str, value, keys: tuple[str, str]) -> dict:
+    if not isinstance(value, dict) or set(value) != set(keys):
+        raise ValueError(f"{name} must be a mapping with exactly the keys {' and '.join(keys)}")
+    return value
+
+
+def _handles(value) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value or not all(isinstance(x, str) and _HANDLE.match(x) for x in value):
+        raise ValueError("review_required reviewers must be a non-empty list of handles such as @alice or @org/team")
+    return tuple(value)
+
+
+def _review_rule(value) -> tuple:
+    m = _mapping("review_required", value, ("paths", "reviewers"))
+    return _globs("review_required", "paths", m["paths"]), _handles(m["reviewers"])
+
+
+def _import_rule(value) -> tuple:
+    m = _mapping("imports_forbidden", value, ("from", "to"))
+    return _globs("imports_forbidden", "from", m["from"]), _globs("imports_forbidden", "to", m["to"])
+
+
+def handle_key(handle: str) -> str:
+    return handle if "/" in handle else handle.lstrip("@").lower()
+
+
+@lru_cache(maxsize=4096)
+def glob_regex(glob: str):
+    return codeowners.compile_pattern(glob)
+
+
+def matches(globs: tuple[str, ...], path: str | None) -> str | None:
+    if not path:
+        return None
+    return next((g for g in globs if glob_regex(g).fullmatch(path)), None)
+
+
+def _review(value: tuple, facts: dict) -> tuple[str, str]:
+    paths, wanted = value
+    glob = matches(paths, facts["file"])
+    if glob is None:
+        return CLEAR, "the rule does not cover this file"
+    given = {handle_key(h) for h in facts.get("reviewers") or ()}
+    found = [h for h in wanted if handle_key(h) in given]
+    if found:
+        return CLEAR, f"{glob} needs a review from {' or '.join(wanted)}; {', '.join(found)} reviewed"
+    return MATCH, f"{glob} needs a review from {' or '.join(wanted)}; none of them is among the reviewers given"
+
+
+def _package_target(to: tuple[str, ...], target: str) -> str | None:
+    return matches(tuple(g for g in to if "node_modules" in g), target)
+
+
+def _unresolved(to: tuple[str, ...], shown: str, target: str | None, why: str) -> tuple[str, str]:
+    if target and matches(to, target) is None and _package_target(to, target) is None:
+        return CLEAR, f"{shown}: {why}; even read as an import it names {target}, which no forbidden glob names"
+    return UNKNOWN, f"{shown}: {why}; it cannot be judged"
+
+
+def _import(value: tuple, facts: dict) -> tuple[str, str]:
+    source, to = value
+    glob = matches(source, facts["file"])
+    if glob is None:
+        return CLEAR, "the rule does not cover this file"
+    shown, resolution, target = facts["specifier"], facts["resolution"], facts.get("target")
+    if resolution == "unresolved":
+        return _unresolved(to, shown, target, facts["why"])
+    hit = _package_target(to, target) if resolution == "external" else matches(to, target)
+    if hit is None:
+        where = "an external package" if resolution == "external" else target
+        return CLEAR, f"{shown} is {where}, which no forbidden glob names"
+    return MATCH, f"{glob} must not import {hit}; {shown} is {target}"
+
+
 KINDS: dict[str, Kind] = {
     "advisory_severity_at_least": Kind("advisory", _severity, _advisory),
     "license_denied": Kind("license", _license_list("license_denied"), _license_denied),
@@ -276,7 +363,11 @@ KINDS: dict[str, Kind] = {
     "package_denied": Kind("package", _packages, _package_denied),
     "package_allowed": Kind("allowlist", _allowlist, _package_allowed),
     "pinned_to_commit": Kind("pin", _pin, _pinned),
+    "review_required": Kind("review", _review_rule, _review),
+    "imports_forbidden": Kind("import", _import_rule, _import),
 }
+PACKAGE_SUBJECTS = ("license", "package", "allowlist", "pin")
+CHANGE_SUBJECTS = ("review", "import")
 
 
 def subjects() -> list[str]:
