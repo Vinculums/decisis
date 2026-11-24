@@ -1,0 +1,17 @@
+{"meta": {"seeds": ["concept:github-action", "concept:offline-core", "concept:demo-app"], "space": "synthetic", "extracted_at": "2026-11-25T00:00:00Z"},
+ "nodes": [
+  {"id": "concept:github-action", "kind": "concept", "title": "The GitHub Action", "domain": "decisis/action", "props": {"code_ref": ["action.yml", "src/decisis/action.py", ".github/workflows/decisis.yml"]}},
+  {"id": "concept:github-api", "kind": "concept", "title": "Requests to api.github.com", "domain": "decisis/github", "props": {"code_ref": ["src/decisis/github.py", "src/decisis/action.py"]}},
+  {"id": "concept:offline-core", "kind": "concept", "title": "The offline core: check, impact, sandbox and views", "domain": "decisis/core", "props": {"code_ref": ["src/decisis/check.py", "src/decisis/impact.py", "src/decisis/sandbox.py", "src/decisis/render.py"]}},
+  {"id": "concept:demo-app", "kind": "concept", "title": "Demo app", "domain": "product/app", "props": {"code_ref": "Demo:package.json"}},
+  {"id": "decision:the-action-passes-inputs-through-the-environment", "kind": "decision", "title": "The action passes inputs and pull request text to Python through the environment, never into a shell script", "domain": "decisis/action", "props": {"statement": "Composite steps only install decisis and call it; inputs reach it as environment variables."}},
+  {"id": "decision:only-the-github-modules-reach-github", "kind": "decision", "title": "Only the GitHub modules send requests to GitHub", "domain": "decisis/github", "props": {"statement": "Requests to api.github.com go through github.py; action.py is the only module that writes."}},
+  {"id": "decision:the-offline-core-does-not-import-the-network-modules", "kind": "decision", "title": "The offline core does not import the network modules", "domain": "decisis/core", "props": {"statement": "check, impact, sandbox and the views run offline.", "rule": {"imports_forbidden": {"from": ["src/decisis/check.py", "src/decisis/impact.py", "src/decisis/sandbox.py", "src/decisis/render.py"], "to": ["src/decisis/github.py", "src/decisis/action.py", "src/decisis/external.py"]}}}},
+  {"id": "decision:no-high-advisories-in-shipped-dependencies", "kind": "decision", "title": "No high advisories in shipped dependencies", "domain": "platform/security", "props": {"statement": "A dependency the app ships may not carry an advisory of high severity or above.", "decided_by": "owner", "rule": {"advisory_severity_at_least": "HIGH", "dependencies": "shipped"}}}
+ ],
+ "edges": [
+  {"source": "decision:the-action-passes-inputs-through-the-environment", "target": "concept:github-action", "type": "ABOUT", "evidence": "the rule is about the composite steps"},
+  {"source": "decision:only-the-github-modules-reach-github", "target": "concept:github-api", "type": "ABOUT", "evidence": "the rule names the modules that send requests"},
+  {"source": "decision:the-offline-core-does-not-import-the-network-modules", "target": "concept:offline-core", "type": "ABOUT", "evidence": "the rule is drawn around the offline core"},
+  {"source": "decision:no-high-advisories-in-shipped-dependencies", "target": "concept:demo-app", "type": "ABOUT", "evidence": "policy on the demo app"}
+ ]}
