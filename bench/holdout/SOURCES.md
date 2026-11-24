@@ -2,7 +2,7 @@
 
 The held-out tasks in `tasks.json` run on inputs taken from five public repositories. Each is pinned to the
 commit below and licensed under MIT or Apache-2.0. Each repository's files are copyright their authors; the
-excerpts stored here are used under the repository's license, and the license notice is reproduced below.
+excerpts stored here are used under the repository's license. The notices that license requires are reproduced below.
 
 | Directory | Repository | Commit | License | ADRs read | Lockfile at that commit | Stored here |
 |---|---|---|---|---|---|---|
@@ -12,18 +12,97 @@ excerpts stored here are used under the repository's license, and the license no
 | `supabase-multitenant/` | [supabase-multitenant/supabase-multitenant](https://github.com/supabase-multitenant/supabase-multitenant) | `96d6f94063eb1356649d710b21eb513e3e1fa415` | MIT | `docs/adr/` (3) | `package-lock.json` (v3) | snapshot, mapping, lockfile, OSV cache |
 | `karma-sabarivka-reporter/` | [kopach/karma-sabarivka-reporter](https://github.com/kopach/karma-sabarivka-reporter) | `6fb805a9f27e3a15027e01a4fa56a80542d55ee2` | MIT | `doc/adr/` (4) | `package-lock.json` (v2) | snapshot, mapping, lockfile, OSV cache |
 
-Copyright and license notices:
+Copyright and license notices. The two MIT notices and the one NOTICE file found at the pinned commits are
+reproduced exactly as they appear in each repository's LICENSE or NOTICE file at that commit.
 
-- cloudfoundry/cli: Copyright (c) 2015-Present CloudFoundry.org Foundation, Inc. All Rights Reserved. This project
-  contains software that is Copyright (c) 2013-2015 Pivotal Software, Inc. Licensed under the Apache License,
-  Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0); see the repository's LICENSE and NOTICE files.
-- rancher/turtles: licensed under the Apache License, Version 2.0; see the repository's LICENSE file.
-- weaveworks/weave-gitops: licensed under the Apache License, Version 2.0; see the repository's LICENSE file.
-- supabase-multitenant/supabase-multitenant: Copyright (c) 2026 WebBoxes Team. MIT License; see the repository's
-  LICENSE file. Permission is granted under the MIT License, provided the copyright notice and permission notice
-  are included; the full text is at https://github.com/supabase-multitenant/supabase-multitenant/blob/96d6f94063eb1356649d710b21eb513e3e1fa415/LICENSE.
-- kopach/karma-sabarivka-reporter: Copyright (c) 2020 Ihor Kopach. MIT License; the full text is at
-  https://github.com/kopach/karma-sabarivka-reporter/blob/6fb805a9f27e3a15027e01a4fa56a80542d55ee2/LICENSE.
+### supabase-multitenant/supabase-multitenant (MIT)
+
+From `LICENSE` at `96d6f94063eb1356649d710b21eb513e3e1fa415`; it covers `supabase-multitenant/package-lock.json` and the
+ADR excerpts in `supabase-multitenant/`:
+
+```
+MIT License
+
+Copyright (c) 2026 WebBoxes Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### kopach/karma-sabarivka-reporter (MIT)
+
+From `LICENSE` at `6fb805a9f27e3a15027e01a4fa56a80542d55ee2`; it covers `karma-sabarivka-reporter/package-lock.json`
+and the ADR excerpts in `karma-sabarivka-reporter/`:
+
+```
+MIT License
+
+Copyright (c) 2020 Ihor Kopach https://github.com/kopach
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+### cloudfoundry/cli (Apache-2.0)
+
+Licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0). The repository has a
+`NOTICE` file at `5b69b945ed793811a1d5896ebe0238fb48389259`, reproduced here:
+
+```
+Copyright (c) 2015-Present CloudFoundry.org Foundation, Inc. All Rights Reserved.
+
+This project contains software that is Copyright (c) 2013-2015 Pivotal Software, Inc.
+
+This project is licensed to you under the Apache License, Version 2.0 (the "License").
+
+You may not use this project except in compliance with the License.
+
+This project may include a number of subcomponents with separate copyright notices
+and license terms. Your use of these subcomponents is subject to the terms and 
+conditions of the subcomponent's license, as noted in the LICENSE file.
+```
+
+### rancher/turtles (Apache-2.0)
+
+Licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0); see the repository's
+LICENSE file. There is no NOTICE file at `be75f9a24befacfb5b1c571fb410a2e218f1f45e`.
+
+### weaveworks/weave-gitops (Apache-2.0)
+
+Licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0); see the repository's
+LICENSE file. There is no NOTICE file at `936e848c4e001355fccdfee61c0d54e4a9917183`.
+
+## Advisory data
 
 Advisory data in the two `osv-cache.json` files comes from [OSV](https://osv.dev) (api.osv.dev), queried on
 2026-11-25 for exactly the packages decisis reads from each stored lockfile. OSV aggregates sources; the npm

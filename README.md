@@ -371,8 +371,8 @@ won for a reason other than the graph:
 - **The audit policy logic is untested here.** No held-out ADR states a machine-checkable dependency rule or
   names an affected package, and an `init` snapshot links no decision to the repository, so the audit tasks
   expect no policy links and every method returns none.
-- **The carry rules are barely exercised.** The five snapshots hold two `SUPERSEDES` edges and no other edge
-  (none of the repositories has postmortems, and `--github` was not used). The `RELATED_TO` rule fitted on the
+- **The carry rules are barely exercised.** The five snapshots hold one edge between them: weave-gitops ADR 15
+  `SUPERSEDES` ADR 5, which two tasks use (none of the repositories has postmortems, and `--github` was not used). The `RELATED_TO` rule fitted on the
   synthetic decoy never comes into play, so this set does not show that it generalises.
 - **Small and hand-mapped.** Five repositories, two of them npm (the Go repositories have impact tasks only,
   because B and the coverage check read npm lockfiles only), and one person's reading of which ADR governs
