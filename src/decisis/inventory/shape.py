@@ -155,6 +155,14 @@ class Inventory:
             "fetched_at": self.fetched}})
         return pid
 
+    def workspace(self, key, path: str, name: str, source_ref: str) -> str:
+        wid = f"workspace:{self.repo}:{path}"
+        self.keys[key] = wid
+        self.nodes.setdefault(wid, {"id": wid, "kind": "Workspace", "title": name or path, "props": {
+            "name": name, "path": path, "source_system": self.source_system, "source_ref": source_ref, "fetched_at": self.fetched}})
+        self.links.setdefault((self.repo_id, wid), (f"workspace {path}", False))
+        return wid
+
     def depends(self, src_key, dst_key, why: str, dev: bool = False) -> None:
         src = self.repo_id if src_key is None else self.keys.get(src_key)
         dst = self.keys.get(dst_key)

@@ -3,10 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from types import ModuleType
 
-from . import cargo, cyclonedx, gomod, npm, spdx, uv
+from . import bun, cargo, cyclonedx, gomod, npm, pnpm, spdx, uv, yarn
 
-READERS: dict[str, ModuleType] = {m.FORMAT: m for m in (npm, cyclonedx, spdx, uv, cargo, gomod)}
-FORMATS = "an npm package-lock.json, CycloneDX JSON 1.4 to 1.6, SPDX JSON 2.3, uv.lock, Cargo.lock, or go.mod with go.sum next to it"
+READERS: dict[str, ModuleType] = {m.FORMAT: m for m in (npm, cyclonedx, spdx, uv, cargo, gomod, pnpm, yarn, bun)}
+FORMATS = "an npm package-lock.json, CycloneDX JSON 1.4 to 1.6, SPDX JSON 2.3, uv.lock, Cargo.lock, go.mod with go.sum next to it, pnpm-lock.yaml, yarn.lock, or bun.lock"
 
 
 def detect(text: str, filename: str) -> str:
@@ -26,7 +26,11 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
 
 
 def load(path: Path) -> tuple[str, dict[str, str]]:
-    text = path.read_text(encoding="utf-8")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        text = path.read_bytes().decode("utf-8", errors="replace")
     reader = READERS[detect(text, path.name)]
-    siblings = {n: (path.parent / n).read_text(encoding="utf-8") for n in reader.SIBLINGS if (path.parent / n).is_file()}
+    names = reader.sibling_names(path.parent) if hasattr(reader, "sibling_names") else reader.SIBLINGS
+    siblings = {n: (path.parent / n).read_text(encoding="utf-8") for n in names if (path.parent / n).is_file()}
     return text, siblings

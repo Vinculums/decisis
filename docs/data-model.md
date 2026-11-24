@@ -192,12 +192,13 @@ Keys other than those above are ignored.
 | `Concept`, `Decision`, `Record`, ... | the snapshot | `id`, `title`, `domain`, flattened `props` |
 | `Repository` | the inventory | `id` = `repo:<name>`, `source_system` (see below), `source_ref`, `fetched_at`, `content_hash` of the inventory |
 | `Package` | the inventory | `id` = `pkg:<purl type>/<name>@<version>`, `ecosystem`, `name`, `version`, `dev`, `licenses`, `license_expression`, `purl`, `unresolved`, `source_system`, `source_ref`, `fetched_at` |
+| `Workspace` | a pnpm, Yarn or Bun lockfile | `id` = `workspace:<repo>:<path>`, `name` (empty for pnpm, which does not record it), `path`, `source_system`, `source_ref`, `fetched_at` |
 | `Advisory` | OSV | `id` = `adv:<osv id>`, `osv_id`, `severity`, `aliases`, `published`, `affected_json`, `source_url`, `fetched_at`, `content_hash` of the OSV record |
 
 | Edge | Meaning | `evidence` |
 |---|---|---|
 | snapshot edges | as in the snapshot | as in the snapshot |
-| `DEPENDS_ON` | the repository or a package requires a package | the requirement as the inventory states it |
+| `DEPENDS_ON` | the repository, a workspace or a package requires a package or a workspace; the repository holds each workspace | the requirement as the inventory states it, with `(dev)`, `(optional)` or `(peer)` for those kinds; `workspace <path>` from the repository |
 | `AFFECTED_BY` | OSV returned the advisory for this name and version | `OSV returned <id> for this name and version` |
 | `DESCRIBED_BY` | the repository to a snapshot node whose `code_ref` names it | `<node> has code_ref <ref>` |
 
@@ -214,6 +215,10 @@ returns the same nodes and edges.
 | `uv.lock` | `uv-lockfile` | packages with an `editable`, `virtual`, `directory` or `path` source | `dependencies`, `optional-dependencies`, `dev-dependencies` | reached only through a dependency group |
 | `Cargo.lock` | `cargo-lockfile` | packages without a `source` (the workspace) | `dependencies` (`name`, `name version` or `name version (source)`) | always false; the lockfile does not mark it |
 | `go.mod` with `go.sum` | `go-modules` | the module | every `require`, after `replace`; `// indirect` is kept in the evidence | always false |
+| `pnpm-lock.yaml` v6 or v9 | `pnpm-lockfile` | importer `.`; every other importer is a `Workspace` | importers' `dependencies`, `optionalDependencies` and `devDependencies` (`link:` goes to a workspace); each package's `dependencies` and `optionalDependencies` (v9: `snapshots`), a name in its `peerDependencies` marked peer | reached only through `devDependencies`; v6 `dev: true` |
+| `yarn.lock` v1 | `yarn-lockfile` | the root `package.json`; each workspace `package.json` is a `Workspace` | the `package.json` fields, then each entry's `dependencies` and `optionalDependencies` by `name@range`; v1 does not record peers | reached only through `devDependencies` |
+| `yarn.lock` Berry | `yarn-berry-lockfile` | the `workspace:.` entry; every other `workspace:` entry is a `Workspace` | each entry's `dependencies` by descriptor, `dependenciesMeta` optional, `peerDependencies` to the locked package of that name | a workspace dependency listed only under `devDependencies` of its `package.json` |
+| `bun.lock` | `bun-lockfile` | workspace `""`; every other workspace is a `Workspace` | workspaces' four dependency fields, and each package's `dependencies`, `optionalDependencies` and `peerDependencies`, resolved through nested keys such as `debug/ms` | reached only through `devDependencies` |
 
 Package props:
 
@@ -228,7 +233,8 @@ Package props:
 - `purl` is the package URL without qualifiers.
 - `unresolved` is empty when the package can be queried at OSV, and otherwise says why not (no ecosystem,
   no version). Unresolved packages stay in the graph, are not queried, and are listed in the report.
-- `dev` is true when the package is reached only through development dependencies. When an SBOM lists
+- `dev` is true when the package is reached only through development dependencies. Workspaces have no
+  `dev`; the repository always holds them. When an SBOM lists
   one package id more than once, one production instance makes it shipped; it is development only when
   every instance is marked development and nothing shipped reaches it.
 
@@ -245,7 +251,16 @@ are not read: from Go 1.17, `go.mod` lists every module in the build.
 
 Readers live in `src/decisis/inventory/`. Each one has `FORMAT`, `SIBLINGS` (files read from the same
 directory), `detect(text, filename)` and `read(text, filename, repo, siblings=None)` returning
-`(nodes, edges)`; `inventory.read` picks the first reader whose `detect` matches.
+`(nodes, edges)`; `inventory.read` picks the first reader whose `detect` matches. A reader may also have
+`sibling_names(folder)`, which names the files to read in place of `SIBLINGS`: the Yarn reader returns the
+root `package.json` and the `package.json` of each directory its `workspaces` globs match (outside
+`node_modules`).
+
+The pnpm, Yarn and Bun readers give each package the npm ecosystem and the id the npm reader gives the
+same name and version, `pkg:npm/<name>@<version>`. A version that is not a registry version (a git,
+tarball, file or link source) keeps its node and is `unresolved`. pnpm and Yarn Berry lockfiles are read
+with PyYAML's `BaseLoader`, which builds only mappings, lists and strings, so no value turns into a
+boolean, number or object.
 
 ## Versions
 

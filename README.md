@@ -43,7 +43,7 @@ As an isolated command-line tool:
 uv tool install decisis      # or: pipx install decisis
 ```
 
-The install fetches `relate-db` from PyPI once; every command after it runs offline, except `audit`
+The install fetches `relate-db` and `PyYAML` from PyPI once; every command after it runs offline, except `audit`
 asking api.osv.dev when you give it no `--osv-cache`. The [npm package](https://www.npmjs.com/package/decisis)
 only points here.
 
@@ -132,9 +132,18 @@ decision above.
 | uv | `uv.lock` | dependency groups (`dev-dependencies`) |
 | Cargo | `Cargo.lock` | not marked in the lockfile; every crate counts as shipped |
 | Go modules | `go.mod`, with `go.sum` in the same directory | not marked; every module counts as shipped |
+| pnpm lockfile v6 or v9 | `pnpm-lock.yaml` | an importer's `devDependencies`; v6 also `dev: true` |
+| Yarn v1 and Yarn Berry (2 and later) | `yarn.lock`, with the root `package.json` and the workspaces' `package.json` files next to it | `devDependencies` in the `package.json` files |
+| Bun text lockfile | `bun.lock` | a workspace's `devDependencies` |
 
 For Go, pass `go.mod`; `audit` reads the `go.sum` next to it and stops when a required module has no
-line there. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, and for
+line there. In a pnpm, Yarn or Bun monorepo each workspace package (a pnpm importer, a Yarn or Bun
+workspace) is a `Workspace` node between the repository and its dependencies, so a path reads
+`repo:<name> -> workspace:<name>:<path> -> pkg:npm/... -> pkg:npm/...`; the root package's dependencies hang
+from the repository. Peer and optional dependencies are edges with `(peer)` or `(optional)` in the evidence.
+For `yarn.lock`, `audit` reads the root `package.json` and the `package.json` of each directory its
+`workspaces` globs match; without them the packages are linked straight from the repository. A binary
+`bun.lockb` is refused: run `bun install --save-text-lockfile` and audit the `bun.lock` it writes. Each package is queried at OSV under its own ecosystem (npm, PyPI, crates.io, Go, and for
 SBOMs also Maven, NuGet, RubyGems, Packagist, GitHub Actions, Debian and Alpine). An SBOM component
 without a purl, or whose purl type has no OSV ecosystem, stays in the graph and is listed under
 `unresolved_packages` in the report; it is not queried. An inventory with no packages, or none that can
