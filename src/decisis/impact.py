@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .queries import load as query
-from .sandbox import Subgraph, sandbox
+from .sandbox import Limits, Subgraph, sandbox
 
 GOVERNING = ["decision", "record"]
 KIND_ORDER = {"decision": 0, "record": 1, "concept": 2}
@@ -174,7 +174,7 @@ def collect(rows: list[dict], graph: Subgraph, path: str, repo: str | None = Non
     return sorted(out, key=lambda i: (i["hops"], KIND_ORDER.get(i["kind"], len(KIND_ORDER)), i["id"]))
 
 
-def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = None, root=None) -> dict:
+def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = None, root=None, limits: Limits | None = None) -> dict:
     if not 0 <= hops <= MAX_HOPS:
         raise ValueError(f"hops must be between 0 and {MAX_HOPS}")
     wanted = []
@@ -187,7 +187,7 @@ def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = Non
     cypher = query("governing_nodes", hops=hops)
     results = []
     replaced = superseded_by(graph)
-    with sandbox(root) as box:
+    with sandbox(root, limits) as box:
         counts = box.load(Subgraph(prepared.nodes, governance_edges(prepared), prepared.meta))
         for raw, p in wanted:
             rows = [from_anchor(r) for r in box.query(cypher, {"path": p, "dir": p + "/", "kinds": GOVERNING})]

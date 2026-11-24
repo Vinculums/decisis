@@ -114,3 +114,19 @@ def test_a_decision_about_two_concepts_of_the_repository_is_claimed_once_by_each
         assert pairs and len(pairs) == len(set(pairs)), m
         assert {d for _, d in pairs} == decisions, m
         assert m != "C" or all(compare.covered(c, known) for c in links)
+
+
+def test_a_decision_about_two_concepts_keeps_the_same_evidence_whatever_the_snapshot_order():
+    inp = compare.load_inputs(ROOT, json.loads(TASKS.read_text(encoding="utf-8")))
+    lock = {"id": "concept:demo-lockfile", "kind": "concept", "title": "Demo lockfile", "props": {"code_ref": "Demo:package-lock.json"}}
+    record = {"id": "record:demo-chart-kit-advisory", "kind": "record", "title": "chart-kit advisory",
+              "props": {"entity": "npm:chart-kit", "value": "DEMO-2026-0004", "versions": ["1.2.0"], "severity": "MODERATE"}}
+    about = {"source": "decision:no-high-advisories-in-shipped-dependencies", "target": "concept:demo-lockfile", "type": "ABOUT", "evidence": "policy on the lockfile"}
+    orders = [(inp["vinc"].nodes + [lock, record], inp["vinc"].edges + [about]),
+              ([record, lock] + inp["vinc"].nodes[::-1], [about] + inp["vinc"].edges[::-1])]
+    for m in compare.METHODS:
+        seen = []
+        for nodes, edges in orders:
+            inp["vinc"] = compare.Subgraph(nodes, edges, {})
+            seen.append([c for c in compare.RUNNERS[("audit", m)](inp, "pkg:npm/chart-kit@1.2.0") if c["type"] == "policy_link"])
+        assert seen[0] and seen[0] == seen[1], m

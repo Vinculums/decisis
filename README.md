@@ -157,9 +157,17 @@ flowchart LR
 | `compare` | nothing | the benchmark below |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
+| `gc` | nothing | removes task directories that a killed run left behind, and prints them |
 
 Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR`, `impact --hops N --format text`, `paths --hops N --limit N`,
 `audit --osv-cache FILE --depth N`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit).
+
+Limits: `paths`, `impact`, `audit` and `propose` refuse a graph over 50,000 nodes or 250,000 edges before writing
+anything, and stop any query that runs longer than 60 seconds; the task directory is removed either way
+and the command exits with 1. Raise a limit with `--max-nodes`, `--max-edges` or `--query-timeout`, or with
+`DECISIS_MAX_NODES`, `DECISIS_MAX_EDGES` or `DECISIS_QUERY_TIMEOUT`, up to 1,000,000 nodes, 5,000,000 edges
+and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --hops` 1 to 6 and `paths --limit`
+1 to 100.
 `impact`, `paths` and `audit` print JSON (`impact --format text` reads better for people); `demo`, `propose`
 and `compare` print text. `decisis <command> --help` lists the rest.
 
@@ -262,6 +270,13 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - Reasoning opens the file read only and a write is refused; an open writer locks out a second writer
   and any reader.
 - The task directory is private (0700), under `/dev/shm` when it is writable, and removed after the run.
+- A graph over the node or edge cap is refused before anything is written, a query over the time limit
+  is stopped, and in both cases the task directory is removed and the command exits non-zero.
+- Each task directory records its owner process. On Linux and macOS a new sandbox, or `decisis gc`,
+  removes `decisis-*` directories under the same root whose owner is gone; it leaves another user's
+  directory, a live run's directory, a `decisis-*` entry that is a symbolic link, and anything a symbolic
+  link inside a task directory points to. A root that is itself a symbolic link is followed and used as
+  the root.
 - The audit joins the snapshot, the lockfile (nested copies resolved) and OSV, checks the installed
   version against the advisory ranges, and keeps each advisory's source URL, fetch time and content hash.
 - `propose` re-derives each record in a fresh graph built from the snapshot, the lockfile and OSV: the
@@ -279,7 +294,7 @@ Future work, not built:
 
 - A Relate MCP server as the agent's read-only query surface; today the agent drives the CLI.
 - Ecosystems other than npm, and repository metadata beyond the lockfile.
-- Query time limits, a cap on imported graph size and on `audit --depth`; today `paths` and `impact` bound hops and results.
+- Removing stale task directories on Windows; there `decisis gc` says so and removes nothing.
 - Encrypted scratch storage with key destruction for sensitive data (see `docs/threat-model.md`).
 - A held-out benchmark set, and real repositories, to test whether the comparison holds.
 

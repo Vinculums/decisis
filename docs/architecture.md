@@ -30,7 +30,7 @@ sequenceDiagram
 |---|---|
 | `src/decisis/cli.py` | The `decisis` command: `init`, `checkout`, `paths`, `impact`, `audit`, `propose`, `commit`, `demo`, `compare`. |
 | `src/decisis/checkout.py` | `VincMCP`, a small JSON-RPC client for the Vinc MCP endpoint; `checkout` calls `vinc_graph` once per seed and `normalize` merges the results into a `Subgraph` (deduplicated by id, known edge types only, edges with a missing endpoint dropped). `dump` and `load` read and write the snapshot file. |
-| `src/decisis/sandbox.py` | `Sandbox`: creates the private task directory, loads a `Subgraph` once with a single writer connection, answers queries over read-only connections, and deletes the directory. `sandbox()` is the context manager every command uses. |
+| `src/decisis/sandbox.py` | `Sandbox`: creates the private task directory, loads a `Subgraph` once with a single writer connection, answers queries over read-only connections in a query process with a time limit, and deletes the directory. `sandbox()` is the context manager every command uses. `Limits` holds the size caps and the time limit; `sweep()` removes task directories a killed run left. |
 | `src/decisis/external.py` | Parses an npm lockfile (v2 or v3) into `Repository` and `Package` nodes and `DEPENDS_ON` edges, resolving nested `node_modules` copies the way npm does. Fetches OSV advisories with one batch query and one record per advisory, or reads them from an `--osv-cache` file and refuses the network. |
 | `src/decisis/semver.py` | Checks an installed version against OSV `SEMVER` and `ECOSYSTEM` ranges. |
 | `src/decisis/audit.py` | Composes the snapshot, the lockfile and the advisories into one graph, adds `DESCRIBED_BY` from the repository to each Vinc node whose `code_ref` names it, runs the dependency and governance queries, and judges each finding against each governing decision. |
@@ -46,17 +46,33 @@ sequenceDiagram
 
 ## The sandbox lifecycle
 
-1. `Sandbox()` makes `decisis-<random hex>/` with mode 0700 under `/dev/shm` when that directory
-   exists and is writable, otherwise under the system temporary directory. The database is `task.rl`
-   inside it.
-2. `load()` opens one writer connection, creates the nodes grouped by kind (the kind becomes the label)
+1. `Sandbox()` first removes stale task directories under the same root (see below). It then makes
+   `decisis-<random hex>/` with mode 0700 under `/dev/shm` when that directory exists and is writable,
+   otherwise under the system temporary directory, and writes `owner.json` (process id, process start
+   time where the platform gives one, host name) into it. The database is `task.rl` inside it.
+2. `load()` first compares the snapshot with the node and edge caps and raises `TooLarge` before it
+   opens the database. It then opens one writer connection, creates the nodes grouped by kind (the kind becomes the label)
    and the edges grouped by type, counts what landed and closes. A second `load()` on the same sandbox is
    refused. If the counts differ from the snapshot, the error names repeated ids and edges with a missing
    endpoint.
-3. `query()` opens a new connection with `read_only=True` for each query and closes it after. A write
-   through that connection fails with `WriteOnReadOnly`.
+3. `query()` sends the query to a query process, which opens a new connection with `read_only=True`
+   for it and closes it after. A write through that connection fails with `WriteOnReadOnly`. Relate
+   1.0.2 has no query timeout or interrupt in its Python API, and a signal handler does not run while a
+   query is executing, so the time limit is kept by a separate process: when a query runs past the limit,
+   the process is killed and `QueryTimeout` is raised. One query process serves every sandbox in a
+   command and starts while the graph loads, so the cost is one Python start (about 0.1 s on Linux) per
+   command, not per query. The query process exits when the command's process ends.
 4. `destroy()` removes the directory. The context manager calls it in a `finally`, so an exception in
-   the task still removes it.
+   the task, a refused load or a stopped query still removes it.
+
+A directory is stale when its name is exactly `decisis-` and 32 hex digits, it is a real directory
+(not a symbolic link) owned by the current user, it is older than the grace period (10 minutes), its
+`owner.json` is a regular file of the same user on the same host, and that process is gone: no process
+has the id, or on Linux the process with that id started at another time (the id was reused). A live
+process, an unreadable record or a missing record keeps the directory. Removal uses
+`shutil.rmtree`, which does not follow symbolic links. Removal needs `os.getuid` and a symlink-safe
+`rmtree`, so it runs on Linux and macOS and is skipped on Windows. `decisis gc [--root DIR] [--grace
+SECONDS]` runs the same removal on demand.
 
 Relate's single file is locked by an open writer: a second writer and any reader get `storage locked`
 until it closes (`tests/test_sandbox.py`). That is why loading and reasoning are separate steps.
