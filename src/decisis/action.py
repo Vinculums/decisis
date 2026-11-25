@@ -643,6 +643,7 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
         raise ValueError(f"working-directory {root} is not a directory")
     repo = env.get("DECISIS_REPO", "").strip() or None
     strict = flag(env, "DECISIS_FAIL_ON_UNRESOLVED")
+    failing = flag(env, "DECISIS_FAIL_ON_VIOLATION")
     mode, waiting = decisions_from(env), None
     if mode == HEAD:
         graph, source = snapshot_of(env, root, repo)
@@ -674,7 +675,7 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     count = sum(unresolved(outcome).values())
     append(env.get("GITHUB_OUTPUT"), f"violations={violations}\nunresolved={count}\ncomment-url={link}\n")
     say(f"{len(report['governing'])} decision(s) touched, {violations} violation(s), {count} unresolved")
-    if violations and flag(env, "DECISIS_FAIL_ON_VIOLATION"):
+    if violations and failing:
         return 1
     if count and strict:
         say("fail-on-unresolved is on and the run found results that cannot be judged; the step fails")
@@ -683,7 +684,6 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
 
 
 def unjudged(env: Mapping[str, str], client: gh.Client, outcome: Outcome) -> int:
-    flag(env, "DECISIS_FAIL_ON_VIOLATION")
     link = publish(env, client, outcome)
     append(env.get("GITHUB_OUTPUT"), f"violations=0\nunresolved=0\ncomment-url={link}\n")
     say("the base commit has no decisions yet; nothing was judged")

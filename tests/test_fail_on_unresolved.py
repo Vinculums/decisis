@@ -160,6 +160,16 @@ def test_a_bad_value_stops_the_step_before_any_request(tmp_path, capsys, no_netw
     assert fake.sent == [] and "DECISIS_FAIL_ON_UNRESOLVED must be true or false" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("value", ["ture", "maybe", "on"])
+def test_a_bad_fail_on_violation_value_stops_the_step_before_any_request_whatever_the_run_finds(tmp_path, capsys, no_network, value):
+    root, base = shop(tmp_path)
+    fake = FakeGitHub()
+    env = environment(tmp_path, root, base, DECISIS_FAIL_ON_VIOLATION=value)
+    assert action.main(env, fake) == 2
+    assert fake.sent == [] and "DECISIS_FAIL_ON_VIOLATION must be true or false" in capsys.readouterr().out
+    assert "DECISIS\\_FAIL\\_ON\\_VIOLATION must be true or false" in Path(env["GITHUB_STEP_SUMMARY"]).read_text(encoding="utf-8")
+
+
 def test_the_docs_list_the_input_and_the_output_and_say_what_counts():
     docs = (ROOT / "docs" / "action.md").read_text(encoding="utf-8")
     assert "| `fail-on-unresolved` | `false` |" in docs and "has no `fail-on-unresolved` input" not in docs
