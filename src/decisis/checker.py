@@ -40,13 +40,16 @@ def _own(node: dict, facts: dict) -> set[str]:
     return {r["package"] for r in rows if r is not None}
 
 
-def _facts(box, plan: dict, repo: str, depth: int) -> dict:
+def _facts(box, graph: Subgraph, plan: dict, repo: str, depth: int) -> dict:
     advisories = sorted({f"adv:{n['props']['value']}" for n in plan["nodes"] if subject(n) == "advisory"})
     names = sorted({_name(n) for n in plan["nodes"]})
     on_paths = sorted({x for n in plan["nodes"] for path in n["props"]["dependency_paths"] for x in path})
     packages = box.query(query("packages_named"), {"names": names}) + box.query(query("package_records"), {"ids": on_paths})
     steps = sorted({x for n in plan["nodes"] if subject(n) != "advisory" for path in n["props"]["dependency_paths"] for x in path[1:]})
+    governing = audit.governing(box, graph, repo)
     return {"repo": f"repo:{repo}",
+            "governing": {r["decision"] for r in governing},
+            "idle": audit.idle(graph, governing, repo),
             "advisories": {r["advisory"]: r for r in box.query(query("advisory_records"), {"ids": advisories})},
             "packages": {r["package"]: r for r in packages},
             "paths": {tuple(r["path"]) for r in box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})},
@@ -133,6 +136,17 @@ def _package_version(node: dict, version: str, facts: dict, decided: dict[str, d
     return out
 
 
+def _cited(node: dict, edges: list[dict], facts: dict, known) -> list[str]:
+    p = node["props"]
+    out = []
+    for d in sorted({*p.get("violates", []), *p.get("waived", []), *(e["to"] for e in edges)}):
+        if d not in known:
+            out.append(f"{d} is not a decision in the snapshot")
+        elif d not in facts["governing"]:
+            out.append(f"{d} does not govern {facts['repo']}: {facts['idle'][d]}")
+    return out
+
+
 def check_package_record(node: dict, edges: list[dict], facts: dict, decided: dict[str, dict]) -> dict:
     p, own = node["props"], _own(node, facts)
     problems = []
@@ -140,7 +154,7 @@ def check_package_record(node: dict, edges: list[dict], facts: dict, decided: di
         problems += _package_version(node, version, facts, decided)
     for path in p["dependency_paths"]:
         problems += _package_path(path, p, own, facts)
-    problems += [f"{e['to']} is not a decision in the snapshot" for e in edges if e["to"] not in decided]
+    problems += _cited(node, edges, facts, decided)
     checks = len(p["versions"]) * (2 + len(p["violates"]) + len(p.get("waived", []))) + len(p["dependency_paths"]) + len(edges)
     return {"record": node["id"], "checks": checks, "problems": problems}
 
@@ -155,15 +169,15 @@ def check_record(node: dict, edges: list[dict], facts: dict, known) -> dict:
         problems += _version(name, version, record, facts, ends)
     for path in p["dependency_paths"]:
         problems += _path(path, p, own, facts)
-    problems += [f"{e['to']} is not a decision in the snapshot" for e in edges if e["to"] not in known]
+    problems += _cited(node, edges, facts, known)
     checks = 1 + len(p["versions"]) + len(p["dependency_paths"]) + len(edges)
     return {"record": node["id"], "checks": checks, "problems": problems}
 
 
-def check_plan(plan: dict, box, known: dict[str, dict], repo: str, depth: int = 8) -> list[dict]:
+def check_plan(plan: dict, box, graph: Subgraph, repo: str, depth: int = 8) -> list[dict]:
     if not plan["nodes"]:
         return []
-    facts = _facts(box, plan, repo, depth)
+    facts, known = _facts(box, graph, plan, repo, depth), decisions(graph)
     return [check_record(n, [e for e in plan["edges"] if e["from"] == n["id"]], facts, known) for n in plan["nodes"]]
 
 
@@ -186,7 +200,7 @@ def rederive(plan: dict, vinc: Subgraph, lock_text: str, repo: str, advisories, 
     box = Sandbox(root, limits)
     try:
         box.load(graph)
-        checked = check_plan(plan, box, decisions(vinc), repo, depth)
+        checked = check_plan(plan, box, graph, repo, depth)
     finally:
         box.destroy()
     return withhold(plan, checked), checked

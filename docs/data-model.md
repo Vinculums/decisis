@@ -624,17 +624,24 @@ A decision governs the repository `audit --repo NAME` reads in one of two ways:
   (or a rule entry that cannot be read) governs the repository: `audit` adds a `RECORDS` edge from
   `repo:NAME` to it. The decision's `code_ref`, `subject_path` and `also_touches` do not matter, and a
   `code_ref` that names part of the repository, such as `Shop:src/payments/`, does not narrow a dependency
-  rule: an inventory is the dependencies of the whole repository, so the rule covers all of it. A
-  superseded decision (its status says `superseded`, or it is the target of a `SUPERSEDES` edge) does not
-  govern. In the report its `governing` entry has `via` set to the ADR file and `link` set to `RECORDS`.
+  rule: an inventory is the dependencies of the whole repository, so the rule covers all of it. In the
+  report its `governing` entry has `via` set to the ADR file and `link` set to `RECORDS`.
 - **A hand-written snapshot** links a decision through a path `repo:NAME -DESCRIBED_BY-> node <-ABOUT-
   decision`, where `DESCRIBED_BY` comes from the node's string `code_ref` as above. Its `governing` entry
   has `via` set to that node.
 
+In both, a superseded decision (its status says `superseded`, or it is the target of a `SUPERSEDES` edge)
+does not govern.
+
 A decision whose rule holds a kind `audit` judges but that governs nothing in this audit is listed under
 `not_governing` in the report, with `decision`, `title` and `reason`: an `init` snapshot of another
-repository, a superseded decision of an `init` snapshot, or a hand-written decision with no path to the
-repository. Its rules are not judged.
+repository, a superseded decision, or a hand-written decision with no path to the repository. Its rules are
+not judged.
+
+`propose` asks the same question again in the fresh graph: the Checker takes the decisions that govern the
+repository from the same code as `audit`, and holds back a record that names a decision under `violates` or
+`waived`, or links one with `relates_to`, when that decision does not govern the repository there. The failed
+check names the decision and the reason `not_governing` gives.
 
 ## Inventories
 

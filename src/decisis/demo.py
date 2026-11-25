@@ -136,7 +136,7 @@ def run(out: Path, fixtures: Path | None = None, approve: str | None = None, yes
         ], path=path)
 
         plan = wb.propose(report, REPO, SPACE, today=today)
-        checked = checker.check_plan(plan, box, checker.decisions(vinc), REPO)
+        checked = checker.check_plan(plan, box, graph, REPO)
         plan = checker.withhold(plan, checked)
         failed = [c for c in checked if c["problems"]]
         demo.step("Checker and approval", [

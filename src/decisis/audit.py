@@ -61,24 +61,34 @@ def recorded(rows: list[dict], graph: Subgraph) -> list[dict]:
 
 
 def not_governing(graph: Subgraph, decisions: list[dict], repo: str) -> list[dict]:
-    governing = {d["decision"] for d in decisions}
-    replaced = impact.superseded_by(graph)
-    meta = graph.meta or {}
-    out = []
-    for n in sorted(ruled_decisions(graph), key=lambda n: n["id"]):
-        if n["id"] not in governing:
-            out.append({"decision": n["id"], "title": n.get("title") or "", "reason": unlinked(n, meta, repo, replaced)})
-    return out
+    why = idle(graph, decisions, repo)
+    return [{"decision": n["id"], "title": n.get("title") or "", "reason": why[n["id"]]}
+            for n in sorted(ruled_decisions(graph), key=lambda n: n["id"]) if n["id"] in why]
 
 
 def unlinked(node: dict, meta: dict, repo: str, replaced: dict[str, list[str]]) -> str:
     if from_init(meta) and not same_repo(meta.get("snapshot_repo"), repo):
         return f"{INIT} read it from the repository {meta['snapshot_repo']}, and this audit is of {repo}"
-    if from_init(meta) and node["id"] in replaced:
+    if node["id"] in replaced:
         by = ", ".join(replaced[node["id"]]) or "a later decision"
         return f"it is superseded by {by}, and a superseded decision is not judged"
+    if from_init(meta):
+        return f"{INIT} links only a decision whose rule holds a kind audit judges, and this one has none"
     return (f"nothing links it to repo:{repo}: the snapshot does not come from {INIT}, and no edge runs "
             f"repo:{repo} -DESCRIBED_BY-> a node it is ABOUT")
+
+
+def governing(box, graph: Subgraph, repo: str) -> list[dict]:
+    rows = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
+    rows += recorded(box.query(query("recorded_decisions"), {"repo": f"repo:{repo}"}), graph)
+    replaced = impact.superseded_by(graph)
+    return [r for r in rows if r["decision"] not in replaced]
+
+
+def idle(graph: Subgraph, rows: list[dict], repo: str) -> dict[str, str]:
+    held = {r["decision"] for r in rows}
+    replaced = impact.superseded_by(graph)
+    return {n["id"]: unlinked(n, graph.meta or {}, repo, replaced) for n in graph.nodes if n["kind"] == "decision" and n["id"] not in held}
 
 
 def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories, filename: str = "package-lock.json",
@@ -269,8 +279,7 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8, day: datetime.date 
         raise ValueError(f"depth must be between 1 and {MAX_DEPTH}")
     counts = box.load(graph)
     rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
-    decisions = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
-    decisions += recorded(box.query(query("recorded_decisions"), {"repo": f"repo:{repo}"}), graph)
+    decisions = governing(box, graph, repo)
     day = day or rules.today()
     findings = ordered(verify(rows, graph, decisions, day) + package_findings(graph, decisions, repo, depth, day))
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
