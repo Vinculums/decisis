@@ -147,7 +147,7 @@ runs under the same time limit as every other query. (`src/decisis/cypher.py`;
 `test_a_query_past_the_time_limit_is_stopped`.)
 
 **`check` never runs repository code.** Imports are read with `ast` for Python and a scanner for JavaScript,
-TypeScript, Go and Rust; `go.mod` and `Cargo.toml` are read as text, and no module of the repository is imported and no build or package manager runs. `--base`
+TypeScript, Go, Rust, Java and Kotlin; `go.mod`, `Cargo.toml`, `package.json`, `pnpm-workspace.yaml`, `build.gradle` and `pom.xml` are read as text, and no module of the repository is imported and no build or package manager runs. `--base`
 runs `git diff --name-only` with the repository's hooks, fsmonitor and pager turned off, and refuses a ref
 that looks like an option. A changed path outside the repository is refused, and a file reached through a
 symbolic link that leads outside it is `unresolved`. (`src/decisis/check.py`, `src/decisis/imports.py`;

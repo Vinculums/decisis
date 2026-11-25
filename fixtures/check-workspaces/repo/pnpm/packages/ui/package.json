@@ -1,0 +1,8 @@
+{
+  "name": "@shop/ui",
+  "dependencies": {
+    "data": "workspace:@shop/db@*",
+    "path-linked": "workspace:../db",
+    "ghost": "workspace:*"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "@shop/db",
+  "main": "lib/main.js",
+  "module": "src/main.ts"
+}

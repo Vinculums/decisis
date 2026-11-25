@@ -32,7 +32,11 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
   Rust `use`, `mod` and `extern crate` declarations, through the tree of `mod` declarations from the crate
   root (with `#[path]`, `cfg_attr` paths and inline modules), the items and `use` bindings of each module,
   and into other crates of the repository by their `Cargo.toml` names, `package` renames and workspace
-  dependencies. It does so without running the repository's code or its git hooks. An import computed at
+  dependencies; on Java and Kotlin `import`, `import static`, wildcard and `as` imports, placed by the `package`
+  line of each source file and by its path under the source roots (`src/<set>/java`, `src/<set>/kotlin`, and
+  those a Gradle script or `pom.xml` declares); and on a bare specifier that names a package of an npm, pnpm,
+  Yarn or Bun workspace, through its `exports`, `main` and `workspace:` links. It does so without running the
+  repository's code or its git hooks. An import computed at
   run time, a file the scanner cannot finish, a Go path under the module path with no directory, a Rust
   path with a name that is no module, item or `use` binding of the module it reaches, and a specifier a
   plain text search finds where the scanner did not are `unresolved`, never clean; a superseded decision
@@ -71,10 +75,21 @@ Future work, not built:
 - Transitive dependencies for a Gradle lockfile or a `pom.xml`; generate CycloneDX JSON for those.
 - Advisories for Terraform providers: OSV has no Terraform ecosystem, so providers are checked against
   `package_denied` and `package_allowed` only.
-- Imports in languages other than Python, JavaScript, TypeScript, Go and Rust: `check` reads none, so a
-  Java or Kotlin file under an `imports_forbidden` glob gives no verdict. Rust macros that expand to
-  `use` or `mod`, items a macro generates (these are `unresolved`), and Go `go.work` workspaces and
+- Imports in languages other than Python, JavaScript, TypeScript, Go, Rust, Java and Kotlin: `check` reads
+  none, so a Scala, Groovy or Swift file under an `imports_forbidden` glob gives no verdict. Rust macros that
+  expand to `use` or `mod`, items a macro generates (these are `unresolved`), and Go `go.work` workspaces and
   `replace` directives, are not followed.
+- Java and Kotlin: a member of a class is judged through the file of the class it is imported through, not the
+  file of a superclass that declares it. Classes that an annotation processor, Lombok or a code generator writes
+  into `build/` are not in the checkout; an import of one is `unresolved` when a package of the repository could
+  hold it. A source directory a Gradle script computes (not a string literal), a Gradle `include` of a project in
+  another directory, and Scala or Groovy sources are not followed. A repository with more than 200000 files is
+  searched only in part, and an import that is not found in it is `unresolved`.
+- Workspaces: the packages are found from `workspaces` in a `package.json` and `packages` in a
+  `pnpm-workspace.yaml`; a `lerna.json` or Rush list, a `file:` or `link:` dependency outside a workspace, the
+  `imports` field of a `package.json` (`#name`) and `typesVersions` are not followed, and such a specifier is
+  external as before. An `exports` entry that is a build output not in the checkout is named by the package
+  directory and the paths it declares.
 - Go packages under `vendor/`, and modules that a `replace` directive or `go.work` places inside the
   repository, are read as external, so no `to` glob can name them.
 - A memory limit on the query process (see `docs/threat-model.md`).
