@@ -22,6 +22,11 @@ tree, read by `committed`, so a pull request is judged by the decisions it would
 When the pull request changes a file the decisions come from, the comment lists those files, and the decisions and
 waivers that change when both sides can be read; they change no verdict in this run. When the base commit has no
 decisions, nothing is judged. With `head` the decisions come from the checkout, as before.
+
+The `unresolved` output counts the check results that cannot be judged, the audit findings whose status is unresolved
+and the unresolved packages of every inventory, and the decision files not read. With `DECISIS_FAIL_ON_UNRESOLVED`
+the step fails when that count is not 0, after the comment and the job summary are written, and the comment's first
+line after `MARKER` names what was found. A waiver covers only a violation, so a waived result is never unresolved.
 """
 from __future__ import annotations
 
@@ -58,6 +63,9 @@ FALSE = ("false", "no", "0", "")
 BASE, HEAD = "base", "head"
 AUTO = "auto"
 WORKFLOWS = ".github/workflows"
+UNRESOLVED = "unresolved"
+CAUSES = (("check", "check result(s) that cannot be judged"), ("audit", "unresolved audit finding(s)"),
+          ("packages", "unresolved package(s)"), ("unread", "decision file(s) not read"))
 LOCKFILES = frozenset(("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "uv.lock", "poetry.lock",
                        "Cargo.lock", "go.mod", "gradle.lockfile", "pom.xml", ".terraform.lock.hcl"))
 
@@ -104,6 +112,7 @@ class Outcome:
     notes: list[str] = field(default_factory=list)
     pending: Pending | None = None
     nothing: str | None = None
+    strict: bool = False
 
 
 def flag(env: Mapping[str, str], name: str) -> bool:
@@ -268,6 +277,22 @@ def audit_violations(audits: list[Audited] | None) -> int:
     return sum(a.report.get("violations", 0) for a in audits or [] if a.report is not None)
 
 
+def unresolved(o: Outcome) -> dict[str, int]:
+    found = [a.report for a in o.audits or [] if a.report is not None]
+    return {"check": len(o.report.get("unresolved") or []),
+            "audit": sum(1 for a in found for f in a.get("findings") or [] if f.get("status") == UNRESOLVED),
+            "packages": sum(len(a.get("unresolved_packages") or []) for a in found),
+            "unread": len(o.report.get("unread_decisions") or [])}
+
+
+def failure(o: Outcome) -> list[str]:
+    counts = unresolved(o)
+    parts = [f"{counts[key]} {what}" for key, what in CAUSES if counts[key]]
+    if not o.strict or not parts:
+        return []
+    return [f"**This check fails: fail-on-unresolved is on and the run found {', '.join(parts)}.**", ""]
+
+
 def graphs(o: Outcome) -> list[str]:
     governed = [r for r in o.report["impact"] if r.get("governing") or r.get("superseded")]
     out = ["<details><summary>Path graph</summary>", "", render.mermaid("check", {**o.report, "impact": governed})]
@@ -309,7 +334,7 @@ def pending(o: Outcome, rows: int) -> list[str]:
 
 
 def nothing_judged(o: Outcome, rows: int) -> str:
-    lines = [MARKER, "### decisis", "",
+    lines = [MARKER, *failure(o), "### decisis", "",
              f"**No decisions exist on the base commit {code(o.pull.base[:12])} yet**, so nothing was judged in "
              f"{len(o.report['changed'])} changed file(s).", "", text(o.nothing), ""]
     lines += [f"> {text(n)}" for n in o.notes] + ([""] if o.notes else [])
@@ -328,7 +353,7 @@ def compose(o: Outcome, rows: int, graph: bool) -> str:
             + (f", {len(r['waived'])} waived" if r.get("waived") else "")
             + (f", {len(r['unread_decisions'])} decision file(s) not read" if r.get("unread_decisions") else "")
             + f"** in {len(r['changed'])} changed file(s) against {code(o.pull.base[:12])}.")
-    lines = [MARKER, "### decisis", "", head, "", *reviewers_line(o, rows)]
+    lines = [MARKER, *failure(o), "### decisis", "", head, "", *reviewers_line(o, rows)]
     if (rows, graph) != ATTEMPTS[0]:
         lines += [f"Cut to fit GitHub's {MAX_BODY:,}-character limit for a comment: "
                   + ("the graph is left out and " if not graph else "") + f"each list shows at most {rows} rows.", ""]
@@ -608,6 +633,7 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     if not root.is_dir():
         raise ValueError(f"working-directory {root} is not a directory")
     repo = env.get("DECISIS_REPO", "").strip() or None
+    strict = flag(env, "DECISIS_FAIL_ON_UNRESOLVED")
     mode, waiting = decisions_from(env), None
     if mode == HEAD:
         graph, source = snapshot_of(env, root, repo)
@@ -625,26 +651,32 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
         say(f"{len(waiting.files)} changed file(s) hold decisions; they take effect once merged")
     if mode == BASE and not committed.has_decisions(graph):
         return unjudged(env, client, Outcome({"changed": changed}, pull, [], version(), source, pending=waiting,
-                                             nothing=no_decisions(env, graph)))
+                                             nothing=no_decisions(env, graph), strict=strict))
     approved, review_note = approvals(client, pull)
     report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day)
     done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day)
-    outcome = Outcome(report, pull, approved, version(), source, done, pending=waiting)
+    outcome = Outcome(report, pull, approved, version(), source, done, pending=waiting, strict=strict)
     if review_note:
         outcome.notes.append(review_note)
     if empty:
         outcome.notes.append("inventory: auto found no inventory in the repository root, so it audited nothing there.")
     link = publish(env, client, outcome)
     violations = len(report["violations"]) + audit_violations(done)
-    append(env.get("GITHUB_OUTPUT"), f"violations={violations}\ncomment-url={link}\n")
-    say(f"{len(report['governing'])} decision(s) touched, {violations} violation(s)")
-    return 1 if violations and flag(env, "DECISIS_FAIL_ON_VIOLATION") else 0
+    count = sum(unresolved(outcome).values())
+    append(env.get("GITHUB_OUTPUT"), f"violations={violations}\nunresolved={count}\ncomment-url={link}\n")
+    say(f"{len(report['governing'])} decision(s) touched, {violations} violation(s), {count} unresolved")
+    if violations and flag(env, "DECISIS_FAIL_ON_VIOLATION"):
+        return 1
+    if count and strict:
+        say("fail-on-unresolved is on and the run found results that cannot be judged; the step fails")
+        return 1
+    return 0
 
 
 def unjudged(env: Mapping[str, str], client: gh.Client, outcome: Outcome) -> int:
     flag(env, "DECISIS_FAIL_ON_VIOLATION")
     link = publish(env, client, outcome)
-    append(env.get("GITHUB_OUTPUT"), f"violations=0\ncomment-url={link}\n")
+    append(env.get("GITHUB_OUTPUT"), f"violations=0\nunresolved=0\ncomment-url={link}\n")
     say("the base commit has no decisions yet; nothing was judged")
     return 0
 
