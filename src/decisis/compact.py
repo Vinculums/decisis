@@ -88,6 +88,9 @@ def check(report: dict) -> dict:
     for key in ("rule_problems", "unread_decisions", "expiring_soon"):
         if report.get(key):
             out.update(counted(key, report[key]))
+    if report.get("codeowners"):
+        owned = report["codeowners"]
+        out["codeowners"] = {"enforced": owned["enforced"], "note": owned["note"], **counted("files", owned["files"])}
     return out
 
 

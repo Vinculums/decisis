@@ -627,6 +627,28 @@ escapes) or when an owner is not `@user`, `@org/team` or an email address. A lin
 whose files are all owned by later lines, is listed under `no effect`. The concepts have no edges, so an
 owner never carries a decision to the code it owns; `impact` lists them at hop 0 for the paths they cover.
 
+CODEOWNERS gives ownership context only. `init` makes no `review_required` rule from it, so in a repository with only a
+CODEOWNERS file `check --reviewers` reports no violation whoever reviewed: GitHub already enforces code owner review
+through branch protection, and decisis does not enforce it a second time. `check` says so: for each changed file that an
+owner set covers and no `review_required` rule covers, it lists the file and its owners under `codeowners` (see
+[The check report](#the-check-report)), as information that changes no verdict, exit code or SARIF result. A file that a
+`review_required` rule covers is not listed. To enforce a review, use one of two ways:
+
+- Turn on "Require review from Code Owners" in the branch protection rule or ruleset of the protected branch, so GitHub
+  blocks the merge until an owner approves.
+- Write the rule in an ADR, so `check` judges it and reports a violation until one of the reviewers given has reviewed:
+
+```yaml
+---
+status: accepted
+code_ref: [src/payments/]
+rule:
+  review_required:
+    paths: ["src/payments/**"]
+    reviewers: ["@shop/payments"]
+---
+```
+
 ### Postmortems become records
 
 A postmortem gives a record with `title`, `date` and the three code path keys, read as for an ADR. It gets
@@ -1170,6 +1192,14 @@ waived finding's record is checked like any other, scope and paths included.
   `meta.problems` says was `skipped` or `not read`, with `file`, `reason` and `action`. The text view lists
   them under `decision files not read`, the HTML view in their own section, and the Mermaid view as one
   node each.
+- `codeowners`, only when there are some: the changed files that a CODEOWNERS owner set covers (a concept with `owners`
+  and a `code_ref` that names the file or a directory above it) and no `review_required` rule covers. It has
+  `enforced` (always `false`), `note` (that decisis does not enforce CODEOWNERS, and the two ways to enforce it, see
+  [CODEOWNERS owner sets become concepts](#codeowners-owner-sets-become-concepts)) and `files`: one entry per file and owner set,
+  with `file`, `owners` and `concept`. It is information only: it changes no entry of `violations`, `unresolved` or
+  `waived`, the exit code or the SARIF log. The text view lists it under `CODEOWNERS owners of changed files`, the HTML
+  view in its own section, and the Action comment under "CODEOWNERS owners of changed files, not enforced", also when the base
+  commit has no decisions.
 - `expiring_soon`, only when there are some: as in the audit report, the waivers of `waived` results that end
   within `--warn-days` days (see [Waivers](#waivers)). The text view lists them under `waivers that expire
   soon`, the HTML view in the section "Waivers that expire soon", and the Mermaid view as one node each.
@@ -1203,7 +1233,8 @@ the reply has `"detail": "summary"`, the counts, ids and titles of the report, a
 list, and a `note` that says how to get the rest. The `check` summary keeps `summary`, `base` and
 `reviewers`, counts each list (`changed_count`, `governing_count`, `violations_count`, `unresolved_count`,
 `rules_count`, `rules_covering_a_change`, `imports_count`), and lists the first 10 violations and
-unjudged entries with `file`, `line`, `decision`, `rule`, `why` and `import`. The `check` and `audit`
+unjudged entries with `file`, `line`, `decision`, `rule`, `why` and `import`. The `check` summary keeps `codeowners` when the report has it: `enforced`, `note`, `files_count` and the first 10 `files`.
+The `check` and `audit`
 summaries keep `rule_problems`, `unread_decisions` and `expiring_soon` when the report has them, as
 `rule_problems_count`, `unread_decisions_count` and `expiring_soon_count` with the first 10 entries; the `audit` summary also keeps
 `not_governing` as `not_governing_count` and the first 10 entries. When the snapshot file

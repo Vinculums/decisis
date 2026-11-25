@@ -11,7 +11,9 @@ exit code. The waiver of a waived result that ends within `warn_days` of the run
 `expiring_soon`; that list changes no verdict and no exit code. A rule or waiver of any decision that is not
 superseded and cannot be read is under `rule_problems`, whatever the decision governs. An ADR that `init` could not
 read is not in the snapshot, so its rules cannot be judged; each one the snapshot's `meta.problems` lists is under
-`unread_decisions` with its file and reason.
+`unread_decisions` with its file and reason. A changed file that a CODEOWNERS owner set covers and no `review_required`
+rule covers is listed under `codeowners` with its owners; the list is information only, decisis does not enforce CODEOWNERS,
+and it changes no verdict, exit code or SARIF result.
 """
 from __future__ import annotations
 
@@ -25,6 +27,9 @@ from .sandbox import Limits, Subgraph
 
 MAX_CHANGED = 10_000
 GIT_SECONDS = 120
+CODEOWNERS_NOTE = ("decisis does not enforce CODEOWNERS: these owners are shown for context, and a missing owner review changes no verdict. "
+                   "To enforce it, turn on \"Require review from Code Owners\" in the branch protection rule on GitHub, "
+                   "or add a review_required rule to an ADR.")
 
 
 def changed_since(root: Path, ref: str) -> list[str]:
@@ -91,6 +96,39 @@ def review_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str],
                 judged = rules.waived(rule, {"file": f, "reviewers": reviewers}, False, parsed.waivers, day)
                 out.append(entry(node["id"], rule, f, None, judged))
     return out
+
+
+def owner_index(graph: Subgraph, repo: str | None) -> dict[str, list[tuple[str, list[str]]]]:
+    index: dict[str, list[tuple[str, list[str]]]] = {}
+    for n in graph.nodes:
+        names = (n.get("props") or {}).get("owners")
+        if n["kind"] != "concept" or not isinstance(names, list) or not names or not all(isinstance(o, str) and o.strip() for o in names):
+            continue
+        for ref in impact.refs_of(n):
+            path = impact.code_path(ref, repo)
+            if path:
+                index.setdefault(path, []).append((n["id"], list(names)))
+    return index
+
+
+def code_owners(graph: Subgraph, files: list[str], reviewed: frozenset[str] | set[str] = frozenset(), repo: str | None = None) -> list[dict]:
+    index = owner_index(graph, repo)
+    out = []
+    for f in files:
+        if f in reviewed:
+            continue
+        seen: set[str] = set()
+        for path in (f, *codeowners.parents(f)):
+            for nid, names in index.get(path, ()):
+                if nid not in seen:
+                    seen.add(nid)
+                    out.append({"file": f, "owners": names, "concept": nid})
+    return sorted(out, key=lambda e: (e["file"], e["concept"]))
+
+
+def codeowners_notice(graph: Subgraph, files: list[str], reviewed: frozenset[str] | set[str] = frozenset(), repo: str | None = None) -> dict:
+    found = code_owners(graph, files, reviewed, repo)
+    return shown({"codeowners": {"enforced": False, "note": CODEOWNERS_NOTE, "files": found}}) if found else {}
 
 
 def facts(file: str, found: imports.Import) -> dict:
@@ -164,8 +202,9 @@ def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = 
     found_problems = problems(decisions)
     unread = init.unread_decisions(graph.meta)
     soon = expiring(waived, day, warn_days)
+    reviewed = {f for r in ruled if r["rule"] == "review_required" for f in r["files"]}
     return shown({**out, **({"rule_problems": found_problems} if found_problems else {}), **({"unread_decisions": unread} if unread else {}),
-                  **({rules.EXPIRING: soon} if soon else {})})
+                  **({rules.EXPIRING: soon} if soon else {}), **codeowners_notice(graph, files, reviewed, repo)})
 
 
 def utf8(name: str) -> bool:
@@ -233,4 +272,9 @@ def render(report: dict) -> str:
     if report.get("unread_decisions"):
         lines.append(f"decision files not read, so their rules are not judged: {len(report['unread_decisions'])}")
         lines += [f"  {u['file']}: {u['reason']}" for u in report["unread_decisions"]]
+    if report.get("codeowners"):
+        owned = report["codeowners"]
+        lines.append(f"CODEOWNERS owners of changed files, shown and not enforced: {len(owned['files'])}")
+        lines += [f"  {o['file']}  {' '.join(o['owners'])}" for o in owned["files"]]
+        lines.append(owned["note"])
     return "\n".join(lines)

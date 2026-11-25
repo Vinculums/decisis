@@ -281,6 +281,16 @@ def unread(found: list[dict], rows: int) -> list[str]:
             *(f"- {code(u['file'])}: {text(u['reason'])}" for u in shown), "", *rest]
 
 
+def code_owners(report: dict, rows: int) -> list[str]:
+    found = report.get("codeowners")
+    if not found:
+        return []
+    shown, rest = cut(found["files"], rows, "files")
+    body = table(["File", "Owners"], [[code(e["file"]), ", ".join(code(o) for o in e["owners"])] for e in shown])
+    return [f"#### CODEOWNERS owners of changed files, not enforced ({len(found['files'])})", "", text(found["note"]), "",
+            *(body if shown else []), *rest]
+
+
 def audit_rows(report: dict, verdict: str = "violated") -> list[list[str]]:
     out = []
     for f in report.get("findings", []):
@@ -386,6 +396,7 @@ def nothing_judged(o: Outcome, rows: int) -> str:
              f"{len(o.report['changed'])} changed file(s).", "", text(o.nothing), ""]
     lines += [f"> {text(n)}" for n in o.notes] + ([""] if o.notes else [])
     lines += pending(o, rows)
+    lines += code_owners(o.report, rows)
     lines.append(f"<sub>decisis {text(o.version)}, snapshot {code(o.snapshot)}. This comment is updated on each run.</sub>")
     return "\n".join(lines) + "\n"
 
@@ -413,6 +424,7 @@ def compose(o: Outcome, rows: int, graph: bool) -> str:
     lines += results("Cannot be judged", r["unresolved"], rows)
     lines += problems(r.get("rule_problems") or [], rows)
     lines += unread(r.get("unread_decisions") or [], rows)
+    lines += code_owners(r, rows)
     for a in o.audits or []:
         lines += audit_section(a, rows)
     if graph:
@@ -742,7 +754,8 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     if waiting is not None:
         say(f"{len(waiting.files)} changed file(s) hold decisions; they take effect once merged")
     if mode == BASE and not committed.has_decisions(graph):
-        return unjudged(env, client, Outcome({"changed": changed}, pull, [], version(), source, pending=waiting,
+        held = check.codeowners_notice(graph, sorted({check.normal(p) for p in changed}), repo=repo) if graph is not None else {}
+        return unjudged(env, client, Outcome({"changed": changed, **held}, pull, [], version(), source, pending=waiting,
                                              nothing=no_decisions(env, graph), strict=strict), sarifing)
     approved, review_note = approvals(client, pull)
     report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day, warn_days=warn)
