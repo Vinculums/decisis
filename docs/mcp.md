@@ -16,15 +16,45 @@ evidence, and a write path that needs a person's digest.
 
 `decisis serve --mcp` gives an agent the same `impact`, `paths`, `audit`, `check` and `query` as MCP tools over
 stdio, on the snapshot file named when the server starts. It needs the optional `mcp` extra; the base install keeps
-`relate-db` and `PyYAML` as its only dependencies. For Claude Code:
+`relate-db` and `PyYAML` as its only dependencies:
 
 ```
 pip install "decisis[mcp]"
+```
+
+Every tool starts the same command: `decisis serve --mcp --snapshot <snapshot> --osv-cache <cache>`, and the
+sections below say where each one keeps its config file. `--root` is the directory that `audit` reads lockfiles
+from and `check` reads changed files from; it defaults to the directory the server starts in.
+
+decisis reads a relative path from the directory the server starts in, and the tools below do not all say which
+directory that is, so each section names what its documentation says and what to use instead.
+
+The server has no tool that writes, proposes or commits; `check` only reads files and
+runs `git diff`. The tools take the same
+bounds as the commands (`hops` 0 to 6 for `impact`, 1 to 6 for `paths`, `limit` 1 to 100; `audit` takes
+`depth` 1 to 16), refuse a code path outside the repository, and build and delete a sandbox for each call.
+`audit` takes the lockfile path as an argument and reads it only under `--root` (default: the current
+directory), after following symlinks. It reads advisories from `--osv-cache`; without a cache it asks
+api.osv.dev only when the server was started with `--allow-network`, and otherwise returns an error.
+
+## Set up your tool
+
+Each section gives the config file, a snippet that runs `decisis serve --mcp --snapshot ... --osv-cache ...`,
+where relative paths are read from, and the documentation page the format was checked against with the date. A
+test parses every snippet below and checks that it runs `decisis serve --mcp` with `--snapshot` and `--osv-cache`
+(`tests/test_mcp_clients.py`). These tools change their formats often: if a page says something other than what
+is written here, follow the page and open an issue.
+
+### Claude Code
+
+**Config file:** `.mcp.json` at the project root for a server the team shares through version control; the local
+and user scopes live in `~/.claude.json`. `claude mcp add --scope project` writes the project entry.
+
+```
 claude mcp add decisis -- decisis serve --mcp --snapshot snapshot.json --osv-cache osv-cache.json
 ```
 
-`claude mcp add --scope project ...` writes the same entry to `.mcp.json` in the project, to share it
-with the team:
+The same entry in `.mcp.json`:
 
 ```json
 {
@@ -37,14 +67,145 @@ with the team:
 }
 ```
 
-Relative paths are read from the directory the server starts in; use absolute paths if you are not sure
-which one that is. The server has no tool that writes, proposes or commits; `check` only reads files and
-runs `git diff`. The tools take the same
-bounds as the commands (`hops` 0 to 6 for `impact`, 1 to 6 for `paths`, `limit` 1 to 100; `audit` takes
-`depth` 1 to 16), refuse a code path outside the repository, and build and delete a sandbox for each call.
-`audit` takes the lockfile path as an argument and reads it only under `--root` (default: the current
-directory), after following symlinks. It reads advisories from `--osv-cache`; without a cache it asks
-api.osv.dev only when the server was started with `--allow-network`, and otherwise returns an error.
+**Relative paths:** the page does not say which directory Claude Code starts a stdio server in. It sets
+`CLAUDE_PROJECT_DIR` in the server's environment, which decisis does not read, and `${CLAUDE_PROJECT_DIR:-.}` in
+`.mcp.json` falls back to `.` because the variable is not set where Claude Code expands it. If the server cannot
+find the files, give absolute paths and add `--root /path/to/project`.
+
+**Checked:** against [Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp) on 2026-11-25.
+
+### Cursor
+
+**Config file:** `.cursor/mcp.json` in the project, or `~/.cursor/mcp.json` for every project you open.
+
+```json
+{
+  "mcpServers": {
+    "decisis": {
+      "type": "stdio",
+      "command": "decisis",
+      "args": ["serve", "--mcp", "--snapshot", "${workspaceFolder}/snapshot.json", "--osv-cache", "${workspaceFolder}/osv-cache.json", "--root", "${workspaceFolder}"]
+    }
+  }
+}
+```
+
+**Relative paths:** the page does not say which directory a relative path in `args` is read from. It does document
+`${workspaceFolder}`, "the folder that contains `.cursor/mcp.json`", in `command`, `args`, `env`, `url` and
+`headers`, so the snippet uses it. In `~/.cursor/mcp.json` there is no project folder: write absolute paths.
+
+**Checked:** against [Model Context Protocol (MCP)](https://cursor.com/docs/mcp) (the older address
+`cursor.com/docs/context/mcp` redirects there) on 2026-11-25.
+
+### Windsurf (now Devin Desktop)
+
+Windsurf's desktop app is now Devin Desktop, and `docs.windsurf.com` redirects to `docs.devin.ai`.
+
+**Config file:** the file that Cascade's **Open MCP config file** action opens: `~/.config/devin/mcp_config.json`
+on macOS and Linux (`$XDG_CONFIG_HOME/devin/mcp_config.json` when that is set), `%AppData%/devin/mcp_config.json`
+on Windows. The Devin Local agent also reads `.devin/mcp_config.json` in the project, shared through version
+control, and `.devin/mcp_config.local.json` for a personal override. The editor's MCP discovery reads a separate
+file, `~/.codeium/windsurf/mcp_config.json`, when the `windsurf` source of `chat.mcp.discovery.enabled` is on.
+
+```json
+{
+  "mcpServers": {
+    "decisis": {
+      "command": "decisis",
+      "args": ["serve", "--mcp", "--snapshot", "/path/to/project/snapshot.json", "--osv-cache", "/path/to/project/osv-cache.json", "--root", "/path/to/project"]
+    }
+  }
+}
+```
+
+**Relative paths:** none of the pages below says which directory a stdio server starts in, and the stdio fields
+they list (`command`, `args`, `env`, `disabled`) have no working directory. Give absolute paths, as above.
+
+**Checked:** against [Windsurf Cascade MCP configuration](https://docs.devin.ai/windsurf/plugins/cascade/mcp) (the
+Devin configuration directory, `mcpServers`, `env` and interpolation),
+[Devin Local Customizations](https://docs.devin.ai/desktop/devin-local/customizations) (the project, local and user
+files; `docs.windsurf.com/windsurf/cascade/mcp` redirects to it) and
+[MCP Configuration](https://docs.devin.ai/cli/extensibility/mcp/configuration) (the stdio fields) on 2026-11-25.
+The pages name three user-level files: the Devin configuration directory above, `~/.codeium/windsurf/mcp_config.json`,
+and `~/.codeium/mcp_config.json` in the [Devin Desktop FAQ](https://docs.devin.ai/desktop/devin-desktop-faq). Open the
+file from the Cascade menu to be sure which one your build reads.
+
+### VS Code (GitHub Copilot agent mode)
+
+VS Code's current documentation does not use the term agent mode. It describes the Copilot harness, which reads
+its own MCP files, and calls the older editor-managed configuration the Local harness, deprecated and to be
+removed in February 2027.
+
+**Config file:** for a new setup, `.mcp.json` at the workspace root to share a server with the team, or
+`~/.copilot/mcp-config.json` (`$COPILOT_HOME/mcp-config.json` when that is set) for every workspace. Both use
+a top-level `mcpServers` object. The editor-managed `.vscode/mcp.json` and the profile `mcp.json` use `servers`
+instead (second snippet); the page says not to use them for a new Copilot configuration.
+
+```json
+{
+  "mcpServers": {
+    "decisis": {
+      "type": "stdio",
+      "command": "decisis",
+      "args": ["serve", "--mcp", "--snapshot", "snapshot.json", "--osv-cache", "osv-cache.json"],
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+An existing `.vscode/mcp.json`, which the Local harness reads:
+
+```json
+{
+  "servers": {
+    "decisis": {
+      "type": "stdio",
+      "command": "decisis",
+      "args": ["serve", "--mcp", "--snapshot", "${workspaceFolder}/snapshot.json", "--osv-cache", "${workspaceFolder}/osv-cache.json", "--root", "${workspaceFolder}"]
+    }
+  }
+}
+```
+
+**Relative paths:** for `.mcp.json` and `mcp-config.json` the page does not say which directory the Copilot
+harness starts a stdio server in. It lists `cwd` ("Working directory") as a stdio field, so set `"cwd":
+"/path/to/project"` or give absolute paths. For `.vscode/mcp.json`, `cwd` "defaults to the workspace folder when
+run in a workspace" and `${workspaceFolder}` is documented, as in the second snippet.
+
+**Checked:** against [MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)
+(the older address `code.visualstudio.com/docs/copilot/reference/mcp-configuration` redirects there) on 2026-11-25.
+
+### OpenAI Codex CLI
+
+**Config file:** `~/.codex/config.toml`, or `.codex/config.toml` to scope a server to a project (trusted projects
+only). The Codex CLI, its IDE extension and the ChatGPT desktop app share this file.
+
+```
+codex mcp add decisis -- decisis serve --mcp --snapshot snapshot.json --osv-cache osv-cache.json
+```
+
+The same server as a TOML table:
+
+```toml
+[mcp_servers.decisis]
+command = "decisis"
+args = ["serve", "--mcp", "--snapshot", "snapshot.json", "--osv-cache", "osv-cache.json"]
+cwd = "/path/to/project"
+```
+
+**Relative paths:** `cwd` is "Working directory to start the server from"; the page does not say what the
+default is and gives no example of a relative path. Set `cwd` to the project, as above, and the relative paths
+are read from it.
+
+**Checked:** against [Model Context Protocol](https://learn.chatgpt.com/docs/extend/mcp?surface=cli) (the older
+address `developers.openai.com/codex/mcp` redirects there) on 2026-11-25.
+
+## Try it on a worked example
+
+[`examples/bookshop`](../examples/bookshop/README.md) is a small application with ADRs that carry rules, a
+lockfile and a workflow. It runs `init`, `check`, `audit` and these MCP tools on it, with every output committed
+and a test that the commands print what is committed.
 
 ## Judge a change with `check`
 

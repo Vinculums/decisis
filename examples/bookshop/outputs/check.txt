@@ -1,0 +1,11 @@
+2 changed file(s); reviewers: @bob
+governing decisions: 2
+  decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer  The user interface does not import the database layer  (src/bookshop/ui/catalog.py)
+  decision:bookshop-docs-adr-0002-payment-changes-need-a-payments-review  Payment changes need a review from the payments team  (src/bookshop/payments/charge.py)
+rules that cover a changed file: 2
+violations: 3
+  src/bookshop/payments/charge.py  decision:bookshop-docs-adr-0002-payment-changes-need-a-payments-review  review_required: src/bookshop/payments/** needs a review from @alice or @bookshop/payments; none of them is among the reviewers given
+  src/bookshop/ui/catalog.py:4  decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer  imports_forbidden: src/bookshop/ui/** must not import src/bookshop/db/**; from bookshop.db import models is src/bookshop/db/models.py
+  src/bookshop/ui/catalog.py:5  decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer  imports_forbidden: src/bookshop/ui/** must not import src/bookshop/db/**; from ..db.session import open_session is src/bookshop/db/session.py
+cannot be judged: 1
+  src/bookshop/ui/catalog.py:9  decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer  imports_forbidden: import_module() with a computed name: the specifier is computed at run time; it cannot be judged

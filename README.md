@@ -199,6 +199,11 @@ The server gives an agent `impact`, `paths`, `audit` and a read-only Cypher `que
 tool that writes. [`skills/decisis/SKILL.md`](https://github.com/Vinculums/decisis/blob/main/skills/decisis/SKILL.md)
 teaches an agent when to use each tool. [MCP setup and the `query` rules](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md).
 
+The same server runs from Cursor, Windsurf, VS Code with GitHub Copilot and the OpenAI Codex CLI as well as Claude
+Code: [the config file and snippet for each tool](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md#set-up-your-tool).
+[A worked example](https://github.com/Vinculums/decisis/blob/main/examples/bookshop/README.md) runs `init`, `check`,
+`audit` and the MCP tools on a small application, with every output committed.
+
 ## Commands
 
 | Command | Needs | What it does |
