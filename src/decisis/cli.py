@@ -19,6 +19,7 @@ from . import impact
 from . import init
 from . import inventory
 from . import madr
+from . import patch
 from . import render
 from . import rules
 from . import sarif
@@ -94,6 +95,8 @@ def main(argv: list[str] | None = None) -> int:
                      help=f"with --github: read at most N closed pull requests, most recently updated first (default {gh.DEFAULT_LIMIT}, at most {gh.MAX_LIMIT})")
     ini.add_argument("--suggest-refs", action="store_true",
                      help="give each ADR that states no code path the existing files and directories its text names, as suggested code_ref")
+    ini.add_argument("--patch", metavar="FILE",
+                     help="with --suggest-refs: write a unified diff that adds each suggested code_ref to its ADR's front matter; no ADR is changed, and FILE must not exist and must lie outside the ADR directories")
     ini.add_argument("--out", required=True)
     na = sub.add_parser("new-adr", help="write the next-numbered MADR file with status proposed and the code refs and rule given")
     na.add_argument("title")
@@ -312,11 +315,19 @@ def run(a: argparse.Namespace) -> int:
             sys.stdout.write(text + "\n")
         return 0
     if a.cmd == "init":
-        snapshot = init.build(a.repo_dir or ".", a.repo, *init_readers(a), adr_dir=a.adr_dir, postmortem_dir=a.postmortem_dir,
+        readers, diff_file = init_readers(a), init_patch(a)
+        snapshot = init.build(a.repo_dir or ".", a.repo, *readers, adr_dir=a.adr_dir, postmortem_dir=a.postmortem_dir,
                               suggest_refs=a.suggest_refs)
+        made = patch.build(Path(os.path.abspath(a.repo_dir or ".")), snapshot) if diff_file is not None else None
+        if made is not None and made.text:
+            patch.write(diff_file, made)
         Path(a.out).write_text(init.dump(snapshot), encoding="utf-8")
         meta = snapshot["meta"]
-        print(json.dumps({"out": a.out, "nodes": meta["nodes"], "edges": meta["edges"], "problems": meta["problems"]}, ensure_ascii=False, indent=1))
+        printed = {"out": a.out, "nodes": meta["nodes"], "edges": meta["edges"], "problems": meta["problems"]}
+        if made is not None:
+            printed["patch"] = {"out": a.patch if made.text else None, "adrs": len(made.adrs), "code_refs": made.refs,
+                                "not_applied": len(made.skipped), "left_out": [{"file": f, "reason": r} for f, r in made.left_out]}
+        print(json.dumps(printed, ensure_ascii=False, indent=1))
         return 0
     if a.cmd == "new-adr":
         path = madr.write(a.repo_dir, a.title, a.adr_dir, a.code_ref, a.rule, a.date, a.waiver)
@@ -357,6 +368,16 @@ def run_check(a: argparse.Namespace) -> int:
         json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
         sys.stdout.write("\n")
     return 1 if check.failed(report, a.fail_on_unresolved) else 0
+
+
+def init_patch(a: argparse.Namespace) -> Path | None:
+    if a.patch is None:
+        return None
+    if not a.suggest_refs:
+        raise ValueError("--patch writes the suggestions --suggest-refs makes, so it needs --suggest-refs")
+    if a.github is not None and a.repo_dir is None:
+        raise ValueError("--patch changes the ADRs of a repository directory, so with --github it needs --repo-dir")
+    return patch.target(Path(os.path.abspath(a.repo_dir or ".")), a.patch, a.adr_dir, a.out)
 
 
 def init_readers(a: argparse.Namespace) -> tuple:

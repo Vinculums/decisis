@@ -68,6 +68,7 @@ LINK = re.compile(r"\[[^\]]*\]\(\s*([^)\s]+)[^)]*\)")
 MENTION = re.compile(r"\bADR[- ]?(\d+)\b")
 NUMBERED = re.compile(r"(?:adr[- ]?)?0*(\d+)", re.I)
 LEADING_NUMBER = re.compile(r"(\d+)")
+SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 class Malformed(ValueError):
@@ -818,4 +819,4 @@ def origin(node: dict) -> str:
 
 
 def dump(snapshot: dict) -> str:
-    return json.dumps(snapshot, ensure_ascii=False, indent=1) + "\n"
+    return SURROGATE.sub(lambda m: f"\\u{ord(m.group()):04x}", json.dumps(snapshot, ensure_ascii=False, indent=1) + "\n")
