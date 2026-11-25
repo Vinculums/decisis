@@ -32,6 +32,12 @@ line after `MARKER` names what was found. A waiver covers only a violation, so a
 expire soon", above the violations, each waiver of the check and of every audit that covers a result and expires within
 that many days of the run's date; 0 leaves the section out. The list changes no output, count or exit code. A value that
 is not a whole number in that range stops the step before any request.
+
+`DECISIS_SIGNATURE` is `true` (the default, also when empty) or `false`. With `true` the comment's footer is one line built by
+`signature` from the run: `Checked` or `Audited`, `locally` or what the run fetched (the hosts `external.Traffic` saw before the
+comment was posted, and the base commit when `fetch_base` fetched it), the version, `0 LLM calls`, `deterministic graph check`
+and a digest of the check report and each audit report. The comment that says nothing was judged has no signature, because no check
+ran. With `false` the footer is as it was before the signature existed, and no other output changes.
 """
 from __future__ import annotations
 
@@ -45,11 +51,10 @@ import tempfile
 import unicodedata
 import urllib.error
 from dataclasses import dataclass, field
-from importlib import metadata
 from pathlib import Path
 from typing import Callable, Mapping
 
-from . import audit, check, codeowners, committed, external, init, inventory, render, rules, sarif
+from . import audit, check, codeowners, committed, external, init, inventory, render, rules, sarif, signature
 from . import checkout as co
 from . import github as gh
 from .inventory import actions as workflows
@@ -123,6 +128,8 @@ class Outcome:
     pending: Pending | None = None
     nothing: str | None = None
     strict: bool = False
+    sign: bool = True
+    contacted: tuple[str, ...] | None = None
 
 
 def flag(env: Mapping[str, str], name: str) -> bool:
@@ -132,6 +139,10 @@ def flag(env: Mapping[str, str], name: str) -> bool:
     if value in FALSE:
         return False
     raise ValueError(f"{name} must be true or false, not {value!r}")
+
+
+def switch(env: Mapping[str, str], name: str) -> bool:
+    return True if not env.get(name, "").strip() else flag(env, name)
 
 
 def warn_days(env: Mapping[str, str]) -> int:
@@ -390,6 +401,32 @@ def pending(o: Outcome, rows: int) -> list[str]:
     return out + rest
 
 
+def audited(o: Outcome) -> bool:
+    return any(a.report is not None for a in o.audits or [])
+
+
+def result_reports(o: Outcome) -> list:
+    return [o.report, *(a.report if a.report is not None else {"inventory": a.inventory, "problem": a.problem} for a in o.audits or [])]
+
+
+def signed(o: Outcome) -> signature.Signature | None:
+    if not o.sign or o.nothing is not None:
+        return None
+    return signature.of(signature.AUDITED if audited(o) else signature.CHECKED, result_reports(o), o.contacted, o.version)
+
+
+def tool_link(url: str, label: str) -> str:
+    return f'<a href="{url}">{text(label)}</a>'
+
+
+def footer(o: Outcome) -> str:
+    sig = signed(o)
+    tail = f"snapshot {code(o.snapshot)}. This comment is updated on each run."
+    if sig is None:
+        return f"<sub>decisis {text(o.version)}, {tail}</sub>"
+    return f"<sub>{sig.line(tool_link, text, code)}, {tail}</sub>"
+
+
 def nothing_judged(o: Outcome, rows: int) -> str:
     lines = [MARKER, *failure(o), "### decisis", "",
              f"**No decisions exist on the base commit {code(o.pull.base[:12])} yet**, so nothing was judged in "
@@ -397,7 +434,7 @@ def nothing_judged(o: Outcome, rows: int) -> str:
     lines += [f"> {text(n)}" for n in o.notes] + ([""] if o.notes else [])
     lines += pending(o, rows)
     lines += code_owners(o.report, rows)
-    lines.append(f"<sub>decisis {text(o.version)}, snapshot {code(o.snapshot)}. This comment is updated on each run.</sub>")
+    lines.append(footer(o))
     return "\n".join(lines) + "\n"
 
 
@@ -429,7 +466,7 @@ def compose(o: Outcome, rows: int, graph: bool) -> str:
         lines += audit_section(a, rows)
     if graph:
         lines += graphs(o)
-    lines.append(f"<sub>decisis {text(o.version)}, snapshot {code(o.snapshot)}. This comment is updated on each run.</sub>")
+    lines.append(footer(o))
     return "\n".join(lines) + "\n"
 
 
@@ -439,6 +476,9 @@ def body(o: Outcome) -> str:
         if len(out) <= MAX_BODY:
             return out
     tail = "\n\nThe comment was cut at GitHub's limit.\n"
+    foot = footer(o) + "\n"
+    if signed(o) is not None and out.endswith(foot) and len(foot) + len(tail) < MAX_BODY:
+        return out[:len(out) - len(foot)][:MAX_BODY - len(tail) - len(foot)].rpartition("\n")[0] + tail + foot
     return out[:MAX_BODY - len(tail)].rpartition("\n")[0] + tail
 
 
@@ -499,7 +539,7 @@ def post(client: gh.Client, pull: Pull, text_body: str, author: str = AUTHOR) ->
     return link if isinstance(link, str) else ""
 
 
-def fetch_base(root: Path, base: str) -> None:
+def fetch_base(root: Path, base: str, traffic: external.Traffic) -> None:
     shallow = codeowners.git(root, "rev-parse", "--is-shallow-repository", timeout=check.GIT_SECONDS)
     if shallow.returncode == 0 and shallow.stdout.strip() == b"true":
         done = codeowners.git(root, "fetch", "--no-tags", "--quiet", "--unshallow", "origin", timeout=FETCH_SECONDS)
@@ -507,6 +547,7 @@ def fetch_base(root: Path, base: str) -> None:
         done = codeowners.git(root, "fetch", "--no-tags", "--quiet", "origin", base, timeout=FETCH_SECONDS)
     else:
         return
+    traffic.saw(signature.GIT)
     if done.returncode != 0:
         raise ValueError(f"git fetch of the base commit {base} failed in {root}; check out with fetch-depth: 0")
 
@@ -629,11 +670,11 @@ def audit_found(graph, root: Path, name: str, repo: str, advisories, day=None, w
 
 
 def audits(env: Mapping[str, str], graph, repo: str, root: Path, day=None,
-           warn: int = rules.WARN_DAYS) -> tuple[list[Audited] | None, bool]:
+           warn: int = rules.WARN_DAYS, traffic: external.Traffic | None = None) -> tuple[list[Audited] | None, bool]:
     lines = [line.strip() for line in env.get("DECISIS_INVENTORY", "").splitlines() if line.strip()]
     if not lines:
         return None, False
-    advisories = external.fetch_advisories
+    advisories = external.fetch_advisories if traffic is None else external.live_advisories(traffic)
     cache = env.get("DECISIS_OSV_CACHE", "").strip()
     if cache:
         advisories = external.cached_advisories(external.read_osv_cache(Path(cache).read_text(encoding="utf-8")))
@@ -705,10 +746,7 @@ def sarif_output(env: Mapping[str, str], o: Outcome, wanted: bool) -> str:
 
 
 def version() -> str:
-    try:
-        return metadata.version("decisis")
-    except metadata.PackageNotFoundError:
-        return "unknown"
+    return signature.version()
 
 
 def say(message: str) -> None:
@@ -735,21 +773,23 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
         raise ValueError(f"working-directory {root} is not a directory")
     repo = env.get("DECISIS_REPO", "").strip() or None
     strict = flag(env, "DECISIS_FAIL_ON_UNRESOLVED")
+    signing = switch(env, "DECISIS_SIGNATURE")
     failing = flag(env, "DECISIS_FAIL_ON_VIOLATION")
     sarifing = flag(env, "DECISIS_SARIF")
     warn = warn_days(env)
     mode, waiting = decisions_from(env), None
+    traffic = external.Traffic()
     if mode == HEAD:
         graph, source = snapshot_of(env, root, repo)
-        fetch_base(root, pull.base)
+        fetch_base(root, pull.base, traffic)
         changed = check.changed_since(root, pull.base)
     else:
         given(env)
         workspace_repository(env, root)
-        fetch_base(root, pull.base)
+        fetch_base(root, pull.base, traffic)
         changed = check.changed_since(root, pull.base)
         graph, source, waiting = from_base(env, root, repo, pull.base, changed)
-    client = gh.Client(gh.clean_token(env.get("DECISIS_TOKEN")), opener)
+    client = gh.Client(gh.clean_token(env.get("DECISIS_TOKEN")), traffic.wrap(opener or gh.default_opener()))
     day = rules.today(env.get("DECISIS_TODAY", "").strip() or None)
     if waiting is not None:
         say(f"{len(waiting.files)} changed file(s) hold decisions; they take effect once merged")
@@ -759,8 +799,9 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
                                              nothing=no_decisions(env, graph), strict=strict), sarifing)
     approved, review_note = approvals(client, pull)
     report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day, warn_days=warn)
-    done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day, warn)
-    outcome = Outcome(report, pull, approved, version(), source, done, pending=waiting, strict=strict)
+    done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day, warn, traffic)
+    outcome = Outcome(report, pull, approved, version(), source, done, pending=waiting, strict=strict, sign=signing,
+                      contacted=tuple(traffic.hosts))
     if review_note:
         outcome.notes.append(review_note)
     if empty:

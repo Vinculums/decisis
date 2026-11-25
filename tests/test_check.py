@@ -297,7 +297,8 @@ def test_audit_ignores_review_and_import_rules(tmp_path, capsys, no_network):
 
 @pytest.mark.parametrize("fmt,suffix", [("mermaid", "md"), ("html", "html")])
 def test_the_check_fixture_renders_to_the_committed_golden_output(fmt, suffix, capsys, no_network):
-    _, out = cli_run(capsys, "--changed", *CHANGED, "--reviewers", "bob", "--format", fmt, "--today", "2026-11-25")
+    _, out = cli_run(capsys, "--changed", *CHANGED, "--reviewers", "bob", "--format", fmt, "--today", "2026-11-25",
+                     *(["--no-signature"] if fmt == "html" else []))
     golden = GOLDEN / f"check.{suffix}"
     if os.environ.get("DECISIS_GOLDEN") == "write":
         golden.write_text(out, encoding="utf-8")

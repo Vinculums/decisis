@@ -1251,6 +1251,46 @@ uses that flag. With `--base REF`, the changed files
 are `git diff --name-only --relative REF...HEAD` in `--repo-dir`, so a commit not yet made is not
 included; a REF that starts with `-` is refused.
 
+## The signature
+
+`check --format html` and `audit --format html` end the page with one line, and the action ends its comment's
+footer with the same line. It is built from the facts of the run that made it:
+
+```
+Audited locally with decisis 0.4.2 (0 LLM calls · deterministic graph check · digest: 599582f5f4f7)
+```
+
+- The verb is `Checked` for a run that only checked a change set, and `Audited` when an audit ran. The action says
+  `Checked` when `inventory` audited nothing.
+- `decisis 0.4.2` is the installed version, linked to `https://github.com/Vinculums/decisis`. The HTML page has no
+  other link besides the sources of the findings.
+- `0 LLM calls` is always true: decisis calls no language model. `deterministic graph check` means the verdicts are a
+  function of the snapshot, the files and the advisories the run read.
+- `locally` stands only for a run that is known to have contacted no host. A run that did contacts leaves the word out
+  and says what it fetched and from where, one entry for each host it asked, in the order it first asked them:
+  `OSV advisories from api.osv.dev` (an audit without `--osv-cache`, or an action run with an inventory and no
+  `osv-cache`), `OSV package names from osv-vulnerabilities.storage.googleapis.com` (the same audit when the inventory
+  has GitHub Actions packages), `pull request reviews from api.github.com` (every action run that judged
+  anything, because the reviewers it counts come from there), and `git history from the origin remote` (the action
+  fetched the base commit because the checkout was shallow or lacked it). Posting or updating the comment is not
+  counted. An audit run with `--osv-cache` contacts nothing, so it says `locally`, and so does `check` on the command
+  line. Where the traffic of a run was not recorded the line says neither `locally` nor a host.
+- The action posts no signature on the comment that says the base commit has no decisions and nothing was judged,
+  because no check ran. That comment keeps its footer without the line.
+- The digest is the first 12 hexadecimal characters of the SHA-256 of the reports the run produced: the `check`
+  report, then the report of each audit in the order of `inventory` (an inventory that could not be audited stands for
+  itself with its `inventory` and `problem`); the command line prints one report. The reports are written as JSON with
+  sorted keys and no spaces, ASCII only, after every key named `today`, `fetched_at`, `extracted_at` or `days_left`
+  is removed at any depth. Those hold the date waivers were judged on and the times data was fetched or extracted, so
+  the same inputs give the same digest on any day and from a live or a cached fetch of the same advisories. A change
+  to any other part of the result, such as a violation, a changed file, a reviewer or a decision, changes it. The
+  digest covers the reports, not what a comment shows of them, so a comment cut to fit GitHub's limit has the digest
+  of the whole result. The example above is `audit` of `fixtures/audit/vinc.json` and `fixtures/audit/demo-lockfile.json`
+  with `--osv-cache fixtures/audit/osv-cache.json`.
+- `--no-signature` on `check` and `audit`, and `signature: false` on the action, leave the line out and change nothing
+  else. The JSON, text, Mermaid and SARIF outputs, every verdict and every exit code are the same with and without it;
+  none of them holds a signature.
+
 ## The query result
 
 `query` and the MCP `query` tool return one JSON object:

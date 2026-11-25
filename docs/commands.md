@@ -4,8 +4,8 @@ The README has the table of commands. This page has the flags, the limits and th
 
 ## Flags
 
-Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR --suggest-refs --patch FILE`, `new-adr --adr-dir DIR --code-ref PATH --rule JSON --date DATE`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --warn-days N --format text`, `paths --hops N --limit N`,
-`audit --osv-cache FILE --depth N --root DIR --warn-days N`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit),
+Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR --suggest-refs --patch FILE`, `new-adr --adr-dir DIR --code-ref PATH --rule JSON --date DATE`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --warn-days N --no-signature --format text`, `paths --hops N --limit N`,
+`audit --osv-cache FILE --depth N --root DIR --warn-days N --no-signature`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit),
 `serve --osv-cache FILE --allow-network --root DIR`, `gc --root DIR --grace SECONDS`.
 
 ## Limits
@@ -40,7 +40,13 @@ and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --h
   source. With `--out report.json` the JSON report still goes to that file and the view to stdout.
 
 The HTML page is one file with inline styles only: no scripts, fonts or network requests, so it opens
-offline. Its only links are the sources of the findings.
+offline. Its only links are the sources of the findings and, in the signature, this repository.
+
+`check --format html` and `audit --format html` end with one line that says what the run did, for example
+`Audited locally with decisis 0.4.2 (0 LLM calls · deterministic graph check · digest: 599582f5f4f7)`:
+`locally` only when the run contacted no host, otherwise what it fetched and from where, and a digest of the
+result that is the same for the same inputs. [The signature](data-model.md#the-signature) defines each part.
+`--no-signature` leaves the line out of the page and changes nothing else; no other format has the line.
 
 ## SARIF for code scanning
 
