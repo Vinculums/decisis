@@ -30,11 +30,16 @@ def inside(root: Path, path: Path, shown: str) -> None:
 
 def directory(root: Path, adr_dir: str | None) -> Path:
     if adr_dir is None:
-        found = init.Tree(root).located(None, init.ADR_DIRS)
-        if not found:
-            raise ValueError(f"no ADR directory: looked in {', '.join(init.ADR_DIRS)}; name one with --adr-dir")
-        inside(root, found[0], f"the ADR directory {found[0].relative_to(root).as_posix()}")
-        return found[0]
+        for d in init.ADR_DIRS:
+            kind = init.entry_kind(root / d)
+            if kind in (init.LINK_ENTRY, init.MODULE):
+                what = "a symbolic link" if kind == init.LINK_ENTRY else "a git submodule or a folder with its own .git"
+                raise ValueError(f"the ADR directory {d} is {what}, and init does not read it, so an ADR written there would never be judged; "
+                                 "pass the real folder with --adr-dir, or move the ADRs into a plain folder")
+            if kind == init.FOLDER:
+                inside(root, root / d, f"the ADR directory {d}")
+                return root / d
+        raise ValueError(f"no ADR directory: looked in {', '.join(init.ADR_DIRS)}; name one with --adr-dir")
     path = Path(os.path.normpath(root / adr_dir))
     inside(root, path, f"--adr-dir {adr_dir}")
     if path.exists() and not path.is_dir():

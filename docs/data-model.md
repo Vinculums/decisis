@@ -569,7 +569,10 @@ decisis new-adr "Review payment changes" --code-ref src/payments/ \
 
 `new-adr` writes one MADR file and prints its path. It goes in `--adr-dir` (relative to `--repo-dir`, made
 when it does not exist, refused outside the repository), or else in the first of `docs/adr`,
-`docs/decisions`, `adr` and `doc/adr` that exists, the first directory `init` reads. Its name is the next
+`docs/decisions`, `adr` and `doc/adr` that exists, the first directory `init` reads. When that first one is
+a symbolic link or a submodule, `init` does not read it, so `new-adr` refuses and writes nothing rather than
+write an ADR that is never judged; an explicit `--adr-dir` through a link is allowed, because
+`init --adr-dir` with the same value reads it. Its name is the next
 number after the highest number that starts a `.md` file name there, as wide as that number (four digits
 when there is none), then the title in lower case with each run of other characters as `-`:
 `0004-review-payment-changes.md`. A file of that name is never overwritten: the command stops and writes
