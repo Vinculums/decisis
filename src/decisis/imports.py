@@ -230,7 +230,7 @@ def read(repo: Repo, rel: str) -> list[Import]:
     if lang == "python":
         found = python_imports(repo, rel, data)
     else:
-        found = READERS[lang](repo, rel, data.decode("utf-8", "replace"))
+        found = READERS[lang](repo, rel, data.decode("utf-8", "replace").removeprefix("\ufeff"))
     return sorted(set(found), key=lambda i: (i.line or 0, i.specifier, i.target or ""))
 
 
@@ -776,7 +776,7 @@ def read_json(repo: Repo, path: str):
         full = repo.root / path
         if full.stat().st_size > MAX_BYTES:
             return None
-        return json.loads(plain_json(full.read_text(encoding="utf-8")))
+        return json.loads(plain_json(full.read_text(encoding="utf-8").removeprefix("\ufeff")))
     except (OSError, UnicodeDecodeError, ValueError, RecursionError):
         return None
 

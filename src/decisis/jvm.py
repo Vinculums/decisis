@@ -41,7 +41,9 @@ SOURCES = (".java", ".kt")
 SOURCE_SETS = ("java", "kotlin")
 BUILD_OUTPUT = {"build": ("build.gradle", "build.gradle.kts"), "target": ("pom.xml",)}
 BUILD_FILES = ("build.gradle", "build.gradle.kts", "pom.xml")
-HEAD_BYTES = 16384
+HEAD_BYTES = 65536
+HEAD_TOKENS = 2000
+BOM = "\ufeff"
 JVM_SWEEP = re.compile(r"(?m)(?:^|;)[ \t]*import[ \t]+(?:static[ \t]+)?((?:`[^`\n]+`|[A-Za-z_$][\w$]*)"
                        r"(?:[ \t]*\.[ \t]*(?:`[^`\n]+`|[A-Za-z_$][\w$]*|\*))*)")
 FILE_ANNOTATION = re.compile(r"@file[ \t]*:[ \t]*(?:\[[^\]\n]{0,2000}\]|\w+(?:[ \t]*\([^)\n]{0,2000}\))?)")
@@ -50,6 +52,8 @@ FACADE = re.compile(r"@file[ \t]*:[ \t]*(?:\[[^\]]*?)?JvmName[ \t]*\([ \t]*\"([^
 KOTLIN_TOP = re.compile(
     r"(?m)^(?:(?:public|internal|private|expect|actual|data|sealed|enum|annotation|inline|value|abstract|open|const|suspend|operator|infix"
     r"|tailrec|external|fun)[ \t]+)*(?:class|interface|object|typealias|fun|val|var)[ \t]+(?:<[^>\n]*>[ \t]*)?(?:[\w.<>?, *]{0,200}\.)?`?(\w+)")
+DECLARED = re.compile(r"\b(?:class|interface|enum|record|object|typealias|fun|val|var)\b[ \t]+(?:<[^>\n]{0,200}>[ \t]*)?(?:[\w.<>?, *]{0,200}\.)?`?(\w+)")
+PLATFORM = ("java", "javax", "jdk", "kotlin")
 GRADLE_DIRS = re.compile(r"\b(?:srcDirs?|setSrcDirs)\b")
 LITERAL = re.compile(r"""(["'])([^"'\n$]+)\1""")
 POM_DIRS = re.compile(r"<(sourceDirectory|testSourceDirectory|source)>([^<>]{1,500})</\1>")
@@ -72,9 +76,11 @@ class Index:
     packages: dict[tuple[str, ...], list[str]] = field(default_factory=dict)
     truncated: bool = False
     declared: dict[str, frozenset[str]] = field(default_factory=dict)
+    unplaced: list[str] = field(default_factory=list)
+    mentioned: dict[str, frozenset[str] | None] = field(default_factory=dict)
 
 
-def jvm_lex(text: str, out: list[Token], kotlin: bool) -> None:
+def jvm_tokens(text: str, kotlin: bool):
     i, line, n = 0, 1, len(text)
     while i < n:
         c = text[i]
@@ -98,7 +104,7 @@ def jvm_lex(text: str, out: list[Token], kotlin: bool) -> None:
             i = j
         elif c == '"':
             j, value = jvm_string(text, i, line, kotlin, 0)
-            out.append(Token("string", value, line))
+            yield Token("string", value, line)
             line += text.count("\n", i, j)
             i = j
         elif c == "'":
@@ -107,17 +113,22 @@ def jvm_lex(text: str, out: list[Token], kotlin: bool) -> None:
             j = text.find("`", i + 1)
             if j < 0 or "\n" in text[i:j]:
                 raise Broken(f"a quoted name at line {line} is not closed")
-            out.append(Token("name", text[i + 1:j], line))
+            yield Token("name", text[i + 1:j], line)
             i = j + 1
         elif name_char(c):
             j = i
             while j < n and name_char(text[j]):
                 j += 1
-            out.append(Token("num" if c.isdigit() else "name", text[i:j], line))
+            yield Token("num" if c.isdigit() else "name", text[i:j], line)
             i = j
         else:
-            out.append(Token("punct", c, line))
+            yield Token("punct", c, line)
             i += 1
+
+
+def jvm_lex(text: str, out: list[Token], kotlin: bool) -> None:
+    for tok in jvm_tokens(text, kotlin):
+        out.append(tok)
 
 
 def jvm_string(text: str, i: int, line: int, kotlin: bool, depth: int) -> tuple[int, str | None]:
@@ -225,11 +236,12 @@ def skip_group(toks: list[Token], i: int, opener: str, closer: str) -> int:
     return i
 
 
-def annotation(toks: list[Token], i: int) -> tuple[int, bool]:
+def annotation(toks: list[Token], i: int) -> tuple[int, bool, list[str]]:
+    start = i
     i += 1
     nxt = at(toks, i)
     if nxt is None or nxt.kind != "name" or nxt.value == "interface":
-        return i, False
+        return i, False, []
     i += 1
     while True:
         after = at(toks, i + 1)
@@ -243,28 +255,46 @@ def annotation(toks: list[Token], i: int) -> tuple[int, bool]:
         i = skip_group(toks, i, "[", "]")
     elif is_punct(at(toks, i), "("):
         i = skip_group(toks, i, "(", ")")
-    return i, True
+    facades = [toks[j + 2].value for j in range(start, min(i, len(toks)) - 3)
+               if toks[j].kind == "name" and toks[j].value == "JvmName" and is_punct(toks[j + 1], "(") and toks[j + 2].kind == "string" and toks[j + 2].value]
+    return i, True, facades
 
 
-def header(toks: list[Token], kotlin: bool) -> list[Ref]:
-    refs, i = [], 0
+@dataclass
+class Header:
+    refs: list[Ref] = field(default_factory=list)
+    package: tuple[str, ...] | None = None
+    facades: list[str] = field(default_factory=list)
+    readable: bool = True
+
+
+def header(toks: list[Token], kotlin: bool, complete: bool = True) -> Header:
+    out, i, ended, package_ok = Header(), 0, False, True
     while i < len(toks):
         tok = toks[i]
         if is_punct(tok, ";"):
             i += 1
         elif is_punct(tok, "@"):
-            i, ok = annotation(toks, i)
+            i, ok, facades = annotation(toks, i)
+            out.facades += facades
             if not ok:
+                ended = True
                 break
         elif tok.kind == "name" and tok.value == "package":
             found = qualified(toks, i + 1)
-            i = found[2] if found else i + 1
+            if found is None or found[1]:
+                package_ok = False
+                i += 1
+            else:
+                out.package, i = tuple(found[0]), found[2]
         elif tok.kind == "name" and tok.value == "import":
             ref, i = import_ref(toks, i, kotlin)
-            refs.append(ref)
+            out.refs.append(ref)
         else:
+            ended = True
             break
-    return refs
+    out.readable = package_ok and (out.package is not None or ended or complete)
+    return out
 
 
 def import_ref(toks: list[Token], i: int, kotlin: bool) -> tuple[Ref, int]:
@@ -359,36 +389,39 @@ def source_root(parts: list[str]) -> int | None:
     return None
 
 
-def head_of(repo, rel: str) -> str:
+def read_head(repo, rel: str, size: int) -> tuple[str | None, bool]:
     try:
         with open(repo.root / rel, "rb") as f:
-            return f.read(HEAD_BYTES).decode("utf-8", "replace")
+            data = f.read(size + 1)
     except OSError:
-        return ""
+        return None, False
+    return data[:size].decode("utf-8", "replace").removeprefix(BOM), len(data) <= size
 
 
-def declared_package(head: str) -> tuple[tuple[str, ...] | None, list[str]]:
-    i, n, facades = 0, len(head), []
-    while i < n:
-        if head[i].isspace():
-            i += 1
-        elif head.startswith("//", i):
-            j = head.find("\n", i)
-            i = n if j < 0 else j
-        elif head.startswith("/*", i):
-            j = head.find("*/", i + 2)
-            if j < 0:
-                return None, facades
-            i = j + 2
-        else:
-            m = FILE_ANNOTATION.match(head, i) if head[i] == "@" else None
-            if m is None:
-                break
-            facades += FACADE.findall(m.group(0))
-            i = m.end()
-    m = PACKAGE_LINE.match(head[i:i + 1000].split("\n", 1)[0].rstrip("\r"))
-    names = [p.strip("`") for p in m.group(1).split(".")] if m else []
-    return (tuple(names) if names and all(names) else None), facades
+def head_tokens(text: str, kotlin: bool) -> tuple[list[Token], bool]:
+    out: list[Token] = []
+    try:
+        for tok in jvm_tokens(text, kotlin):
+            out.append(tok)
+            if len(out) >= HEAD_TOKENS:
+                return out, False
+    except Broken:
+        return out, False
+    return out, True
+
+
+def package_info(repo, rel: str) -> Header:
+    kotlin = not rel.endswith(".java")
+    info = Header(readable=False)
+    for size in (HEAD_BYTES, MAX_BYTES):
+        text, whole = read_head(repo, rel, size)
+        if text is None:
+            return info
+        toks, complete = head_tokens(text, kotlin)
+        info = header(toks, kotlin, complete and whole)
+        if info.readable or whole:
+            break
+    return info
 
 
 def file_under(roots: set[str], d: str) -> str | None:
@@ -430,14 +463,15 @@ def build_index(repo) -> Index:
         under = file_under(roots, d)
         if under is not None:
             keys.add(tuple(d[len(under):].strip("/").split("/")) if d != under else ())
-        head = head_of(repo, rel)
-        package, facades = declared_package(head)
-        if package is not None:
-            keys.add(package)
+        info = package_info(repo, rel)
+        if info.package is not None:
+            keys.add(info.package)
+        if not info.readable:
+            index.unplaced.append(rel)
         stem = posixpath.basename(rel).rsplit(".", 1)[0]
         names = [stem]
         if rel.endswith(".kt"):
-            names += [stem + "Kt", *facades]
+            names += [stem + "Kt", *info.facades]
         for key in keys:
             files = index.packages.setdefault(key, [])
             if rel not in files:
@@ -457,15 +491,17 @@ def index_of(repo) -> Index:
 
 def top_level(repo, index: Index, rel: str) -> frozenset[str]:
     if rel not in index.declared:
-        try:
-            if (repo.root / rel).stat().st_size > MAX_BYTES:
-                text = ""
-            else:
-                text = (repo.root / rel).read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            text = ""
-        index.declared[rel] = frozenset(KOTLIN_TOP.findall(text))
+        text, _ = read_head(repo, rel, MAX_BYTES)
+        index.declared[rel] = frozenset(KOTLIN_TOP.findall(text or ""))
     return index.declared[rel]
+
+
+def mentioned(repo, index: Index, rel: str) -> frozenset[str] | None:
+    if rel not in index.mentioned:
+        text, whole = read_head(repo, rel, MAX_BYTES)
+        stem = posixpath.basename(rel).rsplit(".", 1)[0]
+        index.mentioned[rel] = None if text is None or not whole else frozenset([stem, stem + "Kt", *DECLARED.findall(text), *FACADE.findall(text)])
+    return index.mentioned[rel]
 
 
 def declaring(repo, index: Index, package: tuple[str, ...], name: str) -> list[str]:
@@ -512,16 +548,22 @@ def target_of(repo, ref: Ref) -> tuple[str, str | None, str, tuple[str, ...]]:
             where = ".".join(names[:size])
             name = names[size] if size < len(names) else "*"
             return UNRESOLVED, target, f"{where} is a package of the repository, but no source file in it declares {name}; it may be generated or live in a library", also
-    if index.truncated:
+    segments = set(names)
+    maybe = [f for f in index.unplaced if (found := mentioned(repo, index, f)) is None or segments & found]
+    if maybe:
+        why = f"{len(index.unplaced)} source file(s) of the repository have a package line that cannot be read, and {maybe[0]} may declare a name this import uses"
+        return UNRESOLVED, maybe[0], why, tuple(maybe[1:])
+    if index.truncated and names[0] not in PLATFORM:
         return UNRESOLVED, None, f"the repository has more than {MAX_WALK} files, so its Java and Kotlin sources were not all searched", ()
     return EXTERNAL, None, "", ()
 
 
 def read(repo, rel: str, text: str) -> list[Import]:
     kotlin = not rel.endswith(".java")
+    text = text.removeprefix(BOM)
     toks, broken = lexed(lambda t, out: jvm_lex(t, out, kotlin), text)
     out, read_specs = [], set()
-    for ref in header(toks, kotlin):
+    for ref in header(toks, kotlin).refs:
         if ref.parts is None:
             out.append(Import(ref.line, "import with a name that cannot be read", UNRESOLVED, None, ref.problem))
             continue

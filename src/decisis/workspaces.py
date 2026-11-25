@@ -31,6 +31,9 @@ from .imports import MAX_WALK, REPOSITORY, SKIPPED_DIRS, UNRESOLVED, clean, join
 PACKAGE_FIELDS = ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies")
 ENTRY_FIELDS = ("main", "module", "types", "typings", "browser", "source")
 LINK = "workspace:"
+NODE_CORE = frozenset("assert async_hooks buffer child_process cluster console constants crypto dgram diagnostics_channel dns domain events fs http http2 https "
+                      "inspector module net os path perf_hooks process punycode querystring readline repl stream string_decoder sys timers tls trace_events "
+                      "tty url util v8 vm wasi worker_threads zlib".split())
 MAX_PATTERN = 200
 MAX_DEPTH = 32
 GLOB_SYNTAX = re.compile(r"[{}\[\]()+@]")
@@ -49,6 +52,7 @@ class Index:
     by_name: dict[str, list[Package]] = field(default_factory=dict)
     by_dir: dict[str, Package] = field(default_factory=dict)
     roots: dict[str, set[str]] = field(default_factory=dict)
+    truncated: bool = False
 
 
 def mapping(value) -> dict:
@@ -126,6 +130,7 @@ def build(repo) -> Index:
             yamls[rel] = read_small(repo, joined(rel, "pnpm-workspace.yaml")) or ""
         seen += len(filenames)
         if seen > MAX_WALK:
+            index.truncated = True
             break
     named = {d: Package(m["name"], d, m) for d, m in index.manifests.items() if isinstance(m.get("name"), str) and m["name"]}
     for here in sorted(set(index.manifests) | set(yamls)):
@@ -148,6 +153,8 @@ def index_of(repo) -> Index:
 
 
 def split_specifier(spec: str) -> tuple[str, str] | None:
+    if spec.startswith("node:"):
+        return None
     parts = spec.split("/")
     count = 2 if spec.startswith("@") else 1
     if len(parts) < count or not all(parts[:count]):
@@ -295,6 +302,8 @@ def resolve(repo, rel: str, spec: str) -> tuple | None:
     else:
         packages = index.by_name.get(name, [])
         if not packages:
+            if index.truncated and spec.split("/")[0] not in NODE_CORE:
+                return UNRESOLVED, None, f"the repository has more than {MAX_WALK} files, so its workspace packages were not all searched", ()
             return None
     packages = nearest(index, packages, rel)
     files: list[str] = []

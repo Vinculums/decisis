@@ -84,7 +84,9 @@ Future work, not built:
   into `build/` are not in the checkout; an import of one is `unresolved` when a package of the repository could
   hold it. A source directory a Gradle script computes (not a string literal), a Gradle `include` of a project in
   another directory, and Scala or Groovy sources are not followed. A repository with more than 200000 files is
-  searched only in part, and an import that is not found in it is `unresolved`.
+  searched only in part, and an import that is not found in it is `unresolved` unless it starts with `java`, `javax`,
+  `jdk` or `kotlin`. A source file whose `package` line cannot be read is unplaced, and until it is read an
+  import that it may declare is `unresolved` instead of external (see the data model for the exact rule).
 - Workspaces: the packages are found from `workspaces` in a `package.json` and `packages` in a
   `pnpm-workspace.yaml`; a `lerna.json` or Rush list, a `file:` or `link:` dependency outside a workspace, the
   `imports` field of a `package.json` (`#name`) and `typesVersions` are not followed, and such a specifier is

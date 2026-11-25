@@ -218,3 +218,86 @@ def test_a_header_of_many_comments_with_no_package_line_and_a_pom_with_a_long_ru
     files = {"src/main/java/p/A.java": "/* a */ /* b */ " * 400 + "\nclass A {}\n", "src/main/java/q/B.java": "package q;\nimport p.A;\n",
              "pom.xml": "<sourceDirectory>" + " " * 100000 + "x</sourceDirectory>" + "<source>" * 2000}
     assert read(tmp_path, files, "src/main/java/q/B.java") == [(2, "import p.A", "repository", "src/main/java/p/A.java")]
+
+
+BOM = b"\xef\xbb\xbf"
+APP = "app/src/main/kotlin/app/A.kt"
+
+
+def put(tmp_path: Path, files: dict) -> imports.Repo:
+    for name, text in files.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_bytes(text if isinstance(text, bytes) else text.encode("utf-8"))
+    return imports.Repo(tmp_path)
+
+
+@pytest.mark.parametrize("name,rel,text", [
+    ("a UTF-8 byte order mark before the package line", "lib/misc/F.kt", BOM + b"package lib.ff\nclass Ff\n"),
+    ("a byte order mark in a Java file", "lib/misc/Ff.java", BOM + b"package lib.ff;\npublic class Ff {}\n"),
+    ("a file annotation over several lines", "lib/misc/F.kt", b"@file:Suppress(\n    \"A\",\n    \"B\",\n)\npackage lib.ff\nclass Ff\n"),
+    ("a comment after the package name", "lib/misc/F.kt", b"package lib.ff /* c */\nclass Ff\n"),
+    ("spaces around the dots and a semicolon", "lib/misc/Ff.java", b"package lib . ff ;\npublic class Ff {}\n"),
+    ("a header longer than the first chunk read", "lib/misc/F.kt", b"/*" + b"x" * 80000 + b"*/\npackage lib.ff\nclass Ff\n"),
+    ("a file annotation list", "lib/misc/F.kt", b"@file:[Suppress(\"A\") JvmName(\"G\")]\npackage lib.ff\nclass Ff\n")])
+def test_a_class_whose_directory_does_not_mirror_its_package_is_found_through_whatever_header_declares_it(tmp_path, name, rel, text):
+    repo = put(tmp_path, {rel: text, APP: "package app\nimport lib.ff.Ff\n"})
+    (found,) = imports.read(repo, APP)
+    assert (found.resolution, found.target) == ("repository", rel), name
+
+
+def test_a_file_whose_package_line_cannot_be_read_makes_an_import_that_it_may_declare_unresolved_never_external(tmp_path):
+    files = {"lib/misc/F.kt": "/* never closed\npackage lib.ff\nclass Ff\nfun helper() {}\n", APP: "package app\nimport lib.ff.Ff\nimport lib.ff.helper\nimport org.junit.Test\nimport java.util.List\n"}
+    got = imports.read(put(tmp_path, files), APP)
+    assert [(g.specifier, g.resolution, g.target) for g in got] == [
+        ("import lib.ff.Ff", "unresolved", "lib/misc/F.kt"), ("import lib.ff.helper", "unresolved", "lib/misc/F.kt"),
+        ("import org.junit.Test", "external", None), ("import java.util.List", "external", None)]
+    assert "package line that cannot be read" in got[0].why
+
+
+@pytest.mark.parametrize("header", ["package ;\n", "@A(" * 3000 + "\npackage lib.ff\n", "package *\n"])
+def test_a_package_line_that_is_malformed_or_buried_leaves_a_name_the_file_declares_unresolved(tmp_path, header):
+    files = {"lib/misc/F.kt": header + "class Test\n", APP: "package app\nimport org.junit.Test\nimport org.junit.Rule\n"}
+    got = imports.read(put(tmp_path, files), APP)
+    assert [(g.resolution, g.target) for g in got] == [("unresolved", "lib/misc/F.kt"), ("external", None)]
+
+
+def test_a_java_file_that_declares_a_class_its_name_does_not_give_leaves_the_import_unresolved(tmp_path):
+    files = {"lib/misc/F.java": "package lib.ff;\npublic class Ff {}\n", APP: "package app\nimport lib.ff.Ff\n"}
+    (found,) = imports.read(put(tmp_path, files), APP)
+    assert (found.resolution, found.target) == ("unresolved", "lib/misc/")
+
+
+def test_a_source_file_too_large_to_read_makes_every_import_that_would_be_external_unresolved(tmp_path, monkeypatch):
+    monkeypatch.setattr("decisis.jvm.MAX_BYTES", 50)
+    monkeypatch.setattr("decisis.jvm.HEAD_BYTES", 10)
+    files = {"lib/misc/F.kt": "/* " + "x" * 200 + " */\npackage lib.ff\nclass Ff\n", APP: "package app\nimport org.junit.Test\n"}
+    (found,) = imports.read(put(tmp_path, files), APP)
+    assert (found.resolution, found.target) == ("unresolved", "lib/misc/F.kt")
+
+
+def test_a_walk_that_was_cut_leaves_only_the_jdk_and_kotlin_namespaces_external(tmp_path, monkeypatch):
+    monkeypatch.setattr("decisis.jvm.MAX_WALK", 1)
+    files = {"a/Use.java": "package x;\nimport java.util.List;\nimport javax.inject.Inject;\nimport jdk.internal.Foo;\nimport kotlin.collections.Map;\nimport org.junit.Test;\n",
+             "b/Other.java": "package y;\n"}
+    assert [(g[1], g[2]) for g in read(tmp_path, files, "a/Use.java")] == [
+        ("import java.util.List", "external"), ("import javax.inject.Inject", "external"), ("import jdk.internal.Foo", "external"),
+        ("import kotlin.collections.Map", "external"), ("import org.junit.Test", "unresolved")]
+
+
+@pytest.mark.parametrize("rel,text,expected", [
+    ("lib/p/B.kt", BOM + b"import lib.p.Outer\n", "import lib.p.Outer"),
+    ("lib/p/B.java", BOM + b"import lib.p.Outer;\n", "import lib.p.Outer"),
+    ("lib/p/B.kt", BOM + b"package lib.p\nimport lib.p.Outer\n", "import lib.p.Outer")])
+def test_an_import_on_the_first_line_after_a_byte_order_mark_is_read_and_judged(tmp_path, rel, text, expected):
+    files = {"lib/src/main/kotlin/lib/p/Outer.kt": "package lib.p\nclass Outer\n", rel: text}
+    got = imports.read(put(tmp_path, files), rel)
+    assert [(g.specifier, g.resolution, g.target) for g in got] == [(expected, "repository", "lib/src/main/kotlin/lib/p/Outer.kt")]
+
+
+def test_a_byte_order_mark_does_not_hide_the_first_import_of_any_language(tmp_path):
+    files = {"a.js": BOM + b'import x from "./b";\n', "b.js": b"", "m.go": BOM + b'package main\nimport "example.com/m/p"\n', "go.mod": b"module example.com/m\n", "p/p.go": b"package p\n",
+             "r/src/lib.rs": BOM + b"mod inner;\n", "r/src/inner.rs": b"", "r/Cargo.toml": b'[package]\nname = "r"\n'}
+    repo = put(tmp_path, files)
+    assert [(i.resolution, i.target) for i in imports.read(repo, "a.js")] == [("repository", "b.js")]
+    assert [(i.resolution, i.target) for i in imports.read(repo, "m.go")] == [("repository", "p/")]
+    assert [(i.resolution, i.target) for i in imports.read(repo, "r/src/lib.rs")] == [("repository", "r/src/inner.rs")]

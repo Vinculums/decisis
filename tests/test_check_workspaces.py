@@ -286,3 +286,18 @@ def test_a_workspace_pattern_with_many_double_stars_a_deep_package_json_and_deep
              "packages/db/package.json": manifest(name="n-db", exports=deep), "packages/ok/package.json": manifest(name="n-ok", main="i.js"), "packages/ok/i.js": "",
              PAGE: 'import "n-db";\nimport "n-ok";\n'}
     assert [result(i) for i in read(tmp_path, files)] == [("unresolved", "packages/db/"), ("repository", "packages/ok/i.js")]
+
+
+def test_a_walk_that_was_cut_leaves_a_package_name_unresolved_except_a_node_core_module(tmp_path, monkeypatch):
+    monkeypatch.setattr("decisis.workspaces.MAX_WALK", 1)
+    files = {"package.json": '{"workspaces":["packages/*"]}', "README.md": "", "packages/db/package.json": '{"name":"@shop/db","main":"i.js"}', "packages/db/i.js": "",
+             "packages/ui/page.ts": 'import x from "@shop/db";\nimport fs from "fs";\nimport p from "node:path";\nimport z from "fs/promises";\nimport r from "react";\n'}
+    got = read(tmp_path, files, "packages/ui/page.ts")
+    assert [(i.specifier, i.resolution) for i in got] == [("@shop/db", "unresolved"), ("fs", "external"), ("node:path", "external"), ("fs/promises", "external"),
+                                                          ("react", "unresolved")]
+
+
+def test_a_package_json_with_a_byte_order_mark_still_declares_its_package(tmp_path):
+    files = {"package.json": "﻿" + manifest(name="shop", workspaces=["packages/*"]), "packages/db/package.json": "﻿" + manifest(name="@shop/db", main="i.js"),
+             "packages/db/i.js": "", PAGE: 'import "@shop/db";\n'}
+    assert result(read(tmp_path, files)[0]) == ("repository", "packages/db/i.js")

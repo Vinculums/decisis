@@ -160,7 +160,8 @@ A specifier such as `@shop/db` or `@shop/db/client` names a workspace package wh
 (`"data": "workspace:@shop/db@*"` and `"data": "workspace:../db"` give the name `data` to that package;
 `"@shop/db": "workspace:*"` links the name to itself). A specifier that names a workspace package resolves to
 it whether or not the importing package declares it. A `tsconfig.json` `paths` entry still comes first. A `workspace:` link to a package that no workspace has is `unresolved`, never external.
-Where several workspace packages in scope share one name, every one is followed.
+Where several workspace packages in scope share one name, every one is followed. When the walk over the repository was cut at 200000 files, a bare specifier that names no workspace package
+is unresolved, unless it is a `node:` specifier or the name of a Node core module (`fs`, `path`, `fs/promises`).
 
 The files the import names are those the package gives for the subpath: its `exports` (the `.` entry or the
 subpath, with every condition and array member as a file the import may name, `*` patterns and trailing-`/`
@@ -241,6 +242,19 @@ package its first capitalized name, or all of it but its last name, gives), beca
 live in a library that shares the package; the package directory is its `target`, so a rule that does not name
 that directory still finds it not violated. The member of a class is never placed in a file that does not
 declare the class.
+
+The `package` line is read from the token list of the file, so a byte order mark, a file annotation over several
+lines, a comment after the name, spaces around the dots and a long header do not hide it. A file whose package line
+still cannot be read (the header does not scan, the line is malformed, the file is too large to read to its
+`package` line) is unplaced, whatever directory holds it, since a Kotlin directory need not mirror its package.
+While the repository has an unplaced file, an import that would be external is unresolved when it is not
+clearly outside the repository. It is clearly outside only when no unplaced file declares any name the import
+uses: the names of a file are its own name (and the name plus `Kt`), its `@file:JvmName`, and every name that
+follows `class`, `interface`, `enum`, `record`, `object`, `typealias`, `fun`, `val` or `var` in it, and an unplaced
+file that cannot be read to its end declares every name. The `target` of such an import is the unplaced file.
+When the walk over the repository was cut at 200000 files, an import that would be external is unresolved
+unless its first name is `java`, `javax`, `jdk` or `kotlin`. A name is never clearly outside because it was not
+found.
 
 A plain text search for the same import forms runs over each JavaScript, TypeScript and Go file, over each
 Java and Kotlin file for an `import` at the start of a line or after a `;`, and over
