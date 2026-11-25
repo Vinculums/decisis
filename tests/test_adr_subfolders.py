@@ -137,7 +137,7 @@ def odd_folders(root: Path) -> list[tuple]:
 def linked_adr_directory(root: Path) -> list[tuple]:
     write(root, {"records/0001-a.md": adr("a"), "docs/decisions/0002-b.md": adr("b")})
     link(root, "docs/adr", "../records")
-    return [("docs/adr", "ignored", init.LINKED_OTHER)]
+    return [("docs/adr", "not read", init.DIR_LINKED)]
 
 
 def submodule(root: Path) -> list[tuple]:
@@ -149,8 +149,17 @@ def submodule(root: Path) -> list[tuple]:
     return [("docs/adr/shared", "ignored", init.SUBMODULE)]
 
 
+def submodule_adr_directory(root: Path) -> list[tuple]:
+    sub = write(root.parent / "sub", {"0002-shared.md": adr("shared")})
+    commit(sub)
+    write(root, {"src/x.py": "X = 1\n"})
+    git(root, "init", "-q", "-b", "main")
+    git(root, "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub), "docs/adr")
+    return [("docs/adr", "not read", init.DIR_SUBMODULE)]
+
+
 @pytest.mark.parametrize("case", [dotted_folder_link, plain_folder_link, template_folder_link, plain_file_link, record_link,
-                                  nested_record_link, odd_folders, linked_adr_directory, submodule])
+                                  nested_record_link, odd_folders, linked_adr_directory, submodule, submodule_adr_directory])
 def test_init_and_the_base_commit_reader_list_the_same_things_by_one_rule(tmp_path, case):
     root = tmp_path / "repo"
     root.mkdir()
@@ -209,3 +218,14 @@ def test_the_record_cap_counts_adr_files_and_postmortems_apart_in_both_readers(t
             init.build(root, "shop")
         with pytest.raises(ValueError, match=message):
             committed.built(root, sha, "shop", [])
+
+
+def test_a_linked_adr_directory_reaches_unread_decisions_and_fails_fail_on_unresolved(tmp_path, capsys, no_network):
+    root = write(tmp_path / "repo", {"records/0001-a.md": adr("a"), "src/x.py": "X = 1\n"})
+    link(root, "docs/adr", "../records")
+    out = tmp_path / "snapshot.json"
+    assert cli.main(["init", "--repo-dir", str(root), "--out", str(out)]) == 0
+    capsys.readouterr()
+    assert cli.main(["check", str(out), "--repo-dir", str(root), "--changed", "src/x.py", "--fail-on-unresolved"]) == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["unread_decisions"] == [{"file": "docs/adr", "reason": init.DIR_LINKED, "action": "not read"}]

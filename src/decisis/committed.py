@@ -102,7 +102,7 @@ def copy(root: Path, commit: str, into: Path) -> list[dict]:
         if entry is None or entry.mode not in (TREE, LINK, GITLINK):
             continue
         if entry.mode != TREE:
-            report(top, init.LINKED_OTHER if entry.mode == LINK else init.SUBMODULE, init.IGNORED)
+            report(top, init.DIR_LINKED if entry.mode == LINK else init.DIR_SUBMODULE, init.NOT_READ)
             continue
         into.joinpath(*top.split("/")).mkdir(parents=True, exist_ok=True, mode=0o700)
         survey, below = init.Survey(top, report), {}

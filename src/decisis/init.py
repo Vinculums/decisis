@@ -53,6 +53,8 @@ SUBFOLDER = "ADRs in subfolders are not read; move it up or pass its folder with
 LINKED_RECORD = "it is a symbolic link, and decisions are read only from regular files"
 LINKED_OTHER = "it is a symbolic link, and decisis does not follow it; if it leads to a folder of ADRs, they are not read"
 SUBMODULE = "it is a git submodule or a folder with its own .git, and decisis does not read ADRs from it"
+DIR_LINKED = "the ADR directory is a symbolic link, and decisis does not follow it, so none of its ADRs are read; pass the folder it leads to with --adr-dir or move the ADRs into the repository"
+DIR_SUBMODULE = "the ADR directory is a git submodule or a folder with its own .git, so none of its ADRs are read; pass it with --adr-dir or move the ADRs into this repository"
 KEY_LINE = re.compile(r"([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?$")
 LIST_ITEM = re.compile(r"\s*-(?:[ \t]+(.*))?$")
 PREAMBLE = re.compile(r"\s*(?:[*-]\s+)?(\*\*|__)?(status|date|deciders|decision-makers)(?(1)(?::\1|\1\s*:)|\s*:)\s*(.+)$", re.I)
@@ -136,7 +138,7 @@ class Tree:
         for d in ADR_DIRS:
             kind = entry_kind(self.root / d)
             if kind in (LINK_ENTRY, MODULE):
-                self.problem(d, LINKED_OTHER if kind == LINK_ENTRY else SUBMODULE, IGNORED, DECISION)
+                self.problem(d, DIR_LINKED if kind == LINK_ENTRY else DIR_SUBMODULE, NOT_READ, DECISION)
         return [self.root / d for d in ADR_DIRS if entry_kind(self.root / d) == FOLDER]
 
     @cached_property
