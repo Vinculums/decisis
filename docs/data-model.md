@@ -54,7 +54,7 @@ shipped `lodash` violate it).
 | `edges[].source`, `edges[].target` | yes | Node ids in this snapshot. An edge whose endpoint is missing fails the load and is named in the error. |
 | `edges[].type` | yes | The relationship type, kept with its direction. |
 | `edges[].evidence` | no | Why the edge holds; carried on the Relate edge and printed with each path. |
-| `meta` | no | `seeds`, `space` and `extracted_at` from `checkout`; `source`, `repo` and `problems` from `init`. When `meta.nodes` or `meta.edges` is a number, the load refuses a file whose lists have a different length. |
+| `meta` | no | `seeds`, `space`, `extracted_at` and, when the hub did not send some node's props, `props_missing` (see [checkout](commands.md#checkout)) from `checkout`; `source`, `repo` and `problems` from `init`. When `meta.nodes` or `meta.edges` is a number, the load refuses a file whose lists have a different length. |
 
 Properties the commands read:
 

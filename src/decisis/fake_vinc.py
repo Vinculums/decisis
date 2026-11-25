@@ -43,10 +43,10 @@ class FakeVinc:
                 self.edges.append({"source": src, "target": dst, "type": CARRIER, "role": e["type"], "evidence": e["evidence"]})
             return {"executed": True, "warnings": []}
         if name == "vinc_graph":
-            return self._graph(args["seed_id"], int(args.get("depth", 1)))
+            return self._graph(args["seed_id"], int(args.get("depth", 1)), args.get("detail", "summary"))
         raise ValueError(f"the fake Vinc does not serve {name}")
 
-    def _graph(self, seed: str, depth: int) -> dict:
+    def _graph(self, seed: str, depth: int, detail: str = "summary") -> dict:
         reached, frontier, kept = {seed}, deque([(seed, 0)]), []
         while frontier:
             at, hops = frontier.popleft()
@@ -60,4 +60,6 @@ class FakeVinc:
                         reached.add(other)
                         frontier.append((other, hops + 1))
         nodes = [self.nodes.get(i) or {"id": i, "kind": i.split(":", 1)[0], "label": i, "props": {}} for i in sorted(reached)]
+        if detail != "full":
+            nodes = [n if n["id"] == seed else {k: v for k, v in n.items() if k != "props"} for n in nodes]
         return {"nodes": nodes, "edges": [self.edges[i] for i in sorted(set(kept))]}
