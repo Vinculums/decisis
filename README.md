@@ -133,6 +133,11 @@ breaks.
 
 A package or import that a rule cannot judge is `unresolved`, never clean.
 
+A decision's `waivers` accept a known violation until a date: each names a package (and optionally one
+advisory) or a path glob (and optionally an import target), with a `reason`, an `expires` date and
+`approved_by`. A covered violation is `waived` through that date, is not counted as a violation, and is
+`violated` again from the next day. [Waiver format](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md#waivers).
+
 ## GitHub Action
 
 On a pull request, the action runs `check` (and `audit` when you give it an inventory) and keeps one

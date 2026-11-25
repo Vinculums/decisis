@@ -20,6 +20,7 @@ from . import init
 from . import inventory
 from . import madr
 from . import render
+from . import rules
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
@@ -42,6 +43,16 @@ def bounded(lo: int, hi: int):
             raise argparse.ArgumentTypeError(f"{value} is outside {lo} to {hi}")
         return value
     return parse
+
+
+def day(text: str):
+    try:
+        return rules.today(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a date such as 2026-01-31") from None
+
+
+TODAY_HELP = "judge waivers as of this UTC date, YYYY-MM-DD (default: today in UTC)"
 
 
 def limit_flags(parser: argparse.ArgumentParser) -> None:
@@ -83,6 +94,9 @@ def main(argv: list[str] | None = None) -> int:
     na.add_argument("--adr-dir", help=f"the ADR directory, relative to --repo-dir (default: the first of {', '.join(init.ADR_DIRS)} that exists)")
     na.add_argument("--code-ref", action="append", default=[], metavar="PATH", help="a path from the repository root the decision governs; repeat for more")
     na.add_argument("--rule", metavar="JSON", help='one JSON object read as audit and check read it, for example \'{"review_required": {"paths": ["src/**"], "reviewers": ["@org/team"]}}\'')
+    na.add_argument("--waiver", action="append", default=[], metavar="JSON",
+                    help='one waiver as a JSON object, for example \'{"path": "src/legacy/**", "rule": "review_required", '
+                         '"reason": "frozen code", "expires": "2027-01-31", "approved_by": "@org/team"}\'; repeat for more')
     na.add_argument("--date", help="the date in the front matter (default: today)")
     p = sub.add_parser("paths", help="load a snapshot into a throwaway Relate file and list paths between two ids")
     p.add_argument("snapshot")
@@ -108,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     ck.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far impact looks from a matching concept (0 to {impact.MAX_HOPS})")
     ck.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     ck.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
+    ck.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
     au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
     au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, go.mod (read with the go.sum next to it), "
@@ -118,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--format", choices=["json", *VIEWS], default="json")
     au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
     au.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
+    au.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
     pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
     pr.add_argument("snapshot", help="the snapshot the audit read")
@@ -267,7 +283,7 @@ def run(a: argparse.Namespace) -> int:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
         text, siblings = inventory.load(Path(a.lockfile), root=a.root)
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
-                           advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings)
+                           advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings, day=a.today)
         text = json.dumps(report, ensure_ascii=False, indent=1)
         if a.format in VIEWS:
             if a.out:
@@ -275,7 +291,7 @@ def run(a: argparse.Namespace) -> int:
             sys.stdout.write(VIEWS[a.format]("audit", report))
         elif a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
-            print(json.dumps({"summary": report["summary"], "violations": report["violations"], "loaded": report["loaded"],
+            print(json.dumps({"summary": report["summary"], "violations": report["violations"], "waived": report["waived"], "loaded": report["loaded"],
                               "unresolved_packages": len(report["unresolved_packages"]), "inventory_notes": report["inventory_notes"],
                               "out": a.out}))
         else:
@@ -289,7 +305,7 @@ def run(a: argparse.Namespace) -> int:
         print(json.dumps({"out": a.out, "nodes": meta["nodes"], "edges": meta["edges"], "problems": meta["problems"]}, ensure_ascii=False, indent=1))
         return 0
     if a.cmd == "new-adr":
-        path = madr.write(a.repo_dir, a.title, a.adr_dir, a.code_ref, a.rule, a.date)
+        path = madr.write(a.repo_dir, a.title, a.adr_dir, a.code_ref, a.rule, a.date, a.waiver)
         print(json.dumps({"out": str(path)}, ensure_ascii=False))
         return 0
     if a.cmd == "checkout":
@@ -316,7 +332,7 @@ def run_check(a: argparse.Namespace) -> int:
         raise ValueError(f"--repo-dir {a.repo_dir} is not a directory")
     changed = check.changed_since(root, a.base) if a.base is not None else a.changed
     report = check.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), changed, root, a.reviewers, a.hops, a.repo,
-                       base=a.base, limits=limits(a))
+                       base=a.base, limits=limits(a), day=a.today)
     if a.format == "text":
         print(check.render(report))
     elif a.format in VIEWS:

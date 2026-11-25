@@ -45,7 +45,8 @@ def paths(report: dict) -> dict:
 
 def audit(report: dict) -> dict:
     out = {"meta": {k: v for k, v in report["meta"].items() if not isinstance(v, (list, dict))}, "loaded": report["loaded"],
-           "summary": report["summary"], "violations": report["violations"],
+           "summary": report["summary"], "violations": report["violations"], "waived": report.get("waived", 0),
+           **({"today": report["today"]} if "today" in report else {}),
            **counted("governing", report["governing"], lambda g: {"decision": g["decision"], "title": g.get("title") or ""}),
            **counted("findings", report["findings"], finding),
            **counted("unresolved_packages", report["unresolved_packages"], lambda u: u["package"]),
@@ -62,7 +63,8 @@ def counted(key: str, items: list, pick=None) -> dict:
 def finding(f: dict) -> dict:
     keys = ("package", "advisory", "kind", "severity", "status", "dev_only")
     violated = [p["decision"] for p in f.get("policies", []) if p["verdict"] == "violated"]
-    return {**{k: f[k] for k in keys if k in f}, "violated": violated}
+    waived = [{"decision": p["decision"], "expires": p["waiver"]["expires"]} for p in f.get("policies", []) if p["verdict"] == "waived"]
+    return {**{k: f[k] for k in keys if k in f}, "violated": violated, **({"waived": waived} if waived else {})}
 
 
 def query(report: dict) -> dict:
@@ -74,19 +76,21 @@ def query(report: dict) -> dict:
 
 def check(report: dict) -> dict:
     out = {"loaded": report["loaded"], "hops": report["hops"], "repo": report["repo"], "base": report["base"],
+           **({"today": report["today"]} if "today" in report else {}),
            "reviewers": report["reviewers"], "summary": report["summary"], **counted("changed", report["changed"]),
            **counted("governing", report["governing"], lambda g: {"decision": g["decision"], "title": g["title"]}),
            **counted("superseded", report["superseded"], lambda g: {"decision": g["decision"], "superseded_by": g.get("superseded_by", [])}),
            "rules_count": len(report["rules"]), "rules_covering_a_change": sum(1 for r in report["rules"] if r["files"]),
            "imports_count": len(report["imports"]),
-           **counted("violations", report["violations"], judged), **counted("unresolved", report["unresolved"], judged)}
+           **counted("violations", report["violations"], judged), **counted("unresolved", report["unresolved"], judged),
+           **counted("waived", report.get("waived", []), judged)}
     if report.get("rule_problems"):
         out.update(counted("rule_problems", report["rule_problems"]))
     return out
 
 
 def judged(r: dict) -> dict:
-    return {k: r[k] for k in ("file", "line", "decision", "rule", "why", "import") if r.get(k) is not None}
+    return {k: r[k] for k in ("file", "line", "decision", "rule", "why", "import", "waiver", "expired_waiver") if r.get(k) is not None}
 
 
 SHORT = {"impact": impact, "paths": paths, "audit": audit, "check": check, "query": query}

@@ -18,7 +18,7 @@ COMMANDS = {
     "impact": ["impact", str(FIX / "impact" / "vinc.json"), "reports/export.py", "storage/"],
     "paths": ["paths", str(FIX / "vinc_subgraph.json"), "record:tls-advisory-example", "concept:service-api"],
     "audit": ["audit", str(FIX / "audit" / "vinc.json"), str(FIX / "audit" / "demo-lockfile.json"), "--repo", "Demo",
-              "--osv-cache", str(FIX / "audit" / "osv-cache.json")],
+              "--osv-cache", str(FIX / "audit" / "osv-cache.json"), "--today", "2026-11-25"],
 }
 SUFFIX = {"mermaid": "md", "html": "html"}
 HOSTILE = 'a "quoted" <script>alert(1)</script> ] [x]\nnext line `tick` #1 & | --> end'

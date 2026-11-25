@@ -31,7 +31,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Callable, Mapping
 
-from . import audit, check, codeowners, external, init, inventory, render
+from . import audit, check, codeowners, external, init, inventory, render, rules
 from . import checkout as co
 from . import github as gh
 from .inventory import actions as workflows
@@ -168,6 +168,19 @@ def results(heading: str, found: list[dict], rows: int) -> list[str]:
     return [f"#### {heading} ({len(found)})", "", *(body if shown else []), *rest]
 
 
+def expiry(w: dict) -> str:
+    return text(f"{w.get('expires')}, approved by {w.get('approved_by')}: {w.get('reason')}")
+
+
+def waived_results(found: list[dict], rows: int) -> list[str]:
+    if not found:
+        return []
+    shown, rest = cut(found, rows, "waived results")
+    body = table(["File", "Decision", "Rule", "Why", "Waived until"],
+                 [[code(where(r)), code(r["decision"]), code(r["rule"]), text(r["why"]), expiry(r.get("waiver") or {})] for r in shown])
+    return [f"#### Waived, not counted as violations ({len(found)})", "", *(body if shown else []), *rest]
+
+
 def files_cell(files: list[str]) -> str:
     shown = ", ".join(code(f) for f in files[:5])
     return shown + (f" and {len(files) - 5} more" if len(files) > 5 else "")
@@ -197,13 +210,14 @@ def problems(found: list[dict], rows: int) -> list[str]:
             *(f"- {code(p['decision'])} {code(p.get('rule') or 'rule')}: {text(p['problem'])}" for p in shown), "", *rest]
 
 
-def audit_rows(report: dict) -> list[list[str]]:
+def audit_rows(report: dict, verdict: str = "violated") -> list[list[str]]:
     out = []
     for f in report.get("findings", []):
         what = f.get("advisory") or f"{f.get('kind') or 'package'} rule"
         for p in f.get("policies", []):
-            if p.get("verdict") == "violated":
-                out.append([code(f["package"]), code(what), code(p.get("decision")), text(p.get("why") or "")])
+            if p.get("verdict") == verdict:
+                row = [code(f["package"]), code(what), code(p.get("decision")), text(p.get("why") or "")]
+                out.append(row + [expiry(p.get("waiver") or {})] if verdict == rules.WAIVED else row)
     return out
 
 
@@ -217,7 +231,13 @@ def audit_section(a: Audited, rows: int) -> list[str]:
     shown, rest = cut(audit_rows(a.report), rows, "audit violations")
     if shown:
         out += table(["Package", "Advisory or rule", "Decision", "Why"], shown)
-    return out + rest + problems(a.report.get("rule_problems") or [], rows)
+    out += rest
+    excused = audit_rows(a.report, rules.WAIVED)
+    if excused:
+        shown, rest = cut(excused, rows, "waived audit findings")
+        out += [f"Waived, not counted as violations ({len(excused)}):", ""]
+        out += (table(["Package", "Advisory or rule", "Decision", "Why", "Waived until"], shown) if shown else []) + rest
+    return out + problems(a.report.get("rule_problems") or [], rows)
 
 
 def audit_violations(audits: list[Audited] | None) -> int:
@@ -248,13 +268,16 @@ def compose(o: Outcome, rows: int, graph: bool) -> str:
     r = o.report
     head = (f"**{len(r['governing'])} decision(s) touched, {len(r['violations'])} violation(s)"
             + (f", {audit_violations(o.audits)} audit violation(s)" if o.audits is not None else "")
-            + f", {len(r['unresolved'])} that cannot be judged** in {len(r['changed'])} changed file(s) against {code(o.pull.base[:12])}.")
+            + f", {len(r['unresolved'])} that cannot be judged"
+            + (f", {len(r['waived'])} waived" if r.get("waived") else "")
+            + f"** in {len(r['changed'])} changed file(s) against {code(o.pull.base[:12])}.")
     lines = [MARKER, "### decisis", "", head, "", *reviewers_line(o, rows)]
     if (rows, graph) != ATTEMPTS[0]:
         lines += [f"Cut to fit GitHub's {MAX_BODY:,}-character limit for a comment: "
                   + ("the graph is left out and " if not graph else "") + f"each list shows at most {rows} rows.", ""]
     lines += [f"> {text(n)}" for n in o.notes] + ([""] if o.notes else [])
     lines += results("Violations", r["violations"], rows)
+    lines += waived_results(r.get("waived") or [], rows)
     lines += decisions(r, rows)
     lines += results("Cannot be judged", r["unresolved"], rows)
     lines += problems(r.get("rule_problems") or [], rows)
@@ -392,19 +415,19 @@ def found(root: Path) -> list[tuple[str, str | None, str | None]]:
     return out + ([(WORKFLOWS, first, None)] if first else [])
 
 
-def audit_file(graph, path: Path, repo: str, advisories, root: Path | None = None) -> dict:
+def audit_file(graph, path: Path, repo: str, advisories, root: Path | None = None, day=None) -> dict:
     lock_text, siblings = inventory.load(path, root=root)
-    return audit.run(graph, lock_text, repo, advisories=advisories, filename=path.name, siblings=siblings)
+    return audit.run(graph, lock_text, repo, advisories=advisories, filename=path.name, siblings=siblings, day=day)
 
 
-def audit_found(graph, root: Path, name: str, repo: str, advisories) -> dict:
+def audit_found(graph, root: Path, name: str, repo: str, advisories, day=None) -> dict:
     real = Path(directory_resolver(root, root)(name))
     if not real.is_file():
         raise ValueError(f"{name} is not a file")
-    return audit_file(graph, root / name, repo, advisories, root)
+    return audit_file(graph, root / name, repo, advisories, root, day)
 
 
-def audits(env: Mapping[str, str], graph, repo: str, root: Path) -> tuple[list[Audited] | None, bool]:
+def audits(env: Mapping[str, str], graph, repo: str, root: Path, day=None) -> tuple[list[Audited] | None, bool]:
     lines = [line.strip() for line in env.get("DECISIS_INVENTORY", "").splitlines() if line.strip()]
     if not lines:
         return None, False
@@ -419,7 +442,7 @@ def audits(env: Mapping[str, str], graph, repo: str, root: Path) -> tuple[list[A
         if line != AUTO:
             if identity(Path(line)) not in seen:
                 seen.add(identity(Path(line)))
-                out.append(Audited(line, audit_file(graph, Path(line), repo, advisories)))
+                out.append(Audited(line, audit_file(graph, Path(line), repo, advisories, day=day)))
             continue
         here = found(root)
         empty = empty or not here
@@ -430,7 +453,7 @@ def audits(env: Mapping[str, str], graph, repo: str, root: Path) -> tuple[list[A
             seen.add(key)
             if problem is None:
                 try:
-                    out.append(Audited(label, audit_found(graph, root, name, repo, advisories)))
+                    out.append(Audited(label, audit_found(graph, root, name, repo, advisories, day)))
                     continue
                 except (ValueError, OSError) as e:
                     problem = reason(e)
@@ -474,8 +497,9 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     changed = check.changed_since(root, pull.base)
     client = gh.Client(gh.clean_token(env.get("DECISIS_TOKEN")), opener)
     approved, review_note = approvals(client, pull)
-    report = check.run(graph, changed, root, approved, repo=repo, base=pull.base)
-    done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root)
+    day = rules.today(env.get("DECISIS_TODAY", "").strip() or None)
+    report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day)
+    done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day)
     outcome = Outcome(report, pull, approved, version(), source, done)
     if review_note:
         outcome.notes.append(review_note)

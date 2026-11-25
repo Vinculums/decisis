@@ -87,13 +87,22 @@ def _held(f: dict) -> dict:
     return {"package": f["package"], "kind": f["kind"], "why": why}
 
 
+RANK = {"violated": 2, "waived": 1, "relevant": 0}
+
+
 def _verdicts(found: list) -> dict[str, dict]:
     verdicts: dict[str, dict] = {}
     for _, f in found:
         for p in f["policies"]:
-            if p["verdict"] in ("violated", "relevant") and verdicts.get(p["decision"], {}).get("verdict") != "violated":
+            held = verdicts.get(p["decision"])
+            if p["verdict"] in RANK and (held is None or RANK[p["verdict"]] > RANK[held["verdict"]]):
                 verdicts[p["decision"]] = p
     return verdicts
+
+
+def _waived(verdicts: dict) -> dict:
+    found = sorted(d for d, p in verdicts.items() if p["verdict"] == "waived")
+    return {"waived": found} if found else {}
 
 
 def _evidence(repo: str, today: str, ref: str | None, lock_hash: str, lockfile_path: str) -> dict:
@@ -113,7 +122,7 @@ def advisory_record(rid: str, g: dict, found: list, verdicts: dict, repo: str, t
             "props": {"entity": f"{repo}:{name}", "predicate": "affected_by_advisory", "value": osv, "scope": scope,
                       "versions": versions, "statement": statement, "severity": first["severity"],
                       "dependency_paths": [f["path"] for _, f in found],
-                      "violates": sorted(d for d, p in verdicts.items() if p["verdict"] == "violated"),
+                      "violates": sorted(d for d, p in verdicts.items() if p["verdict"] == "violated"), **_waived(verdicts),
                       "source": first["source_url"], "source_system": "decisis audit over OSV",
                       "advisory_fetched_at": first.get("fetched_at"), "advisory_content_hash": first.get("content_hash"),
                       **evidence}}
@@ -141,7 +150,7 @@ def package_record(rid: str, g: dict, found: list, verdicts: dict, repo: str, to
                       "ecosystem": g["ecosystem"], "versions": versions, "statement": package_claim(repo, name, versions, scope, what.format(value=value), paths),
                       "rules": sorted({p["rule"] for p in verdicts.values() if p.get("rule")}),
                       "dependency_paths": paths,
-                      "violates": sorted(d for d, p in verdicts.items() if p["verdict"] == "violated"),
+                      "violates": sorted(d for d, p in verdicts.items() if p["verdict"] == "violated"), **_waived(verdicts),
                       "source": evidence["subject_path"], "source_system": f"decisis audit over {first.get('source_system') or 'the inventory'}",
                       "inventory_fetched_at": first.get("fetched_at"), **evidence}}
 

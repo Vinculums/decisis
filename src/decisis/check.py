@@ -5,10 +5,13 @@ is passed to `impact`, which lists the decisions that govern it; superseded deci
 judged. Every other decision whose `rule` has a `review_required` or `imports_forbidden` entry is judged, since
 the rule's own globs name the files it covers. `review_required` is judged on each changed file against the
 reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go or
-Rust file its `from` globs cover (see `imports.py`); no code of the repository is run.
+Rust file its `from` globs cover (see `imports.py`); no code of the repository is run. A violation that one of the
+decision's own waivers covers is `waived` through the waiver's expiry date, listed apart and never counted for the
+exit code.
 """
 from __future__ import annotations
 
+import datetime
 import posixpath
 import subprocess
 from pathlib import Path
@@ -70,18 +73,19 @@ def covered(rule: rules.Rule, files: list[str]) -> list[str]:
     return [f for f in files if rules.matches(rule.value[0], f)]
 
 
-def entry(decision: str, rule: rules.Rule, file: str, line, verdict: str, why: str, found: imports.Import | None = None) -> dict:
-    return {"file": file, "line": line, "decision": decision, "rule": rule.kind, "verdict": verdict, "why": why,
-            "import": found.specifier if found else None, "target": found.target if found else None}
+def entry(decision: str, rule: rules.Rule, file: str, line, judged: dict, found: imports.Import | None = None) -> dict:
+    rest = {k: v for k, v in judged.items() if k not in ("verdict", "why")}
+    return {"file": file, "line": line, "decision": decision, "rule": rule.kind, "verdict": judged["verdict"], "why": judged["why"],
+            "import": found.specifier if found else None, "target": found.target if found else None, **rest}
 
 
-def review_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str], reviewers: list[str]) -> list[dict]:
+def review_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str], reviewers: list[str], day: datetime.date) -> list[dict]:
     out = []
     for node, parsed in decisions:
         for rule in rules.judging(parsed, "review"):
             for f in covered(rule, files):
-                verdict, why = rules.verdict(rule, {"file": f, "reviewers": reviewers}, False)
-                out.append(entry(node["id"], rule, f, None, verdict, why))
+                judged = rules.waived(rule, {"file": f, "reviewers": reviewers}, False, parsed.waivers, day)
+                out.append(entry(node["id"], rule, f, None, judged))
     return out
 
 
@@ -90,27 +94,30 @@ def facts(file: str, found: imports.Import) -> dict:
             "also": found.also}
 
 
-def import_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str], repo: imports.Repo) -> tuple[list[dict], list[dict]]:
-    ruled = [(node["id"], rule) for node, parsed in decisions for rule in rules.judging(parsed, "import")]
+def import_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str], repo: imports.Repo,
+                   day: datetime.date) -> tuple[list[dict], list[dict]]:
+    ruled = [(node["id"], rule, parsed.waivers) for node, parsed in decisions for rule in rules.judging(parsed, "import")]
     read: dict[str, list[imports.Import]] = {}
     out = []
-    for decision, rule in ruled:
+    for decision, rule, waivers in ruled:
         for f in covered(rule, files):
             if f not in read:
                 read[f] = imports.read(repo, f)
             for found in read[f]:
-                verdict, why = rules.verdict(rule, facts(f, found), False)
-                out.append(entry(decision, rule, f, found.line, verdict, why, found))
+                judged = rules.waived(rule, facts(f, found), False, waivers, day)
+                out.append(entry(decision, rule, f, found.line, judged, found))
     listed = [{"file": f, "line": i.line, "import": i.specifier, "resolution": i.resolution, "target": i.target,
                **({"why": i.why} if i.why else {})} for f in sorted(read) for i in read[f]]
     return out, listed
 
 
 def problems(decisions: list[tuple[dict, rules.Parsed]], governing_ids: set[str]) -> list[dict]:
-    def relevant(decision: str, p: rules.Problem) -> bool:
+    def relevant(decision: str, p: rules.Problem, parsed: rules.Parsed) -> bool:
+        if p.kind == rules.WAIVERS:
+            return decision in governing_ids or any(rules.judging(parsed, s) for s in rules.CHANGE_SUBJECTS)
         return decision in governing_ids or (p.kind in rules.KINDS and rules.KINDS[p.kind].subject in rules.CHANGE_SUBJECTS)
-    return [{"decision": n["id"], "rule": p.kind, "problem": p.reason} for n, parsed in decisions for p in parsed.problems
-            if relevant(n["id"], p)]
+    return [{"decision": n["id"], "rule": p.kind, "problem": p.reason} for n, parsed in decisions
+            for p in parsed.problems + parsed.waiver_problems if relevant(n["id"], p, parsed)]
 
 
 def ordered(results: list[dict], verdict: str) -> list[dict]:
@@ -118,23 +125,24 @@ def ordered(results: list[dict], verdict: str) -> list[dict]:
 
 
 def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = (), hops: int = 3, repo: str | None = None,
-        base: str | None = None, limits: Limits | None = None, sandbox_root=None) -> dict:
+        base: str | None = None, limits: Limits | None = None, sandbox_root=None, day: datetime.date | None = None) -> dict:
     files = sorted({normal(p) for p in changed})
     if len(files) > MAX_CHANGED:
         raise ValueError(f"the change set has {len(files)} files, more than the {MAX_CHANGED} check judges")
     report = impact.run(graph, files, hops, repo, root=sandbox_root, limits=limits)
     decisions = judged(graph, impact.superseded_by(graph))
     gov = governing(report, "governing")
-    results = review_results(decisions, files, list(reviewers))
-    found, listed = import_results(decisions, files, imports.Repo(root))
+    day = day or rules.today()
+    results = review_results(decisions, files, list(reviewers), day)
+    found, listed = import_results(decisions, files, imports.Repo(root), day)
     results += found
-    violations, unresolved = ordered(results, "violated"), ordered(results, "unresolved")
+    violations, unresolved, waived = ordered(results, "violated"), ordered(results, "unresolved"), ordered(results, rules.WAIVED)
     ruled = [{"decision": n["id"], "rule": r.kind, **value_of(r), "files": covered(r, files)}
              for n, parsed in decisions for s in rules.CHANGE_SUBJECTS for r in rules.judging(parsed, s)]
-    out = {"loaded": report["loaded"], "hops": hops, "repo": repo, "base": base, "changed": files, "reviewers": list(reviewers),
-           "governing": gov, "superseded": governing(report, "superseded"), "rules": ruled, "imports": listed,
-           "violations": violations, "unresolved": unresolved,
-           "summary": {"violated": len(violations), "unresolved": len(unresolved),
+    out = {"loaded": report["loaded"], "hops": hops, "repo": repo, "base": base, "today": day.isoformat(), "changed": files,
+           "reviewers": list(reviewers), "governing": gov, "superseded": governing(report, "superseded"), "rules": ruled, "imports": listed,
+           "violations": violations, "unresolved": unresolved, "waived": waived,
+           "summary": {"violated": len(violations), "unresolved": len(unresolved), "waived": len(waived),
                        "not_violated": sum(1 for r in results if r["verdict"] == "not_violated")},
            "impact": report["impact"]}
     found_problems = problems(decisions, {g["decision"] for g in gov})
@@ -147,6 +155,14 @@ def where(r: dict) -> str:
 
 def result_lines(results: list[dict]) -> list[str]:
     return [f"  {where(r)}  {r['decision']}  {r['rule']}: {r['why']}" for r in results]
+
+
+def until(w: dict) -> str:
+    return f"waiver {w['waiver']} until {w['expires']}, approved by {w['approved_by']}: {w['reason']}"
+
+
+def waived_lines(results: list[dict]) -> list[str]:
+    return [f"  {where(r)}  {r['decision']}  {r['rule']}: {r['why']} ({until(r['waiver'])})" for r in results]
 
 
 def render(report: dict) -> str:
@@ -163,6 +179,9 @@ def render(report: dict) -> str:
     lines += result_lines(report["violations"])
     lines.append(f"cannot be judged: {len(report['unresolved'])}")
     lines += result_lines(report["unresolved"])
+    if report.get("waived"):
+        lines.append(f"waived, not counted as violations (today is {report['today']}): {len(report['waived'])}")
+        lines += waived_lines(report["waived"])
     if report.get("rule_problems"):
         lines.append("rules that cannot be checked:")
         lines += [f"  {p['decision']}  {p['rule'] or 'rule'}: {p['problem']}" for p in report["rule_problems"]]

@@ -1,8 +1,8 @@
-"""Write a new MADR file with `status: proposed`, the code refs and the rule given, for `decisis new-adr`.
+"""Write a new MADR file with `status: proposed`, the code refs, the rule and the waivers given, for `decisis new-adr`.
 
-The rule is read with `rules.parse`, the reader `audit` and `check` use, and the whole file is read back with
-`init`'s front matter reader before anything is written, so `init` reads it into a decision with the same code
-refs and rule. The file is the next number in the ADR directory and is never overwritten.
+The rule is read with `rules.parse` and each waiver with `rules.waivers`, the readers `audit` and `check` use, and the
+whole file is read back with `init`'s front matter reader before anything is written, so `init` reads it into a
+decision with the same code refs, rule and waivers. The file is the next number in the ADR directory and is never overwritten.
 """
 from __future__ import annotations
 
@@ -77,6 +77,23 @@ def checked_rule(text: str | None) -> dict | None:
     return rule
 
 
+def checked_waivers(texts: list[str] | tuple[str, ...]) -> list[dict]:
+    out = []
+    for n, text in enumerate(texts, 1):
+        try:
+            waiver = json.loads(text)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"--waiver {n} is not valid JSON ({e.msg})") from None
+        if not isinstance(waiver, dict):
+            raise ValueError(f"--waiver {n} must be one JSON object")
+        out.append(waiver)
+    if out:
+        _, problems = rules.waivers(out)
+        if problems:
+            raise ValueError("--waiver: " + "; ".join(p.reason for p in problems))
+    return out
+
+
 def checked_date(text: str | None) -> str:
     if text is None:
         return datetime.date.today().isoformat()
@@ -86,12 +103,14 @@ def checked_date(text: str | None) -> str:
         raise ValueError(f"--date {text!r} is not a date such as 2026-01-31") from None
 
 
-def text_of(title: str, date: str, code_refs: list[str], rule: dict | None) -> str:
+def text_of(title: str, date: str, code_refs: list[str], rule: dict | None, waivers: list[dict] = ()) -> str:
     lines = ["---", "status: proposed", f"date: {date}"]
     if code_refs:
         lines.append("code_ref: " + json.dumps(code_refs, ensure_ascii=False))
     if rule is not None:
         lines.append("rule: " + json.dumps(rule, ensure_ascii=False))
+    if waivers:
+        lines.append("waivers: " + json.dumps(list(waivers), ensure_ascii=False))
     lines += ["---", "", f"# {title}", ""]
     for section in SECTIONS:
         lines += [f"## {section}", ""]
@@ -106,18 +125,19 @@ def read_back(root: Path, text: str) -> dict:
 
 
 def write(repo_dir: str | Path, title: str, adr_dir: str | None = None, code_refs: list[str] | tuple[str, ...] = (),
-          rule: str | None = None, date: str | None = None) -> Path:
+          rule: str | None = None, date: str | None = None, waivers: list[str] | tuple[str, ...] = ()) -> Path:
     root = Path(os.path.abspath(repo_dir))
     if not root.is_dir():
         raise ValueError(f"--repo-dir {repo_dir} is not a directory")
     title, stated, refs, day = checked_title(title), checked_rule(rule), [r.strip() for r in code_refs], checked_date(date)
-    text = text_of(title, day, refs, stated)
+    waived = checked_waivers(waivers)
+    text = text_of(title, day, refs, stated, waived)
     try:
         fm = read_back(root, text)
     except init.Malformed as e:
         raise ValueError(f"the new ADR would not read back: {e}") from None
-    if fm.get("code_ref", []) != refs or fm.get("rule") != stated:
-        raise ValueError("the new ADR would not read back with the same code refs and rule")
+    if fm.get("code_ref", []) != refs or fm.get("rule") != stated or fm.get("waivers", []) != waived:
+        raise ValueError("the new ADR would not read back with the same code refs, rule and waivers")
     folder = directory(root, adr_dir)
     shown = folder.relative_to(root).as_posix()
     try:

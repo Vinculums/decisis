@@ -31,7 +31,7 @@ from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.stdio import stdio_server
 from mcp.server.subscriptions import InMemorySubscriptionBus, ListenHandler, ToolsListChanged
 
-from . import audit, check, compact, cypher, external, impact, inventory
+from . import audit, check, compact, cypher, external, impact, inventory, rules
 from . import checkout as co
 from .cli import MAX_LIMIT
 from .queries import load as query
@@ -44,6 +44,8 @@ TEXT = {"type": "string", "minLength": 1, "maxLength": MAX_TEXT}
 MAX_PARAMS = 32
 MAX_REVIEWERS = 256
 MAX_SENT = cypher.MAX_BYTES
+TODAY = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+         "description": "judge waivers as of this UTC date, YYYY-MM-DD (default: today in UTC)"}
 DETAIL = {"type": "string", "enum": list(compact.DETAILS), "default": "summary",
           "description": f"summary (the default): counts, ids, titles and the first {compact.FIRST} items of each list; "
                          "full: the whole report"}
@@ -83,6 +85,7 @@ SCHEMAS = {
             "repo": {**TEXT, "description": "repository name as it appears in Vinc code_ref, for example Vinc"},
             "depth": {"type": "integer", "minimum": 1, "maximum": MAX_DEPTH, "default": 8,
                       "description": f"longest dependency path to follow (1 to {MAX_DEPTH})"},
+            "today": TODAY,
             "detail": DETAIL,
         },
         "required": ["lockfile", "repo"],
@@ -97,6 +100,7 @@ SCHEMAS = {
                                             "give this or changed"},
             "reviewers": {"type": "array", "items": TEXT, "maxItems": MAX_REVIEWERS, "default": [],
                           "description": "the handles that reviewed the change, for example @alice or @org/team"},
+            "today": TODAY,
             "detail": DETAIL,
         },
         "additionalProperties": False,
@@ -120,12 +124,14 @@ DESCRIPTIONS = {
               "each with its edge path and the evidence on each edge.",
     "paths": "List bounded paths between two node ids in the snapshot.",
     "audit": "Join the snapshot, a lockfile or SBOM and OSV advisories, and report the advisories the repository reaches "
-             "and the decisions they break. Reads advisories from the server's OSV cache, or from api.osv.dev only "
+             "and the decisions they break; a violation a decision's waiver covers is counted as waived, not as a violation, "
+             "until the waiver's expires date. Reads advisories from the server's OSV cache, or from api.osv.dev only "
              "when the server was started with --allow-network.",
     "check": "Judge a change set against the review and import rules of the decisions in the snapshot, as decisis check does. "
              "Give changed (files under the server's root) or base (a git ref, for git diff base...HEAD in the root), and the "
              "reviewers. Returns the governing decisions, the violations with file, line, decision and rule, and what cannot be "
-             "judged. The changed files are read under the root and never run.",
+             "judged, and apart from them the waived results with each waiver's reason and expiry. The changed files are read "
+             "under the root and never run.",
     "query": "Run one read-only Cypher statement on a fresh sandbox of the snapshot and return its rows. Use it for a question "
              "the fixed tools do not answer: impact for the decisions on code paths, paths between two ids, audit for a "
              "lockfile. CREATE, MERGE, SET, DELETE, REMOVE, LOAD CSV, admin clauses and procedures other than the db.labels "
@@ -186,8 +192,9 @@ class Tools:
         try:
             changed = (check.changed_since(self.root, git_ref(args["base"])) if "base" in args
                        else [inside_root(self.root, raw) for raw in args["changed"]])
+            day = rules.today(args.get("today"))
             return check.run(self.graph, changed, self.root, args.get("reviewers", []), base=args.get("base"),
-                             sandbox_root=self.scratch)
+                             sandbox_root=self.scratch, day=day)
         except Refused:
             raise
         except ValueError as e:
@@ -201,6 +208,10 @@ class Tools:
         return {"loaded": counts, "paths": rows}
 
     def audit(self, args: dict) -> dict:
+        try:
+            day = rules.today(args.get("today"))
+        except ValueError as e:
+            raise Refused(f"audit: {e}") from None
         advisories = self.advisories()
         if inventory.bun.binary(resolve_under(self.root, args["lockfile"])):
             raise Refused(inventory.bun.refusal(PurePosixPath(args["lockfile"]).name))
@@ -208,7 +219,7 @@ class Tools:
         name = PurePosixPath(args["lockfile"]).name
         siblings = self.siblings(args["lockfile"], lock_text, name)
         return audit.run(self.graph, lock_text, args["repo"], args.get("depth", 8), advisories=advisories, root=self.scratch,
-                         filename=name, siblings=siblings)
+                         filename=name, siblings=siblings, day=day)
 
     def siblings(self, raw: str, text: str, name: str) -> dict[str, str]:
         parent = PurePosixPath(raw).parent
