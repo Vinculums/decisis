@@ -229,11 +229,11 @@ def test_results_that_are_not_violated_are_left_out(tmp_path, capsys, no_network
 def test_a_waived_result_is_included_with_an_external_suppression_naming_the_waiver(kind, tmp_path, capsys, no_network):
     code = 1 if kind == "check" else 0
     waived = [r for r in only(run_args(capsys, waived_args(tmp_path, kind), code))["results"] if "suppressions" in r]
-    assert waived and all(r["level"] == "error" for r in waived)
+    assert waived and all(r["level"] == "note" for r in waived)
     for r in waived:
         (s,) = r["suppressions"]
         assert s["kind"] == "external" and s["status"] == "accepted"
-        assert "no patched release yet" in s["justification"] and f"until {DAY}" in s["justification"] and "@shop/security" in s["justification"]
+        assert s["justification"] == f"waiver 1 until {DAY}, approved by @shop/security: no patched release yet"
         assert r["properties"]["waiver"]["expires"] == DAY
     assert len(waived) == (2 if kind == "check" else 1)
     document = run_args(capsys, waived_args(tmp_path, kind), code)
@@ -241,6 +241,7 @@ def test_a_waived_result_is_included_with_an_external_suppression_naming_the_wai
     total = len(only(document)["results"])
     late = only(run_args(capsys, waived_args(tmp_path, kind, "2026-11-24"), code))
     assert not [r for r in late["results"] if "suppressions" in r] and len(late["results"]) == total
+    assert "note" not in {r["level"] for r in late["results"]}
 
 
 def test_an_audit_waiver_suppresses_only_the_advisory_it_names(tmp_path, capsys, no_network):
@@ -248,6 +249,44 @@ def test_an_audit_waiver_suppresses_only_the_advisory_it_names(tmp_path, capsys,
     (waived,) = [r for r in results if "suppressions" in r]
     assert waived["properties"]["advisory"] == "adv:GHSA-p6mc-m468-83gw" and waived["properties"]["package"] == "pkg:npm/lodash@4.17.15"
     assert len(results) == 3 and len([r for r in results if "suppressions" not in r]) == 2
+
+
+@pytest.mark.parametrize("kind", sorted(COMMANDS))
+def test_a_waived_result_is_a_note_that_starts_with_its_expiry_and_the_others_keep_their_levels(kind, tmp_path, capsys, no_network):
+    results = only(run_args(capsys, waived_args(tmp_path, kind), 1 if kind == "check" else 0))["results"]
+    waived = [r for r in results if "suppressions" in r]
+    others = [r for r in results if "suppressions" not in r]
+    assert waived and others
+    for r in waived:
+        assert r["level"] == "note"
+        assert r["message"]["text"].startswith(f"Waived until {DAY}: {r['properties']['decision']}: ")
+    assert not [r for r in others if r["message"]["text"].startswith("Waived")]
+    assert {r["level"] for r in others} == ({"error", "warning"} if kind == "check" else {"error"})
+
+
+def test_every_verdict_of_an_audit_has_its_level():
+    finding = {"package": "pkg:npm/a@1", "advisory": "adv:X", "path": [],
+               "policies": [{"decision": "decision:a", "verdict": "violated", "why": "w"},
+                            {"decision": "decision:b", "verdict": "unresolved", "why": "w", "rule": "license_denied"},
+                            {"decision": "decision:c", "verdict": "waived", "why": "w",
+                             "waiver": {"waiver": 2, "reason": "r", "expires": "2026-11-30", "approved_by": "@a"}},
+                            {"decision": "decision:d", "verdict": "not_violated", "why": "w"}]}
+    results = sarif.audit_run({"findings": [finding]}, "package-lock.json", "1.0.0")["results"]
+    assert [r["level"] for r in results] == ["error", "warning", "note"]
+    assert [r["message"]["text"] for r in results] == ["decision:a: pkg:npm/a@1 (adv:X): w", "decision:b: pkg:npm/a@1 (adv:X): w",
+                                                       "Waived until 2026-11-30: decision:c: pkg:npm/a@1 (adv:X): w"]
+    assert [("suppressions" in r) for r in results] == [False, False, True]
+    assert results[2]["suppressions"] == [{"kind": "external", "status": "accepted",
+                                           "justification": "waiver 2 until 2026-11-30, approved by @a: r"}]
+    validate(sarif.log([sarif.audit_run({"findings": [finding]}, "package-lock.json", "1.0.0")]))
+
+
+def test_a_waived_result_without_an_expiry_still_says_it_is_waived():
+    one = {"file": "src/a.py", "line": 3, "decision": "decision:d", "rule": "imports_forbidden", "why": "w", "import": "db", "target": "db.py"}
+    (bare,) = sarif.check_run({"waived": [{**one, "waiver": {}}]}, version="1.0.0")["results"]
+    assert bare["level"] == "note" and bare["message"]["text"] == "Waived: decision:d: w"
+    (none,) = sarif.check_run({"waived": [one]}, version="1.0.0")["results"]
+    assert none["level"] == "note" and none["message"]["text"] == "Waived: decision:d: w" and "suppressions" not in none
 
 
 def test_the_log_is_the_same_on_every_run(capsys, no_network):
@@ -322,6 +361,44 @@ def test_a_finding_keeps_its_fingerprint_when_its_line_moves_and_changes_it_when
     assert sarif.fingerprint(["a", "bc"], {}) != sarif.fingerprint(["ab", "c"], {})
 
 
+def levels(results: list[dict]) -> dict[str, str]:
+    return {r["partialFingerprints"]["decisis/v1"]: r["level"] for r in results}
+
+
+@pytest.mark.parametrize("kind", sorted(COMMANDS))
+def test_a_finding_that_turns_from_violated_to_waived_and_back_is_the_same_alert(kind, tmp_path, capsys, no_network):
+    code = 1 if kind == "check" else 0
+    plain = only(produce(capsys, kind))["results"]
+    waived = only(run_args(capsys, waived_args(tmp_path, kind), code))["results"]
+    expired = only(run_args(capsys, waived_args(tmp_path, kind, "2026-11-24"), code))["results"]
+    assert len(plain) == len(waived) == len(expired)
+    assert levels(plain) == levels(expired) and "note" not in levels(plain).values()
+    assert set(levels(waived)) == set(levels(plain))
+    turned = {k for k, v in levels(waived).items() if v == "note"}
+    assert len(turned) == (2 if kind == "check" else 1)
+    assert {levels(plain)[k] for k in turned} == {"error"}
+    assert {k: v for k, v in levels(waived).items() if k not in turned} == {k: v for k, v in levels(plain).items() if k not in turned}
+    shown = lambda results: {r["partialFingerprints"]["decisis/v1"]: (r["ruleId"], r["ruleIndex"], r["locations"]) for r in results}
+    assert shown(waived) == shown(plain)
+
+
+def test_the_fingerprint_does_not_depend_on_the_verdict_or_the_waiver():
+    one = {"file": "src/a.py", "line": 3, "decision": "decision:d", "rule": "imports_forbidden", "why": "w", "import": "db", "target": "db.py"}
+    waiver = {"waiver": 1, "reason": "r", "expires": DAY, "approved_by": "@a"}
+    (violated,) = sarif.check_run({"violations": [{**one, "verdict": "violated"}]}, version="1.0.0")["results"]
+    (waived,) = sarif.check_run({"waived": [{**one, "verdict": "waived", "waiver": waiver}]}, version="1.0.0")["results"]
+    (later,) = sarif.check_run({"waived": [{**one, "verdict": "waived", "waiver": {**waiver, "expires": "2027-01-01", "reason": "other"}}]},
+                               version="1.0.0")["results"]
+    assert (violated["level"], waived["level"]) == ("error", "note")
+    assert violated["partialFingerprints"] == waived["partialFingerprints"] == later["partialFingerprints"]
+    finding = {"package": "pkg:npm/a@1", "advisory": "adv:X", "path": []}
+    (v,) = sarif.audit_run({"findings": [{**finding, "policies": [{"decision": "decision:d", "verdict": "violated", "why": "w"}]}]}, "lock.json",
+                           "1.0.0")["results"]
+    (w,) = sarif.audit_run({"findings": [{**finding, "policies": [{"decision": "decision:d", "verdict": "waived", "why": "w", "waiver": waiver}]}]},
+                           "lock.json", "1.0.0")["results"]
+    assert (v["level"], w["level"]) == ("error", "note") and v["partialFingerprints"] == w["partialFingerprints"]
+
+
 def test_two_identical_findings_in_one_file_get_two_fingerprints():
     one = {"file": "src/a.py", "line": 3, "decision": "decision:d", "rule": "imports_forbidden", "verdict": "violated", "why": "w",
            "import": "db", "target": "db.py"}
@@ -361,6 +438,7 @@ def test_hostile_text_stays_data_in_the_messages_and_the_log_validates():
     for d in only(document)["tool"]["driver"]["rules"]:
         assert not re.search(r"(?<!\\)[\[\]]", d["shortDescription"]["text"].replace("\\\\", ""))
     (waived,) = [r for r in only(document)["results"] if "suppressions" in r]
+    assert waived["level"] == "note" and waived["message"]["text"].startswith(f"Waived until {DAY}: decision:")
     assert set(waived["suppressions"][0]) == {"kind", "status", "justification"}
     assert HOSTILE in waived["suppressions"][0]["justification"]
 
@@ -605,7 +683,8 @@ def test_the_expiring_waiver_section_is_in_the_comment_and_never_read_by_the_sar
     ids = [r["automationDetails"]["id"] for r in document["runs"]]
     assert len(ids) == 3 and len(set(ids)) == 3
     waived = [r for run in document["runs"] for r in run["results"] if "suppressions" in r]
-    assert waived and all(f"until {soon}" in r["suppressions"][0]["justification"] for r in waived)
+    assert waived and all(f"until {soon}" in r["suppressions"][0]["justification"] and r["level"] == "note" for r in waived)
+    assert all(r["message"]["text"].startswith(f"Waived until {soon}: ") for r in waived)
     assert not [r for run in document["runs"] for r in run["results"] if r["level"] == "error" and "suppressions" not in r]
 
 
@@ -676,3 +755,8 @@ def test_the_docs_describe_the_format_the_input_the_permission_and_the_fork_limi
     assert "| `sarif` | `false` |" in action_doc and "`sarif-file`" in action_doc and "decisis.sarif" in action_doc
     assert "security-events: write" in action_doc and "github/codeql-action/upload-sarif" in action_doc
     assert "Pull requests from forks cannot upload" in action_doc
+    flat = " ".join(commands.split())
+    for doc in (flat, action_doc):
+        assert "appears" in doc and "as a note, not as an error" in doc and "Waived until <date>:" in doc
+        assert "does not dismiss the alert on its own" in doc and "dismiss it in the Security tab" in doc
+        assert "or let it close when the violation the waiver covers is fixed" in doc

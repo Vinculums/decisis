@@ -50,8 +50,8 @@ scanning) reads. The exit code is the one `--format json` gives. The log has one
 - The tool driver is `decisis` with the installed version. Each rule kind that judged something is a
   `reportingDescriptor` whose `id` is the kind (`imports_forbidden`, `advisory_severity_at_least`, and so on); a
   kind that judged nothing in this run is left out.
-- Each violated result is a `result` with `level` `error`, and each result that cannot be judged one with `warning`. A result that
-  is not violated is left out.
+- Each violated result is a `result` with `level` `error`, each result that cannot be judged one with `warning`, and each
+  result a waiver covers one with `note`. A result that is not violated is left out.
 - `message.text` holds the decision id and the reason. For `audit` it also names the package and the advisory.
 - `locations` hold a repository-relative file and, where one exists, a line. `check` points to the changed file and the
   line of the import; a `review_required` result has no line, so it points to the file. `audit` points to the inventory
@@ -60,12 +60,17 @@ scanning) reads. The exit code is the one `--format json` gives. The log has one
 - `properties` carry the decision id, the rule kind and the path evidence in `path`: for `check`, the changed file and the
   file the import resolves to (with the `import` as written and its `target`); for `audit`, the dependency chain from the
   repository to the package and the advisory (with the `package` and the `advisory`).
-- A result a decision's waiver covers is kept, still at `error`, with a `suppressions` entry of kind `external` and status
-  `accepted` whose `justification` is the waiver, its expiry, its approver and its reason. From the day after the expiry the
-  suppression is gone and the result is a violation again.
+- A result a decision's waiver covers is kept at `note`, not `error`, and its `message.text` starts with
+  `Waived until <date>:`, the day the waiver expires. It keeps a `suppressions` entry of kind `external` and status
+  `accepted` whose `justification` is the waiver number, its expiry, its approver and its reason. From the day after the
+  expiry the suppression is gone and the result is a violation again, at `error`.
+- What GitHub shows: a waived result appears in the Security tab as a note, not as an error. GitHub does not read the
+  `suppressions` entry, so it does not dismiss the alert on its own: dismiss it in the Security tab, or let it close when the
+  violation the waiver covers is fixed.
 - Every result has a `partialFingerprints` value, `decisis/v1`, the SHA-256 of the decision, the rule kind, the file and the
-  import (`check`) or the package and the advisory (`audit`). It does not hold the line, so a finding that only moves
-  down a file stays one alert in code scanning. Two identical findings in one file get the second one a `:2` suffix.
+  import (`check`) or the package and the advisory (`audit`). It does not hold the line or the level, so a finding that
+  only moves down a file, or turns from violated to waived and back, stays one alert in code scanning. Two identical
+  findings in one file get the second one a `:2` suffix.
 - Text from a snapshot or a pull request is put into JSON values and nowhere else. In `message.text` the characters
   `\`, `[` and `]` are escaped, so no title or reason becomes a link.
 
