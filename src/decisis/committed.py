@@ -7,7 +7,9 @@ a working tree, so links, submodules and files in subfolders are listed the same
 `stored` reads a snapshot file from the commit's tree and returns `None` when the commit has no file at the path.
 `changes` names the decisions and waivers that one snapshot adds, changes or removes against another. `supersession` names
 what that change does to supersession: each `SUPERSEDES` edge between decisions that one snapshot adds or removes against
-the other, the decisions that become superseded or return to force, and each `SUPERSEDES` cycle added or removed.
+the other, the decisions that become superseded or return to force, and each `SUPERSEDES` cycle added or removed. A cycle
+of the old snapshot is removed when its members no longer lie together in one cycle of the new one, so a cycle that
+only grows is not removed.
 """
 from __future__ import annotations
 
@@ -260,9 +262,9 @@ def supersession(old: Subgraph, new: Subgraph) -> Supersession:
     superseded = [{"decision": d, "by": now[d]} for d in sorted(now) if d not in was and d in kept_old]
     restored = [{"decision": d, "by": was[d]} for d in sorted(was) if d not in now and d in kept_new]
     loops_old, loops_new = cycles.find(old.nodes, old.edges), cycles.find(new.nodes, new.edges)
-    members_old, members_new = {c.members for c in loops_old}, {c.members for c in loops_new}
+    members_old, together = {c.members for c in loops_old}, [set(c.members) for c in loops_new]
     return Supersession(tuple(edges), tuple(superseded), tuple(restored), tuple(c for c in loops_new if c.members not in members_old),
-                        tuple(c for c in loops_old if c.members not in members_new))
+                        tuple(c for c in loops_old if not any(set(c.members) <= held for held in together)))
 
 
 def source_files(changed: list[str], snapshot: str | None) -> list[str]:

@@ -22,9 +22,12 @@ tree, read by `committed`, so a pull request is judged by the decisions it would
 When the pull request changes a file the decisions come from, the comment lists those files, and when both sides can be
 read the decisions and waivers that change, each `SUPERSEDES` edge between decisions that it adds or removes, the decisions
 that become superseded or return to force once it is merged, and each `SUPERSEDES` cycle it adds or removes; they change no
-verdict in this run. A cycle it adds is also a result that cannot be judged in this run, so `DECISIS_FAIL_ON_UNRESOLVED`
-fails the pull request that adds it, also when the base commit has no decisions. When the base commit has no decisions,
-nothing else is judged. With `head` the decisions come from the checkout, as before.
+verdict in this run, except for cycles. A cycle it adds is also a result that cannot be judged in this run, so
+`DECISIS_FAIL_ON_UNRESOLVED` fails the pull request that adds it, also when the base commit has no decisions. A cycle
+of the base commit that it removes is named as removed once merged and is not listed as a result that cannot be judged,
+so the pull request that fixes a cycle is not held by it; the rules of its decisions are judged as before, and a cycle
+it leaves in place or only grows stays a result that cannot be judged. When the base commit has no decisions, nothing
+else is judged. With `head` the decisions come from the checkout, as before.
 
 The `unresolved` output counts the check results that cannot be judged, the audit findings whose status is unresolved
 and the unresolved packages of every inventory, and the decision files not read. With `DECISIS_FAIL_ON_UNRESOLVED`
@@ -122,6 +125,10 @@ class Pending:
     @property
     def arriving(self) -> list[cycles.Cycle]:
         return list(self.supersession.added) if self.supersession is not None else []
+
+    @property
+    def leaving(self) -> list[cycles.Cycle]:
+        return list(self.supersession.removed) if self.supersession is not None else []
 
 
 @dataclass
@@ -430,7 +437,7 @@ def supersession(s: committed.Supersession, rows: int) -> list[str]:
         shown, rest = cut(list(s.restored), rows, "decisions that return to force")
         out += [f"Decisions that return to force once merged ({len(s.restored)}), so their rules are judged again:", "",
                 *(f"- {code(d['decision'])}: {superseders(d['by'])} now" for d in shown), "", *rest]
-    loops = [("added", c) for c in s.added] + [("removed", c) for c in s.removed]
+    loops = [("added", c) for c in s.added] + [("removed once merged", c) for c in s.removed]
     if loops:
         shown, rest = cut(loops, rows, "cycles")
         out += [f"`SUPERSEDES` cycles this pull request adds or removes ({len(loops)}):", ""]
@@ -440,6 +447,9 @@ def supersession(s: committed.Supersession, rows: int) -> list[str]:
     if s.added:
         out += ["No decision in an added cycle is treated as superseded once merged, so their rules are judged. "
                 "This run lists each added cycle under \"Cannot be judged\".", ""]
+    if s.removed:
+        out += ["A cycle removed once merged is not listed under \"Cannot be judged\" in this run, and the rules of its decisions "
+                "are judged as before.", ""]
     return out
 
 
@@ -845,7 +855,8 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
                                              nothing=no_decisions(env, graph), strict=strict), sarifing)
     approved, review_note = approvals(client, pull)
     report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day, warn_days=warn,
-                       arriving=waiting.arriving if waiting is not None else [])
+                       arriving=waiting.arriving if waiting is not None else [],
+                       leaving=waiting.leaving if waiting is not None else [])
     done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day, warn, traffic)
     outcome = Outcome(report, pull, approved, version(), source, done, pending=waiting, strict=strict, sign=signing,
                       contacted=tuple(traffic.hosts))

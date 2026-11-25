@@ -4,8 +4,9 @@ The changed files come from `--changed` or from `git diff --name-only REF...HEAD
 is passed to `impact`, which lists the decisions that govern it; superseded decisions are listed apart and never
 judged. Every other decision whose `rule` has a `review_required` or `imports_forbidden` entry is judged, since
 the rule's own globs name the files it covers. A decision in a `SUPERSEDES` cycle is not superseded, so its rules are judged,
-and each cycle is a result under `unresolved`. So is each cycle in `arriving`, which the Action passes for the cycles a pull
-request adds that take effect once it is merged. `review_required` is judged on each changed file against the
+and each cycle is a result under `unresolved`. The Action passes the cycles a pull request adds, which take effect once it is
+merged, as `arriving`, and each is a result under `unresolved` too. It passes the cycles of the base the pull request removes as
+`leaving`, and each is left out of `unresolved`; the rules of its decisions are judged all the same. `review_required` is judged on each changed file against the
 reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go, Rust,
 Java or Kotlin file its `from` globs cover (see `imports.py`); no code of the repository is run. A violation that one of the
 decision's own waivers covers is `waived` through the waiver's expiry date, listed apart and never counted for the
@@ -180,7 +181,7 @@ def failed(report: dict, on_unresolved: bool) -> bool:
 
 def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = (), hops: int = 3, repo: str | None = None,
         base: str | None = None, limits: Limits | None = None, sandbox_root=None, day: datetime.date | None = None,
-        warn_days: int = rules.WARN_DAYS, arriving: list[cycles.Cycle] = ()) -> dict:
+        warn_days: int = rules.WARN_DAYS, arriving: list[cycles.Cycle] = (), leaving: list[cycles.Cycle] = ()) -> dict:
     files = sorted({normal(p) for p in changed})
     if len(files) > MAX_CHANGED:
         raise ValueError(f"the change set has {len(files)} files, more than the {MAX_CHANGED} check judges")
@@ -190,7 +191,8 @@ def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = 
     day = day or rules.today()
     results = review_results(decisions, files, list(reviewers), day)
     found, listed = import_results(decisions, files, imports.Repo(root), day)
-    results += found + cycle_results(cycles.find(graph.nodes, graph.edges)) + cycle_results(list(arriving), True)
+    gone = {c.members for c in leaving}
+    results += found + cycle_results([c for c in cycles.find(graph.nodes, graph.edges) if c.members not in gone]) + cycle_results(list(arriving), True)
     violations, unresolved, waived = ordered(results, "violated"), ordered(results, "unresolved"), ordered(results, rules.WAIVED)
     ruled = [{"decision": n["id"], "rule": r.kind, **value_of(r), "files": covered(r, files)}
              for n, parsed in decisions for s in rules.CHANGE_SUBJECTS for r in rules.judging(parsed, s)]

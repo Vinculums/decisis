@@ -156,7 +156,8 @@ their sum:
 
 - a `check` result that cannot be judged (listed under "Cannot be judged"), such as an import computed at run
   time, a file the scanner cannot finish, or a `SUPERSEDES` cycle among the decisions, on the base commit or added by
-  the pull request (its decisions are judged as in force, and the entry names each one and its file);
+  the pull request, but not one on the base commit that the pull request removes (its decisions are judged as in
+  force, and the entry names each one and its file);
 - an audit finding whose status is unresolved, in any inventory, whether or not a decision's rule covers it,
   such as an advisory whose affected versions cannot be compared with the package's version, or a Docker image
   under a `pinned_to_commit` rule;
@@ -214,9 +215,12 @@ The rest of this section describes how the decisions are read.
   decisions it adds or removes, the decisions that become superseded or return to force once it is merged, and
   each `SUPERSEDES` cycle it adds or removes with its decisions and files. "No decision or waiver is added,
   changed or removed" appears only when none of these applies. Those changes do not change any verdict in the
-  run, except that a cycle the pull request adds is a result that cannot be judged, listed under "Cannot be
-  judged", so `fail-on-unresolved: true` fails the pull request that adds it. A cycle already on the base
-  commit is listed once, as it was before.
+  run, except for cycles. A cycle the pull request adds is a result that cannot be judged, listed under "Cannot be
+  judged", so `fail-on-unresolved: true` fails the pull request that adds it. A cycle of the base commit that the
+  pull request removes (its decisions no longer lie together in a cycle) is named as "removed once merged" and is
+  not listed under "Cannot be judged", so the pull request that fixes a cycle is not held by that cycle; the rules
+  of its decisions are judged as before, so a missing review is still a violation. A cycle the pull request leaves
+  in place or only grows stays listed under "Cannot be judged", once, as it was before.
 - When the base commit has no snapshot file at the path, or no ADR with a decision, the comment says that no
   decisions exist on the base yet. Nothing is judged, `violations` is 0 and the step does not fail.
 

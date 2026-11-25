@@ -20,11 +20,13 @@ CLOSED = [adr(2, f"superseded_by: {link(1)}")]
 BOTH = [adr(1, f"superseded_by: {link(2)}"), adr(2, f"superseded_by: {link(1)}")]
 
 
-def run(tmp_path: Path, base: list[tuple[str, str]], head: list[tuple[str, str | None]], strict: bool = False, **extra) -> tuple[int, str]:
+def run(tmp_path: Path, base: list[tuple[str, str]], head: list[tuple[str, str | None]], strict: bool = False,
+        approved: tuple[str, ...] = (), **extra) -> tuple[int, str]:
     root, sha = repository(tmp_path, {**dict(base), FILE: "A = 1\n"}, {FILE: "A = 2\n", **dict(head)})
     flags = {"DECISIS_FAIL_ON_UNRESOLVED": "true"} if strict else {}
     env = env_for(tmp_path, root, sha, DECISIS_REPO="Shop", GITHUB_WORKSPACE=str(root), **flags, **extra)
-    return action.main(env, FakeGitHub()), summary(tmp_path)
+    reviews = [{"user": {"login": who}, "state": "APPROVED"} for who in approved]
+    return action.main(env, FakeGitHub(reviews=reviews)), summary(tmp_path)
 
 
 def section(body: str) -> str:
@@ -148,10 +150,32 @@ def test_a_pull_request_that_removes_a_cycle_names_the_removed_edge_and_cycle_an
     assert f"- {action.code(did(1))}: superseded by {action.code(did(2))}" in block
     assert "return to force" not in block
     assert "`SUPERSEDES` cycles this pull request adds or removes (1):" in block
-    assert cycle_row("removed", 1, 2) in block
+    assert cycle_row("removed once merged", 1, 2) in block
     assert "added cycle" not in block
-    assert out.count(action.text(f"{did(1)} and {did(2)} supersede each other")) == 1
-    assert ARRIVING not in out and "#### Cannot be judged (1)" in out
+    assert 'A cycle removed once merged is not listed under "Cannot be judged" in this run' in block
+    assert action.text(f"{did(1)} and {did(2)} supersede each other") not in out
+    assert ARRIVING not in out and "Cannot be judged" not in out.replace(block, "")
+    assert outputs(tmp_path)["unresolved"] == "0"
+
+
+@pytest.mark.parametrize("strict", [False, True])
+def test_the_pull_request_that_removes_a_base_cycle_passes_fail_on_unresolved_when_its_rules_pass(strict, tmp_path, no_network):
+    code, out = run(tmp_path, BOTH, [adr(2)], strict, approved=("alice", "bob"), DECISIS_FAIL_ON_VIOLATION="true")
+    assert code == 0
+    assert "#### Violations" not in out and "Cannot be judged" not in out.replace(section(out), "")
+    assert cycle_row("removed once merged", 1, 2) in section(out)
+    assert outputs(tmp_path)["unresolved"] == "0" and outputs(tmp_path)["violations"] == "0"
+    assert "This check fails" not in out
+
+
+@pytest.mark.parametrize("approved, missing", [(("alice",), 1), ((), 2)])
+def test_the_pull_request_that_removes_a_base_cycle_still_gets_the_rule_violations_when_reviewers_are_missing(approved, missing, tmp_path, no_network):
+    code, out = run(tmp_path, BOTH, [adr(2)], True, approved=approved, DECISIS_FAIL_ON_VIOLATION="true")
+    assert code == 1
+    assert f"#### Violations ({missing})" in out and f"| {action.code(did(2))} | {action.code('review_required')} |" in out
+    assert (f"| {action.code(did(1))} | {action.code('review_required')} |" in out) is (missing == 2)
+    assert "Cannot be judged" not in out.replace(section(out), "")
+    assert outputs(tmp_path)["violations"] == str(missing) and outputs(tmp_path)["unresolved"] == "0"
 
 
 @pytest.mark.parametrize("strict", [False, True])
@@ -203,6 +227,52 @@ def test_a_cycle_the_base_already_has_is_listed_once_as_before_and_not_as_a_chan
     assert "#### Cannot be judged (1)" in out and outputs(tmp_path)["unresolved"] == "1"
 
 
+@pytest.mark.parametrize("approved", [(), ("alice", "bob")])
+def test_a_pull_request_that_leaves_the_base_cycle_in_place_still_fails_under_fail_on_unresolved(approved, tmp_path, no_network):
+    code, out = run(tmp_path, BOTH, [adr(1, f"superseded_by: {link(2)}", "status: accepted")], True, approved=approved)
+    block = section(out)
+    assert code == 1
+    assert f"| {action.code(did(1))} |  | changed |" in block
+    assert "`SUPERSEDES`" not in block and "removed once merged" not in out and ARRIVING not in out
+    assert "#### Cannot be judged (1)" in out
+    assert action.text(f"{did(1)} and {did(2)} supersede each other ({path(1)}, {path(2)}); neither is treated as superseded") in out
+    assert outputs(tmp_path)["unresolved"] == "1"
+    assert "This check fails: fail-on-unresolved is on and the run found 1 check result(s) that cannot be judged." in out
+
+
+def test_a_cycle_that_grows_stays_a_result_that_cannot_be_judged_next_to_the_one_it_becomes(tmp_path, no_network):
+    grown = [adr(2, f"superseded_by: {link(1)}", f"supersedes: {link(3)}"), adr(3, f"supersedes: {link(1)}")]
+    code, out = run(tmp_path, [*BOTH, adr(3)], grown, True, approved=("alice", "bob", "carol"))
+    block = section(out)
+    assert code == 1
+    assert cycle_row("added", 1, 2, 3) in block and "removed once merged" not in out
+    assert "#### Cannot be judged (2)" in out and outputs(tmp_path)["unresolved"] == "2"
+    assert action.text(f"{did(1)} and {did(2)} supersede each other ({path(1)}, {path(2)}); neither is treated as superseded") in out
+    assert action.text(f"{did(1)}, {did(2)} and {did(3)} supersede one another in a cycle") in out and ARRIVING in out
+
+
+RING3 = [adr(1, f"supersedes: {link(2)}"), adr(2, f"supersedes: {link(3)}"), adr(3, f"supersedes: {link(1)}")]
+EVERYONE = ("alice", "bob", "carol")
+
+
+def test_a_pull_request_that_breaks_a_ring_removes_it_once_merged_and_passes_when_its_rules_pass(tmp_path, no_network):
+    code, out = run(tmp_path, RING3, [adr(3)], True, approved=EVERYONE)
+    block = section(out)
+    assert code == 0
+    assert cycle_row("removed once merged", 1, 2, 3) in block and "added cycle" not in block
+    assert "Cannot be judged" not in out.replace(block, "") and outputs(tmp_path)["unresolved"] == "0"
+
+
+def test_a_pull_request_that_shrinks_a_ring_to_a_smaller_cycle_removes_the_old_one_and_adds_the_one_that_is_left(tmp_path, no_network):
+    left = [adr(1, f"supersedes: {link(2)}"), adr(2, f"supersedes: {link(1)}"), adr(3)]
+    code, out = run(tmp_path, RING3, left, True, approved=EVERYONE)
+    block = section(out)
+    assert code == 1
+    assert cycle_row("added", 1, 2) in block and cycle_row("removed once merged", 1, 2, 3) in block
+    assert "#### Cannot be judged (1)" in out and ARRIVING in out and outputs(tmp_path)["unresolved"] == "1"
+    assert action.text(f"{did(1)}, {did(2)} and {did(3)} supersede one another in a cycle") not in out
+
+
 @pytest.mark.parametrize("strict", [False, True])
 def test_a_pull_request_that_adds_the_first_decisions_as_a_cycle_names_it_and_fails_with_fail_on_unresolved(strict, tmp_path, no_network):
     code, out = run(tmp_path, [], BOTH, strict, DECISIS_SARIF="true")
@@ -236,12 +306,18 @@ def test_supersession_names_edges_and_the_states_they_change_between_two_snapsho
     assert bool(moved) and not committed.supersession(old, old)
 
 
-def test_a_cycle_that_grows_is_one_added_cycle_and_one_removed_cycle_and_a_self_loop_is_added_as_a_cycle():
+def test_a_cycle_that_grows_is_one_added_cycle_and_not_a_removed_one_and_a_ring_that_shrinks_or_loses_a_decision_is_removed():
     a, b, c = "decision:a", "decision:b", "decision:c"
     two = graph([node(a), node(b), node(c)], [edge(a, b), edge(b, a)])
     ring = graph([node(a), node(b), node(c)], [edge(a, b), edge(b, c), edge(c, a)])
     moved = committed.supersession(two, ring)
-    assert [x.members for x in moved.added] == [(a, b, c)] and [x.members for x in moved.removed] == [(a, b)]
+    assert [x.members for x in moved.added] == [(a, b, c)] and moved.removed == ()
+    shrunk = committed.supersession(ring, two)
+    assert [x.members for x in shrunk.added] == [(a, b)] and [x.members for x in shrunk.removed] == [(a, b, c)]
+    gone = committed.supersession(two, graph([node(a), node(c)], []))
+    assert gone.added == () and [x.members for x in gone.removed] == [(a, b)]
+    twin = graph([node(a), node(b), node(c)], [edge(a, b), edge(b, a), edge(c, c)])
+    assert [x.members for x in committed.supersession(two, twin).added] == [(c,)] and committed.supersession(two, twin).removed == ()
     alone = committed.supersession(graph([node(a)], []), graph([node(a)], [edge(a, a)]))
     assert [x.members for x in alone.added] == [(a,)] and alone.removed == ()
     assert list(alone.edges) == [{"source": a, "target": a, "change": "added"}]
@@ -267,6 +343,18 @@ def test_check_lists_each_arriving_cycle_next_to_the_cycles_of_the_snapshot_and_
     assert entry["why"] == loop.arriving and entry["rule"] == cycles.RULE and entry["decisions"] == [did(1), did(2)]
     assert report["summary"]["unresolved"] == 1 and report["violations"] == []
     assert check.run(found, [FILE], root, ["@alice", "@bob"], repo="Shop")["unresolved"] == []
+
+
+def test_check_leaves_a_leaving_cycle_out_of_the_results_that_cannot_be_judged_and_still_judges_its_rules(tmp_path):
+    root = tree(tmp_path / "repo", BOTH)
+    found = co.load(init.dump(init.build(root, "Shop")))
+    [loop] = cycles.find(found.nodes, found.edges)
+    kept = check.run(found, [FILE], root, ["@alice"], repo="Shop")
+    left = check.run(found, [FILE], root, ["@alice"], repo="Shop", leaving=[loop])
+    assert [u["rule"] for u in kept["unresolved"]] == [cycles.RULE] and kept["summary"]["unresolved"] == 1
+    assert left["unresolved"] == [] and left["summary"]["unresolved"] == 0
+    assert left["violations"] == kept["violations"] and [v["decision"] for v in left["violations"]] == [did(2)]
+    assert [g["decision"] for g in left["governing"]] == [g["decision"] for g in kept["governing"]]
 
 
 @pytest.mark.parametrize("members, existing, arriving", [
