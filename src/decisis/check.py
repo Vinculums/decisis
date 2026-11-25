@@ -7,7 +7,8 @@ the rule's own globs name the files it covers. `review_required` is judged on ea
 reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go or
 Rust file its `from` globs cover (see `imports.py`); no code of the repository is run. A violation that one of the
 decision's own waivers covers is `waived` through the waiver's expiry date, listed apart and never counted for the
-exit code.
+exit code. An ADR that `init` could not read is not in the snapshot, so its rules cannot be judged; each one the
+snapshot's `meta.problems` lists is under `unread_decisions` with its file and reason.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ import posixpath
 import subprocess
 from pathlib import Path
 
-from . import codeowners, imports, impact, rules
+from . import codeowners, imports, impact, init, rules
 from .sandbox import Limits, Subgraph
 
 MAX_CHANGED = 10_000
@@ -124,6 +125,10 @@ def ordered(results: list[dict], verdict: str) -> list[dict]:
     return sorted((r for r in results if r["verdict"] == verdict), key=lambda r: (r["file"], r["line"] or 0, r["decision"], r["rule"], r["import"] or ""))
 
 
+def failed(report: dict, on_unresolved: bool) -> bool:
+    return bool(report["violations"] or (on_unresolved and (report["unresolved"] or report.get("unread_decisions"))))
+
+
 def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = (), hops: int = 3, repo: str | None = None,
         base: str | None = None, limits: Limits | None = None, sandbox_root=None, day: datetime.date | None = None) -> dict:
     files = sorted({normal(p) for p in changed})
@@ -146,7 +151,8 @@ def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = 
                        "not_violated": sum(1 for r in results if r["verdict"] == "not_violated")},
            "impact": report["impact"]}
     found_problems = problems(decisions, {g["decision"] for g in gov})
-    return {**out, "rule_problems": found_problems} if found_problems else out
+    unread = init.unread_decisions(graph.meta)
+    return {**out, **({"rule_problems": found_problems} if found_problems else {}), **({"unread_decisions": unread} if unread else {})}
 
 
 def where(r: dict) -> str:
@@ -185,4 +191,7 @@ def render(report: dict) -> str:
     if report.get("rule_problems"):
         lines.append("rules that cannot be checked:")
         lines += [f"  {p['decision']}  {p['rule'] or 'rule'}: {p['problem']}" for p in report["rule_problems"]]
+    if report.get("unread_decisions"):
+        lines.append(f"decision files not read, so their rules are not judged: {len(report['unread_decisions'])}")
+        lines += [f"  {u['file']}: {u['reason']}" for u in report["unread_decisions"]]
     return "\n".join(lines)

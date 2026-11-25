@@ -61,6 +61,12 @@ jobs:
 - Violations a decision's waiver covers are listed apart, under "Waived, not counted as violations", with
   each waiver's expiry, approver and reason; they are not counted in the `violations` output or for
   `fail-on-violation`. From the day after a waiver's `expires` date the finding is a violation again.
+- An ADR in the snapshot's `meta.problems` that `init` skipped or did not read, such as one whose `rule:` or
+  `waivers:` line holds JSON that does not parse, is listed under "Decision files not read" with its file and
+  reason, in the comment and the job summary, and counted in the comment's first line. Its rules are not
+  judged. It is not a violation: neither the `violations` output nor `fail-on-violation` counts it. The
+  action has no `fail-on-unresolved` input; `decisis check --fail-on-unresolved` counts each such file as
+  unresolved.
 - The comment stays under GitHub's 65,536-character limit: the graph is left out first, then the lists
   are cut, and the comment says what was cut.
 - The outputs `violations` and `comment-url` are set for later steps. `violations` is the check's
