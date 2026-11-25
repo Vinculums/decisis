@@ -1057,6 +1057,12 @@ waived ones too: their record lists the decisions whose violation is waived in `
 none), not in `violates`, and their edge evidence starts with `waived:`;
 one record covers every version of a package in one scope with the same claim.
 
+When any record is held back, `propose` exits 1 and its printed output opens with lines starting `!!`: how many
+of how many records failed and are held back, that approving writes only the records in the write set, and each
+held record with its reasons. Its last line then reads "Approve the N record(s) listed, without the M held back:"
+before the `decisis commit` command, or "Nothing to approve" when every record was held back. With nothing held,
+the last line is "Approve with:" and the command.
+
 | Finding | Record id | `predicate` | `value` |
 |---|---|---|---|
 | advisory | `record:<repo>-<package>-<shipped\|development>-<advisory>` | `affected_by_advisory` | the OSV id |

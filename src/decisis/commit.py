@@ -181,17 +181,30 @@ def propose(report: dict, repo: str, space: str, today: str | None = None,
     return plan
 
 
+def held_banner(plan: dict) -> list[str]:
+    held, kept = len(plan["held"]), len(plan["nodes"])
+    out = [f"!! {held} of {held + kept} record(s) failed re-derivation and are held back; this run exits 1.",
+           f"!! Approving writes only the {kept} record(s) in the write set below; a held record is never written.",
+           "!! Held back:"]
+    out += [f"!!   {h['record']}: {problem}" for h in plan["held"] for problem in h.get("failed", []) or ["no reason given"]]
+    return out + [""]
+
+
 def render(plan: dict) -> str:
-    out = [f"Write set for space {plan['space']} (approval digest {plan['digest']}):", ""]
+    out = held_banner(plan) if plan["held"] else []
+    out += [f"Write set for space {plan['space']} (approval digest {plan['digest']}):", ""]
     for n in plan["nodes"]:
         out.append(f"  + {n['id']}  [{n['props'].get('severity') or n['props']['predicate']}, {n['props']['scope']}]")
         out.append(f"      {n['title']}")
     for e in plan["edges"]:
         out.append(f"  + {e['from']} -{e['type']}-> {e['to']}")
-    if plan["held"]:
-        out += ["", f"  held back, not written: {len(plan['held'])}"]
-        out += [f"    {h['record']}: {problem}" for h in plan["held"] for problem in h.get("failed", [])]
-    out += ["", f"Approve with: decisis commit <plan file> --approve {plan['digest']}"]
+    if not plan["held"]:
+        out += ["", f"Approve with: decisis commit <plan file> --approve {plan['digest']}"]
+    elif plan["nodes"]:
+        out += ["", f"Approve the {len(plan['nodes'])} record(s) listed, without the {len(plan['held'])} held back: "
+                    f"decisis commit <plan file> --approve {plan['digest']}"]
+    else:
+        out += ["", "Nothing to approve: every record was held back."]
     return "\n".join(out)
 
 
