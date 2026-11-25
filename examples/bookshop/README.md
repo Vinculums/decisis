@@ -96,10 +96,12 @@ prints [`outputs/audit-lockfile.md`](outputs/audit-lockfile.md), which GitHub dr
 too:
 
 ```
+$ decisis audit snapshot.json app/.github/workflows/ci.yml --repo Bookshop --osv-cache osv-cache.json --today 2026-11-25
 $ decisis audit snapshot.json app/.github/workflows/ci.yml --repo Bookshop --osv-cache osv-cache.json --today 2026-11-25 --format mermaid
 ```
 
-prints [`outputs/audit-workflow.md`](outputs/audit-workflow.md): `actions/setup-node@v4` is pinned to a tag, which
+prints [`outputs/audit-workflow.md`](outputs/audit-workflow.md), and without `--format`, the JSON report in
+[`outputs/audit-workflow.json`](outputs/audit-workflow.json): `actions/setup-node@v4` is pinned to a tag, which
 breaks ADR 0004. `actions/checkout` is pinned to a full commit SHA and is not reported.
 
 ## 4. The MCP tools on the same files

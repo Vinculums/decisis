@@ -33,6 +33,7 @@ STEPS = [
     (f"decisis check snapshot.json --repo-dir app --changed {CHANGED} --reviewers @bob --format text", 1, "outputs/check.txt", True),
     (f"decisis audit snapshot.json app/package-lock.json {AUDIT}", 0, "outputs/audit-lockfile.json", False),
     (f"decisis audit snapshot.json app/package-lock.json {AUDIT} --format mermaid", 0, "outputs/audit-lockfile.md", False),
+    (f"decisis audit snapshot.json app/.github/workflows/ci.yml {AUDIT}", 0, "outputs/audit-workflow.json", False),
     (f"decisis audit snapshot.json app/.github/workflows/ci.yml {AUDIT} --format mermaid", 0, "outputs/audit-workflow.md", False),
 ]
 # What an agent asks over MCP, in the order outputs/mcp-session.json records it.
