@@ -144,7 +144,7 @@ def run(out: Path, fixtures: Path | None = None, approve: str | None = None, yes
             f"{len(checked)} records (advisory hash, version in range, path in the graph, decision in the checkout); "
             f"{len(failed)} records fail.",
             *[f"  {c['record']}: {p}" for c in failed for p in c["problems"]],
-            *[line.rstrip() for line in wb.render(plan).splitlines() if not line.startswith("Approve with:")],
+            *[line.rstrip() for line in wb.render(plan).splitlines() if not line.startswith(("Approve with:", "Approve the "))],
         ], checks=sum(c["checks"] for c in checked), records=len(checked), failed=[c["record"] for c in failed], digest=plan["digest"])
 
         findings = expected(report, plan, path)
