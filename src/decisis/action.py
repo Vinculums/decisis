@@ -665,7 +665,8 @@ def sarif_document(env: Mapping[str, str], o: Outcome) -> str:
     runs = [sarif.check_run(o.report, base=sarif_prefix(root, top))]
     for a in o.audits or []:
         if a.report is not None:
-            runs.append(sarif.audit_run(a.report, sarif.inventory_path(a.path or Path(a.inventory), top)))
+            where = a.path or Path(a.inventory)
+            runs.append(sarif.audit_run(a.report, sarif.inventory_path(where, top), label=sarif.outside(where)))
     return sarif.dumps(sarif.log(runs))
 
 

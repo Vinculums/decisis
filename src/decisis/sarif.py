@@ -86,6 +86,11 @@ def inventory_path(path: Path, root: Path | None = None) -> str | None:
     return relative((base / path.name).relative_to(top).as_posix())
 
 
+def outside(path: Path) -> str:
+    resolved = str(path.parent.resolve() / path.name)
+    return "outside-" + hashlib.sha256(resolved.encode("utf-8", "surrogateescape")).hexdigest()[:12]
+
+
 def location(path, line=None, base: str = "") -> list[dict]:
     name = relative(path)
     joined = relative(posixpath.join(base, name)) if name and base else name
@@ -149,7 +154,8 @@ def policy_rule(finding: dict, policy: dict) -> str:
     return policy.get("rule") or (ADVISORY_RULE if finding.get("advisory") else str(finding.get("kind") or "rule"))
 
 
-def audit_run(report: dict, inventory: str | None = None, version: str | None = None) -> dict:
+def audit_run(report: dict, inventory: str | None = None, version: str | None = None, label: str | None = None) -> dict:
+    name = relative(inventory) or data(label or "inventory")
     out: list[dict] = []
     kinds: set[str] = set()
     seen: dict[str, int] = {}
@@ -166,14 +172,16 @@ def audit_run(report: dict, inventory: str | None = None, version: str | None = 
             what = f"{package} ({advisory})" if advisory else package
             props = {"decision": p.get("decision"), "rule": rule, "package": package, "advisory": advisory, "path": f.get("path") or [],
                      "waiver": p.get("waiver")}
-            prints = fingerprint([p.get("decision"), rule, inventory, package, advisory], seen)
+            prints = fingerprint([p.get("decision"), rule, name, package, advisory], seen)
             out.append(result(rule, WARNING if verdict == UNRESOLVED else ERROR, message(p.get("decision"), f"{what}: {p.get('why')}"),
                               location(inventory), prints, props, p.get("waiver") if verdict == rules.WAIVED else None))
-    name = relative(inventory) or "inventory"
     return run(out, kinds, f"decisis/audit/{name}/", version)
 
 
 def log(runs: list[dict]) -> dict:
+    ids = [r["automationDetails"]["id"] for r in runs]
+    if len(set(ids)) != len(ids):
+        raise ValueError("two runs of one SARIF log share a category, which code scanning rejects: " + ", ".join(sorted(i for i in set(ids) if ids.count(i) > 1)))
     return {"$schema": SCHEMA, "version": VERSION, "runs": runs}
 
 

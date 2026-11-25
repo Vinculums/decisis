@@ -121,7 +121,9 @@ the outputs and the exit code are the same with and without the input; the file 
   `security-events: write` (a Dependabot pull request, for one) fails the upload step.
 - The log has one run for `check` and one run for each inventory audited, each with its own category
   (`decisis/check/`, `decisis/audit/<inventory>/`), so the alerts of one inventory do not close the alerts of another. An
-  inventory outside the repository is audited but its results have no location.
+  inventory outside the repository is audited but its results have no location, and its category is
+  `decisis/audit/outside-<hash>/`, where the hash is taken from its resolved path, so two such inventories keep two
+  categories and two sets of fingerprints and no path appears in the log.
 - Locations are repository-relative. With `working-directory` below the repository root, the directory is put before each
   changed file. A path that is absolute or leaves the repository gets no location.
 - A result a waiver covers is uploaded with an accepted suppression whose justification is the waiver, so code scanning

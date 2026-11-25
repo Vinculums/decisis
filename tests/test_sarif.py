@@ -514,7 +514,99 @@ def test_an_inventory_outside_the_workspace_repository_is_audited_but_has_no_loc
     text = (root / "decisis.sarif").read_text(encoding="utf-8")
     audit = json.loads(text)["runs"][1]
     assert audit["results"] and all("locations" not in r for r in audit["results"])
-    assert str(ROOT) not in text and str(tmp_path) not in text and audit["automationDetails"]["id"] == "decisis/audit/inventory/"
+    assert str(ROOT) not in text and str(tmp_path) not in text
+    assert re.fullmatch(r"decisis/audit/outside-[0-9a-f]{12}/", audit["automationDetails"]["id"])
+
+
+def test_inventories_outside_the_repository_each_get_their_own_stable_category_and_fingerprints(tmp_path, no_network):
+    root, base = shop(tmp_path)
+    shutil.copy(DEMO_LOCK, root / "package-lock.json")
+    one, two = tmp_path / "x" / "package-lock.json", tmp_path / "y" / "package-lock.json"
+    for outside in (one, two):
+        outside.parent.mkdir()
+        shutil.copy(DEMO_LOCK, outside)
+    inventory = f"{one}\n{root / 'package-lock.json'}\n{two}"
+    texts = []
+    for n in range(2):
+        sub = tmp_path / f"run{n}"
+        sub.mkdir()
+        assert action.main(audit_env(sub, root, base, inventory, GITHUB_WORKSPACE=str(root), DECISIS_SARIF="true"), FakeGitHub()) == 0
+        texts.append((root / "decisis.sarif").read_text(encoding="utf-8"))
+    assert texts[0] == texts[1]
+    document = json.loads(texts[0])
+    validate(document)
+    ids = [r["automationDetails"]["id"] for r in document["runs"]]
+    assert len(ids) == 4 and len(set(ids)) == 4 and ids[0] == "decisis/check/" and ids[2] == "decisis/audit/package-lock.json/"
+    assert all(re.fullmatch(r"decisis/audit/outside-[0-9a-f]{12}/", i) for i in (ids[1], ids[3]))
+    prints = [r["partialFingerprints"]["decisis/v1"] for run in document["runs"] for r in run["results"]]
+    assert len(prints) > 6 and len(set(prints)) == len(prints)
+    assert str(tmp_path) not in texts[0] and all("locations" not in r for i in (1, 3) for r in document["runs"][i]["results"])
+    assert document["runs"][2]["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "package-lock.json"
+
+
+def test_the_outside_name_is_stable_for_a_resolved_path_and_holds_no_path(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    (tmp_path / "link").symlink_to(tmp_path / "a")
+    a, b = tmp_path / "a" / "x.json", tmp_path / "b" / "x.json"
+    assert re.fullmatch(r"outside-[0-9a-f]{12}", sarif.outside(a))
+    assert sarif.outside(a) == sarif.outside(a) == sarif.outside(tmp_path / "link" / "x.json")
+    assert sarif.outside(a) != sarif.outside(b) and sarif.outside(a) != sarif.outside(tmp_path / "a" / "y.json")
+    assert str(tmp_path) not in sarif.outside(a)
+
+
+def test_a_log_with_two_runs_of_one_category_is_refused_and_a_label_tells_two_inventories_apart():
+    plain = sarif.audit_run({}, None, "1.0.0")
+    with pytest.raises(ValueError, match="share a category"):
+        sarif.log([plain, sarif.audit_run({}, None, "1.0.0")])
+    finding = {"package": "pkg:npm/a@1", "advisory": "adv:X", "path": [], "policies": [{"decision": "decision:d", "verdict": "violated", "why": "w"}]}
+    one, two = (sarif.audit_run({"findings": [finding]}, None, "1.0.0", label=f"outside-{n}") for n in "ab")
+    assert one["automationDetails"] != two["automationDetails"] and one["results"][0]["partialFingerprints"] != two["results"][0]["partialFingerprints"]
+    validate(sarif.log([one, two]))
+
+
+def snapshot_with_waivers(tmp_path: Path, expires: str) -> Path:
+    snap = with_waivers(FIX / "check" / "vinc.json", {})
+    extra = json.loads((FIX / "action" / "vinc.json").read_text(encoding="utf-8"))
+    ids = {n["id"] for n in snap["nodes"]}
+    snap["nodes"] += [n for n in extra["nodes"] if n["id"] not in ids]
+    snap["edges"] += extra["edges"]
+    snap["meta"] = {k: v for k, v in snap.get("meta", {}).items() if k not in ("nodes", "edges")}
+    for n in snap["nodes"]:
+        if n["kind"] == "decision":
+            n["props"]["waivers"] = [waiver(expires, path="**"), waiver(expires, package=LODASH)]
+    path = tmp_path / "waived.json"
+    path.write_text(json.dumps(snap), encoding="utf-8")
+    return path
+
+
+def test_the_expiring_waiver_section_is_in_the_comment_and_never_read_by_the_sarif(tmp_path, no_network):
+    root, base = shop(tmp_path)
+    second = tmp_path / "second" / DEMO_LOCK.name
+    second.parent.mkdir()
+    shutil.copy(DEMO_LOCK, second)
+    soon = "2026-11-28"
+    snap = snapshot_with_waivers(tmp_path, soon)
+    files, bodies = {}, {}
+    for name, warn in (("on", "14"), ("off", "0")):
+        sub = tmp_path / name
+        sub.mkdir()
+        fake = FakeGitHub()
+        env = {**audit_env(sub, root, base, f"{DEMO_LOCK}\n{second}", GITHUB_WORKSPACE=str(root), DECISIS_SARIF="true", DECISIS_TODAY=DAY,
+                           DECISIS_WARN_DAYS=warn), "DECISIS_SNAPSHOT": str(snap)}
+        assert action.main(env, fake) == 0
+        files[name] = (root / "decisis.sarif").read_text(encoding="utf-8")
+        bodies[name] = fake.writes()[0][2]["body"]
+    assert "#### Waivers that expire soon" in bodies["on"] and "Waivers that expire soon" not in bodies["off"]
+    assert files["on"] == files["off"]
+    document = json.loads(files["on"])
+    validate(document)
+    assert "expiring" not in files["on"] and "days_left" not in files["on"] and "Waivers that expire soon" not in files["on"]
+    ids = [r["automationDetails"]["id"] for r in document["runs"]]
+    assert len(ids) == 3 and len(set(ids)) == 3
+    waived = [r for run in document["runs"] for r in run["results"] if "suppressions" in r]
+    assert waived and all(f"until {soon}" in r["suppressions"][0]["justification"] for r in waived)
+    assert not [r for run in document["runs"] for r in run["results"] if r["level"] == "error" and "suppressions" not in r]
 
 
 def test_a_working_directory_below_the_repository_root_is_put_before_each_file(tmp_path, no_network):
