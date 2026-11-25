@@ -487,7 +487,14 @@ stops the command with an error, and the Action reading the base commit stops at
 read only from the files directly in their directory. Every node carries `source_file` (the path from the repository root) and
 `content_hash` (`sha256:` and the hex digest of the file it was read from). Ids come from the repository name and the file path, such as
 `decision:shop-docs-adr-0003-retry-payment-calls-once`, so they stay the same while the file keeps its
-path. Nodes, edges and problems are sorted and nothing depends on the clock, so two runs on the same tree
+path. The path is lower-cased and every run of characters other than `a` to `z` and `0` to `9` becomes one `-`.
+An id stays ASCII, so a file named in Korean, Japanese, Chinese or another script would lose its name and share an id
+with its neighbors: when the path holds any character outside ASCII, the id ends in the first 8 hex digits of the
+SHA-256 of the whole path (in Unicode normal form NFC, so the same name is one id on every platform), for example
+`docs/adr/0001-결제-규칙.md` is `decision:shop-docs-adr-0001-848e8957`, and `docs/adr/결제.md` and `docs/adr/인증.md`
+are two ADRs with two ids. The title keeps the original text. An ASCII path keeps the id it had before, with no hash,
+and punctuation in an ASCII name (`_`, `.`, a space) still folds to `-`. Postmortem records follow the same rule.
+Nodes, edges and problems are sorted and nothing depends on the clock, so two runs on the same tree
 write the same bytes.
 
 ### ADRs become decisions
