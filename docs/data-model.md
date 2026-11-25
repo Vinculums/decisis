@@ -319,6 +319,12 @@ read or parse is listed in `meta.problems` with the reason and left out. The one
 `action`: `skipped` (the file or line is not in the snapshot), `kept without code paths` (the node is there
 but no code path anchors it), `no edge` (a reference did not resolve to exactly one ADR), `no effect` (a
 CODEOWNERS line that owns no file), `not suggested` (a path an ADR names that `--suggest-refs` left out) or `not read`.
+An entry about an ADR file also has `kind: "decision"`. An ADR whose entry is `skipped` or `not read`, such as one
+whose `rule:` or `waivers:` line holds JSON that does not parse, is not in the snapshot, so neither is its rule;
+`check` and `audit` list each such file under `unread_decisions` so it does not drop out silently. A snapshot
+written before `kind` existed has no `kind` on any entry; there an `.md` file directly in `docs/adr`,
+`docs/decisions`, `adr` or `doc/adr` counts as an ADR file, and an ADR read from another `--adr-dir` is not
+listed.
 `fixtures/init/shop` is an example repository with each format and each kind of problem.
 
 | Flag | Meaning |
@@ -754,7 +760,11 @@ examples next to it.
 judged on), `governing` (decisions and the node they reach the repository through), `summary` (counts by
 status), `violations` (violated policies over all findings), `waived` (waived policies over all findings),
 and `findings`. When a decision's rule cannot be read, `rule_problems` lists each
-problem (`decision`, `rule`, the kind or null, and `problem`); the key is absent otherwise.
+problem (`decision`, `rule`, the kind or null, and `problem`); the key is absent otherwise. When the
+snapshot's `meta.problems` says an ADR file was `skipped` or `not read` (see [`init`](#a-snapshot-from-a-repository-init)),
+`unread_decisions` lists each such file once with `file`, `reason` and `action`, sorted by file; the key is
+absent otherwise. Such a decision is not in the snapshot, so none of its rules are judged. `audit --out`
+prints the count of these files as `unread_decisions` when there are some.
 
 An advisory finding has `package`, `advisory`, `severity`, `severity_source` (only when the severity was
 derived, see [Severity](#severity)), `status` (`affected`, `not_affected`, `unresolved`), `dev_only`, `path`
@@ -852,11 +862,16 @@ waived finding's record is checked like any other, scope and paths included.
 - `rule_problems`, only when there are some: as in the audit report, for the governing decisions and for
   any `review_required` or `imports_forbidden` entry that cannot be read, and for the waivers that cannot be
   read of a decision that governs a changed file or has a `check` rule.
+- `unread_decisions`, only when there are some: as in the audit report, each ADR file the snapshot's
+  `meta.problems` says was `skipped` or `not read`, with `file`, `reason` and `action`. The text view lists
+  them under `decision files not read`, the HTML view in their own section, and the Mermaid view as one
+  node each.
 
 `check` exits 1 when `violations` is not empty and 0 otherwise, including when no rule applies or every
 violation is waived. An
-`unresolved` result or a rule problem does not change the exit code, unless `--fail-on-unresolved` is
-given: then an `unresolved` result also exits 1. A CI gate that must not pass what it could not judge
+`unresolved` result, a rule problem or an unread decision file does not change the exit code, unless
+`--fail-on-unresolved` is given: then an `unresolved` result or an entry of `unread_decisions` also exits 1.
+`summary.unresolved` counts results only, not unread decision files. A CI gate that must not pass what it could not judge
 uses that flag. With `--base REF`, the changed files
 are `git diff --name-only --relative REF...HEAD` in `--repo-dir`, so a commit not yet made is not
 included; a REF that starts with `-` is refused.
@@ -881,7 +896,9 @@ the reply has `"detail": "summary"`, the counts, ids and titles of the report, a
 list, and a `note` that says how to get the rest. The `check` summary keeps `summary`, `base` and
 `reviewers`, counts each list (`changed_count`, `governing_count`, `violations_count`, `unresolved_count`,
 `rules_count`, `rules_covering_a_change`, `imports_count`), and lists the first 10 violations and
-unjudged entries with `file`, `line`, `decision`, `rule`, `why` and `import`. When the snapshot file
+unjudged entries with `file`, `line`, `decision`, `rule`, `why` and `import`. The `check` and `audit`
+summaries keep `rule_problems` and `unread_decisions` when the report has them, as
+`rule_problems_count` and `unread_decisions_count` with the first 10 entries. When the snapshot file
 changed and failed to reload, the reply also has `reload_failed`: the reason, and that the reply comes
 from the snapshot loaded before. A reply that would pass 1 MiB as the server sends it has
 its longest list shortened from the end, and a `cut` entry names each list that was shortened. A refused

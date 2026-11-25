@@ -228,7 +228,8 @@ def test_without_a_repo_name_code_paths_stay_as_written(tmp_path):
 def test_an_unresolved_supersedes_keeps_the_node_and_makes_no_edge(tmp_path):
     snap = init.build(adr_repo(tmp_path, "code_ref: a.py\nsupersedes: 7\n"))
     assert len(snap["nodes"]) == 1 and snap["edges"] == []
-    assert snap["meta"]["problems"] == [{"file": "docs/adr/0001-a.md", "reason": "it supersedes 7, but no ADR file matches '7'", "action": "no edge"}]
+    assert snap["meta"]["problems"] == [{"file": "docs/adr/0001-a.md", "reason": "it supersedes 7, but no ADR file matches '7'", "action": "no edge",
+                                         "kind": "decision"}]
 
 
 def test_adr_dir_reads_only_that_directory_and_refuses_one_outside_the_repository(tmp_path):
@@ -304,7 +305,7 @@ def test_a_front_matter_superseded_by_that_matches_no_adr_is_reported(tmp_path):
     snap = init.build(madr_repo(tmp_path, "superseded by ADR-0009"))
     assert snap["edges"] == []
     assert snap["meta"]["problems"][-1] == {"file": "docs/decisions/0001-use-mysql.md", "action": "no edge",
-                                            "reason": "it is superseded by ADR-0009, but no ADR file matches 'ADR-0009'"}
+                                            "reason": "it is superseded by ADR-0009, but no ADR file matches 'ADR-0009'", "kind": "decision"}
 
 
 def two_adrs(tmp_path: Path, old: str, new: str) -> dict:

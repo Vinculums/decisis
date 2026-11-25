@@ -4,7 +4,7 @@ import datetime
 import json
 import re
 
-from . import external, inventory, rules, semver
+from . import external, init, inventory, rules, semver
 from .queries import load as query
 from .sandbox import Limits, Subgraph, sandbox
 
@@ -219,8 +219,8 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8, day: datetime.date 
 
 
 def problems_of(graph: Subgraph, decisions: list[dict]) -> dict:
-    found = rule_problems(graph, decisions)
-    return {"rule_problems": found} if found else {}
+    found, unread = rule_problems(graph, decisions), init.unread_decisions(graph.meta)
+    return {**({"rule_problems": found} if found else {}), **({"unread_decisions": unread} if unread else {})}
 
 
 def inventory_notes(graph: Subgraph, repo: str) -> list[str]:

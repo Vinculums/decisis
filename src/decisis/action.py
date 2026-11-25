@@ -210,6 +210,15 @@ def problems(found: list[dict], rows: int) -> list[str]:
             *(f"- {code(p['decision'])} {code(p.get('rule') or 'rule')}: {text(p['problem'])}" for p in shown), "", *rest]
 
 
+def unread(found: list[dict], rows: int) -> list[str]:
+    if not found:
+        return []
+    shown, rest = cut(found, rows, "decision files not read")
+    return [f"#### Decision files not read ({len(found)})", "",
+            "These ADRs are not in the snapshot, so their rules are not judged. Fix each file and run again.", "",
+            *(f"- {code(u['file'])}: {text(u['reason'])}" for u in shown), "", *rest]
+
+
 def audit_rows(report: dict, verdict: str = "violated") -> list[list[str]]:
     out = []
     for f in report.get("findings", []):
@@ -270,6 +279,7 @@ def compose(o: Outcome, rows: int, graph: bool) -> str:
             + (f", {audit_violations(o.audits)} audit violation(s)" if o.audits is not None else "")
             + f", {len(r['unresolved'])} that cannot be judged"
             + (f", {len(r['waived'])} waived" if r.get("waived") else "")
+            + (f", {len(r['unread_decisions'])} decision file(s) not read" if r.get("unread_decisions") else "")
             + f"** in {len(r['changed'])} changed file(s) against {code(o.pull.base[:12])}.")
     lines = [MARKER, "### decisis", "", head, "", *reviewers_line(o, rows)]
     if (rows, graph) != ATTEMPTS[0]:
@@ -281,6 +291,7 @@ def compose(o: Outcome, rows: int, graph: bool) -> str:
     lines += decisions(r, rows)
     lines += results("Cannot be judged", r["unresolved"], rows)
     lines += problems(r.get("rule_problems") or [], rows)
+    lines += unread(r.get("unread_decisions") or [], rows)
     for a in o.audits or []:
         lines += audit_section(a, rows)
     if graph:
