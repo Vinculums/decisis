@@ -30,6 +30,7 @@ jobs:
           snapshot: decisions.json        # or init: true
           inventory: auto                 # optional: also run audit; or one path per line
           fail-on-violation: false
+          fail-on-unresolved: false
 ```
 
 | Input | Default | What it does |
@@ -40,6 +41,7 @@ jobs:
 | `github-token` | `github.token` | reads the reviews and writes the comment |
 | `inventory` | none | `auto`, or a lockfile or SBOM, or several, one per line; when given, `audit` runs on each (with `osv-cache`, offline) |
 | `fail-on-violation` | `false` | `true` fails the step when `check` or any audit finds a violation, after the comment is written; a waived finding is not a violation |
+| `fail-on-unresolved` | `false` | `true` fails the step when the run finds anything that cannot be judged (see [What counts as unresolved](#what-counts-as-unresolved)), after the comment and the job summary are written |
 | `today` | today's UTC date | the date, `YYYY-MM-DD`, that decisions' waivers are judged on |
 | `decisis-version` | the action's own checkout | a version to install from PyPI instead |
 | `repo`, `working-directory`, `osv-cache`, `comment-author`, `python-version` | | see `action.yml` |
@@ -66,12 +68,34 @@ jobs:
   `waivers:` line holds JSON that does not parse, is listed under "Decision files not read" with its file and
   reason, in the comment and the job summary, and counted in the comment's first line. Its rules are not
   judged. It is not a violation: neither the `violations` output nor `fail-on-violation` counts it. The
-  action has no `fail-on-unresolved` input; `decisis check --fail-on-unresolved` counts each such file as
-  unresolved.
+  `unresolved` output and `fail-on-unresolved` count it, as `decisis check --fail-on-unresolved` does.
 - The comment stays under GitHub's 65,536-character limit: the graph is left out first, then the lists
   are cut, and the comment says what was cut.
-- The outputs `violations` and `comment-url` are set for later steps. `violations` is the check's
-  violations plus the audit violations of every inventory.
+- The outputs `violations`, `unresolved` and `comment-url` are set for later steps. `violations` is the
+  check's violations plus the audit violations of every inventory. `unresolved` is the count described under
+  [What counts as unresolved](#what-counts-as-unresolved); it is set whether or not `fail-on-unresolved` is on,
+  and is 0 when the base commit has no decisions.
+
+## What counts as unresolved
+
+With `fail-on-unresolved: true` the step fails when any of these is present, and the `unresolved` output is
+their sum:
+
+- a `check` result that cannot be judged (listed under "Cannot be judged"), such as an import computed at run
+  time or a file the scanner cannot finish;
+- an audit finding whose status is unresolved, in any inventory, whether or not a decision's rule covers it,
+  such as an advisory whose affected versions cannot be compared with the package's version, or a Docker image
+  under a `pinned_to_commit` rule;
+- an unresolved package of any inventory, such as a requirements line with no pinned version or a `docker://`
+  step (each package counts once per inventory);
+- an entry in "Decision files not read" (counted once, though every section of the run lists it).
+
+A waiver covers only a violation, so a waived result is never unresolved and never counts. An inventory that
+`auto` found but could not audit gets a section saying why and does not count; a rule that cannot be checked,
+under "Rules that cannot be checked", does not count either. The step fails after the comment and the job
+summary are written, and the comment's first line after the hidden marker says which of these were found, for
+example "This check fails: fail-on-unresolved is on and the run found 2 check result(s) that cannot be judged,
+1 decision file(s) not read." With `false`, the default, the step and the comment are as without the input.
 
 ## Trust model
 
@@ -85,14 +109,15 @@ their imports and the inventories.
 That alone does not stop a pull request from changing how it is judged. On `pull_request` the workflow file
 also comes from the pull request, so the pull request can edit the decisis step: set `decisions-from: head`,
 point `snapshot:` at a path the base commit does not have (which judges nothing and passes), set
-`fail-on-violation: false`, or remove the step. decisis cannot see or prevent that. What protects the setup
+`fail-on-violation` or `fail-on-unresolved` to `false`, or remove the step. decisis cannot see or prevent that. What protects the setup
 is the repository's own settings:
 
 - Require review from the owners of `.github/workflows/` and of the decision files (the snapshot, the ADR and
   postmortem directories, `CODEOWNERS`) with CODEOWNERS and branch protection, or a ruleset that restricts
   changes to those paths.
 - Make the decisis check a required status check, so a pull request that removes or breaks the step cannot
-  merge. With `fail-on-violation: true` the check also fails on a violation.
+  merge. With `fail-on-violation: true` the check also fails on a violation, and with `fail-on-unresolved: true`
+  on anything that cannot be judged.
 
 The rest of this section describes how the decisions are read.
 

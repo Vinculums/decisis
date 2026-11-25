@@ -42,6 +42,10 @@ inputs:
     description: true fails the step when check or audit finds a violation. A waived finding is not a violation.
     required: false
     default: "false"
+  fail-on-unresolved:
+    description: true fails the step when check has a result that cannot be judged, an audit has an unresolved finding or package, or a decision file was not read. A waived finding is never unresolved.
+    required: false
+    default: "false"
   today:
     description: The UTC date, YYYY-MM-DD, that waivers are judged on. Empty uses today's UTC date.
     required: false
@@ -63,6 +67,9 @@ outputs:
   violations:
     description: The number of check violations plus the audit violations of every inventory; waived findings are not counted.
     value: ${{ steps.check.outputs.violations }}
+  unresolved:
+    description: The number of check results that cannot be judged, unresolved audit findings and packages of every inventory, and decision files not read.
+    value: ${{ steps.check.outputs.unresolved }}
   comment-url:
     description: The comment's URL, empty when the result went only to the job summary.
     value: ${{ steps.check.outputs.comment-url }}
@@ -111,6 +118,7 @@ runs:
         DECISIS_REPO: ${{ inputs.repo }}
         DECISIS_WORKING_DIRECTORY: ${{ inputs.working-directory }}
         DECISIS_FAIL_ON_VIOLATION: ${{ inputs.fail-on-violation }}
+        DECISIS_FAIL_ON_UNRESOLVED: ${{ inputs.fail-on-unresolved }}
         DECISIS_TODAY: ${{ inputs.today }}
         DECISIS_COMMENT_AUTHOR: ${{ inputs.comment-author }}
         DECISIS_TOKEN: ${{ inputs.github-token }}
