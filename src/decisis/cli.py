@@ -259,10 +259,10 @@ def run(a: argparse.Namespace) -> int:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
         plan, checked = checker.rederive(plan, co.load(Path(a.snapshot).read_text(encoding="utf-8")), lock_text, a.repo, advisories,
                                          a.depth, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings)
-        Path(a.out).write_text(json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        Path(a.out).write_text(init.dump(plan), encoding="utf-8")
         failed = sum(1 for c in checked if c["problems"])
         print(f"Re-derived {len(checked)} records with {sum(c['checks'] for c in checked)} checks; {failed} failed.\n")
-        print(wb.render(plan))
+        print(init.SURROGATE.sub(lambda m: f"\\u{ord(m.group()):04x}", wb.render(plan)))
         return 1 if failed else 0
     if a.cmd == "commit":
         plan = json.loads(Path(a.plan).read_text(encoding="utf-8"))
@@ -274,8 +274,7 @@ def run(a: argparse.Namespace) -> int:
         return 0 if receipt["verified"] else 1
     if a.cmd == "query":
         report = cypher.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.cypher, params_of(a.param), limits=limits(a))
-        json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
-        sys.stdout.write("\n")
+        sys.stdout.write(init.dump(report))
         return 0
     if a.cmd == "impact":
         report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo, limits=limits(a))
@@ -284,8 +283,7 @@ def run(a: argparse.Namespace) -> int:
         elif a.format in VIEWS:
             sys.stdout.write(VIEWS[a.format]("impact", report))
         else:
-            json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
-            sys.stdout.write("\n")
+            sys.stdout.write(init.dump(report))
         return 0
     if a.cmd == "check":
         return run_check(a)
@@ -297,7 +295,7 @@ def run(a: argparse.Namespace) -> int:
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
                            advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings, day=a.today,
                            warn_days=a.warn_days)
-        text = json.dumps(report, ensure_ascii=False, indent=1)
+        text = init.dump(report)[:-1]
         if a.format in VIEWS or a.format == "sarif":
             if a.out:
                 Path(a.out).write_text(text + "\n", encoding="utf-8")
@@ -327,7 +325,7 @@ def run(a: argparse.Namespace) -> int:
         if made is not None:
             printed["patch"] = {"out": a.patch if made.text else None, "adrs": len(made.adrs), "code_refs": made.refs,
                                 "not_applied": len(made.skipped), "left_out": [{"file": f, "reason": r} for f, r in made.left_out]}
-        print(json.dumps(printed, ensure_ascii=False, indent=1))
+        sys.stdout.write(init.dump(printed))
         return 0
     if a.cmd == "new-adr":
         path = madr.write(a.repo_dir, a.title, a.adr_dir, a.code_ref, a.rule, a.date, a.waiver)
@@ -346,8 +344,7 @@ def run(a: argparse.Namespace) -> int:
     if a.format in VIEWS:
         sys.stdout.write(VIEWS[a.format]("paths", render.annotate_paths(report, graph, a.source, a.target)))
         return 0
-    json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
-    sys.stdout.write("\n")
+    sys.stdout.write(init.dump(report))
     return 0
 
 
@@ -365,8 +362,7 @@ def run_check(a: argparse.Namespace) -> int:
     elif a.format == "sarif":
         sys.stdout.write(sarif.dumps(sarif.log([sarif.check_run(report)])))
     else:
-        json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
-        sys.stdout.write("\n")
+        sys.stdout.write(init.dump(report))
     return 1 if check.failed(report, a.fail_on_unresolved) else 0
 
 
