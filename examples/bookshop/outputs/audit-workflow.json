@@ -1,0 +1,70 @@
+{
+ "meta": {
+  "source": "decisis init",
+  "repo": "Bookshop",
+  "nodes": 10,
+  "edges": 5,
+  "problems": [],
+  "lockfile_hash": "2a43a6cf5546c469ee148b3273b6b8636aab3cf0a071d4b8c126460f0bc3b3d7",
+  "packages": 2,
+  "advisories": 0,
+  "governance_links": 0,
+  "snapshot_repo": "Bookshop",
+  "recorded_links": 2
+ },
+ "loaded": {
+  "nodes": 10,
+  "edges": 5
+ },
+ "today": "2026-11-25",
+ "governing": [
+  {
+   "decision": "decision:bookshop-docs-adr-0004-pin-github-actions-to-a-commit",
+   "title": "Pin GitHub Actions to a commit",
+   "via": "docs/adr/0004-pin-github-actions-to-a-commit.md",
+   "link": "RECORDS"
+  },
+  {
+   "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+   "title": "No high advisories in shipped dependencies",
+   "via": "docs/adr/0003-no-high-advisories-in-shipped-dependencies.md",
+   "link": "RECORDS"
+  }
+ ],
+ "summary": {
+  "affected": 1,
+  "unresolved": 0,
+  "not_affected": 0
+ },
+ "violations": 1,
+ "waived": 0,
+ "findings": [
+  {
+   "kind": "pin",
+   "package": "pkg:githubactions/actions/setup-node@v4",
+   "ecosystem": "GitHub Actions",
+   "name": "actions/setup-node",
+   "version": "v4",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Bookshop",
+    "pkg:githubactions/actions/setup-node@v4"
+   ],
+   "source_system": "github-actions-workflow",
+   "fetched_at": "2026-11-17T11:20:41Z",
+   "policies": [
+    {
+     "decision": "decision:bookshop-docs-adr-0004-pin-github-actions-to-a-commit",
+     "verdict": "violated",
+     "why": "actions/setup-node is pinned to 'v4', not to a full 40-character commit SHA",
+     "rule": "pinned_to_commit"
+    }
+   ]
+  }
+ ],
+ "unresolved_packages": [],
+ "inventory_notes": [
+  "OSV does not order GitHub Actions versions, so audit asks OSV for every advisory of each action and compares the ref with the advisory's ranges itself: a tag is read as a version, a major or minor tag such as v4 or v4.1 stands for every release under it, and a branch or a commit SHA cannot be ordered, so its advisories are unresolved unless OSV lists the ref"
+ ]
+}

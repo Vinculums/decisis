@@ -1,0 +1,213 @@
+{
+ "meta": {
+  "source": "decisis init",
+  "repo": "Bookshop",
+  "nodes": 18,
+  "edges": 15,
+  "problems": [],
+  "lockfile_hash": "ec9c43cc8a259c501bae1dd5e985b2bba686a35550009e619c716d09d36074e6",
+  "packages": 5,
+  "advisories": 5,
+  "governance_links": 0,
+  "snapshot_repo": "Bookshop",
+  "recorded_links": 2
+ },
+ "loaded": {
+  "nodes": 18,
+  "edges": 15
+ },
+ "today": "2026-11-25",
+ "governing": [
+  {
+   "decision": "decision:bookshop-docs-adr-0004-pin-github-actions-to-a-commit",
+   "title": "Pin GitHub Actions to a commit",
+   "via": "docs/adr/0004-pin-github-actions-to-a-commit.md",
+   "link": "RECORDS"
+  },
+  {
+   "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+   "title": "No high advisories in shipped dependencies",
+   "via": "docs/adr/0003-no-high-advisories-in-shipped-dependencies.md",
+   "link": "RECORDS"
+  }
+ ],
+ "summary": {
+  "affected": 7,
+  "unresolved": 0,
+  "not_affected": 0
+ },
+ "violations": 3,
+ "waived": 0,
+ "findings": [
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+   "severity": "HIGH",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Bookshop",
+    "pkg:npm/bookshop-ui-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-r5fr-rjxr-66jc"
+   ],
+   "source_url": "https://osv.dev/vulnerability/GHSA-r5fr-rjxr-66jc",
+   "fetched_at": "2026-11-17T11:20:41Z",
+   "content_hash": "f500d0364e745edbe7369cb59e179abfe240a368aee840f245941bd9de3bdddd",
+   "advisory_summary": "lodash vulnerable to Code Injection via `_.template` imports key names",
+   "policies": [
+    {
+     "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+     "verdict": "violated",
+     "why": "severity HIGH is at or above HIGH"
+    }
+   ]
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-p6mc-m468-83gw",
+   "severity": "HIGH",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Bookshop",
+    "pkg:npm/bookshop-ui-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-p6mc-m468-83gw"
+   ],
+   "source_url": "https://osv.dev/vulnerability/GHSA-p6mc-m468-83gw",
+   "fetched_at": "2026-11-17T11:20:41Z",
+   "content_hash": "3abc9ceb8a940e0f5b7c68c4c0acd9dcdc1e6baa301baf7ac3d3c587d30c489c",
+   "advisory_summary": "Prototype Pollution in lodash",
+   "policies": [
+    {
+     "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+     "verdict": "violated",
+     "why": "severity HIGH is at or above HIGH"
+    }
+   ]
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-35jh-r3h4-6jhm",
+   "severity": "HIGH",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Bookshop",
+    "pkg:npm/bookshop-ui-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-35jh-r3h4-6jhm"
+   ],
+   "source_url": "https://osv.dev/vulnerability/GHSA-35jh-r3h4-6jhm",
+   "fetched_at": "2026-11-17T11:20:41Z",
+   "content_hash": "29d052e9eb15775558e5975e986da9a6aef1a11169ec6a8fa4882885bac3fd0f",
+   "advisory_summary": "Command Injection in lodash",
+   "policies": [
+    {
+     "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+     "verdict": "violated",
+     "why": "severity HIGH is at or above HIGH"
+    }
+   ]
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.21",
+   "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+   "severity": "HIGH",
+   "status": "affected",
+   "dev_only": true,
+   "path": [
+    "repo:Bookshop",
+    "pkg:npm/bookshop-spec-runner@1.0.3",
+    "pkg:npm/lodash@4.17.21",
+    "adv:GHSA-r5fr-rjxr-66jc"
+   ],
+   "source_url": "https://osv.dev/vulnerability/GHSA-r5fr-rjxr-66jc",
+   "fetched_at": "2026-11-17T11:20:41Z",
+   "content_hash": "f500d0364e745edbe7369cb59e179abfe240a368aee840f245941bd9de3bdddd",
+   "advisory_summary": "lodash vulnerable to Code Injection via `_.template` imports key names",
+   "policies": [
+    {
+     "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+     "verdict": "not_violated",
+     "why": "reached only through development dependencies; the rule covers shipped ones"
+    }
+   ]
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-xxjr-mmjv-4gpg",
+   "severity": "MODERATE",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Bookshop",
+    "pkg:npm/bookshop-ui-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-xxjr-mmjv-4gpg"
+   ],
+   "source_url": "https://osv.dev/vulnerability/GHSA-xxjr-mmjv-4gpg",
+   "fetched_at": "2026-11-17T11:20:41Z",
+   "content_hash": "1e631e6a535a01d77c1c4591039375a9a059a003b66a3abbd816bdc09324e9c0",
+   "advisory_summary": "Lodash has Prototype Pollution Vulnerability in `_.unset`, `_.omit`, and `_.pullAt` functions",
+   "policies": [
+    {
+     "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+     "verdict": "not_violated",
+     "why": "status affected, severity MODERATE"
+    }
+   ]
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.15",
+   "advisory": "adv:GHSA-29mw-wpgm-hmr9",
+   "severity": "MODERATE",
+   "status": "affected",
+   "dev_only": false,
+   "path": [
+    "repo:Bookshop",
+    "pkg:npm/bookshop-ui-kit@2.1.0",
+    "pkg:npm/lodash@4.17.15",
+    "adv:GHSA-29mw-wpgm-hmr9"
+   ],
+   "source_url": "https://osv.dev/vulnerability/GHSA-29mw-wpgm-hmr9",
+   "fetched_at": "2026-11-17T11:20:41Z",
+   "content_hash": "b76f9d272b4a2f3ef610498184519c39ea52c30e4db75e61393fdad030f88132",
+   "advisory_summary": "Regular Expression Denial of Service (ReDoS) in lodash",
+   "policies": [
+    {
+     "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+     "verdict": "not_violated",
+     "why": "status affected, severity MODERATE"
+    }
+   ]
+  },
+  {
+   "package": "pkg:npm/lodash@4.17.21",
+   "advisory": "adv:GHSA-xxjr-mmjv-4gpg",
+   "severity": "MODERATE",
+   "status": "affected",
+   "dev_only": true,
+   "path": [
+    "repo:Bookshop",
+    "pkg:npm/bookshop-spec-runner@1.0.3",
+    "pkg:npm/lodash@4.17.21",
+    "adv:GHSA-xxjr-mmjv-4gpg"
+   ],
+   "source_url": "https://osv.dev/vulnerability/GHSA-xxjr-mmjv-4gpg",
+   "fetched_at": "2026-11-17T11:20:41Z",
+   "content_hash": "1e631e6a535a01d77c1c4591039375a9a059a003b66a3abbd816bdc09324e9c0",
+   "advisory_summary": "Lodash has Prototype Pollution Vulnerability in `_.unset`, `_.omit`, and `_.pullAt` functions",
+   "policies": [
+    {
+     "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+     "verdict": "not_violated",
+     "why": "reached only through development dependencies; the rule covers shipped ones"
+    }
+   ]
+  }
+ ],
+ "unresolved_packages": [],
+ "inventory_notes": []
+}

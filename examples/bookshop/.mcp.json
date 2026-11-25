@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "decisis": {
+      "command": "decisis",
+      "args": ["serve", "--mcp", "--snapshot", "snapshot.json", "--osv-cache", "osv-cache.json", "--root", "app"]
+    }
+  }
+}

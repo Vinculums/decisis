@@ -139,6 +139,11 @@ def cache_opener(cache: dict):
     return opener
 
 
+def pinned_at(advisories) -> str | None:
+    keywords = getattr(advisories, "keywords", None) or {}
+    return keywords.get("fetched_at") if keywords.get("opener") is not None else None
+
+
 def cached_advisories(cache: dict):
     return functools.partial(fetch_advisories, opener=cache_opener(cache), cache=dict(cache["vulns"]), fetched_at=cache["fetched_at"],
                              names=cache.get("names", {}))

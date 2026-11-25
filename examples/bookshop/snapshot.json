@@ -1,0 +1,178 @@
+{
+ "meta": {
+  "source": "decisis init",
+  "repo": "Bookshop",
+  "nodes": 7,
+  "edges": 1,
+  "problems": []
+ },
+ "nodes": [
+  {
+   "id": "concept:bookshop-codeowners-bookshop-payments-50c2702431b3",
+   "kind": "concept",
+   "title": "Owned by @bookshop/payments",
+   "props": {
+    "source_file": ".github/CODEOWNERS",
+    "content_hash": "sha256:6b0a5757b1a687cb84d1831daaf68cd4bd2cfd82febb366c2edb4c03764d7791",
+    "owners": [
+     "@bookshop/payments"
+    ],
+    "source_lines": [
+     3
+    ],
+    "code_ref": [
+     "Bookshop:src/bookshop/payments/"
+    ]
+   }
+  },
+  {
+   "id": "concept:bookshop-codeowners-bookshop-platform-b15fcbbcdd83",
+   "kind": "concept",
+   "title": "Owned by @bookshop/platform",
+   "props": {
+    "source_file": ".github/CODEOWNERS",
+    "content_hash": "sha256:6b0a5757b1a687cb84d1831daaf68cd4bd2cfd82febb366c2edb4c03764d7791",
+    "owners": [
+     "@bookshop/platform"
+    ],
+    "source_lines": [
+     2,
+     4
+    ],
+    "code_ref": [
+     "Bookshop:.github/",
+     "Bookshop:docs/",
+     "Bookshop:package-lock.json",
+     "Bookshop:src/bookshop/__init__.py",
+     "Bookshop:src/bookshop/api/",
+     "Bookshop:src/bookshop/db/",
+     "Bookshop:src/bookshop/ui/"
+    ]
+   }
+  },
+  {
+   "id": "decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer",
+   "kind": "decision",
+   "title": "The user interface does not import the database layer",
+   "props": {
+    "source_file": "docs/adr/0001-the-user-interface-does-not-import-the-database-layer.md",
+    "content_hash": "sha256:c237d26935562f1b6c3ea8077caa151f3671a558a3e63e829c53fc452acac11f",
+    "status": "accepted",
+    "date": "2026-01-12",
+    "deciders": [
+     "Ana",
+     "Chen"
+    ],
+    "statement": "Chosen option: \"The user interface reads data through the API client\", because the API client is the one place that knows the schema.",
+    "code_ref": [
+     "Bookshop:src/bookshop/ui/"
+    ],
+    "rule": {
+     "imports_forbidden": {
+      "from": [
+       "src/bookshop/ui/**"
+      ],
+      "to": [
+       "src/bookshop/db/**"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "decision:bookshop-docs-adr-0002-payment-changes-need-a-payments-review",
+   "kind": "decision",
+   "title": "Payment changes need a review from the payments team",
+   "props": {
+    "source_file": "docs/adr/0002-payment-changes-need-a-payments-review.md",
+    "content_hash": "sha256:7b30a4baf8b40f5a68635ba91d2a767f954a847c668dc610f2c9520c7906b274",
+    "status": "accepted",
+    "date": "2026-02-03",
+    "deciders": [
+     "Ana",
+     "Ben"
+    ],
+    "statement": "Chosen option: \"Every change under the payments code is reviewed by Alice or the payments team\", because they know the gateway's retry rules.",
+    "code_ref": [
+     "Bookshop:src/bookshop/payments/"
+    ],
+    "rule": {
+     "review_required": {
+      "paths": [
+       "src/bookshop/payments/**"
+      ],
+      "reviewers": [
+       "@alice",
+       "@bookshop/payments"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "id": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+   "kind": "decision",
+   "title": "No high advisories in shipped dependencies",
+   "props": {
+    "source_file": "docs/adr/0003-no-high-advisories-in-shipped-dependencies.md",
+    "content_hash": "sha256:51bb071d62d0dc00bc380402727a1b6355e98d4c1dcf3417ac610825888d3707",
+    "status": "accepted",
+    "date": "2026-02-20",
+    "deciders": [
+     "Ana",
+     "Chen"
+    ],
+    "statement": "Chosen option: \"Block HIGH and CRITICAL advisories in shipped dependencies\", because development tools never reach a customer.",
+    "subject_path": [
+     "Bookshop:package-lock.json"
+    ],
+    "rule": {
+     "advisory_severity_at_least": "HIGH",
+     "dependencies": "shipped"
+    }
+   }
+  },
+  {
+   "id": "decision:bookshop-docs-adr-0004-pin-github-actions-to-a-commit",
+   "kind": "decision",
+   "title": "Pin GitHub Actions to a commit",
+   "props": {
+    "source_file": "docs/adr/0004-pin-github-actions-to-a-commit.md",
+    "content_hash": "sha256:bee3f33dccef57a8056c6c49bc647cc79bf07ad15952d689a3c6b364097cbd05",
+    "status": "accepted",
+    "date": "2026-03-09",
+    "deciders": [
+     "Chen"
+    ],
+    "statement": "Chosen option: \"Every `uses:` in a workflow names a full commit SHA\", because a commit cannot be moved.",
+    "subject_path": [
+     "Bookshop:.github/workflows/ci.yml"
+    ],
+    "rule": {
+     "pinned_to_commit": true
+    }
+   }
+  },
+  {
+   "id": "record:bookshop-docs-postmortems-2026-10-14-a-retry-charged-a-card-twice",
+   "kind": "record",
+   "title": "A retry charged a card twice",
+   "props": {
+    "source_file": "docs/postmortems/2026-10-14-a-retry-charged-a-card-twice.md",
+    "content_hash": "sha256:c99d8eb4a1587aa66a983ab095a4b1e19caf9881e078860eb90df40ef8acdeb1",
+    "date": "2026-10-14",
+    "code_ref": [
+     "Bookshop:src/bookshop/payments/"
+    ]
+   }
+  }
+ ],
+ "edges": [
+  {
+   "source": "record:bookshop-docs-postmortems-2026-10-14-a-retry-charged-a-card-twice",
+   "target": "decision:bookshop-docs-adr-0002-payment-changes-need-a-payments-review",
+   "type": "ABOUT",
+   "evidence": "docs/postmortems/2026-10-14-a-retry-charged-a-card-twice.md names ADR-0002"
+  }
+ ]
+}

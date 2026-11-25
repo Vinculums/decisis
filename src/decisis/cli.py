@@ -19,6 +19,7 @@ from . import impact
 from . import init
 from . import inventory
 from . import madr
+from . import patch
 from . import render
 from . import rules
 from . import sarif
@@ -94,6 +95,8 @@ def main(argv: list[str] | None = None) -> int:
                      help=f"with --github: read at most N closed pull requests, most recently updated first (default {gh.DEFAULT_LIMIT}, at most {gh.MAX_LIMIT})")
     ini.add_argument("--suggest-refs", action="store_true",
                      help="give each ADR that states no code path the existing files and directories its text names, as suggested code_ref")
+    ini.add_argument("--patch", metavar="FILE",
+                     help="with --suggest-refs: write a unified diff that adds each suggested code_ref to its ADR's front matter; no ADR is changed, and FILE must not exist and must lie outside the ADR directories")
     ini.add_argument("--out", required=True)
     na = sub.add_parser("new-adr", help="write the next-numbered MADR file with status proposed and the code refs and rule given")
     na.add_argument("title")
@@ -256,10 +259,10 @@ def run(a: argparse.Namespace) -> int:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
         plan, checked = checker.rederive(plan, co.load(Path(a.snapshot).read_text(encoding="utf-8")), lock_text, a.repo, advisories,
                                          a.depth, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings)
-        Path(a.out).write_text(json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        Path(a.out).write_text(init.dump(plan), encoding="utf-8")
         failed = sum(1 for c in checked if c["problems"])
         print(f"Re-derived {len(checked)} records with {sum(c['checks'] for c in checked)} checks; {failed} failed.\n")
-        print(wb.render(plan))
+        print(init.SURROGATE.sub(lambda m: f"\\u{ord(m.group()):04x}", wb.render(plan)))
         return 1 if failed else 0
     if a.cmd == "commit":
         plan = json.loads(Path(a.plan).read_text(encoding="utf-8"))
@@ -271,8 +274,7 @@ def run(a: argparse.Namespace) -> int:
         return 0 if receipt["verified"] else 1
     if a.cmd == "query":
         report = cypher.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.cypher, params_of(a.param), limits=limits(a))
-        json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
-        sys.stdout.write("\n")
+        sys.stdout.write(init.dump(report))
         return 0
     if a.cmd == "impact":
         report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo, limits=limits(a))
@@ -281,8 +283,7 @@ def run(a: argparse.Namespace) -> int:
         elif a.format in VIEWS:
             sys.stdout.write(VIEWS[a.format]("impact", report))
         else:
-            json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
-            sys.stdout.write("\n")
+            sys.stdout.write(init.dump(report))
         return 0
     if a.cmd == "check":
         return run_check(a)
@@ -294,7 +295,7 @@ def run(a: argparse.Namespace) -> int:
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
                            advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings, day=a.today,
                            warn_days=a.warn_days)
-        text = json.dumps(report, ensure_ascii=False, indent=1)
+        text = init.dump(report)[:-1]
         if a.format in VIEWS or a.format == "sarif":
             if a.out:
                 Path(a.out).write_text(text + "\n", encoding="utf-8")
@@ -312,11 +313,19 @@ def run(a: argparse.Namespace) -> int:
             sys.stdout.write(text + "\n")
         return 0
     if a.cmd == "init":
-        snapshot = init.build(a.repo_dir or ".", a.repo, *init_readers(a), adr_dir=a.adr_dir, postmortem_dir=a.postmortem_dir,
+        readers, diff_file = init_readers(a), init_patch(a)
+        snapshot = init.build(a.repo_dir or ".", a.repo, *readers, adr_dir=a.adr_dir, postmortem_dir=a.postmortem_dir,
                               suggest_refs=a.suggest_refs)
+        made = patch.build(Path(os.path.abspath(a.repo_dir or ".")), snapshot) if diff_file is not None else None
+        if made is not None and made.text:
+            patch.write(diff_file, made)
         Path(a.out).write_text(init.dump(snapshot), encoding="utf-8")
         meta = snapshot["meta"]
-        print(json.dumps({"out": a.out, "nodes": meta["nodes"], "edges": meta["edges"], "problems": meta["problems"]}, ensure_ascii=False, indent=1))
+        printed = {"out": a.out, "nodes": meta["nodes"], "edges": meta["edges"], "problems": meta["problems"]}
+        if made is not None:
+            printed["patch"] = {"out": a.patch if made.text else None, "adrs": len(made.adrs), "code_refs": made.refs,
+                                "not_applied": len(made.skipped), "left_out": [{"file": f, "reason": r} for f, r in made.left_out]}
+        sys.stdout.write(init.dump(printed))
         return 0
     if a.cmd == "new-adr":
         path = madr.write(a.repo_dir, a.title, a.adr_dir, a.code_ref, a.rule, a.date, a.waiver)
@@ -335,8 +344,7 @@ def run(a: argparse.Namespace) -> int:
     if a.format in VIEWS:
         sys.stdout.write(VIEWS[a.format]("paths", render.annotate_paths(report, graph, a.source, a.target)))
         return 0
-    json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
-    sys.stdout.write("\n")
+    sys.stdout.write(init.dump(report))
     return 0
 
 
@@ -354,9 +362,18 @@ def run_check(a: argparse.Namespace) -> int:
     elif a.format == "sarif":
         sys.stdout.write(sarif.dumps(sarif.log([sarif.check_run(report)])))
     else:
-        json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
-        sys.stdout.write("\n")
+        sys.stdout.write(init.dump(report))
     return 1 if check.failed(report, a.fail_on_unresolved) else 0
+
+
+def init_patch(a: argparse.Namespace) -> Path | None:
+    if a.patch is None:
+        return None
+    if not a.suggest_refs:
+        raise ValueError("--patch writes the suggestions --suggest-refs makes, so it needs --suggest-refs")
+    if a.github is not None and a.repo_dir is None:
+        raise ValueError("--patch changes the ADRs of a repository directory, so with --github it needs --repo-dir")
+    return patch.target(Path(os.path.abspath(a.repo_dir or ".")), a.patch, a.adr_dir, a.out)
 
 
 def init_readers(a: argparse.Namespace) -> tuple:

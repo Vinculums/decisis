@@ -199,12 +199,17 @@ The server gives an agent `impact`, `paths`, `audit` and a read-only Cypher `que
 tool that writes. [`skills/decisis/SKILL.md`](https://github.com/Vinculums/decisis/blob/main/skills/decisis/SKILL.md)
 teaches an agent when to use each tool. [MCP setup and the `query` rules](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md).
 
+The same server runs from Cursor, Windsurf, VS Code with GitHub Copilot and the OpenAI Codex CLI as well as Claude
+Code: [the config file and snippet for each tool](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md#set-up-your-tool).
+[A worked example](https://github.com/Vinculums/decisis/blob/main/examples/bookshop/README.md) runs `init`, `check`,
+`audit` and the MCP tools on a small application, with every output committed.
+
 ## Commands
 
 | Command | Needs | What it does |
 |---|---|---|
 | `demo` | nothing | the whole procedure on synthetic data, against an in-process fake Vinc |
-| `init --out <file>` | nothing; with `--github`, the network for api.github.com | a snapshot from the repository's ADRs, CODEOWNERS and postmortems, and its merged pull requests; with `--suggest-refs`, code refs from the paths each ADR names |
+| `init --out <file>` | nothing; with `--github`, the network for api.github.com | a snapshot from the repository's ADRs, CODEOWNERS and postmortems, and its merged pull requests; with `--suggest-refs`, code refs from the paths each ADR names, and with `--patch FILE` a diff that states them in the ADRs |
 | `new-adr "<title>" [--code-ref <path>]... [--rule <json>]` | nothing | writes the next-numbered MADR file with `status: proposed`, after checking the rule as `audit` and `check` read it; never overwrites |
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `check <snapshot> (--changed <file>... \| --base <ref>)` | nothing; with `--base`, git | the decisions that govern a change set, and the `review_required` and `imports_forbidden` rules it breaks; exits 1 on a violation |
