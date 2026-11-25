@@ -181,27 +181,33 @@ def propose(report: dict, repo: str, space: str, today: str | None = None,
     return plan
 
 
-def held_banner(plan: dict) -> list[str]:
-    held, kept = len(plan["held"]), len(plan["nodes"])
-    out = [f"!! {held} of {held + kept} record(s) failed re-derivation and are held back; this run exits 1.",
+def failed_records(plan: dict) -> list[dict]:
+    return [h for h in plan["held"] if "record" in h]
+
+
+def held_banner(failed: list[dict], kept: int) -> list[str]:
+    out = [f"!! {len(failed)} of {len(failed) + kept} record(s) failed re-derivation and are held back; this run exits 1.",
            f"!! Approving writes only the {kept} record(s) in the write set below; a held record is never written.",
            "!! Held back:"]
-    out += [f"!!   {h['record']}: {problem}" for h in plan["held"] for problem in h.get("failed", []) or ["no reason given"]]
+    out += [f"!!   {h['record']}: {problem}" for h in failed for problem in h.get("failed") or ["no reason given"]]
     return out + [""]
 
 
 def render(plan: dict) -> str:
-    out = held_banner(plan) if plan["held"] else []
+    failed, kept = failed_records(plan), len(plan["nodes"])
+    out = held_banner(failed, kept) if failed else []
     out += [f"Write set for space {plan['space']} (approval digest {plan['digest']}):", ""]
     for n in plan["nodes"]:
         out.append(f"  + {n['id']}  [{n['props'].get('severity') or n['props']['predicate']}, {n['props']['scope']}]")
         out.append(f"      {n['title']}")
     for e in plan["edges"]:
         out.append(f"  + {e['from']} -{e['type']}-> {e['to']}")
-    if not plan["held"]:
+    if plan["held"] and not failed:
+        out += ["", f"  held back, not written: {len(plan['held'])}"]
+    if not failed:
         out += ["", f"Approve with: decisis commit <plan file> --approve {plan['digest']}"]
-    elif plan["nodes"]:
-        out += ["", f"Approve the {len(plan['nodes'])} record(s) listed, without the {len(plan['held'])} held back: "
+    elif kept:
+        out += ["", f"Approve the {kept} record(s) listed, without the {len(failed)} held back: "
                     f"decisis commit <plan file> --approve {plan['digest']}"]
     else:
         out += ["", "Nothing to approve: every record was held back."]
