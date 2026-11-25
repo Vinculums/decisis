@@ -107,14 +107,31 @@ cannot be judged: 1
 
 In CI, pass the base branch instead of a file list: `decisis check snapshot.json --base origin/main --reviewers @alice`.
 
-**4. Audit a lockfile against the decisions:**
+**4. Audit a lockfile against the decisions.** In the snapshot `init` built in step 1, each ADR with a
+dependency rule (advisory, license, package or pin) governs the repository `init` read, whatever code it
+names, so give `audit` the same `--repo`:
 
 ```bash
-decisis audit my-snapshot.json package-lock.json --repo Shop --out report.json
+decisis audit snapshot.json package-lock.json --repo Shop --out report.json
+```
+
+The example repository in this checkout has ADR 0010, which forbids HIGH advisories in shipped
+dependencies; its snapshot and the demo lockfile give three violations of it:
+
+```bash
+decisis init --repo-dir fixtures/init/shop --repo Shop --out shop.json
+```
+
+```
+$ decisis audit shop.json fixtures/audit/demo-lockfile.json --repo Shop --osv-cache fixtures/audit/osv-cache.json --out report.json
+{"summary": {"affected": 7, "unresolved": 0, "not_affected": 0}, "violations": 3, "waived": 0, "loaded": {"nodes": 23, "edges": 17}, "unresolved_packages": 0, "inventory_notes": [], "unread_decisions": 1, "out": "report.json"}
 ```
 
 The report lists each advisory the repository reaches, the dependency path to it, and the decisions it
-breaks.
+breaks. A hand-written snapshot, like the one above, links a decision to the repository through `ABOUT` a
+node whose `code_ref` names it. A decision with a dependency rule that governs nothing in the audit is
+listed under `not_governing` with the reason, so its rule never drops out unseen
+([which decisions an audit judges](https://github.com/Vinculums/decisis/blob/main/docs/data-model.md#which-decisions-an-audit-judges)).
 
 ## Supported inventories and rules
 

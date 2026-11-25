@@ -184,6 +184,12 @@ def unread_list(report: dict) -> list[str]:
     return [section("Decision files not read, so their rules are not judged", "<ul>" + items + "</ul>")] if items else []
 
 
+def idle_list(report: dict) -> list[str]:
+    found = report.get("not_governing") or []
+    items = "".join(f"<li>{code(d['decision'])} {esc(d.get('title'))}: {esc(d['reason'])}</li>" for d in found)
+    return [section("Decisions that govern nothing in this audit, so their rules are not judged", "<ul>" + items + "</ul>")] if items else []
+
+
 def audit_graph(report: dict) -> Graph:
     g = Graph()
     repo = (report.get("meta") or {}).get("repo")
@@ -191,9 +197,15 @@ def audit_graph(report: dict) -> Graph:
         g.node(f"repo:{repo}", (f"repo:{repo}",), "repository")
     for d in report.get("governing", []):
         g.node(d["decision"], label(d["decision"], d.get("title") or ""), "decision")
+        if d.get("link"):
+            if repo:
+                g.edge(f"repo:{repo}", d["link"], d["decision"])
+            continue
         g.edge(d["decision"], "ABOUT", d["via"])
         if repo:
             g.edge(f"repo:{repo}", "DESCRIBED_BY", d["via"])
+    for d in report.get("not_governing", []):
+        g.node(d["decision"], label(d["decision"], d.get("title") or "") + (f"governs nothing here: {d['reason']}",), "unread")
     for f in report.get("findings", []):
         bad = violated(f)
         path = f.get("path", [])
@@ -441,7 +453,7 @@ def audit_sections(report: dict) -> list[str]:
     return [dl(head), *([section("Notes", "<ul>" + notes + "</ul>")] if notes else []),
             section("Governing decisions", "<ul>" + gov + "</ul>" if gov else NONE),
             *([section("Rules that cannot be checked", "<ul>" + problems + "</ul>")] if problems else []),
-            *unread_list(report),
+            *idle_list(report), *unread_list(report),
             section("Findings", '<ul class="items">' + items + "</ul>" if items else NONE)]
 
 

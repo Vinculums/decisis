@@ -59,9 +59,9 @@ shipped `lodash` violate it).
 Properties the commands read:
 
 - `code_ref` (a string or list) on any node: the code it describes, as `path`, `Repo:path` or
-  `Repo:path:symbol`. `audit --repo Shop` links the repository to every node whose `code_ref` is `Shop` or
-  starts with `Shop:`; `impact` matches the path part. Decisions may also name code with `subject_path`
-  and `also_touches`.
+  `Repo:path:symbol`. `audit --repo Shop` links the repository to every node whose `code_ref` is a string
+  that is `Shop` or starts with `Shop:`; `impact` matches the path part. Decisions may also name code with `subject_path`
+  and `also_touches`. A snapshot from `init` needs no such link: see [Which decisions an audit judges](#which-decisions-an-audit-judges).
 - `rule` on a decision: what the decision forbids, in the format below. A decision without a `rule` is
   reported as `relevant`, never `violated`.
 
@@ -608,6 +608,29 @@ read back with `init`'s reader. `init` then reads the file into a decision with 
 | `DEPENDS_ON` | the repository, a workspace or a package requires a package or a workspace; the repository holds each workspace | the requirement as the inventory states it, with `(dev)`, `(optional)` or `(peer)` for those kinds; `workspace <path>` from the repository |
 | `AFFECTED_BY` | OSV returned the advisory for this name and version | `OSV returned <id> for this name and version` |
 | `DESCRIBED_BY` | the repository to a snapshot node whose `code_ref` names it | `<node> has code_ref <ref>` |
+| `RECORDS` | the repository to each decision of an `init` snapshot that governs it (see below) | `decisis init read <file> from the repository <name>` |
+
+### Which decisions an audit judges
+
+A decision governs the repository `audit --repo NAME` reads in one of two ways:
+
+- **A snapshot from `init`** (`meta.source` is `decisis init`) holds the decisions of the one repository
+  `init` read. When `meta.repo` is `NAME` (letters compared without case), or `init` ran without `--repo` so
+  the repository has no name in the snapshot, each of its decisions whose `rule` holds a kind `audit` judges
+  (or a rule entry that cannot be read) governs the repository: `audit` adds a `RECORDS` edge from
+  `repo:NAME` to it. The decision's `code_ref`, `subject_path` and `also_touches` do not matter, and a
+  `code_ref` that names part of the repository, such as `Shop:src/payments/`, does not narrow a dependency
+  rule: an inventory is the dependencies of the whole repository, so the rule covers all of it. A
+  superseded decision (its status says `superseded`, or it is the target of a `SUPERSEDES` edge) does not
+  govern. In the report its `governing` entry has `via` set to the ADR file and `link` set to `RECORDS`.
+- **A hand-written snapshot** links a decision through a path `repo:NAME -DESCRIBED_BY-> node <-ABOUT-
+  decision`, where `DESCRIBED_BY` comes from the node's string `code_ref` as above. Its `governing` entry
+  has `via` set to that node.
+
+A decision whose rule holds a kind `audit` judges but that governs nothing in this audit is listed under
+`not_governing` in the report, with `decision`, `title` and `reason`: an `init` snapshot of another
+repository, a superseded decision of an `init` snapshot, or a hand-written decision with no path to the
+repository. Its rules are not judged.
 
 ## Inventories
 
@@ -810,14 +833,18 @@ examples next to it.
 ## The report and the plan
 
 `audit --out report.json` writes `meta`, `loaded` (node and edge counts), `today` (the date waivers were
-judged on), `governing` (decisions and the node they reach the repository through), `summary` (counts by
+judged on), `governing` (decisions and the node they reach the repository through, see
+[Which decisions an audit judges](#which-decisions-an-audit-judges)), `summary` (counts by
 status), `violations` (violated policies over all findings), `waived` (waived policies over all findings),
 and `findings`. When a decision's rule cannot be read, `rule_problems` lists each
 problem (`decision`, `rule`, the kind or null, and `problem`); the key is absent otherwise. When the
 snapshot's `meta.problems` says an ADR file was `skipped` or `not read` (see [`init`](#a-snapshot-from-a-repository-init)),
 `unread_decisions` lists each such file once with `file`, `reason` and `action`, sorted by file; the key is
 absent otherwise. Such a decision is not in the snapshot, so none of its rules are judged. `audit --out`
-prints the count of these files as `unread_decisions` when there are some.
+prints the count of these files as `unread_decisions` when there are some. `not_governing` lists each
+decision with a rule `audit` judges that governs nothing in this audit, with the reason; the key is absent
+when there is none, and `audit --out` prints its count as `not_governing`. For an `init` snapshot `meta`
+also has `snapshot_repo` (the snapshot's `meta.repo`) and `recorded_links` (the `RECORDS` edges added).
 
 An advisory finding has `package`, `advisory`, `severity`, `severity_source` (only when the severity was
 derived, see [Severity](#severity)), `status` (`affected`, `not_affected`, `unresolved`), `dev_only`, `path`
@@ -951,7 +978,8 @@ list, and a `note` that says how to get the rest. The `check` summary keeps `sum
 `rules_count`, `rules_covering_a_change`, `imports_count`), and lists the first 10 violations and
 unjudged entries with `file`, `line`, `decision`, `rule`, `why` and `import`. The `check` and `audit`
 summaries keep `rule_problems` and `unread_decisions` when the report has them, as
-`rule_problems_count` and `unread_decisions_count` with the first 10 entries. When the snapshot file
+`rule_problems_count` and `unread_decisions_count` with the first 10 entries; the `audit` summary also keeps
+`not_governing` as `not_governing_count` and the first 10 entries. When the snapshot file
 changed and failed to reload, the reply also has `reload_failed`: the reason, and that the reply comes
 from the snapshot loaded before. A reply that would pass 1 MiB as the server sends it has
 its longest list shortened from the end, and a `cut` entry names each list that was shortened. A refused

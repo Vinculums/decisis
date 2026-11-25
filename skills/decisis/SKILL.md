@@ -153,6 +153,9 @@ On the command line the same query is
 - `unread_decisions`: ADR files `init` could not read, such as one with a `rule:` or `waivers:` line that
   does not parse. They are not in the snapshot, so none of their rules were judged. Name each file and
   its reason; a clean report with unread decision files is not a clean bill. `check` reports them too.
+- `not_governing`: decisions with a dependency rule that govern nothing in this audit, with the reason,
+  such as a snapshot `init` built from another repository than `repo` names. Their rules were not judged;
+  name each one, and audit again with the right `repo` if the reason says so.
 
 For `check`, read `violations` (the file, the line for an import, the decision and the rule) and
 `unresolved` (imports or files that cannot be judged, such as an import computed at run time). An
