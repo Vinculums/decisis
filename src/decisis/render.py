@@ -11,6 +11,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable
 
+from .signature import Signature
+
 LINK = re.compile(r"^https?://[^\s\"'<>`]+$")
 MERMAID_SAFE = set(" -_.,:/()@+=?!'*")
 CLASSES = {
@@ -548,10 +550,21 @@ tr.waived td{color:var(--warn)}
 a{color:var(--accent);overflow-wrap:anywhere}
 pre{background:var(--card);border:1px solid var(--line);padding:0.5rem;overflow-x:auto}
 """
+SIGNATURE_STYLE = "margin-top:1.5rem;color:var(--muted);font-size:0.9em;overflow-wrap:anywhere"
 CSP = "default-src 'none'; style-src 'unsafe-inline'"
 
 
-def html(kind: str, report: dict) -> str:
+def tool_link(url: str, label: str) -> str:
+    return f'<a class="tool" href="{esc(url)}" rel="noopener noreferrer">{esc(label)}</a>'
+
+
+def signature_html(signature: Signature | None) -> str:
+    if signature is None:
+        return ""
+    return f'<footer class="signature" style="{SIGNATURE_STYLE}">{signature.line(tool_link, esc, code)}</footer>\n'
+
+
+def html(kind: str, report: dict, signature: Signature | None = None) -> str:
     k = kind_of(kind)
     title = k.title(report)
     body = "\n".join(k.sections(report))
@@ -562,7 +575,7 @@ def html(kind: str, report: dict) -> str:
             f"<title>{esc(title)}</title>\n<style>{CSS}</style>\n</head>\n<body>\n<main>\n"
             f"<h1>{esc(title)}</h1>\n{body}\n"
             f"<details><summary>Mermaid source</summary><pre>{diagram}</pre></details>\n"
-            "</main>\n</body>\n</html>\n")
+            f"{signature_html(signature)}</main>\n</body>\n</html>\n")
 
 
 def annotate_paths(report: dict, graph, source: str, target: str) -> dict:

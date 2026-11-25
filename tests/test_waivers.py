@@ -389,7 +389,7 @@ def test_waived_views_render_to_the_committed_golden_output_on_a_fixed_date(kind
     path = tmp_path / "snap.json"
     path.write_text(json.dumps(snap), encoding="utf-8")
     capsys.readouterr()
-    cli.main([kind, str(path), *args, "--format", fmt, "--today", DAY, *warn])
+    cli.main([kind, str(path), *args, "--format", fmt, "--today", DAY, *warn, *(["--no-signature"] if fmt == "html" else [])])
     out = capsys.readouterr().out
     golden = ROOT / "tests" / "golden" / f"{kind}-{name}.{suffix}"
     if os.environ.get("DECISIS_GOLDEN") == "write":

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from test_audit import no_network
-from decisis import cli, render
+from decisis import cli, render, signature
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = Path(__file__).resolve().parent / "golden"
@@ -80,7 +80,7 @@ def tags(page: str) -> list[tuple[str, dict]]:
 @pytest.mark.parametrize("kind", sorted(COMMANDS))
 @pytest.mark.parametrize("fmt", sorted(SUFFIX))
 def test_the_fixtures_render_to_the_committed_golden_output(kind, fmt, capsys, no_network):
-    out = run(capsys, COMMANDS[kind] + ["--format", fmt])
+    out = run(capsys, COMMANDS[kind] + ["--format", fmt] + (["--no-signature"] if kind == "audit" and fmt == "html" else []))
     golden = GOLDEN / f"{kind}.{SUFFIX[fmt]}"
     if os.environ.get("DECISIS_GOLDEN") == "write":
         golden.write_text(out, encoding="utf-8")
@@ -149,15 +149,16 @@ def test_the_html_is_one_offline_file_with_no_url_but_source_links(kind, capsys,
     assert not [t for t, _ in found if t in {"script", "link", "img", "iframe", "object", "embed", "svg", "video", "audio", "source", "base", "form"}]
     assert not re.search(r"url\(|@import|@font-face", page)
     sources = {a["href"] for t, a in found if t == "a" and a.get("class") == "source"}
-    assert all(t != "a" or a.get("class") == "source" for t, a in found)
-    assert set(re.findall(r"https?://[^\s\"<>]+", page)) <= sources
+    assert all(t != "a" or a.get("class") in ("source", "tool") for t, a in found)
+    assert {a["href"] for t, a in found if t == "a" and a.get("class") == "tool"} <= {signature.HOME}
+    assert set(re.findall(r"https?://[^\s\"<>]+", page)) <= sources | {signature.HOME}
     assert ("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'") in [(a.get("http-equiv"), a.get("content")) for t, a in found if t == "meta"]
 
 
 def test_the_audit_html_links_every_finding_to_its_source(capsys, no_network):
     page = run(capsys, COMMANDS["audit"] + ["--format", "html"])
     report = json.loads(run(capsys, COMMANDS["audit"]))
-    hrefs = [a["href"] for t, a in tags(page) if t == "a"]
+    hrefs = [a["href"] for t, a in tags(page) if t == "a" and a.get("class") == "source"]
     assert hrefs == [f["source_url"] for f in report["findings"]]
     assert all(f["content_hash"] in page and f["fetched_at"] in page for f in report["findings"])
 

@@ -51,6 +51,7 @@ jobs:
 | `today` | today's UTC date | the date, `YYYY-MM-DD`, that decisions' waivers are judged on |
 | `sarif` | `false` | `true` writes `decisis.sarif` in the workspace, sets the `sarif-file` output and uploads the file to code scanning (see [Code scanning](#code-scanning-sarif)) |
 | `warn-days` | `14` | the comment lists, under "Waivers that expire soon", each waiver that covers a result and expires within this many days of `today`; `0` turns it off; it never fails the step. A value that is not a whole number from 0 to 3650 stops the step before any request |
+| `signature` | `true` | `true` ends the comment's footer with one line built from the run: `Checked` or `Audited`, `locally` or what the run fetched, the decisis version, `0 LLM calls`, `deterministic graph check` and a digest of the result (see [the signature](data-model.md#the-signature)); `false` leaves the line out and changes nothing else |
 | `decisis-version` | the action's own checkout | a version to install from PyPI instead |
 | `repo`, `working-directory`, `osv-cache`, `comment-author`, `python-version` | | see `action.yml` |
 
@@ -89,6 +90,13 @@ jobs:
   counted in any output and changes no result. It is also in the comment that says the base commit has no decisions.
 - The comment stays under GitHub's 65,536-character limit: the graph is left out first, then the lists
   are cut, and the comment says what was cut.
+  The footer's line is kept when the comment has to be cut.
+- The comment's footer is one line: the decisis version linked to this repository, `0 LLM calls`, `deterministic graph check`,
+  what the run fetched, a digest of the result, the snapshot and a note that the comment is updated on each run. The action says
+  `locally` only when it contacted no host. It reads the pull request's reviews from api.github.com, so a run that
+  judged anything names that, and it names api.osv.dev when an audit fetched advisories, and the origin remote when it
+  fetched the base commit. Posting the comment is not counted. `signature: false` brings back the footer without the
+  signature. The comment that says the base commit has no decisions carries no signature, because nothing was checked.
 - The outputs `violations`, `unresolved` and `comment-url` are set for later steps, and `sarif-file` with `sarif: true`. `violations` is the
   check's violations plus the audit violations of every inventory. `unresolved` is the count described under
   [What counts as unresolved](#what-counts-as-unresolved); it is set whether or not `fail-on-unresolved` is on,

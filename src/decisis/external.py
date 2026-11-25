@@ -29,6 +29,21 @@ class NetworkFailed(RuntimeError):
     pass
 
 
+class Traffic:
+    def __init__(self) -> None:
+        self.hosts: list[str] = []
+
+    def saw(self, host: str) -> None:
+        if host and host not in self.hosts:
+            self.hosts.append(host)
+
+    def wrap(self, opener):
+        def recording(req, timeout=None):
+            self.saw(urllib.parse.urlsplit(req.full_url).hostname or "")
+            return opener(req, timeout=timeout)
+        return recording
+
+
 def _open(req: urllib.request.Request, opener) -> dict:
     try:
         with opener(req, timeout=60) as resp:
@@ -142,6 +157,10 @@ def cache_opener(cache: dict):
 def pinned_at(advisories) -> str | None:
     keywords = getattr(advisories, "keywords", None) or {}
     return keywords.get("fetched_at") if keywords.get("opener") is not None else None
+
+
+def live_advisories(traffic: Traffic):
+    return functools.partial(fetch_advisories, opener=traffic.wrap(urllib.request.urlopen))
 
 
 def cached_advisories(cache: dict):

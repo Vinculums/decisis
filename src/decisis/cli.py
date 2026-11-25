@@ -23,6 +23,7 @@ from . import patch
 from . import render
 from . import rules
 from . import sarif
+from . import signature
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
@@ -57,6 +58,14 @@ def day(text: str):
 TODAY_HELP = "judge waivers as of this UTC date, YYYY-MM-DD (default: today in UTC)"
 WARN_HELP = ("list under expiring_soon the waivers that cover a result and expire within N days of the run's date, 0 turns it off "
              f"(default {rules.WARN_DAYS}, at most {rules.MAX_WARN_DAYS}); this never changes a verdict or the exit code")
+
+
+SIGNATURE_HELP = ("leave the one-line signature (the decisis version, the facts of the run and a digest of the result) out of --format html; "
+                  "no other output changes")
+
+
+def signature_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--no-signature", dest="signature", action="store_false", help=SIGNATURE_HELP)
 
 
 def warn_flag(parser: argparse.ArgumentParser) -> None:
@@ -134,6 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     ck.add_argument("--format", choices=["json", "text", *VIEWS, "sarif"], default="json")
     ck.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
     warn_flag(ck)
+    signature_flag(ck)
     au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
     au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, go.mod (read with the go.sum next to it), "
@@ -146,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
     au.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
     warn_flag(au)
+    signature_flag(au)
     pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
     pr.add_argument("snapshot", help="the snapshot the audit read")
@@ -288,7 +299,8 @@ def run(a: argparse.Namespace) -> int:
     if a.cmd == "check":
         return run_check(a)
     if a.cmd == "audit":
-        advisories = external.fetch_advisories
+        traffic = external.Traffic()
+        advisories = external.live_advisories(traffic)
         if a.osv_cache:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
         text, siblings = inventory.load(Path(a.lockfile), root=a.root)
@@ -299,7 +311,7 @@ def run(a: argparse.Namespace) -> int:
         if a.format in VIEWS or a.format == "sarif":
             if a.out:
                 Path(a.out).write_text(text + "\n", encoding="utf-8")
-            sys.stdout.write(VIEWS[a.format]("audit", report) if a.format in VIEWS
+            sys.stdout.write(view(a, "audit", report, signature.AUDITED, traffic) if a.format in VIEWS
                              else sarif.dumps(sarif.log([sarif.audit_run(report, sarif.inventory_path(Path(a.lockfile), a.root))])))
         elif a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
@@ -348,6 +360,12 @@ def run(a: argparse.Namespace) -> int:
     return 0
 
 
+def view(a: argparse.Namespace, kind: str, report: dict, verb: str, traffic: external.Traffic) -> str:
+    if a.format == "html" and a.signature:
+        return render.html(kind, report, signature.of(verb, [report], traffic.hosts))
+    return VIEWS[a.format](kind, report)
+
+
 def run_check(a: argparse.Namespace) -> int:
     root = Path(a.repo_dir)
     if not root.is_dir():
@@ -358,7 +376,7 @@ def run_check(a: argparse.Namespace) -> int:
     if a.format == "text":
         print(check.render(report))
     elif a.format in VIEWS:
-        sys.stdout.write(VIEWS[a.format]("check", report))
+        sys.stdout.write(view(a, "check", report, signature.CHECKED, external.Traffic()))
     elif a.format == "sarif":
         sys.stdout.write(sarif.dumps(sarif.log([sarif.check_run(report)])))
     else:
