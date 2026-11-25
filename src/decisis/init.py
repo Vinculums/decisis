@@ -782,7 +782,7 @@ def read_codeowners(tree: Tree) -> tuple[list[dict], list[dict]]:
         return [], []
     won = owners.owning_rules(rules, files)
     report_idle_rules(tree, path, rules, files, won)
-    sets = owners.cover(files, {f: r.owners for f, r in won.items()})
+    sets = owners.cover(files, {f: r.owners for f, r in won.items()}, rules)
     lines: dict[tuple[str, ...], set[int]] = {}
     for rule in won.values():
         lines.setdefault(rule.owners, set()).add(rule.line)
