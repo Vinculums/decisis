@@ -4,8 +4,9 @@ Each reader takes a `Tree` and returns `(nodes, edges)` in snapshot shape. `buil
 what they return and sorts it, so the same tree always gives the same bytes. A file that cannot be read or
 parsed is listed in `meta.problems` with its path and the reason, and skipped; an entry about an ADR file has
 `kind: "decision"`, and `unread_decisions` reads back the ADRs left out for `check` and `audit`, with each front matter key
-close to `rule` or `waivers` that the reader does not know. ADRs are read from the ADR directories and every folder below
-them; postmortems only from the folder itself. Nothing is guessed from prose,
+close to `rule` or `waivers` that the reader does not know. ADRs are read only from the files directly in an ADR
+directory; `Survey` lists, as `ignored`, what lies below it, by one rule that `committed` applies to a commit's tree as well.
+Nothing is guessed from prose,
 except that `--suggest-refs` adds the paths an ADR's text names and marks them as suggested.
 docs/data-model.md lists the front matter keys and headings each reader understands.
 """
@@ -42,9 +43,16 @@ RULE_KEYS = ("rule", "waivers")
 UNUSED_KEYS = ("consulted", "informed")
 ADR_KEYS = (*TEXT_KEYS, *LIST_KEYS, *RULE_KEYS, *UNUSED_KEYS)
 CLOSE = 0.75
+COMMON_KEYS = ("role", "roles", "tag", "tags", "type", "kind", "author", "authors", "owner", "owners", "category", "categories",
+               "layout", "parent", "slug", "id", "draft", "weight", "summary", "description", "keywords", "version")
 MAX_RECORDS = 5_000
 MAX_ENTRIES = owners.MAX_FILES
-LINKED_DIR = "it is a link to a directory, and decisis does not follow links inside an ADR directory"
+MAX_LISTED = 20
+FILE, LINK_ENTRY, MODULE, FOLDER = "file", "link", "module", "folder"
+SUBFOLDER = "ADRs in subfolders are not read; move it up or pass its folder with --adr-dir"
+LINKED_RECORD = "it is a symbolic link, and decisions are read only from regular files"
+LINKED_OTHER = "it is a symbolic link, and decisis does not follow it; if it leads to a folder of ADRs, they are not read"
+SUBMODULE = "it is a git submodule or a folder with its own .git, and decisis does not read ADRs from it"
 KEY_LINE = re.compile(r"([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?$")
 LIST_ITEM = re.compile(r"\s*-(?:[ \t]+(.*))?$")
 PREAMBLE = re.compile(r"\s*(?:[*-]\s+)?(\*\*|__)?(status|date|deciders|decision-makers)(?(1)(?::\1|\1\s*:)|\s*:)\s*(.+)$", re.I)
@@ -95,37 +103,46 @@ class Tree:
             raise ValueError(f"{given} is not a directory under {self.root}")
         return [path]
 
-    def records(self, directory: Path, kind: str | None = None, deep: bool = False) -> list[Path]:
-        out, todo, seen = [], [directory], 0
-        while todo:
-            for path in sorted(todo.pop().iterdir()):
-                seen += 1
-                if seen > MAX_ENTRIES:
-                    raise ValueError(f"{self.rel(directory)} holds more than {MAX_ENTRIES} files and folders, more than decisis reads")
-                if deep and path.is_dir():
-                    if path.is_symlink():
-                        self.problem(path, LINKED_DIR, NOT_READ, kind)
-                    elif "template" not in path.name.lower():
-                        todo.append(path)
-                    continue
-                if not record(path.name):
-                    continue
-                if path.is_symlink() and not path.exists():
-                    self.problem(path, "it is a link to a file that does not exist", kind=kind)
-                    continue
-                if not path.is_file():
-                    continue
-                if not path.resolve().is_relative_to(self.root.resolve()):
-                    self.problem(path, "it is a link to a file outside the repository", kind=kind)
-                    continue
-                out.append(path)
-        return sorted(out, key=self.rel)
+    def records(self, directory: Path, kind: str | None = None) -> list[Path]:
+        out = []
+        for path in sorted(directory.iterdir()):
+            if not record(path.name) or not path.is_file():
+                continue
+            if not path.resolve().is_relative_to(self.root.resolve()):
+                self.problem(path, "it is a link to a file outside the repository", kind=kind)
+                continue
+            out.append(path)
+        return out
+
+    def survey(self, directory: Path) -> list[str]:
+        found = Survey(self.rel(directory), lambda f, r, a: self.problem(f, r, a, DECISION))
+        stack = [iter(children(directory))]
+        while stack:
+            if found.stopped:
+                del stack[1:]
+            item = next(stack[-1], None)
+            if item is None:
+                stack.pop()
+            elif item[1] != FOLDER:
+                found.add(self.rel(item[0]), item[1])
+            elif not found.stopped and not templated(item[0].name):
+                stack.append(iter(children(item[0])))
+        return found.read
+
+    @cached_property
+    def adr_dirs(self) -> list[Path]:
+        if self.adr_dir is not None:
+            return self.located(self.adr_dir, ADR_DIRS)
+        for d in ADR_DIRS:
+            kind = entry_kind(self.root / d)
+            if kind in (LINK_ENTRY, MODULE):
+                self.problem(d, LINKED_OTHER if kind == LINK_ENTRY else SUBMODULE, IGNORED, DECISION)
+        return [self.root / d for d in ADR_DIRS if entry_kind(self.root / d) == FOLDER]
 
     @cached_property
     def adr_files(self) -> list[Path]:
-        found = [p for d in self.located(self.adr_dir, ADR_DIRS) for p in self.records(d, DECISION, deep=True)]
-        if len(found) > MAX_RECORDS:
-            raise ValueError(f"the ADR directories hold {len(found)} decision files, more than the {MAX_RECORDS} decisis reads")
+        found = [self.root / p for d in self.adr_dirs for p in self.survey(d)]
+        capped(len(found), "ADR")
         return found
 
     @cached_property
@@ -194,21 +211,80 @@ def record(name: str) -> bool:
     return Path(name).suffix.lower() == ".md" and name.lower() not in NOT_RECORDS and "template" not in name.lower()
 
 
+def templated(name: str) -> bool:
+    return "template" in name.lower()
+
+
+def capped(count: int, what: str) -> None:
+    if count > MAX_RECORDS:
+        raise ValueError(f"the {what} directories hold {count} record files, more than the {MAX_RECORDS} decisis reads")
+
+
+def entry_kind(path: Path) -> str | None:
+    if path.is_symlink():
+        return LINK_ENTRY
+    if path.is_dir():
+        return MODULE if os.path.lexists(path / ".git") else FOLDER
+    return FILE if path.is_file() else None
+
+
+def children(directory: Path) -> list[tuple[Path, str]]:
+    found = [(p, k) for p in directory.iterdir() if (k := entry_kind(p)) is not None]
+    return sorted(found, key=lambda e: os.fsencode(e[0].name) + (b"/" if e[1] == FOLDER else b""))
+
+
+@dataclass
+class Survey:
+    top: str
+    report: Callable[[str, str, str], None]
+    read: list[str] = field(default_factory=list)
+    seen: int = 0
+    listed: int = 0
+    stopped: bool = False
+
+    def add(self, rel: str, kind: str) -> None:
+        *folders, name = (rel if self.top == "." else rel[len(self.top) + 1:]).split("/")
+        if templated(name) and kind != FILE or any(templated(f) for f in folders):
+            return
+        if not folders:
+            if kind == FILE:
+                if record(name):
+                    self.read.append(rel)
+            elif kind == LINK_ENTRY:
+                if record(name):
+                    self.report(rel, LINKED_RECORD, SKIPPED)
+                else:
+                    self.report(rel, LINKED_OTHER, IGNORED)
+            else:
+                self.report(rel, SUBMODULE, IGNORED)
+            return
+        if self.stopped:
+            return
+        self.seen += 1
+        if self.seen > MAX_ENTRIES:
+            self.stop(f"decisis stopped looking in the subfolders of {self.top} after {MAX_ENTRIES} files; {SUBFOLDER}")
+            return
+        reason = SUBFOLDER if record(name) else LINKED_OTHER if kind == LINK_ENTRY else SUBMODULE if kind == MODULE else None
+        if reason is None:
+            return
+        self.listed += 1
+        if self.listed > MAX_LISTED:
+            self.stop(f"more files in the subfolders of {self.top} are not listed after the first {MAX_LISTED}; {SUBFOLDER}")
+            return
+        self.report(rel, reason, IGNORED)
+
+    def stop(self, reason: str) -> None:
+        self.stopped = True
+        self.report(self.top, reason, IGNORED)
+
+
 def adr_dir_of(path: str) -> str | None:
-    return next((d for d in ADR_DIRS if path.startswith(d + "/")), None)
-
-
-def adr_record(path: str) -> bool:
-    top = adr_dir_of(path)
-    if top is None:
-        return False
-    *folders, name = path[len(top) + 1:].split("/")
-    return record(name) and not any("template" in f.lower() for f in folders)
+    return next((d for d in ADR_DIRS if path == d or path.startswith(d + "/")), None)
 
 
 def source(path: str) -> bool:
     folder, _, name = path.rpartition("/")
-    return path in CODEOWNERS_FILES or (folder in POSTMORTEM_DIRS and record(name)) or adr_record(path)
+    return path in CODEOWNERS_FILES or (folder in ADR_DIRS + POSTMORTEM_DIRS and record(name))
 
 
 def read_text(tree: Tree, path: Path, kind: str | None = None) -> tuple[str, bytes] | None:
@@ -460,6 +536,7 @@ def unknown_keys(tree: Tree, path: Path, fm: dict) -> None:
         if key in ADR_KEYS:
             continue
         close = difflib.get_close_matches(key.lower(), ADR_KEYS, n=3, cutoff=CLOSE)
+        close = [c for c in close if c not in RULE_KEYS] if key.lower() in COMMON_KEYS else close
         ruled = bool(set(close) & set(RULE_KEYS))
         lost = "a rule or waiver written there is not judged" if ruled else "it is ignored"
         meant = f"it may mean {' or '.join(close)}" if close else "it is close to no key decisis reads"
@@ -491,7 +568,7 @@ def split_names(text: str | None) -> list[str]:
 
 
 def read_adrs(tree: Tree) -> tuple[list[dict], list[dict]]:
-    if tree.adr_dir is None and not tree.located(None, ADR_DIRS):
+    if tree.adr_dir is None and not tree.adr_dirs:
         tree.problem(".", f"no ADR directory: looked in {', '.join(ADR_DIRS)}", NOT_READ)
     nodes, edges = [], {}
     for path in tree.adr_files:
@@ -543,7 +620,9 @@ def link(tree: Tree, path: Path, nid: str, verb: str, ref: str, edges: dict) -> 
 def read_postmortems(tree: Tree) -> tuple[list[dict], list[dict]]:
     nodes, edges = [], {}
     for directory in tree.located(tree.postmortem_dir, POSTMORTEM_DIRS):
-        for path in tree.records(directory):
+        found = tree.records(directory)
+        capped(sum(1 for p in found if not p.is_symlink()), "postmortem")
+        for path in found:
             parsed = parse(tree, path)
             if parsed is None:
                 continue

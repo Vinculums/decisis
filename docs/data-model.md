@@ -319,7 +319,8 @@ read or parse is listed in `meta.problems` with the reason and left out. The one
 `action`: `skipped` (the file or line is not in the snapshot), `kept without code paths` (the node is there
 but no code path anchors it), `no edge` (a reference did not resolve to exactly one ADR), `no effect` (a
 CODEOWNERS line that owns no file), `not suggested` (a path an ADR names that `--suggest-refs` left out), `ignored`
-(a front matter key `init` does not read, below) or `not read`.
+(a front matter key `init` does not read, or an entry in an ADR directory that is not a record file; both below) or
+`not read`.
 An entry about an ADR file also has `kind: "decision"`. An ADR whose entry is `skipped` or `not read`, such as one
 whose `rule:` or `waivers:` line holds JSON that does not parse, is not in the snapshot, so neither is its rule;
 `check` and `audit` list each such file under `unread_decisions` so it does not drop out silently. A front matter key
@@ -344,17 +345,40 @@ listed.
 | `--suggest-refs` | give each ADR that states no code path the existing files and directories its text names (below) |
 | `--out FILE` | where the snapshot goes; the command prints its counts and problems |
 
-Every `.md` file in an ADR directory and in every folder below it is read, except `README.md`, `index.md`,
-names that contain `template` and what is below a folder whose name contains `template`; so ADRs grouped in
-folders by area or year, such as `docs/adr/payments/0007-retry-once.md`, are read like the others, and their ids
-carry the folder (`decision:shop-docs-adr-payments-0007-retry-once`). A link to a folder inside an ADR directory
-is not followed and is listed as `not read`, so the ADRs behind it are listed under `unread_decisions`; a link
-to a file that does not exist is listed as `skipped`. More than 100,000 files and folders below one ADR
-directory, or more than 5,000 ADR files in all, stops the command with an error, the same 5,000 the Action
-reads from the base commit (see [`docs/action.md`](action.md)). Folders are read rather than listed as not
-read because the Action reads the base commit's ADRs from these directories and has no `--adr-dir`: an ADR in a
-folder that was only listed could never be judged there. Postmortems are read only from the files directly in
-their directory. Every node carries `source_file` (the path from the repository root) and
+Every `.md` file directly in those directories is read, except `README.md`, `index.md` and names that
+contain `template`. What else lies in an ADR directory is listed by one rule, which `init` applies to the
+working tree and the Action applies to the base commit's tree (`Survey` in `src/decisis/init.py`), so both list
+the same entries with the same reasons:
+
+| Entry | Listed as |
+|---|---|
+| a regular `.md` record file in a folder below the ADR directory (`docs/adr/archive/0007-old.md`) | `ignored`: ADRs in subfolders are not read; move it up or pass its folder with `--adr-dir` |
+| a symbolic link with a record name, directly in the ADR directory | `skipped`: decisions are read only from regular files |
+| a symbolic link with a record name in a folder below it | `ignored`, as a file in a subfolder |
+| any other symbolic link at any depth (`docs/adr/v1.2`, `docs/adr/LICENSE`), or an ADR directory that is itself a link | `ignored`: it is not followed |
+| a git submodule at any depth, or an ADR directory that is one | `ignored`: decisis does not read ADRs from it |
+
+Folders and links whose name contains `template`, and everything below such a folder, are left out without an
+entry. `ignored` entries carry `kind: "decision"` and stay in `meta.problems`, but they are not listed under
+`unread_decisions`, so an `archive/` folder never fails `--fail-on-unresolved`. A link directly in the ADR
+directory with a record name is `skipped`, so it does show there. git does not record what a symbolic link points at
+as a file or a folder, so neither reader follows any link or guesses which kind it is. In a working tree, a folder that
+holds its own `.git` counts as a submodule. A submodule that was never checked out is an empty folder there and is
+not listed, but the Action lists it from the base commit.
+
+ADRs in subfolders are listed and not read because reading them would change how existing repositories are
+judged. Take `docs/adr/archive/0007-old.md` next to `docs/adr/0007-new.md`: a reference such as
+`supersedes: ["#7"]` would match two ADRs and make no edge, so a superseded decision would be judged again. And
+`docs/adr/api/v2.md` would take the id `decision:shop-docs-adr-api-v2` from `docs/adr/api_v2.md`, so the waivers
+and records that name that id would point at other content. Ids and `SUPERSEDES` edges stay what they are when
+only the files directly in an ADR directory are read. To read a folder of ADRs, name it with `--adr-dir`.
+
+The listing is bounded in both readers, which walk the entries in git's order and stop at the same one. Below each ADR
+directory, at most 100,000 files, links and submodules outside `template` folders are looked at, and at most 20
+are listed. Past either bound, one more `ignored` entry on the ADR directory says where the listing stopped.
+More than 5,000 ADR record files directly in the ADR directories, or more than 5,000 postmortem record files,
+stops the command with an error, and the Action reading the base commit stops at the same count. Postmortems are
+read only from the files directly in their directory. Every node carries `source_file` (the path from the repository root) and
 `content_hash` (`sha256:` and the hex digest of the file it was read from). Ids come from the repository name and the file path, such as
 `decision:shop-docs-adr-0003-retry-payment-calls-once`, so they stay the same while the file keeps its
 path. Nodes, edges and problems are sorted and nothing depends on the clock, so two runs on the same tree
@@ -524,6 +548,9 @@ of an ADR is listed in `meta.problems` with `key` (the key as written) and `may_
 spelling is close to it, compared in lower case, at most three, possibly none), and the reason names both. The
 entry is `not read` when `may_mean` holds `rule` or `waivers`, so a rule or waiver under a misspelled key, such
 as `rules:` or `waiver:`, shows under `unread_decisions` in `check` and `audit`; any other key is `ignored`.
+Words that front matter often holds for other tools are never matched to `rule` or `waivers`, so `role:` is
+`ignored` and fails no check (`COMMON_KEYS` in `src/decisis/init.py`: `role`, `roles`, `tags`, `type`, `author`,
+`owner`, `category`, `layout`, `slug`, `id`, `draft`, `summary`, `description`, `version` and a few more).
 The value of such a key may also be inline JSON, so `waiver: [{...}]` does not stop the file from being read.
 Postmortems are not checked for other keys. Example entry:
 

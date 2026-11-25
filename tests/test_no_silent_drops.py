@@ -2,15 +2,12 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
 
-from test_action import git
 from test_audit import no_network
-from decisis import checkout as co
-from decisis import check, cli, committed, init
+from decisis import cli, init
 
 ROOT = Path(__file__).resolve().parents[1]
 FIX = ROOT / "fixtures"
@@ -124,7 +121,8 @@ def test_an_unknown_front_matter_key_is_listed_with_the_keys_it_may_mean(repo):
 
 
 @pytest.mark.parametrize("key,close", [("Rule", ["rule"]), ("rulez", ["rule"]), ("WAIVERS", ["waivers"]), ("wavers", ["waivers"]),
-                                       ("code-ref", ["code_ref"]), ("author", [])])
+                                       ("waive", ["waivers"]), ("ruel", ["rule"]), ("code-ref", ["code_ref"]), ("author", []),
+                                       ("role", []), ("Role", []), ("roles", []), ("tags", [])])
 def test_each_misspelling_names_the_known_keys_and_only_rule_or_waivers_ones_are_unread(tmp_path, key, close):
     write(tmp_path, {"docs/adr/0001-a.md": adr("A", f"{key}: x")})
     (p,) = [p for p in init.build(tmp_path)["meta"]["problems"] if "key" in p]
@@ -141,88 +139,12 @@ def test_check_and_audit_list_a_rule_or_waiver_under_a_misspelled_key_as_unread(
     snap = built(repo, capsys)
     code, report = check_report(capsys, snap, repo, CHANGED)
     assert unread(report["unread_decisions"]) == UNREAD
-    assert {r["decision"] for r in report["violations"]} == {node_id(NESTED), node_id(DEEPER), node_id(WAIVER_TYPO)}
+    assert {r["decision"] for r in report["violations"]} == {node_id(WAIVER_TYPO)}
     assert report["waived"] == []
+    listed = [(p["file"], p["action"], p["reason"]) for p in json.loads(snap.read_text())["meta"]["problems"] if p["file"] in (NESTED, DEEPER)]
+    assert listed == [(DEEPER, "ignored", init.SUBFOLDER), (NESTED, "ignored", init.SUBFOLDER)]
     code, report = audit_report(capsys, snap, repo)
     assert code == 0 and unread(report["unread_decisions"]) == UNREAD
-
-
-def test_adrs_in_folders_below_an_adr_directory_are_read_and_judged(repo, capsys, no_network):
-    snap = init.build(repo, "Shop")
-    by = decisions(snap)
-    assert by[NESTED]["id"] == "decision:shop-docs-adr-ui-0004-ui-does-not-import-db" and by[NESTED]["props"]["rule"] == IMPORT_RULE
-    assert by[DEEPER]["id"] == node_id(DEEPER)
-    assert not [f for f in by if "templates" in f or f.endswith("README.md")]
-    assert not [p for p in snap["meta"]["problems"] if "templates" in p["file"] or p["file"].endswith("README.md")]
-    report = check.run(co.load(init.dump(snap)), CHANGED, repo, [], 3, "Shop")
-    nested = [r for r in report["violations"] if r["decision"] == node_id(NESTED)]
-    assert nested and {r["file"] for r in nested} == {"src/shop/ui/view.py"}
-    assert [r["file"] for r in report["violations"] if r["decision"] == node_id(DEEPER)] == ["src/payments/charge.py"]
-
-
-def test_a_nested_adr_is_a_decision_source_file_and_a_template_folder_is_not():
-    assert init.source(NESTED) and init.source(DEEPER) and init.source("adr/a/b/c/0001-x.md")
-    assert not init.source("docs/adr/templates/0000-adr.md") and not init.source("docs/adr/ui/README.md")
-    assert not init.source("docs/postmortems/2026/2026-01-01-outage.md") and not init.source("docs/adr-notes/0001-x.md")
-    assert committed.source_files([NESTED, "src/x.py"], None) == [NESTED]
-
-
-def test_a_link_to_a_folder_in_an_adr_directory_is_listed_and_not_followed(tmp_path):
-    root = write(tmp_path / "repo", {"docs/adr/0001-a.md": adr("A"), "elsewhere/0009-hidden.md": adr("Hidden")})
-    (root / "docs" / "adr" / "linked").symlink_to(root / "elsewhere", target_is_directory=True)
-    (root / "docs" / "adr" / "0002-gone.md").symlink_to(root / "missing.md")
-    snap = init.build(root)
-    assert list(decisions(snap)) == ["docs/adr/0001-a.md"]
-    assert ("docs/adr/linked", init.LINKED_DIR) in unread(init.unread_decisions(snap["meta"]))
-    assert {"file": "docs/adr/0002-gone.md", "reason": "it is a link to a file that does not exist", "action": "skipped",
-            "kind": "decision"} in snap["meta"]["problems"]
-
-
-def test_the_adr_file_caps_hold_with_folders(tmp_path, monkeypatch):
-    write(tmp_path, {"docs/adr/a/0001-a.md": adr("A"), "docs/adr/b/0002-b.md": adr("B")})
-    monkeypatch.setattr(init, "MAX_RECORDS", 1)
-    with pytest.raises(ValueError, match="2 decision files, more than the 1"):
-        init.build(tmp_path)
-    monkeypatch.setattr(init, "MAX_RECORDS", 5_000)
-    monkeypatch.setattr(init, "MAX_ENTRIES", 3)
-    with pytest.raises(ValueError, match="more than 3 files and folders"):
-        init.build(tmp_path)
-
-
-def commit_all(root: Path) -> str:
-    git(root, "init", "-q", "-b", "main")
-    git(root, "add", "-A")
-    git(root, "commit", "-q", "-m", "base")
-    return subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
-
-
-def test_the_base_commit_reader_reads_the_same_adrs_as_init(repo):
-    (repo / "elsewhere").mkdir()
-    (repo / "docs" / "adr" / "linked").symlink_to(repo / "elsewhere", target_is_directory=True)
-    sha = commit_all(repo)
-    local = init.build(repo, "Shop")
-    base = committed.built(repo, sha, "Shop", [])
-    assert sorted(n["id"] for n in base.nodes if n["kind"] == "decision") == sorted(n["id"] for n in local["nodes"] if n["kind"] == "decision")
-    assert node_id(NESTED) in {n["id"] for n in base.nodes} and node_id(DEEPER) in {n["id"] for n in base.nodes}
-    files = lambda meta: [f for f, _ in unread(init.unread_decisions(meta))]
-    assert files(base.meta) == files(local["meta"]) == [RULES_TYPO, WAIVER_TYPO, "docs/adr/linked"]
-    linked = [p for p in base.meta["problems"] if p["file"] == "docs/adr/linked"]
-    assert linked == [{"file": "docs/adr/linked", "action": "not read", "kind": "decision",
-                       "reason": "it is a symbolic link in the commit, and decisis does not follow links inside an ADR directory"}]
-    assert [p["file"] for p in local["meta"]["problems"] if p["file"] == "docs/adr/linked"] == ["docs/adr/linked"]
-    keyed = lambda meta: sorted((p["file"], p["key"]) for p in meta["problems"] if "key" in p)
-    assert keyed(base.meta) == keyed(local["meta"])
-
-
-def test_the_base_commit_reader_keeps_the_record_cap_across_folders(repo, monkeypatch):
-    sha = commit_all(repo)
-    monkeypatch.setattr(init, "MAX_RECORDS", 3)
-    with pytest.raises(ValueError, match="more than the 3 decisis reads"):
-        committed.built(repo, sha, "Shop", [])
-    monkeypatch.setattr(init, "MAX_RECORDS", 5_000)
-    monkeypatch.setattr(init, "MAX_ENTRIES", 3)
-    with pytest.raises(ValueError, match="files, more than the 3 decisis reads"):
-        committed.built(repo, sha, "Shop", [])
 
 
 def test_check_lists_a_rule_that_cannot_be_read_whatever_the_adr_governs(repo, capsys, no_network):
