@@ -131,6 +131,15 @@ def test_the_same_name_in_two_unicode_forms_gets_one_id(tmp_path):
     assert ids[0] == ids[1] == f"{ADR}0001-{digest(unicodedata.normalize('NFC', 'docs/adr/0001-' + name + '.md'))}"
 
 
+def test_an_accented_latin_name_in_two_unicode_forms_gets_one_id(tmp_path):
+    ids = []
+    for form in ("NFC", "NFD"):
+        root = write(tmp_path / form, {f"docs/adr/0001-{unicodedata.normalize(form, 'café')}.md": adr("café")})
+        [node] = build(root)["nodes"]
+        ids.append(node["id"])
+    assert ids[0] == ids[1] == f"{ADR}0001-caf-{digest(unicodedata.normalize('NFC', 'docs/adr/0001-café.md'))}"
+
+
 def test_a_directory_named_with_non_ascii_letters_gets_a_hash_too(tmp_path):
     root = write(tmp_path / "repo", {"결정/0001-a.md": adr("a"), "결정/0002-b.md": adr("b")})
     snap = init.build(root, "KorApp", adr_dir="결정")

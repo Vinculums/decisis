@@ -185,7 +185,7 @@ class Tree:
     def node_id(self, kind: str, path: Path, extra: str = "") -> str:
         rel = self.rel(path)
         stem = rel[: -len(path.suffix)] if path.suffix else rel
-        parts = [self.repo or "", stem, extra]
+        parts = [unicodedata.normalize("NFC", p) for p in (self.repo or "", stem, extra)]
         named = [s for s in (slug(p) for p in parts) if s]
         if not all(p.isascii() for p in parts):
             named.append(path_digest(rel, extra))
