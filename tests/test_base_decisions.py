@@ -255,6 +255,11 @@ def test_the_action_input_defaults_to_base_and_reaches_python_through_the_enviro
     assert check["env"]["DECISIS_DECISIONS_FROM"] == "${{ inputs.decisions-from }}"
     docs = (ROOT / "docs" / "action.md").read_text(encoding="utf-8")
     assert "## Trust model" in docs and "decisions-from" in docs
+    trust = " ".join(docs[docs.index("## Trust model"):].split("\n## ", 1)[0].split())
+    assert "On `pull_request` the workflow file also comes from the pull request" in trust
+    assert "set `decisions-from: head`" in trust and "remove the step" in trust
+    assert "required status check" in trust and "CODEOWNERS" in trust
+    assert "Only someone who can merge" not in docs
 
 
 def test_the_changes_name_added_changed_and_removed_decisions_and_waivers():
