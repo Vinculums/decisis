@@ -23,6 +23,7 @@ COMMENT_WIDTH = 300
 BOM = "\ufeff"
 PLAIN = re.compile(r"[\w.][\w.+/-]*")
 BARE = re.compile(r"[^\x00-\x20\"\\\x7f]+")
+YAML_UNREADABLE = re.compile("[^\t\n\r\u0020-\u007e\u00a0-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]|[\u2028\u2029]")
 ESCAPES = {ord('"'): '\\"', ord("\\"): "\\\\", 7: "\\a", 8: "\\b", 9: "\\t", 10: "\\n", 11: "\\v", 12: "\\f", 13: "\\r"}
 
 
@@ -81,7 +82,9 @@ def comment(sentence: str) -> str:
 
 
 def item(ref: str) -> str:
-    return ref if PLAIN.fullmatch(ref) else json.dumps(ref, ensure_ascii=False)
+    if PLAIN.fullmatch(ref):
+        return ref
+    return YAML_UNREADABLE.sub(lambda m: f"\\u{ord(m.group()):04x}", json.dumps(ref, ensure_ascii=False))
 
 
 def plain(ref: str, repo: str | None) -> str:
@@ -115,6 +118,14 @@ def hunk(lines: list[str], at: int, drop: int, add: list[str]) -> str:
     return f"@@ -{start + 1},{old} +{start + 1},{new} @@\n" + "".join(body)
 
 
+def line_ending(lines: list[str]) -> str:
+    crlf = sum(line.endswith("\r\n") for line in lines)
+    lf = sum(line.endswith("\n") and not line.endswith("\r\n") for line in lines)
+    if crlf != lf:
+        return "\r\n" if crlf > lf else "\n"
+    return "\r\n" if lines[0].endswith("\r\n") else "\n"
+
+
 def empty_key(line: str) -> bool:
     m = None if line[:1].isspace() else init.KEY_LINE.match(line.rstrip())
     return bool(m) and m.group(1) == "code_ref"
@@ -122,7 +133,7 @@ def empty_key(line: str) -> bool:
 
 def edit(text: str, refs: list[tuple[str, str]]) -> str:
     lines = lines_of(text)
-    eol = "\r\n" if lines[0].endswith("\r\n") else "\n"
+    eol = line_ending(lines)
     body = block(refs, eol)
     front, _ = init.split_front_matter(text.lstrip(BOM).replace("\r\n", "\n"))
     if front is None:

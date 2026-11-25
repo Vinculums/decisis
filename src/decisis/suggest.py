@@ -1,7 +1,9 @@
 """Code refs suggested from the paths an ADR's own text names, for `init --suggest-refs`.
 
 A candidate is a backticked token, a word with a `/` or a file extension, or a Markdown link target (relative
-to the ADR, or a GitHub file URL); in a fenced code block only words with a `/` count. A bare word must be a path
+to the ADR, or a GitHub file URL); in a fenced code block only words with a `/` count. A backticked token that holds
+spaces is one more candidate when the whole of it names an existing file or directory, so a path with a space in it
+is found; when it does not, its words are read one by one as before. A bare word must be a path
 from the repository root; a word with a `/` or an extension may also match every path that ends with it. Paths in
 the ADR's own directory are records, not code, and are never suggested. A candidate that matches more than
 `MAX_MATCHES` paths, or that is only a bare common name, is skipped and returned with the reason. Each suggestion
@@ -171,12 +173,12 @@ def link_target(target: str, base: str) -> str | None:
     return inside(path.lstrip("/") if path.startswith("/") else posixpath.join(base, path))
 
 
-def word_path(word: str, bare: bool) -> tuple[str, bool] | None:
+def word_path(word: str, bare: bool, spaced: bool = False) -> tuple[str, bool] | None:
     word = clean(word)
     if m := GITHUB_FILE.match(word):
         found = inside(unquote(m.group(1)))
         return (found, False) if found else None
-    if "://" in word or word.lower().startswith("mailto:") or any(c.isspace() for c in word):
+    if "://" in word or word.lower().startswith("mailto:") or (not spaced and any(c.isspace() for c in word)):
         return None
     pathlike = "/" in word or bool(EXTENSION.search(word.rstrip("/")))
     if not (bare or pathlike):
@@ -194,7 +196,7 @@ def word_path(word: str, bare: bool) -> tuple[str, bool] | None:
     return (found, pathlike and not rooted) if found else None
 
 
-def candidates(sentence: str, base: str = "", code: bool = False) -> list[tuple[str, bool]]:
+def candidates(sentence: str, base: str = "", code: bool = False, index: Index | None = None) -> list[tuple[str, bool]]:
     found: list[tuple[str, bool]] = []
     if not code:
         for m in LINK.finditer(sentence):
@@ -206,7 +208,11 @@ def candidates(sentence: str, base: str = "", code: bool = False) -> list[tuple[
         inner = m.group(1).strip()
         if inner and not any(c.isspace() for c in inner):
             words.append((inner, True))
-        else:
+            continue
+        whole = None if code else word_path(inner, True, spaced=True)
+        if whole is not None:
+            found.append(whole)
+        if whole is None or index is None or not index.lookup(*whole):
             words += [(w, False) for w in inner.split()]
     words += [(w, False) for w in BACKTICK.sub(" ", sentence).split()]
     for word, bare in words:
@@ -222,7 +228,7 @@ def candidates(sentence: str, base: str = "", code: bool = False) -> list[tuple[
 def suggest(index: Index, body: str, base: str = "") -> Suggested:
     found = Suggested()
     for sentence, code in sentences(body):
-        for token, ending in candidates(sentence, base, code):
+        for token, ending in candidates(sentence, base, code, index):
             paths = [p for p in index.lookup(token, ending) if not base or (p != base and not p.startswith(base + "/"))]
             if not paths:
                 continue
