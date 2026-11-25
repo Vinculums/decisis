@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from . import cycles
 from .queries import load as query
 from .sandbox import Limits, Subgraph, sandbox
 
@@ -196,14 +197,18 @@ def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = Non
 
 
 def superseded_by(graph: Subgraph) -> dict[str, list[str]]:
-    """Each superseded decision and what replaces it: the target of a SUPERSEDES edge, or a decision whose status says superseded."""
+    """Each superseded decision and what replaces it: the target of a SUPERSEDES edge, or a decision whose status says superseded.
+
+    A node in a SUPERSEDES cycle is not superseded, whatever its status says, so its rules are judged as if there were no cycle.
+    """
+    held = {m for c in cycles.find(graph.nodes, graph.edges) for m in c.members}
     out: dict[str, set[str]] = {}
     for n in graph.nodes:
         status = (n.get("props") or {}).get("status")
-        if n["kind"] == "decision" and isinstance(status, str) and status.strip().lower().startswith("superseded"):
+        if n["kind"] == "decision" and isinstance(status, str) and status.strip().lower().startswith("superseded") and n["id"] not in held:
             out.setdefault(n["id"], set())
     for e in graph.edges:
-        if e["type"] == "SUPERSEDES":
+        if e["type"] == "SUPERSEDES" and e["target"] not in held:
             out.setdefault(e["target"], set()).add(e["source"])
     return {k: sorted(v) for k, v in out.items()}
 

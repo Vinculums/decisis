@@ -147,7 +147,8 @@ With `fail-on-unresolved: true` the step fails when any of these is present, and
 their sum:
 
 - a `check` result that cannot be judged (listed under "Cannot be judged"), such as an import computed at run
-  time or a file the scanner cannot finish;
+  time, a file the scanner cannot finish, or a `SUPERSEDES` cycle among the decisions (its decisions are judged as
+  in force, and the entry names each one and its file);
 - an audit finding whose status is unresolved, in any inventory, whether or not a decision's rule covers it,
   such as an advisory whose affected versions cannot be compared with the package's version, or a Docker image
   under a `pinned_to_commit` rule;

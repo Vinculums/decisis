@@ -3,7 +3,8 @@
 The changed files come from `--changed` or from `git diff --name-only REF...HEAD` in the repository. Each file
 is passed to `impact`, which lists the decisions that govern it; superseded decisions are listed apart and never
 judged. Every other decision whose `rule` has a `review_required` or `imports_forbidden` entry is judged, since
-the rule's own globs name the files it covers. `review_required` is judged on each changed file against the
+the rule's own globs name the files it covers. A decision in a `SUPERSEDES` cycle is not superseded, so its rules are judged,
+and each cycle is a result under `unresolved`. `review_required` is judged on each changed file against the
 reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go, Rust,
 Java or Kotlin file its `from` globs cover (see `imports.py`); no code of the repository is run. A violation that one of the
 decision's own waivers covers is `waived` through the waiver's expiry date, listed apart and never counted for the
@@ -22,7 +23,7 @@ import posixpath
 import subprocess
 from pathlib import Path
 
-from . import codeowners, imports, impact, init, rules
+from . import codeowners, cycles, imports, impact, init, rules
 from .sandbox import Limits, Subgraph
 
 MAX_CHANGED = 10_000
@@ -153,6 +154,11 @@ def import_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str],
     return out, listed
 
 
+def cycle_results(found: list[cycles.Cycle]) -> list[dict]:
+    return [{"file": c.files[0] if c.files else "", "line": None, "decision": c.decisions[0], "rule": cycles.RULE, "verdict": "unresolved",
+             "why": c.reason, "import": None, "target": None, "decisions": list(c.members), "files": list(c.files)} for c in found]
+
+
 def expiring(waived: list[dict], day: datetime.date, warn_days: int) -> list[dict]:
     return rules.expiring_soon([(r["decision"], r["waiver"]) for r in waived], day, warn_days)
 
@@ -182,7 +188,7 @@ def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = 
     day = day or rules.today()
     results = review_results(decisions, files, list(reviewers), day)
     found, listed = import_results(decisions, files, imports.Repo(root), day)
-    results += found
+    results += found + cycle_results(cycles.find(graph.nodes, graph.edges))
     violations, unresolved, waived = ordered(results, "violated"), ordered(results, "unresolved"), ordered(results, rules.WAIVED)
     ruled = [{"decision": n["id"], "rule": r.kind, **value_of(r), "files": covered(r, files)}
              for n, parsed in decisions for s in rules.CHANGE_SUBJECTS for r in rules.judging(parsed, s)]

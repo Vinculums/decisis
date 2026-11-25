@@ -23,7 +23,7 @@ from importlib import metadata
 from pathlib import Path
 from urllib.parse import quote
 
-from . import rules
+from . import cycles, rules
 from .inventory.siblings import repository_root
 
 SCHEMA = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json"
@@ -48,6 +48,7 @@ RULE_TEXT = {
     "review_required": "A changed file lacks a review a decision requires",
     "imports_forbidden": "A changed file imports a path a decision forbids",
 }
+OTHER_TEXT = {cycles.RULE: "Decisions supersede each other in a cycle, so none of them is treated as superseded"}
 
 
 def tool_version() -> str | None:
@@ -130,7 +131,7 @@ def result(rule: str, level: str, text: dict, where: list[dict], prints: dict, p
 
 
 def descriptors(kinds: set[str]) -> list[dict]:
-    return [{"id": data(k), "shortDescription": {"text": RULE_TEXT.get(k) or message(k)["text"]}, "defaultConfiguration": {"level": ERROR}}
+    return [{"id": data(k), "shortDescription": {"text": RULE_TEXT.get(k) or OTHER_TEXT.get(k) or message(k)["text"]}, "defaultConfiguration": {"level": ERROR}}
             for k in sorted(kinds)]
 
 
