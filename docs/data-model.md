@@ -120,12 +120,17 @@ A team handle, `@org/team`, matches only when written exactly the same. One list
 strings, template literals, regular expressions and JSX text (JSX is read in every file but `.ts`, `.mts`
 and `.cts`, where `<` starts a type); and Go (`.go`) and Rust (`.rs`) files with scanners that skip
 comments, strings and character literals (Go raw strings and runes; Rust raw strings such as `r#"..."#`,
-byte and C strings, nested block comments, and lifetimes told apart from character literals). It reads
+byte and C strings, nested block comments, and lifetimes told apart from character literals); and Java (`.java`)
+and Kotlin (`.kt`, `.kts`) files with a scanner that skips comments (Kotlin block comments nest), strings with
+their escapes, Java text blocks, Kotlin raw strings and `${...}` templates, character literals and Kotlin
+backtick names. It reads
 `import`, `from ... import`, and `importlib.import_module` or `__import__` with a literal name in Python;
 `import ... from`, `import "x"`, `export ... from`, and `require` or `import()` with a literal specifier in
 JavaScript and TypeScript; single `import "path"` lines and grouped `import ( ... )` blocks, with an alias,
 a dot or a blank name, in Go; and `use` declarations (with `{...}` groups, `self`, `*` and `as` expanded
-into one path each), `mod x;` declarations and `extern crate x;` in Rust.
+into one path each), `mod x;` declarations and `extern crate x;` in Rust; and `import a.b.C`, `import a.b.*`,
+`import static a.b.C.m` and `import static a.b.C.*` in Java and `import a.b.C`, `import a.b.*` and `import a.b.C as D`
+in Kotlin, from the header of the file (after the `package` line and any file annotation).
 
 A Python module resolves to a file under the root of the importing file's package (the first directory
 above it without an `__init__.py`), the nearest directory above the file with a `pyproject.toml`,
@@ -138,8 +143,37 @@ A relative JavaScript specifier resolves to the file, the file with a usual exte
 `tsconfig.json` or `jsconfig.json` above the file, with its `extends` chain followed through relative
 paths inside the repository (at most 16 deep). `baseUrl` is read relative to the config that sets it, and
 `paths` relative to `baseUrl`, or to their own config when there is no `baseUrl`. A specifier that
-matches a `paths` pattern but names no file is `unresolved`. Any other specifier is an external package:
+matches a `paths` pattern but names no file is `unresolved`. A specifier that is the name of a workspace
+package, or that name and a subpath, resolves to the files of that package (described below). Any other specifier is an external package:
 not a violation, unless a `to` glob that names `node_modules` covers `node_modules/<specifier>`.
+
+A directory declares a workspace with `workspaces` in its `package.json` (a list, or an object with a `packages`
+list; npm, Yarn and Bun) or with `packages` in a `pnpm-workspace.yaml` beside it (pnpm). Each directory below it
+with a `package.json` that has a `name`, that a pattern covers (`*`, `?` and `**`) and that no `!` pattern removes
+is a workspace package. A declaration that cannot be read, or that uses a pattern syntax this reader does not know
+(braces, brackets, extended globs), counts every named package below the directory, so a package is never lost to
+a pattern. A file looks first at the packages of the workspaces that contain it.
+
+A specifier such as `@shop/db` or `@shop/db/client` names a workspace package when the package's `name` is
+`@shop/db`, when a `workspace:` dependency of the nearest `package.json` above the file (in `dependencies`,
+`devDependencies`, `peerDependencies` or `optionalDependencies`) links the specifier's package name to it
+(`"data": "workspace:@shop/db@*"` and `"data": "workspace:../db"` give the name `data` to that package;
+`"@shop/db": "workspace:*"` links the name to itself). A specifier that names a workspace package resolves to
+it whether or not the importing package declares it. A `tsconfig.json` `paths` entry still comes first. A `workspace:` link to a package that no workspace has is `unresolved`, never external.
+Where several workspace packages in scope share one name, every one is followed. When the walk over the repository was cut at 200000 files, a bare specifier that names no workspace package
+is unresolved, unless it is a `node:` specifier or the name of a Node core module (`fs`, `path`, `fs/promises`).
+
+The files the import names are those the package gives for the subpath: its `exports` (the `.` entry or the
+subpath, with every condition and array member as a file the import may name, `*` patterns and trailing-`/`
+folders read as Node does, `null` blocking the subpath), or, with no `exports`, the `main`, `module`, `types`,
+`typings`, `browser` and `source` fields for the package itself and the file below the package directory for a
+subpath, read like a relative import (extensions, `index` files, `.js` for `.ts`). The first file that exists is
+the `target` and the others are named with it, so a `to` glob over any of them covers the import. A subpath that
+`exports` does not list is `unresolved`, with the package directory as its target. When none of the files exists
+(a build output that is not in the checkout, such as `dist/index.js`), the import is still of that package:
+the `target` is the package directory with a trailing `/` (`packages/db/`, which `packages/db/**` covers), and
+the paths the package declares and the files `src/` holds under the same names are named with it. A workspace
+package is also named `node_modules/<specifier>`, as before, so a rule that names `node_modules` still covers it.
 
 A Go import path resolves against the nearest `go.mod` above the file. A path equal to or under its
 `module` path names the package directory below that `go.mod` (`example.com/shop/svc/internal/db` with
@@ -186,13 +220,56 @@ above; target-specific dependency tables count too. A path into such a crate, wi
 `::`, is read from its library root the same way. Any other path (`std`, a crate from a registry) is
 external and never a violation.
 
-A plain text search for the same import forms runs over each JavaScript, TypeScript and Go file, and over
+The sources of the repository are the `.java` and `.kt` files below the repository root, except build output
+(a `build` directory beside a `build.gradle` or `build.gradle.kts`, a `target` directory beside a `pom.xml`) and
+hidden and `node_modules` directories. A file is filed under the package its `package` line declares and under the
+package of its path below a source root: a directory `src/<set>/java` or `src/<set>/kotlin` (`src/main/java`,
+`src/test/kotlin`, `src/jvmMain/kotlin`), or a directory a module declares in a string literal, relative to the
+module: `srcDir`, `srcDirs` or `setSrcDirs` in a `build.gradle` or `build.gradle.kts`, `sourceDirectory`,
+`testSourceDirectory` or a `source` entry in a `pom.xml`. A file with no `package` line is found only by its path.
+A Kotlin file is also found by the top-level classes, objects, functions and properties it declares, by the
+class `<File>Kt` that Java sees and by a `@file:JvmName`.
+
+An import is placed by the longest prefix of its name that is a class of the repository, in every source root: in
+`import static a.b.C.m` and `import a.b.C.Inner` the class is `a.b.C`, and the import is of the file that holds
+it. Every file a prefix names is followed (the same class in two modules, or a class and a package of one
+name), the first is the `target` and the rest are named with it. A wildcard names the package: the `target` is the
+directory that holds it with a trailing `/` (`db/src/main/java/com/shop/db/`, which `db/**` covers), and the
+directories and each source file directly in them are named with it, so a package split over several modules is
+judged on all of them. A name that no source file holds is external, as is every class of the JDK, the Kotlin
+standard library and any library. It is `unresolved` instead when a package of the repository could hold it (the
+package its first capitalized name, or all of it but its last name, gives), because the class may be generated or
+live in a library that shares the package; the package directory is its `target`, so a rule that does not name
+that directory still finds it not violated. The member of a class is never placed in a file that does not
+declare the class.
+
+The `package` line is read from the token list of the file, so a byte order mark, a file annotation over several
+lines, a comment after the name, spaces around the dots and a long header do not hide it. A file whose package line
+still cannot be read is unplaced, whatever directory holds it, since a Kotlin directory need not mirror its
+package. That is a header that does not scan, a malformed `package` line, a file too large to read to its
+`package` line, a file that holds a NUL character (such as a UTF-16 source), and a file with no `package` line
+whose header stops at something that cannot start a declaration (a stray `#`, `~` or `?`, or an annotation that
+does not parse). A file with no `package` line whose header ends at a modifier, `class`, `fun`, `@interface` or
+another declaration keyword is in the default package.
+While the repository has an unplaced file, an import that would be external is unresolved when it is not
+clearly outside the repository. It is clearly outside only when no unplaced file declares any name the import
+uses: the names of a file are its own name (and the name plus `Kt`), its `@file:JvmName`, and every name that
+follows `class`, `interface`, `enum`, `record`, `object`, `typealias`, `fun`, `val` or `var` in it, and an unplaced
+file that cannot be read to its end declares every name. A wildcard import (`import a.b.*`) is also unresolved
+when an unplaced file has no readable `package` text or names `a` as its first package name after the word
+`package`. The `target` of such an import is the unplaced file.
+When the walk over the repository was cut at 200000 files, an import that would be external is unresolved
+unless its first name is `java`, `javax`, `jdk` or `kotlin`. A name is never clearly outside because it was not
+found.
+
+A plain text search for the same import forms runs over each JavaScript, TypeScript and Go file, over each
+Java and Kotlin file for an `import` at the start of a line or after a `;`, and over
 each Rust file for `use` paths that start with `crate`, `self`, `super`, the name of a crate in the
 repository or a name the file binds, and for `mod x;`. A specifier it finds that the scanner did not read as code (in a comment or a
 string, or after a point the scanner misread) is `unresolved` with the reason "the scanner and the text
 search disagree" and the file it would name as `target`; it is `not_violated` only when that target is
-known and no `to` glob covers it. A Go or Rust hit that would be external is not listed, since read as an
-import it could not be a violation.
+known and no `to` glob covers it. A Go, Rust, Java or Kotlin hit that would be external is not listed, since read
+as an import it could not be a violation.
 
 `unresolved` is also given to an import whose specifier is computed at run time, a relative import that
 names no file, a file that cannot be parsed or scanned to its end (an unclosed string, template literal,
@@ -202,7 +279,11 @@ In Go it is given to a path under the module path with no directory in the repos
 `..` or an empty element, a path with an escape sequence, and a `go.mod` whose `module` directive is
 missing or cannot be read (both the one-line and the `module ( ... )` block form are read). Go packages
 under `vendor/`, and modules a `replace` directive or `go.work` places inside the repository, are external
-like any other path outside the module, so no `to` glob can name them. In Rust it is given to a `crate::`,
+like any other path outside the module, so no `to` glob can name them. In Java and Kotlin it is given to an import that cannot be read, a name that a package of the repository could
+hold but no source file declares, and, when the repository has more than 200000 files and so was searched only in
+part, a name that was not found. In JavaScript and TypeScript it is also given to an `exports` map that does not list
+the subpath, one that mixes subpaths and conditions, and a `workspace:` link to a package that no workspace
+has. In Rust it is given to a `crate::`,
 `self::` or `super::` path or a `mod` declaration in a file with no `Cargo.toml` above it or whose nearest
 `Cargo.toml` has no `[package]` or cannot be read, a path with a name found no way above, a crate with no
 root file the scanner finds, a `super::` above the crate root or from a file the tree does not reach, a
@@ -1014,7 +1095,10 @@ waived finding's record is checked like any other, scope and paths included.
 - `imports`: each import read from a changed file that a `from` glob covers, with `file`, `line`,
   `import`, `resolution` (`repository`, `external` or `unresolved`), `target` (a repository path, a Go
   package directory ending in `/`, `node_modules/<specifier>` for an external JavaScript package, or null)
-  and `why` when it is unresolved. A Rust `import` is written `use <path>` or `mod <name>`.
+  and `why` when it is unresolved. A Rust `import` is written `use <path>` or `mod <name>`, and a Java or Kotlin one `import a.b.C`, `import static a.b.C.m` or
+  `import a.b.*`, with `as D` for a Kotlin alias. The `target` of a Java or Kotlin import is a source file, or a package
+  directory ending in `/` for a wildcard, and null for an external class; that of a workspace package is its file or
+  its directory ending in `/`.
 - `today`: the date waivers were judged on.
 - `violations`, `unresolved` and `waived`: one entry per file, import and rule, with `file`, `line` (null for
   `review_required`), `decision`, `rule`, `verdict`, `why`, `import` and `target` (both null for

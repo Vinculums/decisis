@@ -1,0 +1,6 @@
+{
+  "name": "@shop/ui",
+  "dependencies": {
+    "@shop/db": "workspace:*"
+  }
+}

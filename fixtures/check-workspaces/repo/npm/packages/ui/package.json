@@ -1,0 +1,7 @@
+{
+  "name": "@shop/ui",
+  "dependencies": {
+    "@shop/db": "*",
+    "@shop/api": "*"
+  }
+}

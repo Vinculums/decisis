@@ -17,7 +17,9 @@ relative specifier resolves to the file itself, the file with one of `EXTENSIONS
 specifier, or an `index` file in that directory. `paths` and `baseUrl` from the nearest `tsconfig.json` or
 `jsconfig.json` above the file, with its `extends` chain inside the repository, apply to other specifiers;
 one that matches a `paths` pattern but names no file is unresolved. Any other specifier is an external
-package, given the target `node_modules/<specifier>`.
+package, given the target `node_modules/<specifier>`, unless it names a package of an npm, pnpm, Yarn or Bun workspace
+of the repository (`workspaces.py`): it then resolves to that package's files through `exports`, `main` and the other
+entry fields, and a `workspace:` link of the nearest `package.json` can give the package another name.
 
 Go files are read with a scanner that skips comments, strings and runes. Single and grouped `import`
 declarations are listed, with an alias, dot or blank name. A path equal to or under the `module` path of the
@@ -36,9 +38,14 @@ first name that is none of those is a crate of the repository (by its `Cargo.tom
 `package` rename or a workspace dependency) or external. A module file `a/b.rs` is also matched as its
 directory `a/b/`.
 
-A plain text search for the same import forms runs over every JavaScript, TypeScript, Go and Rust file as
+Java and Kotlin files are read by `jvm.py`: `import a.b.C`, `import a.b.*`, `import static a.b.C.m` and Kotlin
+`import a.b.C as D` resolve to the source file of the class, or the package directory for a wildcard, by the
+`package` line of each source file and by its path under the source roots; a class of no source file is external,
+and one that a package of the repository could hold is unresolved.
+
+A plain text search for the same import forms runs over every JavaScript, TypeScript, Go, Rust, Java and Kotlin file as
 well. A specifier it finds that the scanner did not read as code is listed as unresolved, with the file it
-would name, so a scanner mistake can never make an import disappear; a Go or Rust hit that would be external
+would name, so a scanner mistake can never make an import disappear; a Go, Rust, Java or Kotlin hit that would be external
 is left out, since it could not be a violation.
 
 A call whose specifier is not a literal, a relative import that names no file, a file that cannot be parsed
@@ -60,6 +67,7 @@ from pathlib import Path
 PYTHON = (".py", ".pyi")
 SCRIPT = (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
 TYPESCRIPT_ONLY = (".ts", ".mts", ".cts")
+JVM = (".java", ".kt", ".kts")
 EXTENSIONS = (".ts", ".tsx", ".d.ts", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".json")
 COMPILED = {".js": (".ts", ".tsx"), ".jsx": (".tsx",), ".mjs": (".mts",), ".cjs": (".cts",)}
 CONFIGS = ("tsconfig.json", "jsconfig.json")
@@ -116,6 +124,8 @@ class Repo:
         self.rust_explored: set[tuple] = set()
         self.rust_cuts = 0
         self.rust_local: dict[tuple, tuple[str, object]] = {}
+        self.workspaces = None
+        self.jvm = None
 
     def kind(self, rel: str) -> str | None:
         if rel not in self.seen:
@@ -196,6 +206,8 @@ def source(rel: str) -> str | None:
         return "go"
     if rel.endswith(".rs"):
         return "rust"
+    if rel.endswith(JVM):
+        return "jvm"
     return None
 
 
@@ -218,7 +230,7 @@ def read(repo: Repo, rel: str) -> list[Import]:
     if lang == "python":
         found = python_imports(repo, rel, data)
     else:
-        found = READERS[lang](repo, rel, data.decode("utf-8", "replace"))
+        found = READERS[lang](repo, rel, data.decode("utf-8", "replace").removeprefix("\ufeff"))
     return sorted(set(found), key=lambda i: (i.line or 0, i.specifier, i.target or ""))
 
 
@@ -603,12 +615,14 @@ def script_imports(repo: Repo, rel: str, text: str) -> list[Import]:
             out.append(Import(line, f"{how} with a computed specifier", UNRESOLVED, None, COMPUTED))
             continue
         read_specs.add(spec)
-        resolution, target, why = script_target(repo, rel, spec)
-        out.append(Import(line, spec, resolution, target, why))
+        resolution, target, why, also = script_target(repo, rel, spec)
+        out.append(Import(line, spec, resolution, target, why, also))
     if broken:
         out.append(Import(None, rel, UNRESOLVED, None, f"the file cannot be scanned to its end: {broken}"))
-    out += [Import(line, spec, UNRESOLVED, script_target(repo, rel, spec)[1], DISAGREE)
-            for line, spec in sweep(text) if spec not in read_specs]
+    for line, spec in sweep(text):
+        if spec not in read_specs:
+            _, target, _, also = script_target(repo, rel, spec)
+            out.append(Import(line, spec, UNRESOLVED, target, DISAGREE, also))
     config = script_config(repo, rel)
     out += [Import(None, config["path"], UNRESOLVED, None, note) for note in config["notes"]]
     return out
@@ -623,19 +637,22 @@ def sweep(text: str) -> list[tuple[int, str]]:
     return out
 
 
-def script_target(repo: Repo, rel: str, spec: str) -> tuple[str, str | None, str]:
+def script_target(repo: Repo, rel: str, spec: str) -> tuple[str, str | None, str, tuple[str, ...]]:
     if spec in (".", "..") or spec.startswith(("./", "../")):
         base = clean(posixpath.join(posixpath.dirname(rel), spec))
         if base is None:
-            return UNRESOLVED, None, "the relative specifier goes above the repository"
+            return UNRESOLVED, None, "the relative specifier goes above the repository", ()
         hit = script_file(repo, base)
-        return (REPOSITORY, hit, "") if hit else (UNRESOLVED, None, "no file in the repository matches the relative specifier")
+        return (REPOSITORY, hit, "", ()) if hit else (UNRESOLVED, None, "no file in the repository matches the relative specifier", ())
     if spec.startswith("/"):
-        return UNRESOLVED, None, "an absolute path is not read"
+        return UNRESOLVED, None, "an absolute path is not read", ()
     found = aliased(repo, rel, spec)
     if found is not None:
-        return found
-    return EXTERNAL, "node_modules/" + spec, ""
+        return (*found, ())
+    workspace = workspaces.resolve(repo, rel, spec)
+    if workspace is not None:
+        return workspace
+    return EXTERNAL, "node_modules/" + spec, "", ()
 
 
 def clean(path: str) -> str | None:
@@ -759,8 +776,8 @@ def read_json(repo: Repo, path: str):
         full = repo.root / path
         if full.stat().st_size > MAX_BYTES:
             return None
-        return json.loads(plain_json(full.read_text(encoding="utf-8")))
-    except (OSError, UnicodeDecodeError, ValueError):
+        return json.loads(plain_json(full.read_text(encoding="utf-8").removeprefix("\ufeff")))
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
         return None
 
 
@@ -1823,4 +1840,10 @@ def rust_imports(repo: Repo, rel: str, text: str) -> list[Import]:
     return out + rust_sweep(repo, rel, text, ctx, names, seen)
 
 
-READERS = {"script": script_imports, "go": go_imports, "rust": rust_imports}
+def jvm_imports(repo: Repo, rel: str, text: str) -> list[Import]:
+    return jvm.read(repo, rel, text)
+
+
+READERS = {"script": script_imports, "go": go_imports, "rust": rust_imports, "jvm": jvm_imports}
+
+from . import jvm, workspaces

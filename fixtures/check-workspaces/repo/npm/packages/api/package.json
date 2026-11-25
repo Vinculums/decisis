@@ -1,0 +1,11 @@
+{
+  "name": "@shop/api",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "require": "./src/index.cjs"
+    },
+    "./client": "./src/client.ts",
+    "./utils/*": "./src/utils/*.ts"
+  }
+}

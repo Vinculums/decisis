@@ -4,8 +4,8 @@ The changed files come from `--changed` or from `git diff --name-only REF...HEAD
 is passed to `impact`, which lists the decisions that govern it; superseded decisions are listed apart and never
 judged. Every other decision whose `rule` has a `review_required` or `imports_forbidden` entry is judged, since
 the rule's own globs name the files it covers. `review_required` is judged on each changed file against the
-reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go or
-Rust file its `from` globs cover (see `imports.py`); no code of the repository is run. A violation that one of the
+reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go, Rust,
+Java or Kotlin file its `from` globs cover (see `imports.py`); no code of the repository is run. A violation that one of the
 decision's own waivers covers is `waived` through the waiver's expiry date, listed apart and never counted for the
 exit code. The waiver of a waived result that ends within `warn_days` of the run's date is also listed under
 `expiring_soon`; that list changes no verdict and no exit code. A rule or waiver of any decision that is not

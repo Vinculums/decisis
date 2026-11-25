@@ -1,0 +1,53 @@
+{
+ "meta": {
+  "seeds": [
+   "concept:shop-ui"
+  ],
+  "space": "synthetic",
+  "extracted_at": "2026-11-25T00:00:00Z",
+  "nodes": 2,
+  "edges": 1
+ },
+ "nodes": [
+  {
+   "id": "concept:shop-ui",
+   "kind": "concept",
+   "title": "Shop user interface",
+   "domain": "shop/ui",
+   "props": {
+    "code_ref": [
+     "app/**",
+     "legacy/**"
+    ]
+   }
+  },
+  {
+   "id": "decision:ui-does-not-import-db",
+   "kind": "decision",
+   "title": "The application never imports the database module",
+   "domain": "shop/ui",
+   "props": {
+    "statement": "The application never imports the database module",
+    "rule": {
+     "imports_forbidden": {
+      "from": [
+       "app/**",
+       "legacy/**"
+      ],
+      "to": [
+       "db/**"
+      ]
+     }
+    }
+   }
+  }
+ ],
+ "edges": [
+  {
+   "source": "decision:ui-does-not-import-db",
+   "target": "concept:shop-ui",
+   "type": "ABOUT",
+   "evidence": "the boundary is drawn on the user interface"
+  }
+ ]
+}

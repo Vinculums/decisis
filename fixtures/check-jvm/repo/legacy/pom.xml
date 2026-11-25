@@ -1,0 +1,5 @@
+<project>
+  <build>
+    <sourceDirectory>src/main/custom</sourceDirectory>
+  </build>
+</project>
