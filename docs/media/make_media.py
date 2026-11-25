@@ -1,5 +1,6 @@
 import re
 import sys
+from importlib import metadata
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -127,6 +128,21 @@ def wrap(line: str, cols: int) -> list[str]:
     return out
 
 
+def install_line(root: str = "decisis") -> str:
+    seen, todo = {}, [root]
+    while todo:
+        dist = metadata.distribution(todo.pop())
+        name = dist.metadata["Name"]
+        if name.lower() in {k.lower() for k in seen}:
+            continue
+        seen[name] = dist.version
+        for req in dist.requires or []:
+            if "extra ==" in req:
+                continue
+            todo.append(re.split(r"[\s;<>=!~\[(]", req, maxsplit=1)[0])
+    return "Successfully installed " + " ".join(f"{n}-{v}" for n, v in sorted(seen.items()))
+
+
 def terminal(demo_text: Path, out: Path):
     cols, rows = 104, 30
     f, fb = font(MONO, 15), font(MONO_BOLD, 15)
@@ -186,7 +202,7 @@ def terminal(demo_text: Path, out: Path):
         frames.append(frame(shown, cursor="on"))
         durations.append(500)
         if cmd.endswith("pip install decisis"):
-            add("Successfully installed decisis-0.1.0 relate-db-1.0.2")
+            add(install_line())
             add("")
             frames.append(frame(shown))
             durations.append(900)
