@@ -126,9 +126,12 @@ the outputs and the exit code are the same with and without the input; the file 
   categories and two sets of fingerprints and no path appears in the log.
 - Locations are repository-relative. With `working-directory` below the repository root, the directory is put before each
   changed file. A path that is absolute or leaves the repository gets no location.
-- A result a waiver covers is uploaded with an accepted suppression whose justification is the waiver, so code scanning
-  treats it as suppressed and not as an open alert. From the day after the waiver's expiry the suppression is gone. Results that
-  are not violated are not in the file.
+- A result a waiver covers is uploaded at level `note`, with a message that starts with `Waived until <date>:` and an
+  accepted suppression whose justification is the waiver. In the Security tab it appears as a note, not as an error.
+  GitHub does not read the suppression, so it does not dismiss the alert on its own: dismiss it in the Security tab, or let
+  it close when the violation the waiver covers is fixed. The alert is the same one the violation was, so a finding that
+  turns from violated to waived, or back, is not a new alert. From the day after the waiver's expiry the suppression is gone
+  and the result is an `error` again. Results that are not violated are not in the file.
 - A step later in the job can read the file: `${{ steps.<id>.outputs.sarif-file }}`. When the base commit has no decisions
   the file is a valid log with no results.
 - The format, the fields and the fingerprints are described in [Commands](commands.md#sarif-for-code-scanning).

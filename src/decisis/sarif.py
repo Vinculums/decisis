@@ -2,10 +2,12 @@
 
 One run holds one report. The tool driver is `decisis` with its installed version, and each rule kind that judged
 something is a `reportingDescriptor`. A violated result is an `error` and an unresolved one a `warning`; a waived one
-keeps `error` and carries an external, accepted suppression whose justification is the waiver. A result that is not
-violated is left out. `check` points each result at the changed file and the import line, `audit` at the inventory
-file. Every result has a `partialFingerprints` value hashed from the decision, the rule kind, the file and the import
-or package, so a later run of the same finding is the same alert.
+is a `note` whose message starts with "Waived until <date>:" and carries an external, accepted suppression whose
+justification is the waiver. GitHub code scanning does not read the suppression, so the level is what keeps a waived
+finding from showing as an open error. A result that is not violated is left out. `check` points each result at the
+changed file and the import line, `audit` at the inventory file. Every result has a `partialFingerprints` value hashed
+from the decision, the rule kind, the file and the import or package, so a later run of the same finding is the same
+alert, whether it is violated or waived.
 
 Report text comes from snapshots and pull requests and is only ever put into JSON values: a message has its link
 syntax escaped, a location is a percent-encoded repository-relative path or none, and nothing is formatted into
@@ -29,11 +31,12 @@ VERSION = "2.1.0"
 TOOL = "decisis"
 URI = "https://github.com/Vinculums/decisis"
 FINGERPRINT = "decisis/v1"
-ERROR, WARNING = "error", "warning"
+ERROR, WARNING, NOTE = "error", "warning", "note"
 ADVISORY_RULE = "advisory_severity_at_least"
 VIOLATED, UNRESOLVED = "violated", "unresolved"
 JUDGED = (VIOLATED, UNRESOLVED, "not_violated", rules.WAIVED)
-CHECK_LISTS = (("violations", ERROR), ("unresolved", WARNING), ("waived", ERROR))
+CHECK_LISTS = (("violations", ERROR), ("unresolved", WARNING), ("waived", NOTE))
+AUDIT_LEVELS = {VIOLATED: ERROR, UNRESOLVED: WARNING, rules.WAIVED: NOTE}
 DRIVE = re.compile(r"^[A-Za-z]:")
 RULE_TEXT = {
     "advisory_severity_at_least": "A dependency has an advisory at or above the severity a decision sets",
@@ -113,6 +116,11 @@ def justification(w: dict) -> str:
     return data(f"waiver {w.get('waiver')} until {w.get('expires')}, approved by {w.get('approved_by')}: {w.get('reason')}")
 
 
+def waived_lead(waiver: dict | None) -> str:
+    until = (waiver or {}).get("expires")
+    return f"Waived until {until}" if until else "Waived"
+
+
 def result(rule: str, level: str, text: dict, where: list[dict], prints: dict, props: dict, waiver: dict | None = None) -> dict:
     out = {"ruleId": data(rule), "level": level, "message": text, **({"locations": where} if where else {}),
            "partialFingerprints": prints, "properties": data(props)}
@@ -141,11 +149,13 @@ def check_run(report: dict, version: str | None = None, base: str = "") -> dict:
         for r in report.get(key) or []:
             file, rule, decision = r.get("file"), r.get("rule") or "rule", r.get("decision")
             target = r.get("target")
+            waived = key == "waived"
+            lead = [waived_lead(r.get("waiver"))] if waived else []
             props = {"decision": decision, "rule": rule, "file": file, "import": r.get("import"), "target": target,
                      "path": [file, target] if target else [file], "waiver": r.get("waiver")}
             prints = fingerprint([decision, rule, posixpath.join(base, file) if base and isinstance(file, str) else file, r.get("import")], seen)
-            out.append(result(rule, level, message(decision, r.get("why")), location(file, r.get("line"), base), prints, props,
-                              r.get("waiver") if key == "waived" else None))
+            out.append(result(rule, level, message(*lead, decision, r.get("why")), location(file, r.get("line"), base), prints, props,
+                              r.get("waiver") if waived else None))
     kinds = {r.get("rule") or "rule" for r in report.get("rules") or [] if r.get("files")} | {r["ruleId"] for r in out}
     return run(out, kinds, "decisis/check/", version)
 
@@ -170,11 +180,13 @@ def audit_run(report: dict, inventory: str | None = None, version: str | None = 
             if verdict == "not_violated":
                 continue
             what = f"{package} ({advisory})" if advisory else package
+            waived = verdict == rules.WAIVED
+            lead = [waived_lead(p.get("waiver"))] if waived else []
             props = {"decision": p.get("decision"), "rule": rule, "package": package, "advisory": advisory, "path": f.get("path") or [],
                      "waiver": p.get("waiver")}
             prints = fingerprint([p.get("decision"), rule, name, package, advisory], seen)
-            out.append(result(rule, WARNING if verdict == UNRESOLVED else ERROR, message(p.get("decision"), f"{what}: {p.get('why')}"),
-                              location(inventory), prints, props, p.get("waiver") if verdict == rules.WAIVED else None))
+            out.append(result(rule, AUDIT_LEVELS[verdict], message(*lead, p.get("decision"), f"{what}: {p.get('why')}"),
+                              location(inventory), prints, props, p.get("waiver") if waived else None))
     return run(out, kinds, f"decisis/audit/{name}/", version)
 
 
