@@ -2,7 +2,8 @@
 
 `built` copies the files `decisis init` reads (the ADR and postmortem records and the CODEOWNERS file) from the
 commit's tree into a private temporary directory, through the hardened git helper, and runs `init.build` there.
-Only regular files are copied; a symbolic link in the commit is listed in `meta.problems` and not followed.
+Only regular files are copied. What lies in an ADR directory is judged by `init.Survey`, the rule `init` applies to
+a working tree, so links, submodules and files in subfolders are listed the same way and the caps stop at the same entry.
 `stored` reads a snapshot file from the commit's tree and returns `None` when the commit has no file at the path.
 `changes` names the decisions and waivers that one snapshot adds, changes or removes against another.
 """
@@ -20,11 +21,13 @@ from . import codeowners, init
 from .sandbox import Subgraph
 
 GIT_SECONDS = 120
-MAX_RECORDS = 5_000
 MAX_BYTES = 16 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 256 * 1024 * 1024
 REGULAR = ("100644", "100755")
 LINK = "120000"
+GITLINK = "160000"
+TREE = "040000"
+KINDS = {**{m: init.FILE for m in REGULAR}, LINK: init.LINK_ENTRY, GITLINK: init.MODULE}
 WAIVER_KEYS = ("path", "to", "package", "advisory", "rule")
 UNCOMPARED = ("waivers", "content_hash")
 
@@ -54,9 +57,9 @@ def commit_name(commit: str) -> str:
     return commit
 
 
-def entries(root: Path, commit: str, *paths: str) -> list[Entry]:
+def entries(root: Path, commit: str, *paths: str, deep: bool = False) -> list[Entry]:
     out = []
-    for item in git(root, "ls-tree", "-l", "-z", commit_name(commit), "--", *paths).split(b"\0"):
+    for item in git(root, "ls-tree", "-l", "-z", *(["-r"] if deep else []), commit_name(commit), "--", *paths).split(b"\0"):
         if not item:
             continue
         info, _, name = item.partition(b"\t")
@@ -84,21 +87,36 @@ def blob(root: Path, entry: Entry, limit: int) -> bytes:
     return git(root, "cat-file", "blob", entry.oid)
 
 
-def problem(path: str, reason: str) -> dict:
-    kind = {"kind": init.DECISION} if path.rpartition("/")[0] in init.ADR_DIRS else {}
-    return {"file": path, "reason": reason, "action": init.SKIPPED, **kind}
+def problem(path: str, reason: str, action: str = init.SKIPPED) -> dict:
+    kind = {"kind": init.DECISION} if init.adr_dir_of(path) else {}
+    return {"file": path, "reason": reason, "action": action, **kind}
 
 
 def copy(root: Path, commit: str, into: Path) -> list[dict]:
-    dirs = init.ADR_DIRS + init.POSTMORTEM_DIRS
-    found = entries(root, commit, *(d + "/" for d in dirs), *init.CODEOWNERS_FILES)
-    problems = []
-    for folder in sorted({e.path.rpartition("/")[0] for e in found} & set(dirs)):
+    problems: list[dict] = []
+    report = lambda path, reason, action: problems.append(problem(path, reason, action))
+    tops = {e.path: e for e in entries(root, commit, *init.ADR_DIRS)}
+    picked = []
+    for top in init.ADR_DIRS:
+        entry = tops.get(top)
+        if entry is None or entry.mode not in (TREE, LINK, GITLINK):
+            continue
+        if entry.mode != TREE:
+            report(top, init.DIR_LINKED if entry.mode == LINK else init.DIR_SUBMODULE, init.NOT_READ)
+            continue
+        into.joinpath(*top.split("/")).mkdir(parents=True, exist_ok=True, mode=0o700)
+        survey, below = init.Survey(top, report), {}
+        for e in entries(root, commit, top + "/", deep=True):
+            if e.mode in KINDS:
+                survey.add(e.path, KINDS[e.mode])
+                below[e.path] = e
+        picked += [below[path] for path in survey.read]
+    init.capped(len(picked), "ADR")
+    rest = [e for e in entries(root, commit, *(d + "/" for d in init.POSTMORTEM_DIRS), *init.CODEOWNERS_FILES) if init.source(e.path)]
+    for folder in sorted({e.path.rpartition("/")[0] for e in rest} & set(init.POSTMORTEM_DIRS)):
         into.joinpath(*folder.split("/")).mkdir(parents=True, exist_ok=True, mode=0o700)
-    picked = [e for e in found if init.source(e.path)]
-    if len(picked) > MAX_RECORDS:
-        raise ValueError(f"the commit holds {len(picked)} decision files, more than the {MAX_RECORDS} decisis reads")
-    for e in picked:
+    init.capped(sum(1 for e in rest if e.mode in REGULAR and e.path.rpartition("/")[0] in init.POSTMORTEM_DIRS), "postmortem")
+    for e in picked + rest:
         if e.mode == LINK:
             problems.append(problem(e.path, "it is a symbolic link in the commit, and decisions are read only from regular files"))
             continue

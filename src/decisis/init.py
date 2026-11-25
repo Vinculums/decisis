@@ -3,12 +3,16 @@
 Each reader takes a `Tree` and returns `(nodes, edges)` in snapshot shape. `build` runs the readers, merges
 what they return and sorts it, so the same tree always gives the same bytes. A file that cannot be read or
 parsed is listed in `meta.problems` with its path and the reason, and skipped; an entry about an ADR file has
-`kind: "decision"`, and `unread_decisions` reads back the ADRs left out for `check` and `audit`. Nothing is guessed from prose,
+`kind: "decision"`, and `unread_decisions` reads back the ADRs left out for `check` and `audit`, with each front matter key
+close to `rule` or `waivers` that the reader does not know. ADRs are read only from the files directly in an ADR
+directory; `Survey` lists, as `ignored`, what lies below it, by one rule that `committed` applies to a commit's tree as well.
+Nothing is guessed from prose,
 except that `--suggest-refs` adds the paths an ADR's text names and marks them as suggested.
 docs/data-model.md lists the front matter keys and headings each reader understands.
 """
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import os
@@ -29,12 +33,28 @@ CODEOWNERS_FILES = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 NOT_RECORDS = ("readme.md", "index.md")
 REPO_NAME = re.compile(r"[A-Za-z0-9_-]+")
 SKIPPED, KEPT, NO_EDGE, NOT_READ, NO_EFFECT = "skipped", "kept without code paths", "no edge", "not read", "no effect"
-NOT_SUGGESTED = "not suggested"
+NOT_SUGGESTED, IGNORED = "not suggested", "ignored"
 DECISION = "decision"
 UNREAD = (SKIPPED, NOT_READ)
 
 TEXT_KEYS = ("title", "status", "date")
 LIST_KEYS = ("deciders", "decision-makers", "supersedes", "superseded_by", "superseded-by", "decisions", *REF_KEYS)
+RULE_KEYS = ("rule", "waivers")
+UNUSED_KEYS = ("consulted", "informed")
+ADR_KEYS = (*TEXT_KEYS, *LIST_KEYS, *RULE_KEYS, *UNUSED_KEYS)
+CLOSE = 0.75
+COMMON_KEYS = ("role", "roles", "tag", "tags", "type", "kind", "author", "authors", "owner", "owners", "category", "categories",
+               "layout", "parent", "slug", "id", "draft", "weight", "summary", "description", "keywords", "version")
+MAX_RECORDS = 5_000
+MAX_ENTRIES = owners.MAX_FILES
+MAX_LISTED = 20
+FILE, LINK_ENTRY, MODULE, FOLDER = "file", "link", "module", "folder"
+SUBFOLDER = "ADRs in subfolders are not read; move it up or pass its folder with --adr-dir"
+LINKED_RECORD = "it is a symbolic link, and decisions are read only from regular files"
+LINKED_OTHER = "it is a symbolic link, and decisis does not follow it; if it leads to a folder of ADRs, they are not read"
+SUBMODULE = "it is a git submodule or a folder with its own .git, and decisis does not read ADRs from it"
+DIR_LINKED = "the ADR directory is a symbolic link, and decisis does not follow it, so none of its ADRs are read; pass the folder it leads to with --adr-dir or move the ADRs into the repository"
+DIR_SUBMODULE = "the ADR directory is a git submodule or a folder with its own .git, so none of its ADRs are read; pass it with --adr-dir or move the ADRs into this repository"
 KEY_LINE = re.compile(r"([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?$")
 LIST_ITEM = re.compile(r"\s*-(?:[ \t]+(.*))?$")
 PREAMBLE = re.compile(r"\s*(?:[*-]\s+)?(\*\*|__)?(status|date|deciders|decision-makers)(?(1)(?::\1|\1\s*:)|\s*:)\s*(.+)$", re.I)
@@ -71,9 +91,9 @@ class Tree:
     def rel(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()
 
-    def problem(self, where: Path | str, reason: str, action: str = SKIPPED, kind: str | None = None) -> None:
+    def problem(self, where: Path | str, reason: str, action: str = SKIPPED, kind: str | None = None, **extra) -> None:
         self.problems.append({"file": self.rel(where) if isinstance(where, Path) else where, "reason": reason, "action": action,
-                              **({"kind": kind} if kind else {})})
+                              **({"kind": kind} if kind else {}), **extra})
 
     def located(self, given: str | None, defaults: tuple[str, ...]) -> list[Path]:
         if given is None:
@@ -96,9 +116,36 @@ class Tree:
             out.append(path)
         return out
 
+    def survey(self, directory: Path) -> list[str]:
+        found = Survey(self.rel(directory), lambda f, r, a: self.problem(f, r, a, DECISION))
+        stack = [iter(children(directory))]
+        while stack:
+            if found.stopped:
+                del stack[1:]
+            item = next(stack[-1], None)
+            if item is None:
+                stack.pop()
+            elif item[1] != FOLDER:
+                found.add(self.rel(item[0]), item[1])
+            elif not found.stopped and not templated(item[0].name):
+                stack.append(iter(children(item[0])))
+        return found.read
+
+    @cached_property
+    def adr_dirs(self) -> list[Path]:
+        if self.adr_dir is not None:
+            return self.located(self.adr_dir, ADR_DIRS)
+        for d in ADR_DIRS:
+            kind = entry_kind(self.root / d)
+            if kind in (LINK_ENTRY, MODULE):
+                self.problem(d, DIR_LINKED if kind == LINK_ENTRY else DIR_SUBMODULE, NOT_READ, DECISION)
+        return [self.root / d for d in ADR_DIRS if entry_kind(self.root / d) == FOLDER]
+
     @cached_property
     def adr_files(self) -> list[Path]:
-        return [p for d in self.located(self.adr_dir, ADR_DIRS) for p in self.records(d, DECISION)]
+        found = [self.root / p for d in self.adr_dirs for p in self.survey(d)]
+        capped(len(found), "ADR")
+        return found
 
     @cached_property
     def adr_index(self) -> dict[str, set[str]]:
@@ -166,6 +213,77 @@ def record(name: str) -> bool:
     return Path(name).suffix.lower() == ".md" and name.lower() not in NOT_RECORDS and "template" not in name.lower()
 
 
+def templated(name: str) -> bool:
+    return "template" in name.lower()
+
+
+def capped(count: int, what: str) -> None:
+    if count > MAX_RECORDS:
+        raise ValueError(f"the {what} directories hold {count} record files, more than the {MAX_RECORDS} decisis reads")
+
+
+def entry_kind(path: Path) -> str | None:
+    if path.is_symlink():
+        return LINK_ENTRY
+    if path.is_dir():
+        return MODULE if os.path.lexists(path / ".git") else FOLDER
+    return FILE if path.is_file() else None
+
+
+def children(directory: Path) -> list[tuple[Path, str]]:
+    found = [(p, k) for p in directory.iterdir() if (k := entry_kind(p)) is not None]
+    return sorted(found, key=lambda e: os.fsencode(e[0].name) + (b"/" if e[1] == FOLDER else b""))
+
+
+@dataclass
+class Survey:
+    top: str
+    report: Callable[[str, str, str], None]
+    read: list[str] = field(default_factory=list)
+    seen: int = 0
+    listed: int = 0
+    stopped: bool = False
+
+    def add(self, rel: str, kind: str) -> None:
+        *folders, name = (rel if self.top == "." else rel[len(self.top) + 1:]).split("/")
+        if templated(name) and kind != FILE or any(templated(f) for f in folders):
+            return
+        if not folders:
+            if kind == FILE:
+                if record(name):
+                    self.read.append(rel)
+            elif kind == LINK_ENTRY:
+                if record(name):
+                    self.report(rel, LINKED_RECORD, SKIPPED)
+                else:
+                    self.report(rel, LINKED_OTHER, IGNORED)
+            else:
+                self.report(rel, SUBMODULE, IGNORED)
+            return
+        if self.stopped:
+            return
+        self.seen += 1
+        if self.seen > MAX_ENTRIES:
+            self.stop(f"decisis stopped looking in the subfolders of {self.top} after {MAX_ENTRIES} files; {SUBFOLDER}")
+            return
+        reason = SUBFOLDER if record(name) else LINKED_OTHER if kind == LINK_ENTRY else SUBMODULE if kind == MODULE else None
+        if reason is None:
+            return
+        self.listed += 1
+        if self.listed > MAX_LISTED:
+            self.stop(f"more files in the subfolders of {self.top} are not listed after the first {MAX_LISTED}; {SUBFOLDER}")
+            return
+        self.report(rel, reason, IGNORED)
+
+    def stop(self, reason: str) -> None:
+        self.stopped = True
+        self.report(self.top, reason, IGNORED)
+
+
+def adr_dir_of(path: str) -> str | None:
+    return next((d for d in ADR_DIRS if path == d or path.startswith(d + "/")), None)
+
+
 def source(path: str) -> bool:
     folder, _, name = path.rpartition("/")
     return path in CODEOWNERS_FILES or (folder in ADR_DIRS + POSTMORTEM_DIRS and record(name))
@@ -214,9 +332,22 @@ def front_matter(lines: list[str]) -> dict:
         key, raw = m.group(1), (m.group(2) or "").strip()
         if key in out:
             raise Malformed(f"front matter line {n}: {key} is given twice")
-        out[key] = [] if not raw or raw.startswith("#") else inline_json(raw, n, list) if key == "waivers" and raw.startswith("[") else value(raw, n)
+        out[key] = [] if not raw or raw.startswith("#") else entry_value(key, raw, n)
         open_list = key if isinstance(out[key], list) and (not raw or raw.startswith("#")) else None
     return out
+
+
+def entry_value(key: str, raw: str, n: int):
+    if key == "waivers" and raw.startswith("["):
+        return inline_json(raw, n, list)
+    return value(raw, n) if key in ADR_KEYS else loose(raw, n)
+
+
+def loose(raw: str, n: int):
+    try:
+        return inline_json(raw, n, list if raw.startswith("[") else dict) if raw[:1] in ("[", "{") else value(raw, n)
+    except Malformed:
+        return value(raw, n)
 
 
 def value(raw: str, n: int):
@@ -388,7 +519,8 @@ def parse(tree: Tree, path: Path, kind: str | None = None) -> Parsed | None:
     text, data = read
     try:
         lines, body = split_front_matter(text)
-        fm = typed(front_matter(lines)) if lines is not None else {}
+        raw = front_matter(lines) if lines is not None else {}
+        fm = typed(raw)
         doc = markdown(body)
         if not (fm.get("title") or doc.title):
             raise Malformed("it has no title: neither a front matter title nor a '# ' heading")
@@ -396,7 +528,22 @@ def parse(tree: Tree, path: Path, kind: str | None = None) -> Parsed | None:
     except Malformed as e:
         tree.problem(path, str(e), kind=kind)
         return None
+    if kind == DECISION:
+        unknown_keys(tree, path, raw)
     return Parsed(fm, doc, data, refs)
+
+
+def unknown_keys(tree: Tree, path: Path, fm: dict) -> None:
+    for key in fm:
+        if key in ADR_KEYS:
+            continue
+        close = difflib.get_close_matches(key.lower(), ADR_KEYS, n=3, cutoff=CLOSE)
+        close = [c for c in close if c not in RULE_KEYS] if key.lower() in COMMON_KEYS else close
+        ruled = bool(set(close) & set(RULE_KEYS))
+        lost = "a rule or waiver written there is not judged" if ruled else "it is ignored"
+        meant = f"it may mean {' or '.join(close)}" if close else "it is close to no key decisis reads"
+        tree.problem(path, f"front matter key {key} is not a key decisis reads, so {lost}; {meant}", NOT_READ if ruled else IGNORED,
+                     DECISION, key=key, may_mean=close)
 
 
 def base_props(tree: Tree, path: Path, parsed: Parsed) -> dict:
@@ -423,7 +570,7 @@ def split_names(text: str | None) -> list[str]:
 
 
 def read_adrs(tree: Tree) -> tuple[list[dict], list[dict]]:
-    if tree.adr_dir is None and not tree.located(None, ADR_DIRS):
+    if tree.adr_dir is None and not tree.adr_dirs:
         tree.problem(".", f"no ADR directory: looked in {', '.join(ADR_DIRS)}", NOT_READ)
     nodes, edges = [], {}
     for path in tree.adr_files:
@@ -475,7 +622,9 @@ def link(tree: Tree, path: Path, nid: str, verb: str, ref: str, edges: dict) -> 
 def read_postmortems(tree: Tree) -> tuple[list[dict], list[dict]]:
     nodes, edges = [], {}
     for directory in tree.located(tree.postmortem_dir, POSTMORTEM_DIRS):
-        for path in tree.records(directory):
+        found = tree.records(directory)
+        capped(sum(1 for p in found if not p.is_symlink()), "postmortem")
+        for path in found:
             parsed = parse(tree, path)
             if parsed is None:
                 continue

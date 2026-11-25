@@ -123,8 +123,10 @@ The rest of this section describes how the decisions are read.
 
 - The files are read from the base commit's tree with git (`git ls-tree` and `git cat-file`, with hooks,
   fsmonitor and pagers off) into a private temporary directory that is removed afterwards. Nothing is checked
-  out and nothing from the base commit runs. Only regular files are read; a symbolic link in the base commit
-  is listed in the snapshot's problems and not followed. A `snapshot` file must be inside
+  out and nothing from the base commit runs. Only regular files are read. What lies in an ADR directory
+  besides its record files (files in subfolders, symbolic links, submodules) is listed by the same rule and the
+  same bounds as `init` (see [the data model](data-model.md#a-snapshot-from-a-repository-init)), and no link is
+  followed. A `snapshot` file must be inside
   `working-directory` and committed; the action stops with an error otherwise.
 - git runs on the repository whose `.git` is in `working-directory` or the nearest folder above it, named
   with `--git-dir`, and that repository must be inside `GITHUB_WORKSPACE`. Implicit bare repositories and

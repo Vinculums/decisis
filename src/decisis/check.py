@@ -7,7 +7,8 @@ the rule's own globs name the files it covers. `review_required` is judged on ea
 reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go or
 Rust file its `from` globs cover (see `imports.py`); no code of the repository is run. A violation that one of the
 decision's own waivers covers is `waived` through the waiver's expiry date, listed apart and never counted for the
-exit code. An ADR that `init` could not read is not in the snapshot, so its rules cannot be judged; each one the
+exit code. A rule or waiver of any decision that is not superseded and cannot be read is under `rule_problems`, whatever
+the decision governs. An ADR that `init` could not read is not in the snapshot, so its rules cannot be judged; each one the
 snapshot's `meta.problems` lists is under `unread_decisions` with its file and reason.
 """
 from __future__ import annotations
@@ -112,13 +113,9 @@ def import_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str],
     return out, listed
 
 
-def problems(decisions: list[tuple[dict, rules.Parsed]], governing_ids: set[str]) -> list[dict]:
-    def relevant(decision: str, p: rules.Problem, parsed: rules.Parsed) -> bool:
-        if p.kind == rules.WAIVERS:
-            return decision in governing_ids or any(rules.judging(parsed, s) for s in rules.CHANGE_SUBJECTS)
-        return decision in governing_ids or (p.kind in rules.KINDS and rules.KINDS[p.kind].subject in rules.CHANGE_SUBJECTS)
+def problems(decisions: list[tuple[dict, rules.Parsed]]) -> list[dict]:
     return [{"decision": n["id"], "rule": p.kind, "problem": p.reason} for n, parsed in decisions
-            for p in parsed.problems + parsed.waiver_problems if relevant(n["id"], p, parsed)]
+            for p in parsed.problems + parsed.waiver_problems]
 
 
 def ordered(results: list[dict], verdict: str) -> list[dict]:
@@ -157,7 +154,7 @@ def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = 
                  for r in ruled for f in odd if f in r["files"]]
         out["unresolved"] = ordered(out["unresolved"] + extra, "unresolved")
         out["summary"]["unresolved"] = len(out["unresolved"])
-    found_problems = problems(decisions, {g["decision"] for g in gov})
+    found_problems = problems(decisions)
     unread = init.unread_decisions(graph.meta)
     return shown({**out, **({"rule_problems": found_problems} if found_problems else {}), **({"unread_decisions": unread} if unread else {})})
 

@@ -173,7 +173,7 @@ def test_a_symbolic_link_in_the_base_is_listed_as_a_problem_and_not_followed(tmp
     graph = committed.built(root, head, None, [])
     assert [n["id"] for n in graph.nodes] == [DECISION]
     assert {"file": "docs/adr/0002-link.md", "action": "skipped", "kind": "decision",
-            "reason": "it is a symbolic link in the commit, and decisions are read only from regular files"} in graph.meta["problems"]
+            "reason": "it is a symbolic link, and decisions are read only from regular files"} in graph.meta["problems"]
 
 
 def test_a_snapshot_file_is_read_from_the_base_commit(tmp_path, no_network):
