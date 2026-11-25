@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from test_adr_subfolders import both
 from test_audit import no_network
 from decisis import cli, init
 
@@ -128,6 +129,70 @@ def test_each_misspelling_names_the_known_keys_and_only_rule_or_waivers_ones_are
     (p,) = [p for p in init.build(tmp_path)["meta"]["problems"] if "key" in p]
     assert p["key"] == key and p["may_mean"] == close and key in p["reason"] and all(c in p["reason"] for c in close)
     assert p["action"] == ("not read" if {"rule", "waivers"} & set(close) else "ignored")
+
+
+COMPOUNDS = {"ruleset": "rule", "rule_set": "rule", "rules-v2": "rule", "my_rule": "rule", "decisis_rule": "rule",
+             "waivers_list": "waivers", "waiver-list": "waivers", "myRule": "rule", "RuleSet": "rule", "RULESET": "rule",
+             "decisisRule": "rule", "XMLRule": "rule", "rule2": "rule", "ruleSets": "rule", "waiverList": "waivers",
+             "WAIVER_LIST": "waivers", "waiverlist": "waivers", "my-waivers-file": "waivers"}
+REAL_WORDS = ["ruler", "rulers", "ruled", "Ruler", "schedule", "unruled", "ruling", "scheduler", "my_ruler", "ruler-set", "rulerSet",
+              "wavier_list", *init.COMMON_KEYS]
+
+
+def front_matter_problem(root: Path, key: str) -> dict:
+    write(root, {"docs/adr/0001-a.md": adr("A", f"{key}: x")})
+    (p,) = [p for p in init.build(root)["meta"]["problems"] if "key" in p]
+    return p
+
+
+@pytest.mark.parametrize("key,named", list(COMPOUNDS.items()))
+def test_a_key_spelled_as_a_compound_of_rule_or_waiver_makes_the_decision_unread(tmp_path, key, named):
+    p = front_matter_problem(tmp_path, key)
+    assert p["key"] == key and p["may_mean"] == [named] and p["action"] == "not read"
+    assert p["reason"] == f"front matter key {key} is not a key decisis reads, so a rule or waiver written there is not judged; it may mean {named}"
+    assert unread(init.unread_decisions(init.build(tmp_path)["meta"])) == [("docs/adr/0001-a.md", p["reason"])]
+
+
+@pytest.mark.parametrize("key", REAL_WORDS)
+def test_a_real_word_that_holds_rule_inside_another_word_stays_ignored(tmp_path, key):
+    p = front_matter_problem(tmp_path, key)
+    assert p["key"] == key and p["may_mean"] == [] and p["action"] == "ignored"
+    assert p["reason"] == f"front matter key {key} is not a key decisis reads, so it is ignored; it is close to no key decisis reads"
+    assert init.unread_decisions(init.build(tmp_path)["meta"]) == []
+
+
+def test_a_key_that_holds_both_words_names_both_keys(tmp_path):
+    p = front_matter_problem(tmp_path, "rule_waivers")
+    assert p["may_mean"] == ["rule", "waivers"] and p["action"] == "not read" and p["reason"].endswith("it may mean rule or waivers")
+
+
+@pytest.mark.parametrize("key", [*COMPOUNDS, *REAL_WORDS])
+def test_the_base_commit_reader_lists_a_compound_key_as_init_does(tmp_path, key):
+    write(tmp_path, {"docs/adr/0001-a.md": adr("A", f"{key}: x"), "docs/adr/0002-b.md": adr("B", "code_ref: src/")})
+    local, base = both(tmp_path)
+    assert local == base
+    assert local["unread"] == ([("docs/adr/0001-a.md", "not read")] if key in COMPOUNDS else [])
+    (found,) = [(a, r) for f, a, r, k in local["problems"] if f == "docs/adr/0001-a.md" and f"front matter key {key} " in r]
+    assert found[0] == ("not read" if key in COMPOUNDS else "ignored")
+
+
+def re_named(reason: str) -> bool:
+    return reason.endswith(("it may mean rule", "it may mean waivers"))
+
+
+def test_fail_on_unresolved_fails_for_each_compound_key_and_not_for_a_real_word(tmp_path, capsys, no_network):
+    files = {f"docs/adr/{i:04d}-a.md": adr(f"A{i}", "code_ref: src/", f"{key}: x") for i, key in enumerate(COMPOUNDS, start=1)}
+    write(tmp_path, files | {"src/x.py": "X = 1\n"})
+    snap = built(tmp_path, capsys)
+    code, report = run(capsys, "check", str(snap), "--repo-dir", str(tmp_path), "--changed", "src/x.py", "--fail-on-unresolved")
+    assert code == 1 and sorted(u["file"] for u in report["unread_decisions"]) == sorted(files)
+    assert all(re_named(u["reason"]) for u in report["unread_decisions"])
+    clean = tmp_path / "clean"
+    write(clean, {f"docs/adr/{i:04d}-a.md": adr(f"A{i}", "code_ref: src/", f"{key}: x") for i, key in enumerate(REAL_WORDS, start=1)}
+          | {"src/x.py": "X = 1\n"})
+    snap = built(clean, capsys)
+    code, report = run(capsys, "check", str(snap), "--repo-dir", str(clean), "--changed", "src/x.py", "--fail-on-unresolved")
+    assert code == 0 and "unread_decisions" not in report
 
 
 def test_a_postmortem_with_an_unknown_key_is_not_listed(tmp_path):

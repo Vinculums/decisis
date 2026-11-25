@@ -4,8 +4,8 @@ Each reader takes a `Tree` and returns `(nodes, edges)` in snapshot shape. `buil
 what they return and sorts it, so the same tree always gives the same bytes. A file that cannot be read or
 parsed is listed in `meta.problems` with its path and the reason, and skipped; an entry about an ADR file has
 `kind: "decision"`, and `unread_decisions` reads back the ADRs left out for `check` and `audit`, with each front matter key
-close to `rule` or `waivers` that the reader does not know. ADRs are read only from the files directly in an ADR
-directory; `Survey` lists, as `ignored`, what lies below it, by one rule that `committed` applies to a commit's tree as well.
+the reader does not know that is close to `rule` or `waivers` or spells them as a compound, such as `ruleset` or `waiver-list`.
+ADRs are read only from the files directly in an ADR directory; `Survey` lists, as `ignored`, what lies below it, by one rule that `committed` applies to a commit's tree as well.
 Nothing is guessed from prose,
 except that `--suggest-refs` adds the paths an ADR's text names and marks them as suggested.
 docs/data-model.md lists the front matter keys and headings each reader understands.
@@ -45,6 +45,9 @@ ADR_KEYS = (*TEXT_KEYS, *LIST_KEYS, *RULE_KEYS, *UNUSED_KEYS)
 CLOSE = 0.75
 COMMON_KEYS = ("role", "roles", "tag", "tags", "type", "kind", "author", "authors", "owner", "owners", "category", "categories",
                "layout", "parent", "slug", "id", "draft", "weight", "summary", "description", "keywords", "version")
+WORDS_WITH_RULE = ("ruled", "ruler", "rulers")
+RULE_STEMS = (("rule", "rule"), ("waiver", "waivers"))
+WORD_PARTS = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+")
 MAX_RECORDS = 5_000
 MAX_ENTRIES = owners.MAX_FILES
 MAX_LISTED = 20
@@ -533,12 +536,29 @@ def parse(tree: Tree, path: Path, kind: str | None = None) -> Parsed | None:
     return Parsed(fm, doc, data, refs)
 
 
+def compound_keys(key: str) -> list[str]:
+    named: list[str] = []
+    for part in (w.lower() for w in WORD_PARTS.findall(key)):
+        if part in WORDS_WITH_RULE:
+            continue
+        named += [known for stem, known in RULE_STEMS if part.startswith(stem) and known not in named]
+    return named
+
+
+def may_mean(key: str) -> list[str]:
+    low = key.lower()
+    close = difflib.get_close_matches(low, ADR_KEYS, n=3, cutoff=CLOSE)
+    if low in COMMON_KEYS or low in WORDS_WITH_RULE:
+        close = [c for c in close if c not in RULE_KEYS]
+    named = compound_keys(key)
+    return [*named, *(c for c in close if c not in named)][:3]
+
+
 def unknown_keys(tree: Tree, path: Path, fm: dict) -> None:
     for key in fm:
         if key in ADR_KEYS:
             continue
-        close = difflib.get_close_matches(key.lower(), ADR_KEYS, n=3, cutoff=CLOSE)
-        close = [c for c in close if c not in RULE_KEYS] if key.lower() in COMMON_KEYS else close
+        close = may_mean(key)
         ruled = bool(set(close) & set(RULE_KEYS))
         lost = "a rule or waiver written there is not judged" if ruled else "it is ignored"
         meant = f"it may mean {' or '.join(close)}" if close else "it is close to no key decisis reads"

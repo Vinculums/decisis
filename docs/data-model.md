@@ -324,7 +324,8 @@ CODEOWNERS line that owns no file), `not suggested` (a path an ADR names that `-
 An entry about an ADR file also has `kind: "decision"`. An ADR whose entry is `skipped` or `not read`, such as one
 whose `rule:` or `waivers:` line holds JSON that does not parse, is not in the snapshot, so neither is its rule;
 `check` and `audit` list each such file under `unread_decisions` so it does not drop out silently. A front matter key
-close to `rule` or `waivers`, such as `rules:` or `waiver:`, is also `not read`: the decision is in the snapshot,
+close to `rule` or `waivers`, such as `rules:` or `waiver:`, or spelled as a compound of them, such as `ruleset:` or
+`waiver-list:`, is also `not read`: the decision is in the snapshot,
 but what that key holds is not judged, so the file is listed under `unread_decisions` as well (see
 [The front matter subset](#the-front-matter-subset)). A snapshot
 written before `kind` existed has no `kind` on any entry; there an `.md` file directly in `docs/adr`,
@@ -549,9 +550,14 @@ of an ADR is listed in `meta.problems` with `key` (the key as written) and `may_
 spelling is close to it, compared in lower case, at most three, possibly none), and the reason names both. The
 entry is `not read` when `may_mean` holds `rule` or `waivers`, so a rule or waiver under a misspelled key, such
 as `rules:` or `waiver:`, shows under `unread_decisions` in `check` and `audit`; any other key is `ignored`.
+A key also names `rule` when it holds `rule` or `rules`, and `waivers` when it holds `waiver` or `waivers`, as a
+word part or at the start of one. Word parts are split at `_`, `-`, digits and a change of case, so `ruleset`,
+`rule_set`, `rules-v2`, `my_rule`, `decisis_rule`, `RuleSet`, `waivers_list` and `waiver-list` are `not read`.
 Words that front matter often holds for other tools are never matched to `rule` or `waivers`, so `role:` is
 `ignored` and fails no check (`COMMON_KEYS` in `src/decisis/init.py`: `role`, `roles`, `tags`, `type`, `author`,
-`owner`, `category`, `layout`, `slug`, `id`, `draft`, `summary`, `description`, `version` and a few more).
+`owner`, `category`, `layout`, `slug`, `id`, `draft`, `summary`, `description`, `version` and a few more). Nor are
+the words that begin with `rule` and mean something else (`WORDS_WITH_RULE`: `ruled`, `ruler`, `rulers`), and a key
+that holds `rule` in the middle of a word part, such as `schedule` or `unruled`, is `ignored`.
 The value of such a key may also be inline JSON, so `waiver: [{...}]` does not stop the file from being read.
 Postmortems are not checked for other keys. Example entry:
 
