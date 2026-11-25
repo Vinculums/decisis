@@ -51,7 +51,8 @@ scanning) reads. The exit code is the one `--format json` gives. The log has one
   `reportingDescriptor` whose `id` is the kind (`imports_forbidden`, `advisory_severity_at_least`, and so on); a
   kind that judged nothing in this run is left out.
 - Each violated result is a `result` with `level` `error`, each result that cannot be judged one with `warning`, and each
-  result a waiver covers one with `note`. A result that is not violated is left out.
+  result a waiver covers one with `note`. A result that is not violated is left out. A `SUPERSEDES` cycle among the
+  decisions is a `warning` with the rule id `supersedes_cycle`, located at the first ADR file in the cycle.
 - `message.text` holds the decision id and the reason. For `audit` it also names the package and the advisory.
 - `locations` hold a repository-relative file and, where one exists, a line. `check` points to the changed file and the
   line of the import; a `review_required` result has no line, so it points to the file. `audit` points to the inventory
