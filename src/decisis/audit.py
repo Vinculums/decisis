@@ -274,7 +274,13 @@ def counted(findings: list[dict], verdict: str) -> int:
     return sum(1 for f in findings for p in f["policies"] if p["verdict"] == verdict)
 
 
-def analyze(box, graph: Subgraph, repo: str, depth: int = 8, day: datetime.date | None = None) -> dict:
+def expiring(findings: list[dict], day: datetime.date, warn_days: int) -> list[dict]:
+    return rules.expiring_soon([(p["decision"], p["waiver"]) for f in findings for p in f["policies"]
+                                if p["verdict"] == rules.WAIVED], day, warn_days)
+
+
+def analyze(box, graph: Subgraph, repo: str, depth: int = 8, day: datetime.date | None = None,
+            warn_days: int = rules.WARN_DAYS) -> dict:
     if not 1 <= depth <= MAX_DEPTH:
         raise ValueError(f"depth must be between 1 and {MAX_DEPTH}")
     counts = box.load(graph)
@@ -283,10 +289,11 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8, day: datetime.date 
     day = day or rules.today()
     findings = ordered(verify(rows, graph, decisions, day) + package_findings(graph, decisions, repo, depth, day))
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
+    soon = expiring(findings, day, warn_days)
     return {"meta": graph.meta, "loaded": counts, "today": day.isoformat(), "governing": decisions, "summary": summary,
             "violations": counted(findings, "violated"), "waived": counted(findings, rules.WAIVED), "findings": findings,
             "unresolved_packages": unresolved_packages(graph), "inventory_notes": inventory_notes(graph, repo),
-            **problems_of(graph, decisions, repo)}
+            **problems_of(graph, decisions, repo), **({rules.EXPIRING: soon} if soon else {})}
 
 
 def problems_of(graph: Subgraph, decisions: list[dict], repo: str) -> dict:
@@ -306,9 +313,9 @@ def unresolved_packages(graph: Subgraph) -> list[dict]:
 
 def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories,
         limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None,
-        root=None, day: datetime.date | None = None) -> dict:
+        root=None, day: datetime.date | None = None, warn_days: int = rules.WARN_DAYS) -> dict:
     graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
     with sandbox(root, limits) as box:
-        report = analyze(box, graph, repo, depth, day)
+        report = analyze(box, graph, repo, depth, day, warn_days)
     extra = [n for n in inventory.notes(lock_text, filename) if n not in report["inventory_notes"]]
     return {**report, "inventory_notes": report["inventory_notes"] + extra}

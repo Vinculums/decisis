@@ -25,6 +25,7 @@ CLASSES = {
     "violated": "fill:#fecaca,stroke:#b91c1c,stroke-width:3px,color:#3f0a0a",
     "superseded": "fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray:4 3,color:#4b5563",
     "waived": "fill:#fef9c3,stroke:#a16207,stroke-dasharray:4 3,color:#3b2603",
+    "expiring": "fill:#ffedd5,stroke:#c2410c,stroke-dasharray:2 2,color:#431407",
     "unread": "fill:#fde2e2,stroke:#b91c1c,stroke-dasharray:4 3,color:#3f0a0a",
 }
 VIOLATED_LINK = "stroke:#b91c1c,stroke-width:3px"
@@ -172,6 +173,31 @@ def detail(finding: dict) -> str:
     return finding.get("severity") or ""
 
 
+def soon_text(e: dict) -> str:
+    return f"waiver {e.get('waiver')} expires {e.get('expires')}, {e.get('days_left')} day(s) left"
+
+
+def expiring_nodes(g: Graph, report: dict) -> Graph:
+    for e in report.get("expiring_soon") or []:
+        nid = f"waiver:{e['decision']}:{e['waiver']}"
+        g.node(nid, (soon_text(e),), "expiring")
+        g.edge(nid, "expires soon", e["decision"])
+    return g
+
+
+def soon_table(entries: list[dict]) -> str:
+    rows = "".join(f'<tr class="expiring"><td>{code(e["decision"])}</td><td>{esc(e.get("waiver"))}</td><td>{esc(e.get("reason"))}</td>'
+                   f'<td>{esc(e.get("approved_by"))}</td><td>{esc(e.get("expires"))}</td><td>{esc(e.get("days_left"))}</td></tr>'
+                   for e in entries)
+    head = "<tr><th>decision</th><th>waiver</th><th>reason</th><th>approved by</th><th>expires</th><th>days left</th></tr>"
+    return f'<div class="scroll"><table>{head}{rows}</table></div>'
+
+
+def soon_sections(report: dict) -> list[str]:
+    found = report.get("expiring_soon") or []
+    return [section("Waivers that expire soon", soon_table(found))] if found else []
+
+
 def unread_nodes(g: Graph, report: dict) -> Graph:
     for u in report.get("unread_decisions", []):
         g.node(f"unread:{u['file']}", (u["file"], f"decision file not read: {u['reason']}"), "unread")
@@ -222,7 +248,7 @@ def audit_graph(report: dict) -> Graph:
                 g.edge(end, "violates", p["decision"], True)
         for p in waivers(f):
             g.edge(end, until(p["waiver"]), p["decision"])
-    return unread_nodes(g, report)
+    return unread_nodes(expiring_nodes(g, report), report)
 
 
 def check_graph(report: dict) -> Graph:
@@ -250,7 +276,7 @@ def check_graph(report: dict) -> Graph:
             g.edge(end, f"{w['rule']} {until(w.get('waiver') or {})}", w["decision"])
         else:
             g.edge(code, f"{w['rule']} {until(w.get('waiver') or {})}", w["decision"])
-    return unread_nodes(g, report)
+    return unread_nodes(expiring_nodes(g, report), report)
 
 
 def result_table(results: list[dict]) -> str:
@@ -296,7 +322,7 @@ def check_sections(report: dict) -> list[str]:
         head += [("waived", esc(len(waived))), ("waivers judged on", esc(report.get("today")))]
     problems = "".join(f"<li>{code(p['decision'])} {code(p.get('rule') or 'rule')}: {esc(p['problem'])}</li>"
                        for p in report.get("rule_problems", []))
-    return [dl(head), section("Violations", result_table(report.get("violations", []))),
+    return [dl(head), *soon_sections(report), section("Violations", result_table(report.get("violations", []))),
             section("Cannot be judged", result_table(report.get("unresolved", []))),
             *([section("Waived, not counted as violations", waived_table(waived))] if waived else []),
             section("Governing decisions", decision_list(report.get("governing", []))),
@@ -450,7 +476,7 @@ def audit_sections(report: dict) -> list[str]:
     notes = "".join(f"<li>{esc(n)}</li>" for n in report.get("inventory_notes") or report.get("notes") or [])
     problems = "".join(f"<li>{code(p['decision'])} {code(p.get('rule') or 'rule')}: {esc(p['problem'])}</li>"
                        for p in report.get("rule_problems", []))
-    return [dl(head), *([section("Notes", "<ul>" + notes + "</ul>")] if notes else []),
+    return [dl(head), *soon_sections(report), *([section("Notes", "<ul>" + notes + "</ul>")] if notes else []),
             section("Governing decisions", "<ul>" + gov + "</ul>" if gov else NONE),
             *([section("Rules that cannot be checked", "<ul>" + problems + "</ul>")] if problems else []),
             *idle_list(report), *unread_list(report),

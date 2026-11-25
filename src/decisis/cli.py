@@ -53,6 +53,12 @@ def day(text: str):
 
 
 TODAY_HELP = "judge waivers as of this UTC date, YYYY-MM-DD (default: today in UTC)"
+WARN_HELP = ("list under expiring_soon the waivers that cover a result and expire within N days of the run's date, 0 turns it off "
+             f"(default {rules.WARN_DAYS}, at most {rules.MAX_WARN_DAYS}); this never changes a verdict or the exit code")
+
+
+def warn_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--warn-days", type=bounded(0, rules.MAX_WARN_DAYS), default=rules.WARN_DAYS, metavar="N", help=WARN_HELP)
 
 
 def limit_flags(parser: argparse.ArgumentParser) -> None:
@@ -123,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
     ck.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     ck.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
     ck.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
+    warn_flag(ck)
     au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
     au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, go.mod (read with the go.sum next to it), "
@@ -134,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
     au.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
     au.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
+    warn_flag(au)
     pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
     pr.add_argument("snapshot", help="the snapshot the audit read")
@@ -283,7 +291,8 @@ def run(a: argparse.Namespace) -> int:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
         text, siblings = inventory.load(Path(a.lockfile), root=a.root)
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
-                           advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings, day=a.today)
+                           advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings, day=a.today,
+                           warn_days=a.warn_days)
         text = json.dumps(report, ensure_ascii=False, indent=1)
         if a.format in VIEWS:
             if a.out:
@@ -295,6 +304,7 @@ def run(a: argparse.Namespace) -> int:
                               "unresolved_packages": len(report["unresolved_packages"]), "inventory_notes": report["inventory_notes"],
                               **({"unread_decisions": len(report["unread_decisions"])} if report.get("unread_decisions") else {}),
                               **({"not_governing": len(report["not_governing"])} if report.get("not_governing") else {}),
+                              **({rules.EXPIRING: len(report[rules.EXPIRING])} if report.get(rules.EXPIRING) else {}),
                               "out": a.out}))
         else:
             sys.stdout.write(text + "\n")
@@ -334,7 +344,7 @@ def run_check(a: argparse.Namespace) -> int:
         raise ValueError(f"--repo-dir {a.repo_dir} is not a directory")
     changed = check.changed_since(root, a.base) if a.base is not None else a.changed
     report = check.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), changed, root, a.reviewers, a.hops, a.repo,
-                       base=a.base, limits=limits(a), day=a.today)
+                       base=a.base, limits=limits(a), day=a.today, warn_days=a.warn_days)
     if a.format == "text":
         print(check.render(report))
     elif a.format in VIEWS:

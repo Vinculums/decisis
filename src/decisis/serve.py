@@ -46,6 +46,9 @@ MAX_REVIEWERS = 256
 MAX_SENT = cypher.MAX_BYTES
 TODAY = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
          "description": "judge waivers as of this UTC date, YYYY-MM-DD (default: today in UTC)"}
+WARN_DAYS = {"type": "integer", "minimum": 0, "maximum": rules.MAX_WARN_DAYS, "default": rules.WARN_DAYS,
+             "description": "list under expiring_soon the waivers that cover a result and expire within this many days of today "
+                            "(0 turns it off); it never changes a verdict"}
 DETAIL = {"type": "string", "enum": list(compact.DETAILS), "default": "summary",
           "description": f"summary (the default): counts, ids, titles and the first {compact.FIRST} items of each list; "
                          "full: the whole report"}
@@ -86,6 +89,7 @@ SCHEMAS = {
             "depth": {"type": "integer", "minimum": 1, "maximum": MAX_DEPTH, "default": 8,
                       "description": f"longest dependency path to follow (1 to {MAX_DEPTH})"},
             "today": TODAY,
+            "warn_days": WARN_DAYS,
             "detail": DETAIL,
         },
         "required": ["lockfile", "repo"],
@@ -101,6 +105,7 @@ SCHEMAS = {
             "reviewers": {"type": "array", "items": TEXT, "maxItems": MAX_REVIEWERS, "default": [],
                           "description": "the handles that reviewed the change, for example @alice or @org/team"},
             "today": TODAY,
+            "warn_days": WARN_DAYS,
             "detail": DETAIL,
         },
         "additionalProperties": False,
@@ -125,12 +130,14 @@ DESCRIPTIONS = {
     "paths": "List bounded paths between two node ids in the snapshot.",
     "audit": "Join the snapshot, a lockfile or SBOM and OSV advisories, and report the advisories the repository reaches "
              "and the decisions they break; a violation a decision's waiver covers is counted as waived, not as a violation, "
-             "until the waiver's expires date. Reads advisories from the server's OSV cache, or from api.osv.dev only "
+             "until the waiver's expires date, and a waiver that covers a finding and expires within warn_days (default 14) is "
+             "listed apart under expiring_soon. Reads advisories from the server's OSV cache, or from api.osv.dev only "
              "when the server was started with --allow-network.",
     "check": "Judge a change set against the review and import rules of the decisions in the snapshot, as decisis check does. "
              "Give changed (files under the server's root) or base (a git ref, for git diff base...HEAD in the root), and the "
              "reviewers. Returns the governing decisions, the violations with file, line, decision and rule, and what cannot be "
-             "judged, and apart from them the waived results with each waiver's reason and expiry. The changed files are read "
+             "judged, and apart from them the waived results with each waiver's reason and expiry, and under expiring_soon the "
+             "waivers that cover a result and expire within warn_days (default 14). The changed files are read "
              "under the root and never run.",
     "query": "Run one read-only Cypher statement on a fresh sandbox of the snapshot and return its rows. Use it for a question "
              "the fixed tools do not answer: impact for the decisions on code paths, paths between two ids, audit for a "
@@ -194,7 +201,7 @@ class Tools:
                        else [inside_root(self.root, raw) for raw in args["changed"]])
             day = rules.today(args.get("today"))
             return check.run(self.graph, changed, self.root, args.get("reviewers", []), base=args.get("base"),
-                             sandbox_root=self.scratch, day=day)
+                             sandbox_root=self.scratch, day=day, warn_days=args.get("warn_days", rules.WARN_DAYS))
         except Refused:
             raise
         except ValueError as e:
@@ -219,7 +226,7 @@ class Tools:
         name = PurePosixPath(args["lockfile"]).name
         siblings = self.siblings(args["lockfile"], lock_text, name)
         return audit.run(self.graph, lock_text, args["repo"], args.get("depth", 8), advisories=advisories, root=self.scratch,
-                         filename=name, siblings=siblings, day=day)
+                         filename=name, siblings=siblings, day=day, warn_days=args.get("warn_days", rules.WARN_DAYS))
 
     def siblings(self, raw: str, text: str, name: str) -> dict[str, str]:
         parent = PurePosixPath(raw).parent

@@ -298,6 +298,26 @@ neither of `package` and `path`, `to` with a package, `advisory` with a path, a 
   "reason": "frozen code, removed in Q1", "expires": "2027-01-31", "approved_by": "@shop/leads"}]
 ```
 
+A waiver turns its results back into violations the day after `expires`, so `check` and `audit` list the waivers
+that are about to lapse under `expiring_soon`. A waiver is listed when it is the `waiver` of a `waived` result
+in this run and its `expires` date is at most `N` days after the run's date (`--today`, see above). `N` is 14,
+or the value of `--warn-days N` (`audit`, `check`), the MCP `warn_days` argument or the Action's `warn-days`
+input; 0 turns the list off. Each entry has `decision`, `waiver` (the position in the decision's list, from 1),
+`reason`, `approved_by`, `expires` and `days_left`, the whole days from the run's date to `expires`: 0 on the
+last day the waiver holds, `N` for a waiver that expires in exactly `N` days, and no entry for one that
+expires in `N + 1`. The entries are ordered by `expires`, then `decision`, then `waiver`.
+
+A waiver is listed once, however many results it covers. A waiver that covers no `violated` result in this run
+is not listed, and neither is one that has already expired, because its result is a violation again and says
+so under `expired_waiver`. When several waivers cover one result, the one that lasts longest is the one shown
+on it, and only that one can be listed: the result stays `waived` while a longer waiver holds.
+
+`expiring_soon` only warns. It changes no verdict, no count in `summary`, `violations` or `waived`, no `check`
+exit code and nothing the Action does for `fail-on-violation` or `fail-on-unresolved`. The key is absent when
+there is nothing to list, as `rule_problems` is. The text, Mermaid and HTML views show it apart from the
+waived results, the MCP replies carry it as `expiring_soon` (with `expiring_soon_count` in the summary), and
+the Action comment gives it its own section, "Waivers that expire soon".
+
 Edge types `checkout` keeps from Vinc: `ABOUT`, `RELATED_TO`, `PREREQUISITE_OF`, `DERIVES_FROM`,
 `INHERITS_FROM`, `SUPERSEDES`, `CONNECTS_VIA`, `RETURNS_TO`. A record's edge that Vinc returns as
 `ATTACHES_TO` with a role is read as that role (`relates_to` becomes `RELATED_TO`). A hand-written
@@ -861,7 +881,10 @@ problem (`decision`, `rule`, the kind or null, and `problem`); the key is absent
 snapshot's `meta.problems` says an ADR file was `skipped` or `not read` (see [`init`](#a-snapshot-from-a-repository-init)),
 `unread_decisions` lists each such file once with `file`, `reason` and `action`, sorted by file; the key is
 absent otherwise. Such a decision is not in the snapshot, so none of its rules are judged. `audit --out`
-prints the count of these files as `unread_decisions` when there are some. `not_governing` lists each
+prints the count of these files as `unread_decisions` when there are some. `expiring_soon` lists the waivers
+that cover a finding and end within `--warn-days` days, as described under [Waivers](#waivers), with `decision`,
+`waiver`, `reason`, `approved_by`, `expires` and `days_left`; the key is absent when there is none, and
+`audit --out` prints its count as `expiring_soon`. `not_governing` lists each
 decision with a rule `audit` judges that governs nothing in this audit, with the reason; the key is absent
 when there is none, and `audit --out` prints its count as `not_governing`. For an `init` snapshot `meta`
 also has `snapshot_repo` (the snapshot's `meta.repo`) and `recorded_links` (the `RECORDS` edges added).
@@ -966,6 +989,9 @@ waived finding's record is checked like any other, scope and paths included.
   `meta.problems` says was `skipped` or `not read`, with `file`, `reason` and `action`. The text view lists
   them under `decision files not read`, the HTML view in their own section, and the Mermaid view as one
   node each.
+- `expiring_soon`, only when there are some: as in the audit report, the waivers of `waived` results that end
+  within `--warn-days` days (see [Waivers](#waivers)). The text view lists them under `waivers that expire
+  soon`, the HTML view in the section "Waivers that expire soon", and the Mermaid view as one node each.
 
 `check` exits 1 when `violations` is not empty and 0 otherwise, including when no rule applies or every
 violation is waived. An
@@ -997,8 +1023,8 @@ list, and a `note` that says how to get the rest. The `check` summary keeps `sum
 `reviewers`, counts each list (`changed_count`, `governing_count`, `violations_count`, `unresolved_count`,
 `rules_count`, `rules_covering_a_change`, `imports_count`), and lists the first 10 violations and
 unjudged entries with `file`, `line`, `decision`, `rule`, `why` and `import`. The `check` and `audit`
-summaries keep `rule_problems` and `unread_decisions` when the report has them, as
-`rule_problems_count` and `unread_decisions_count` with the first 10 entries; the `audit` summary also keeps
+summaries keep `rule_problems`, `unread_decisions` and `expiring_soon` when the report has them, as
+`rule_problems_count`, `unread_decisions_count` and `expiring_soon_count` with the first 10 entries; the `audit` summary also keeps
 `not_governing` as `not_governing_count` and the first 10 entries. When the snapshot file
 changed and failed to reload, the reply also has `reload_failed`: the reason, and that the reply comes
 from the snapshot loaded before. A reply that would pass 1 MiB as the server sends it has

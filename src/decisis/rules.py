@@ -451,6 +451,9 @@ def of(decision: dict) -> Parsed:
 
 WAIVED = "waived"
 WAIVERS = "waivers"
+EXPIRING = "expiring_soon"
+WARN_DAYS = 14
+MAX_WARN_DAYS = 3650
 WAIVER_TEXT = ("reason", "approved_by")
 WAIVER_KEYS = ("reason", "expires", "approved_by", "package", "advisory", "path", "to", "rule")
 AUDIT_SUBJECTS = ("advisory", *PACKAGE_SUBJECTS)
@@ -609,6 +612,18 @@ def waived(rule: Rule, facts: dict, dev: bool, found: tuple[Waiver, ...], day: d
     w = max(hits, key=lambda w: (w.expires, -w.index))
     return {**out, "why": f"{why}; waiver {w.index} ({w.reason}, approved by {w.approved_by}) expired at the end of {w.expires.isoformat()}",
             "expired_waiver": shown(w)}
+
+
+def expiring_soon(waived_by: list[tuple[str, dict]], day: datetime.date, warn_days: int) -> list[dict]:
+    if warn_days <= 0:
+        return []
+    found: dict[tuple[str, int], dict] = {}
+    for decision, w in waived_by:
+        left = (datetime.date.fromisoformat(w["expires"]) - day).days
+        if left <= warn_days:
+            found[(decision, w["waiver"])] = {"decision": decision, "waiver": w["waiver"], "reason": w["reason"],
+                                              "approved_by": w["approved_by"], "expires": w["expires"], "days_left": left}
+    return sorted(found.values(), key=lambda e: (e["expires"], e["decision"], e["waiver"]))
 
 
 def outcome(rule: Rule, facts: dict) -> tuple[str, str]:
