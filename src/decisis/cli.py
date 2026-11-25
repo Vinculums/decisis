@@ -294,6 +294,7 @@ def run(a: argparse.Namespace) -> int:
             print(json.dumps({"summary": report["summary"], "violations": report["violations"], "waived": report["waived"], "loaded": report["loaded"],
                               "unresolved_packages": len(report["unresolved_packages"]), "inventory_notes": report["inventory_notes"],
                               **({"unread_decisions": len(report["unread_decisions"])} if report.get("unread_decisions") else {}),
+                              **({"not_governing": len(report["not_governing"])} if report.get("not_governing") else {}),
                               "out": a.out}))
         else:
             sys.stdout.write(text + "\n")

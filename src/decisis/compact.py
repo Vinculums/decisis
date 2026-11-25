@@ -51,7 +51,7 @@ def audit(report: dict) -> dict:
            **counted("findings", report["findings"], finding),
            **counted("unresolved_packages", report["unresolved_packages"], lambda u: u["package"]),
            **counted("inventory_notes", report["inventory_notes"])}
-    for key in ("rule_problems", "unread_decisions"):
+    for key in ("rule_problems", "not_governing", "unread_decisions"):
         if report.get(key):
             out.update(counted(key, report[key]))
     return out
