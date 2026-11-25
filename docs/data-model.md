@@ -266,8 +266,9 @@ found.
 A plain text search for the same import forms runs over each JavaScript, TypeScript and Go file, over each
 Java and Kotlin file for an `import` at the start of a line or after a `;`, and over
 each Rust file for `use` paths that start with `crate`, `self`, `super`, the name of a crate in the
-repository or a name the file binds, and for `mod x;`. A specifier it finds that the scanner did not read as code (in a comment or a
-string, or after a point the scanner misread) is `unresolved` with the reason "the scanner and the text
+repository or a name the file binds, and for `mod x;`; a Rust file is searched with its comments, strings and character
+literals blanked out, so text in them is never a hit. A specifier it finds that the scanner did not read as code (in a comment
+or a string of a file that is not Rust, or after a point the scanner misread or could not scan past) is `unresolved` with the reason "the scanner and the text
 search disagree" and the file it would name as `target`; it is `not_violated` only when that target is
 known and no `to` glob covers it. A Go, Rust, Java or Kotlin hit that would be external is not listed, since read
 as an import it could not be a violation.
