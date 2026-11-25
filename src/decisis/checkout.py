@@ -11,6 +11,7 @@ DEFAULT_URL = "https://mcp.vincs.io/mcp"
 EDGE_TYPES = {"RELATED_TO", "PREREQUISITE_OF", "DERIVES_FROM", "INHERITS_FROM", "CONNECTS_VIA", "ABOUT", "SUPERSEDES", "RETURNS_TO"}
 WRITE_NAMES = {"RELATES_TO": "RELATED_TO"}
 CARRIER = "ATTACHES_TO"
+DETAIL = "full"
 
 
 def relation(edge: dict) -> str:
@@ -57,13 +58,26 @@ class VincMCP:
         return json.loads(text) if text else {}
 
 
+def hub_emptied_props(raw: dict) -> bool:
+    shrunk = raw.get("shrunk")
+    return isinstance(shrunk, dict) and bool(shrunk.get("neighbour_props"))
+
+
 def normalize(raw_graphs: list[dict], seeds: list[str], space: str | None) -> Subgraph:
     nodes: dict[str, dict] = {}
+    unsure: set[str] = set()
     edges: dict[tuple, dict] = {}
     for g in raw_graphs:
+        emptied = hub_emptied_props(g)
         for n in g.get("nodes", []):
-            nodes.setdefault(n["id"], {"id": n["id"], "kind": n.get("kind") or n["id"].split(":", 1)[0], "title": n.get("label") or n.get("title") or "",
-                                       "domain": n.get("domain") or "", "valid_until": n.get("valid_until"), "props": n.get("props") or {}})
+            lacks = n.get("props") is None or (emptied and not n["props"])
+            if n["id"] in nodes and not (n["id"] in unsure and not lacks):
+                continue
+            nodes[n["id"]] = {"id": n["id"], "kind": n.get("kind") or n["id"].split(":", 1)[0], "title": n.get("label") or n.get("title") or "",
+                              "domain": n.get("domain") or "", "valid_until": n.get("valid_until"), "props": n.get("props") or {}}
+            unsure.discard(n["id"])
+            if lacks:
+                unsure.add(n["id"])
         for e in g.get("edges", []):
             rel = relation(e)
             if rel not in EDGE_TYPES:
@@ -73,11 +87,13 @@ def normalize(raw_graphs: list[dict], seeds: list[str], space: str | None) -> Su
     kept = [e for e in edges.values() if e["source"] in nodes and e["target"] in nodes]
     meta = {"seeds": seeds, "space": space or "personal", "extracted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "nodes": len(nodes), "edges": len(kept)}
+    if unsure:
+        meta["props_missing"] = sorted(unsure)
     return Subgraph(sorted(nodes.values(), key=lambda n: n["id"]), sorted(kept, key=lambda e: (e["source"], e["type"], e["target"])), meta)
 
 
 def checkout(client: VincMCP, seeds: list[str], depth: int = 1) -> Subgraph:
-    raws = [client.tool("vinc_graph", {"seed_id": s, "depth": depth}) for s in seeds]
+    raws = [client.tool("vinc_graph", {"seed_id": s, "depth": depth, "detail": DETAIL}) for s in seeds]
     return normalize(raws, seeds, client.space)
 
 

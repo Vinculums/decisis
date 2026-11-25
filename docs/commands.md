@@ -17,6 +17,22 @@ and the command exits with 1. Raise a limit with `--max-nodes`, `--max-edges` or
 and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --hops` 1 to 6 and `paths --limit`
 1 to 100.
 
+## Checkout
+
+`decisis checkout SEED... --depth N --out snapshot.json` reads each seed from Vinc with one `vinc_graph` call at `detail: "full"`
+and writes the snapshot. The snapshot carries, for every node the hub returns, its `id`, `kind`, `title`, `domain`, `valid_until`
+and its whole `props`: `code_ref`, `subject_path`, `also_touches`, `status`, the decision's rules and waivers, and everything else
+stored on the node. `impact` and `check` match a path through those props, so a node that is not the seed anchors a path as well. The hub's layout
+and ranking fields (`x`, `y`, `z`, `ppr`, `degree`, `rev`, `tags`, timestamps) are left out. The edges keep their type, direction and
+evidence. The node and edge counts and the depth are the hub's; `--depth` is passed through, and a read is one call per seed.
+
+`detail: "full"` makes a larger reply than the default `summary`, and the hub keeps a reply inside its result size limit. When it
+shrinks a reply it empties the props of nodes first. The checkout never fills them in: `meta.props_missing` lists each node
+whose props the hub did not send, because it returned the node with no `props` at all (a hub that ignores `detail`), or because it
+said it emptied props to fit its limit and the node arrived with empty props. An id on that list may truly have no props; an id
+off it carries the props the hub holds. Read the nodes that matter by id, or seed on a node with fewer neighbours.
+`meta.props_missing` is absent when nothing is missing.
+
 ## Output
 
 `impact`, `check`, `paths`, `audit` and `query` print JSON (`impact --format text` and `check --format text` read better for people); `check` and
