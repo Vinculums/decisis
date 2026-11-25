@@ -1,0 +1,127 @@
+{
+ "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+ "version": "2.1.0",
+ "runs": [
+  {
+   "tool": {
+    "driver": {
+     "name": "decisis",
+     "version": "0.0.0",
+     "informationUri": "https://github.com/Vinculums/decisis",
+     "rules": [
+      {
+       "id": "advisory_severity_at_least",
+       "shortDescription": {
+        "text": "A dependency has an advisory at or above the severity a decision sets"
+       },
+       "defaultConfiguration": {
+        "level": "error"
+       }
+      }
+     ]
+    }
+   },
+   "automationDetails": {
+    "id": "decisis/audit/fixtures/audit/demo-lockfile.json/"
+   },
+   "results": [
+    {
+     "ruleId": "advisory_severity_at_least",
+     "level": "error",
+     "message": {
+      "text": "decision:no-high-advisories-in-shipped-dependencies: pkg:npm/lodash@4.17.15 (adv:GHSA-r5fr-rjxr-66jc): severity HIGH is at or above HIGH"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "fixtures/audit/demo-lockfile.json"
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "1e3e6529dd4731383e97a75f49cfb8a3f2ba192e76ae898327964ab409f7eb8e"
+     },
+     "properties": {
+      "decision": "decision:no-high-advisories-in-shipped-dependencies",
+      "rule": "advisory_severity_at_least",
+      "package": "pkg:npm/lodash@4.17.15",
+      "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+      "path": [
+       "repo:Demo",
+       "pkg:npm/report-kit@2.1.0",
+       "pkg:npm/lodash@4.17.15",
+       "adv:GHSA-r5fr-rjxr-66jc"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "advisory_severity_at_least",
+     "level": "error",
+     "message": {
+      "text": "decision:no-high-advisories-in-shipped-dependencies: pkg:npm/lodash@4.17.15 (adv:GHSA-p6mc-m468-83gw): severity HIGH is at or above HIGH"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "fixtures/audit/demo-lockfile.json"
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "aca8fc9eb2e3540f3728bfeb7d89b0984aae0019b645e89e1ad5d7ee8a4ff1a3"
+     },
+     "properties": {
+      "decision": "decision:no-high-advisories-in-shipped-dependencies",
+      "rule": "advisory_severity_at_least",
+      "package": "pkg:npm/lodash@4.17.15",
+      "advisory": "adv:GHSA-p6mc-m468-83gw",
+      "path": [
+       "repo:Demo",
+       "pkg:npm/report-kit@2.1.0",
+       "pkg:npm/lodash@4.17.15",
+       "adv:GHSA-p6mc-m468-83gw"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "advisory_severity_at_least",
+     "level": "error",
+     "message": {
+      "text": "decision:no-high-advisories-in-shipped-dependencies: pkg:npm/lodash@4.17.15 (adv:GHSA-35jh-r3h4-6jhm): severity HIGH is at or above HIGH"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "fixtures/audit/demo-lockfile.json"
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "51ef5d9c7c3c919dae7ba08de8f99c6b31c871354d335d2c17a6dc697dbcb268"
+     },
+     "properties": {
+      "decision": "decision:no-high-advisories-in-shipped-dependencies",
+      "rule": "advisory_severity_at_least",
+      "package": "pkg:npm/lodash@4.17.15",
+      "advisory": "adv:GHSA-35jh-r3h4-6jhm",
+      "path": [
+       "repo:Demo",
+       "pkg:npm/report-kit@2.1.0",
+       "pkg:npm/lodash@4.17.15",
+       "adv:GHSA-35jh-r3h4-6jhm"
+      ]
+     },
+     "ruleIndex": 0
+    }
+   ]
+  }
+ ]
+}

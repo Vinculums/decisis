@@ -49,6 +49,7 @@ jobs:
 | `fail-on-violation` | `false` | `true` fails the step when `check` or any audit finds a violation, after the comment is written; a waived finding is not a violation |
 | `fail-on-unresolved` | `false` | `true` fails the step when the run finds anything that cannot be judged (see [What counts as unresolved](#what-counts-as-unresolved)), after the comment and the job summary are written |
 | `today` | today's UTC date | the date, `YYYY-MM-DD`, that decisions' waivers are judged on |
+| `sarif` | `false` | `true` writes `decisis.sarif` in the workspace, sets the `sarif-file` output and uploads the file to code scanning (see [Code scanning](#code-scanning-sarif)) |
 | `warn-days` | `14` | the comment lists, under "Waivers that expire soon", each waiver that covers a result and expires within this many days of `today`; `0` turns it off; it never fails the step. A value that is not a whole number from 0 to 3650 stops the step before any request |
 | `decisis-version` | the action's own checkout | a version to install from PyPI instead |
 | `repo`, `working-directory`, `osv-cache`, `comment-author`, `python-version` | | see `action.yml` |
@@ -83,10 +84,54 @@ jobs:
   `unresolved` output and `fail-on-unresolved` count it, as `decisis check --fail-on-unresolved` does.
 - The comment stays under GitHub's 65,536-character limit: the graph is left out first, then the lists
   are cut, and the comment says what was cut.
-- The outputs `violations`, `unresolved` and `comment-url` are set for later steps. `violations` is the
+- The outputs `violations`, `unresolved` and `comment-url` are set for later steps, and `sarif-file` with `sarif: true`. `violations` is the
   check's violations plus the audit violations of every inventory. `unresolved` is the count described under
   [What counts as unresolved](#what-counts-as-unresolved); it is set whether or not `fail-on-unresolved` is on,
   and is 0 when the base commit has no decisions.
+
+## Code scanning (SARIF)
+
+With `sarif: true` the action also writes the results of `check` and of every audit as SARIF 2.1.0 to `decisis.sarif` in
+`GITHUB_WORKSPACE`, sets the `sarif-file` output to its path, and uploads it with
+[`github/codeql-action/upload-sarif`](https://github.com/github/codeql-action) (pinned to a full commit SHA in
+`action.yml`), so the findings show in the repository's Security tab and on the pull request. The comment, the job summary,
+the outputs and the exit code are the same with and without the input; the file is written after the comment.
+
+```yaml
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: Vinculums/decisis@<commit SHA>
+        with:
+          snapshot: decisions.json
+          inventory: auto
+          sarif: true
+```
+
+- The job needs `security-events: write`. In a private repository it also needs `actions: read`, and code scanning
+  must be available for the repository. The upload step uses the workflow token, not `github-token`.
+- Pull requests from forks cannot upload: their token is read-only, so the upload step is skipped for them. The file is
+  still written and `sarif-file` is still set, so a later step can keep it as an artifact. A token without
+  `security-events: write` (a Dependabot pull request, for one) fails the upload step.
+- The log has one run for `check` and one run for each inventory audited, each with its own category
+  (`decisis/check/`, `decisis/audit/<inventory>/`), so the alerts of one inventory do not close the alerts of another. An
+  inventory outside the repository is audited but its results have no location, and its category is
+  `decisis/audit/outside-<hash>/`, where the hash is taken from its resolved path, so two such inventories keep two
+  categories and two sets of fingerprints and no path appears in the log.
+- Locations are repository-relative. With `working-directory` below the repository root, the directory is put before each
+  changed file. A path that is absolute or leaves the repository gets no location.
+- A result a waiver covers is uploaded with an accepted suppression whose justification is the waiver, so code scanning
+  treats it as suppressed and not as an open alert. From the day after the waiver's expiry the suppression is gone. Results that
+  are not violated are not in the file.
+- A step later in the job can read the file: `${{ steps.<id>.outputs.sarif-file }}`. When the base commit has no decisions
+  the file is a valid log with no results.
+- The format, the fields and the fingerprints are described in [Commands](commands.md#sarif-for-code-scanning).
 
 ## What counts as unresolved
 

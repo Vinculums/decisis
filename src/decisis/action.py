@@ -41,6 +41,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import unicodedata
 import urllib.error
 from dataclasses import dataclass, field
@@ -48,7 +49,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Callable, Mapping
 
-from . import audit, check, codeowners, committed, external, init, inventory, render, rules
+from . import audit, check, codeowners, committed, external, init, inventory, render, rules, sarif
 from . import checkout as co
 from . import github as gh
 from .inventory import actions as workflows
@@ -70,6 +71,7 @@ BASE, HEAD = "base", "head"
 AUTO = "auto"
 WORKFLOWS = ".github/workflows"
 UNRESOLVED = "unresolved"
+SARIF_FILE = "decisis.sarif"
 WHOLE = re.compile(r"[0-9]{1,4}")
 CAUSES = (("check", "check result(s) that cannot be judged"), ("audit", "unresolved audit finding(s)"),
           ("packages", "unresolved package(s)"), ("unread", "decision file(s) not read"))
@@ -100,6 +102,7 @@ class Audited:
     inventory: str
     report: dict | None = None
     problem: str | None = None
+    path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -629,7 +632,7 @@ def audits(env: Mapping[str, str], graph, repo: str, root: Path, day=None,
         if line != AUTO:
             if identity(Path(line)) not in seen:
                 seen.add(identity(Path(line)))
-                out.append(Audited(line, audit_file(graph, Path(line), repo, advisories, day=day, warn=warn)))
+                out.append(Audited(line, audit_file(graph, Path(line), repo, advisories, day=day, warn=warn), path=Path(line)))
             continue
         here = found(root)
         empty = empty or not here
@@ -640,13 +643,53 @@ def audits(env: Mapping[str, str], graph, repo: str, root: Path, day=None,
             seen.add(key)
             if problem is None:
                 try:
-                    out.append(Audited(label, audit_found(graph, root, name, repo, advisories, day, warn)))
+                    out.append(Audited(label, audit_found(graph, root, name, repo, advisories, day, warn), path=root / name))
                     continue
                 except (ValueError, OSError) as e:
                     problem = reason(e)
             out.append(Audited(label, problem=problem))
             say(f"{label} was not audited: {problem}")
     return out, empty
+
+
+def sarif_prefix(root: Path, top: Path | None) -> str:
+    if top is None:
+        return ""
+    found = Path(os.path.abspath(root)).relative_to(top).as_posix()
+    return "" if found == "." else found
+
+
+def sarif_document(env: Mapping[str, str], o: Outcome) -> str:
+    root = Path(env.get("DECISIS_WORKING_DIRECTORY", "").strip() or ".")
+    top = codeowners.repository(root)
+    runs = [sarif.check_run(o.report, base=sarif_prefix(root, top))]
+    for a in o.audits or []:
+        if a.report is not None:
+            where = a.path or Path(a.inventory)
+            runs.append(sarif.audit_run(a.report, sarif.inventory_path(where, top), label=sarif.outside(where)))
+    return sarif.dumps(sarif.log(runs))
+
+
+def sarif_write(directory: Path, content: str) -> str:
+    target = Path(os.path.abspath(directory / SARIF_FILE))
+    fd, name = tempfile.mkstemp(dir=directory, prefix=".decisis-", suffix=".sarif")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(name, target)
+    except BaseException:
+        if os.path.lexists(name):
+            os.unlink(name)
+        raise
+    return str(target)
+
+
+def sarif_output(env: Mapping[str, str], o: Outcome, wanted: bool) -> str:
+    if not wanted:
+        return ""
+    written = sarif_write(Path(env.get("GITHUB_WORKSPACE", "").strip() or "."), sarif_document(env, o))
+    say(f"SARIF written to {written}")
+    return f"sarif-file={written}\n"
 
 
 def version() -> str:
@@ -681,6 +724,7 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     repo = env.get("DECISIS_REPO", "").strip() or None
     strict = flag(env, "DECISIS_FAIL_ON_UNRESOLVED")
     failing = flag(env, "DECISIS_FAIL_ON_VIOLATION")
+    sarifing = flag(env, "DECISIS_SARIF")
     warn = warn_days(env)
     mode, waiting = decisions_from(env), None
     if mode == HEAD:
@@ -699,7 +743,7 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
         say(f"{len(waiting.files)} changed file(s) hold decisions; they take effect once merged")
     if mode == BASE and not committed.has_decisions(graph):
         return unjudged(env, client, Outcome({"changed": changed}, pull, [], version(), source, pending=waiting,
-                                             nothing=no_decisions(env, graph), strict=strict))
+                                             nothing=no_decisions(env, graph), strict=strict), sarifing)
     approved, review_note = approvals(client, pull)
     report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day, warn_days=warn)
     done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day, warn)
@@ -709,9 +753,10 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     if empty:
         outcome.notes.append("inventory: auto found no inventory in the repository root, so it audited nothing there.")
     link = publish(env, client, outcome)
+    written = sarif_output(env, outcome, sarifing)
     violations = len(report["violations"]) + audit_violations(done)
     count = sum(unresolved(outcome).values())
-    append(env.get("GITHUB_OUTPUT"), f"violations={violations}\nunresolved={count}\ncomment-url={link}\n")
+    append(env.get("GITHUB_OUTPUT"), f"violations={violations}\nunresolved={count}\ncomment-url={link}\n{written}")
     say(f"{len(report['governing'])} decision(s) touched, {violations} violation(s), {count} unresolved")
     if violations and failing:
         return 1
@@ -721,9 +766,9 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     return 0
 
 
-def unjudged(env: Mapping[str, str], client: gh.Client, outcome: Outcome) -> int:
+def unjudged(env: Mapping[str, str], client: gh.Client, outcome: Outcome, sarifing: bool = False) -> int:
     link = publish(env, client, outcome)
-    append(env.get("GITHUB_OUTPUT"), f"violations=0\nunresolved=0\ncomment-url={link}\n")
+    append(env.get("GITHUB_OUTPUT"), f"violations=0\nunresolved=0\ncomment-url={link}\n{sarif_output(env, outcome, sarifing)}")
     say("the base commit has no decisions yet; nothing was judged")
     return 0
 
