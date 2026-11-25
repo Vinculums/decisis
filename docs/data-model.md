@@ -635,6 +635,8 @@ read back with `init`'s reader. `init` then reads the file into a decision with 
 | `Workspace` | a pnpm, Yarn or Bun lockfile | `id` = `workspace:<repo>:<path>`, `name` (empty for pnpm, which does not record it), `path`, `source_system`, `source_ref`, `fetched_at` |
 | `Advisory` | OSV | `id` = `adv:<osv id>`, `osv_id`, `severity`, `severity_source` (only when the severity is not the record's own), `aliases`, `published`, `affected_json`, `source_url`, `fetched_at`, `content_hash` of the OSV record |
 
+The `fetched_at` of the `Repository`, `Package` and `Workspace` nodes is when the inventory was read. With `--osv-cache` the whole audit is dated by the cache: those nodes take the cache's `fetched_at`, so a cached audit, and the records `propose` makes from it, are the same bytes on every run.
+
 | Edge | Meaning | `evidence` |
 |---|---|---|
 | snapshot edges | as in the snapshot | as in the snapshot |
