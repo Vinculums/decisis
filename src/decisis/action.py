@@ -270,7 +270,16 @@ def audit_section(a: Audited, rows: int) -> list[str]:
         shown, rest = cut(excused, rows, "waived audit findings")
         out += [f"Waived, not counted as violations ({len(excused)}):", ""]
         out += (table(["Package", "Advisory or rule", "Decision", "Why", "Waived until"], shown) if shown else []) + rest
-    return out + problems(a.report.get("rule_problems") or [], rows)
+    return out + problems(a.report.get("rule_problems") or [], rows) + idle(a.report.get("not_governing") or [], rows)
+
+
+def idle(found: list[dict], rows: int) -> list[str]:
+    if not found:
+        return []
+    shown, rest = cut(found, rows, "decisions that govern nothing here")
+    return [f"#### Decisions that govern nothing in this audit ({len(found)})", "",
+            "Their rules are not judged against this inventory.", "",
+            *(f"- {code(d['decision'])}: {text(d['reason'])}" for d in shown), "", *rest]
 
 
 def audit_violations(audits: list[Audited] | None) -> int:
