@@ -159,7 +159,7 @@ def header(found: Patch) -> str:
     n = len(found.adrs)
     lines = ["decisis init --suggest-refs --patch",
              f"Adds {found.refs} suggested code refs to {n} ADR{'' if n == 1 else 's'} that state none. Each ref is a guess from the ADR's text: read it before you apply it.",
-             "Apply it from the repository root with git apply, after git apply --check accepts it."]
+             "Its paths are relative to the --repo-dir init read: apply it from that directory with git apply, or from the git root with git apply --directory=<that directory>, after git apply --check accepts it."]
     for title, rows in (("Skipped, not applied:", found.skipped), ("Left out of this patch:", found.left_out)):
         if rows:
             lines += [title, *(f"  {quoted(file)}: {oneline(reason)}" for file, reason in rows)]

@@ -487,6 +487,9 @@ decisis init --repo-dir . --repo Shop --suggest-refs --patch ../code-refs.diff -
 git apply --check ../code-refs.diff && git apply ../code-refs.diff
 ```
 
+The paths in the diff are relative to `--repo-dir`. Apply it from that directory, as above, or from the git root
+with `git apply --directory=<repo-dir>` when `--repo-dir` is a subdirectory.
+
 - Each ADR that got suggested refs has one hunk. An ADR with front matter gets a `code_ref` list before its closing `---`;
   an ADR with no front matter gets a front matter block with `code_ref` above its first line; a front matter `code_ref` key
   that is there and empty (`code_ref:` or `code_ref: []`) is replaced, so the key is never given twice. An ADR that
