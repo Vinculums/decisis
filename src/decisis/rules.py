@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import re
 from dataclasses import dataclass
@@ -40,10 +41,27 @@ class Problem:
 
 
 @dataclass(frozen=True)
+class Waiver:
+    index: int
+    reason: str
+    expires: datetime.date
+    approved_by: str
+    ecosystem: str | None = None
+    name: str | None = None
+    versions: tuple[str, ...] = ()
+    advisory: str | None = None
+    path: str | None = None
+    to: str | None = None
+    rule: str | None = None
+
+
+@dataclass(frozen=True)
 class Parsed:
     rules: tuple[Rule, ...] = ()
     problems: tuple[Problem, ...] = ()
     stated: bool = False
+    waivers: tuple[Waiver, ...] = ()
+    waiver_problems: tuple[Problem, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -425,7 +443,172 @@ def parse(raw) -> Parsed:
 
 
 def of(decision: dict) -> Parsed:
-    return parse((decision.get("props") or {}).get("rule"))
+    props = decision.get("props") or {}
+    parsed = parse(props.get("rule"))
+    found, problems = waivers(props.get("waivers"))
+    return Parsed(parsed.rules, parsed.problems, parsed.stated, found, problems)
+
+
+WAIVED = "waived"
+WAIVERS = "waivers"
+WAIVER_TEXT = ("reason", "approved_by")
+WAIVER_KEYS = ("reason", "expires", "approved_by", "package", "advisory", "path", "to", "rule")
+AUDIT_SUBJECTS = ("advisory", *PACKAGE_SUBJECTS)
+_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def date_of(text, what: str) -> datetime.date:
+    if isinstance(text, str) and _DATE.fullmatch(text):
+        try:
+            return datetime.date.fromisoformat(text)
+        except ValueError:
+            pass
+    raise ValueError(f"{what} must be a date such as 2026-01-31, not {text!r}")
+
+
+def today(text: str | None = None) -> datetime.date:
+    if text is None:
+        return datetime.datetime.now(datetime.timezone.utc).date()
+    return date_of(text, "today")
+
+
+def _line(value, key: str) -> str:
+    if not isinstance(value, str) or not value.strip() or any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError(f"{key} must be one line of text")
+    return value.strip()
+
+
+def _glob(value, key: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{key} must be a path glob")
+    try:
+        codeowners.compile_pattern(value.strip())
+    except codeowners.Unsupported as e:
+        raise ValueError(f"{key}: {e}") from None
+    return value.strip()
+
+
+def _waived_package(value) -> tuple[str, str, tuple[str, ...]]:
+    if not isinstance(value, dict) or set(value) - {"ecosystem", "name", "versions"} or \
+            not all(isinstance(value.get(k), str) and value[k].strip() for k in ("ecosystem", "name")):
+        raise ValueError("package must be a mapping with ecosystem, name and optional versions")
+    versions = value.get("versions")
+    if versions is not None and (not isinstance(versions, list) or not versions or not all(isinstance(v, str) and v.strip() for v in versions)):
+        raise ValueError("package versions must be a non-empty list of exact versions")
+    return value["ecosystem"].strip(), value["name"].strip(), tuple(v.strip() for v in versions or ())
+
+
+def _waived_rule(value, subjects: tuple[str, ...], form: str) -> str:
+    if not isinstance(value, str) or value not in KINDS or KINDS[value].subject not in subjects:
+        known = ", ".join(sorted(k for k in KINDS if KINDS[k].subject in subjects))
+        raise ValueError(f"rule must name a rule kind a {form} waiver can cover ({known}), not {value!r}")
+    return value
+
+
+def _advisory_id(value) -> str:
+    if not isinstance(value, str) or not _ID.match(value) or value.lower().startswith("adv:"):
+        raise ValueError(f"advisory must be an OSV id such as GHSA-xxxx-xxxx-xxxx, without adv:, not {value!r}")
+    return value
+
+
+def _waiver(index: int, entry) -> Waiver:
+    if not isinstance(entry, dict):
+        raise ValueError(f"a waiver must be a mapping, not {type(entry).__name__}")
+    unknown = sorted(str(k) for k in entry if k not in WAIVER_KEYS)
+    if unknown:
+        raise ValueError(f"unknown key {', '.join(unknown)}; a waiver has {', '.join(WAIVER_KEYS)}")
+    missing = [k for k in ("reason", "expires", "approved_by") if k not in entry]
+    if missing:
+        raise ValueError(f"it has no {' and no '.join(missing)}")
+    if ("package" in entry) == ("path" in entry):
+        raise ValueError("it must name a package (for audit) or a path glob (for check), exactly one of them")
+    base = {"index": index, "reason": _line(entry["reason"], "reason"), "approved_by": _line(entry["approved_by"], "approved_by"),
+            "expires": date_of(entry["expires"], "expires")}
+    if "package" in entry:
+        if "to" in entry:
+            raise ValueError("to goes with a path waiver, not a package waiver")
+        ecosystem, name, versions = _waived_package(entry["package"])
+        advisory = _advisory_id(entry["advisory"]) if "advisory" in entry else None
+        subjects = ("advisory",) if advisory else AUDIT_SUBJECTS
+        rule = _waived_rule(entry["rule"], subjects, "package" + (" and advisory" if advisory else "")) if "rule" in entry else None
+        return Waiver(**base, ecosystem=ecosystem, name=name, versions=versions, advisory=advisory, rule=rule)
+    if "advisory" in entry:
+        raise ValueError("advisory goes with a package waiver, not a path waiver")
+    to = _glob(entry["to"], "to") if "to" in entry else None
+    subjects = ("import",) if to else CHANGE_SUBJECTS
+    rule = _waived_rule(entry["rule"], subjects, "path" + (" and to" if to else "")) if "rule" in entry else None
+    return Waiver(**base, path=_glob(entry["path"], "path"), to=to, rule=rule)
+
+
+def waivers(raw) -> tuple[tuple[Waiver, ...], tuple[Problem, ...]]:
+    if raw is None:
+        return (), ()
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError as e:
+            return (), (Problem(WAIVERS, f"waivers is not valid JSON ({e.msg})"),)
+    if not isinstance(raw, list) or not raw:
+        return (), (Problem(WAIVERS, "waivers must be a non-empty list of waiver mappings"),)
+    found, problems = [], []
+    for i, entry in enumerate(raw, 1):
+        try:
+            found.append(_waiver(i, entry))
+        except ValueError as e:
+            problems.append(Problem(WAIVERS, f"waiver {i} waives nothing: {e}"))
+    return tuple(found), tuple(problems)
+
+
+def _module(path: str) -> str:
+    key = path.rstrip("/")
+    if key.endswith(".rs"):
+        return key[:-3]
+    return key.rpartition("/")[0] if key.endswith(".go") else key
+
+
+def _to_covers(w: Waiver, rule: Rule, facts: dict) -> bool:
+    to, target = rule.value[1], facts.get("target")
+    if facts.get("resolution") == "external":
+        return bool(target and _package_target(to, target) and matches((w.to,), target))
+    named = [p for p in (target, *(facts.get("also") or ())) if p]
+    forbidden = {_module(p) for p in named if matches(to, p)}
+    return bool(forbidden) and all(any(matches((w.to,), p) for p in named if _module(p) == m) for m in forbidden)
+
+
+def covers(w: Waiver, rule: Rule, facts: dict) -> bool:
+    subject = KINDS[rule.kind].subject
+    if w.rule is not None and w.rule != rule.kind:
+        return False
+    if w.ecosystem is not None:
+        if subject not in AUDIT_SUBJECTS or (w.advisory is not None and (subject != "advisory" or facts.get("advisory") != w.advisory)):
+            return False
+        if not semver.same_package(w.ecosystem, w.name, facts):
+            return False
+        return not w.versions or same_version(facts.get("version") or "", w.versions, w.ecosystem)
+    if subject not in CHANGE_SUBJECTS or matches((w.path,), facts.get("file")) is None:
+        return False
+    if w.to is None:
+        return True
+    return subject == "import" and _to_covers(w, rule, facts)
+
+
+def shown(w: Waiver) -> dict:
+    return {"waiver": w.index, "reason": w.reason, "expires": w.expires.isoformat(), "approved_by": w.approved_by}
+
+
+def waived(rule: Rule, facts: dict, dev: bool, found: tuple[Waiver, ...], day: datetime.date) -> dict:
+    verdict_, why = verdict(rule, facts, dev)
+    out = {"verdict": verdict_, "why": why}
+    hits = [w for w in found if covers(w, rule, facts)] if verdict_ == VERDICT[MATCH] else []
+    if not hits:
+        return out
+    active = [w for w in hits if day <= w.expires]
+    if active:
+        w = max(active, key=lambda w: (w.expires, -w.index))
+        return {"verdict": WAIVED, "why": why, "waiver": shown(w)}
+    w = max(hits, key=lambda w: (w.expires, -w.index))
+    return {**out, "why": f"{why}; waiver {w.index} ({w.reason}, approved by {w.approved_by}) expired at the end of {w.expires.isoformat()}",
+            "expired_waiver": shown(w)}
 
 
 def outcome(rule: Rule, facts: dict) -> tuple[str, str]:

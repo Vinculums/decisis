@@ -5,7 +5,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import audit, checker, external
+from . import audit, checker, external, rules
 from . import checkout as co
 from . import commit as wb
 from .fake_vinc import FakeVinc
@@ -112,7 +112,8 @@ def run(out: Path, fixtures: Path | None = None, approve: str | None = None, yes
     graph = audit.compose(vinc, lock, REPO, external.cached_advisories(cache))
     box = Sandbox(sandbox_root)
     try:
-        report = audit.analyze(box, graph, REPO)
+        today = cache["fetched_at"][:10]
+        report = audit.analyze(box, graph, REPO, day=rules.today(today))
         m = graph.meta
         demo.step("Relate graph: Vinc knowledge joined with external data", [
             "A private Relate file in a fresh 0700 directory under tmpfs; reasoning opens it read only.",
@@ -134,7 +135,6 @@ def run(out: Path, fixtures: Path | None = None, approve: str | None = None, yes
             *[_finding_line(f) for f in report["findings"]],
         ], path=path)
 
-        today = cache["fetched_at"][:10]
         plan = wb.propose(report, REPO, SPACE, today=today)
         checked = checker.check_plan(plan, box, checker.decisions(vinc), REPO)
         plan = checker.withhold(plan, checked)

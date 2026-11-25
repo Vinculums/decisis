@@ -91,7 +91,7 @@ def test_a_superseded_decision_is_listed_apart_and_never_judged(capsys, no_netwo
 def test_the_report_lists_the_governing_decisions_and_keeps_its_documented_keys(capsys, no_network):
     _, r = report(capsys, "--changed", *CHANGED)
     assert set(r) == {"loaded", "hops", "repo", "base", "changed", "reviewers", "governing", "superseded", "rules", "imports",
-                      "violations", "unresolved", "summary", "impact"}
+                      "violations", "unresolved", "waived", "summary", "impact", "today"}
     assert {g["decision"]: g["files"] for g in r["governing"]} == {
         "decision:payments-need-a-payments-review": ["src/payments/charge.py"],
         "decision:ui-does-not-import-db": ["src/shop/ui/view.py", "web/src/ui/index.ts", "web/src/ui/page.ts"]}
@@ -297,7 +297,7 @@ def test_audit_ignores_review_and_import_rules(tmp_path, capsys, no_network):
 
 @pytest.mark.parametrize("fmt,suffix", [("mermaid", "md"), ("html", "html")])
 def test_the_check_fixture_renders_to_the_committed_golden_output(fmt, suffix, capsys, no_network):
-    _, out = cli_run(capsys, "--changed", *CHANGED, "--reviewers", "bob", "--format", fmt)
+    _, out = cli_run(capsys, "--changed", *CHANGED, "--reviewers", "bob", "--format", fmt, "--today", "2026-11-25")
     golden = GOLDEN / f"check.{suffix}"
     if os.environ.get("DECISIS_GOLDEN") == "write":
         golden.write_text(out, encoding="utf-8")
@@ -472,7 +472,7 @@ def test_go_and_rust_comments_and_strings_are_not_read_as_imports_but_a_text_sea
     canonical = [i for i in r["imports"] if i["file"] == GO_VIEW and i["line"] == 2]
     assert [(i["resolution"], i["target"]) for i in canonical] == [("unresolved", "svc/internal/ui/")]
     assert all(v["line"] != 2 for v in r["violations"] + r["unresolved"] if v["file"] == GO_VIEW)
-    assert r["summary"] == {"violated": 8, "unresolved": 5, "not_violated": 7}
+    assert r["summary"] == {"violated": 8, "unresolved": 5, "waived": 0, "not_violated": 7}
 
 
 GO_MOD = {"go.mod": "module example.com/m // the module\n\ngo 1.22\n", "db/a.go": "package db\n", "db/sub/b.go": "package sub\n"}

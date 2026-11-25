@@ -238,6 +238,66 @@ and how one package, file or import is judged. A finding's `kind` is that subjec
 `uses_unlisted_package` or `not_pinned_to_commit` and the value `<ecosystem>:<name>`, which the checker
 judges again against the decision's rules.
 
+### Waivers
+
+A decision's `props` may carry `waivers`: a list (or a JSON string of one) of exceptions to its own rules. A
+waiver records a violation the team accepts for a while, such as an advisory with no patched release yet.
+Each waiver is a mapping with these keys:
+
+| Key | Value |
+|---|---|
+| `reason` | why the violation is accepted, one line of text (required) |
+| `expires` | the last day the waiver holds, a date `YYYY-MM-DD` (required) |
+| `approved_by` | who accepted it, one line of text such as `@org/security` (required) |
+| `package` | for `audit`: `{"ecosystem", "name", "versions"}`, `versions` optional |
+| `advisory` | for `audit`, with `package`: one OSV id, such as `GHSA-p6mc-m468-83gw`, without `adv:` |
+| `path` | for `check`: one path glob |
+| `to` | for `check`, with `path`: one path glob that names the forbidden import target |
+| `rule` | optional: the one rule kind the waiver covers |
+
+A waiver names `package` or `path`, never both. It covers a `violated` result of the decision that holds it,
+and of no other decision, when every part it names matches:
+
+- `package` matches the finding's package as `package_denied` matches it: ecosystem without regard to case,
+  the name as OSV compares it, and, when `versions` is given, one of those exact versions (or one that orders
+  equal). Without `versions` it covers every version of that one package. Without `advisory` and `rule` it
+  covers every `audit` kind of the decision on that package.
+- `advisory` narrows a package waiver to `advisory_severity_at_least` findings of that one advisory, compared
+  as written.
+- `path` matches the changed file with the same globs and rules as `review_required` and `imports_forbidden`
+  (see above). Without `to` and `rule` it covers both `check` kinds on the files it matches.
+- `to` narrows a path waiver to `imports_forbidden` results, and covers one only when the glob names every
+  file the rule forbids that import through. A Rust module file `a/b.rs` and its directory `a/b/` count as one
+  module, and a Go package directory and its `.go` files as one package, so the glob may name either; a Rust
+  path that reaches several `cfg` files is covered only when the glob names each of them. For an external
+  package the glob is matched against `node_modules/<specifier>`.
+- `rule` names one kind: an `audit` kind for a package waiver (`advisory_severity_at_least` only with
+  `advisory`), a `check` kind for a path waiver (`imports_forbidden` only with `to`).
+
+A covered violation judged on or before its `expires` date gets the verdict `waived`, with the rule's `why`
+and `waiver`: the waiver's position in the list (`waiver`, from 1), `reason`, `expires` and `approved_by`.
+When several waivers cover it, the one that lasts longest is shown. From the day after `expires` it is
+`violated` again, its `why` ends with which waiver expired and when, and it carries `expired_waiver` with the
+same keys. `unresolved` and `not_violated` results are never waived. "Today" is the UTC date, or the date
+`--today YYYY-MM-DD` gives (`audit`, `check`, the MCP `today` argument and the Action's `today` input), and
+the reports name it as `today`. The demo judges waivers on the date its OSV cache was fetched and the
+benchmark on a fixed date, so neither changes from day to day.
+
+`waived` is never a violation: it is not counted in `violations`, in the `check` exit code, in the Action's
+`violations` output or for `fail-on-violation`.
+
+A waiver with a missing, unknown or unreadable key, a date that is not a real `YYYY-MM-DD` date, both or
+neither of `package` and `path`, `to` with a package, `advisory` with a path, a glob the rules refuse, or a
+`rule` the waiver cannot cover waives nothing and is listed under `rule_problems` with `rule` set to
+`waivers` and the reason. Other waivers of the same decision still hold. Example:
+
+```json
+[{"package": {"ecosystem": "npm", "name": "lodash", "versions": ["4.17.15"]}, "advisory": "GHSA-p6mc-m468-83gw",
+  "reason": "no patched release we can take before the migration", "expires": "2026-12-31", "approved_by": "@shop/security"},
+ {"path": "src/legacy/**", "rule": "review_required",
+  "reason": "frozen code, removed in Q1", "expires": "2027-01-31", "approved_by": "@shop/leads"}]
+```
+
 Edge types `checkout` keeps from Vinc: `ABOUT`, `RELATED_TO`, `PREREQUISITE_OF`, `DERIVES_FROM`,
 `INHERITS_FROM`, `SUPERSEDES`, `CONNECTS_VIA`, `RETURNS_TO`. A record's edge that Vinc returns as
 `ATTACHES_TO` with a role is read as that role (`relates_to` becomes `RELATED_TO`). A hand-written
@@ -292,6 +352,7 @@ write the same bytes.
 | `statement` | | the first paragraph of `## Decision` or `## Decision Outcome` |
 | `code_ref`, `subject_path`, `also_touches` | the keys of the same name, a path or a list of paths from the repository root | none, unless `--suggest-refs` is given: then `code_ref` lists the paths the text names (below) |
 | `rule` | `rule`, an inline JSON object, kept as it is | |
+| `waivers` | `waivers`, an inline JSON list of objects, kept as it is and read as described in [Waivers](#waivers) | |
 
 The `Status:`, `Date:`, `Deciders:` and `Decision-makers:` lines under the title may stand alone or be list items
 (`- ` or `* `), and the key may be bold with the colon inside or outside the bold: `- **Status:** accepted`,
@@ -432,6 +493,8 @@ YAML and needs no YAML library:
   `"double quoted"` (JSON escapes);
 - a list is `[a, b]`, a JSON array, or `- item` lines under a `key:` with no value;
 - `rule` is one inline JSON object, such as `{"advisory_severity_at_least": "HIGH"}`. The value is kept as it is and read as described in [Rules](#rules).
+- `waivers` is one inline JSON list of objects on one line. The value is kept as it is; a waiver that cannot be
+  read is a rule problem of the decision, as described in [Waivers](#waivers).
 
 Anything else is refused with the line number and the file is skipped: nested mappings, block text (`|`,
 `>`), anchors and aliases (`&`, `*`), tags (`!`), nested lists, and text that holds `: ` without quotes.
@@ -458,15 +521,17 @@ nothing.
 | `--adr-dir DIR` | the ADR directory, relative to `--repo-dir` |
 | `--code-ref PATH` | a path from the repository root the decision governs; repeat it for more |
 | `--rule JSON` | one JSON object, the `rule` front matter key |
+| `--waiver JSON` | one JSON object, a waiver in the `waivers` front matter key; repeat it for more |
 | `--date DATE` | the `date` front matter key (default: today) |
 
-The front matter has `status: proposed`, `date`, and `code_ref` and `rule` when they are given, as inline
-JSON; the body is the `# ` title and empty `## Context and Problem Statement`, `## Considered Options` and
+The front matter has `status: proposed`, `date`, and `code_ref`, `rule` and `waivers` when they are given, as
+inline JSON; the body is the `# ` title and empty `## Context and Problem Statement`, `## Considered Options` and
 `## Decision Outcome` sections. Before anything is written the rule is read with the same reader `audit` and
-`check` use, and a rule with an unknown kind or a bad value is refused with its reason; a `code_ref` that is
+`check` use, and a rule with an unknown kind or a bad value is refused with its reason, as is a waiver that
+would waive nothing; a `code_ref` that is
 not a path relative to the repository root is refused as `init` refuses it; and the whole front matter is
 read back with `init`'s reader. `init` then reads the file into a decision with the same `code_ref` (with
-`--repo` before each path) and `rule`.
+`--repo` before each path), `rule` and `waivers`.
 
 ## The Relate graph of an audit
 
@@ -685,9 +750,10 @@ examples next to it.
 
 ## The report and the plan
 
-`audit --out report.json` writes `meta`, `loaded` (node and edge counts), `governing` (decisions and the
-node they reach the repository through), `summary` (counts by status), `violations` (violated policies
-over all findings), and `findings`. When a decision's rule cannot be read, `rule_problems` lists each
+`audit --out report.json` writes `meta`, `loaded` (node and edge counts), `today` (the date waivers were
+judged on), `governing` (decisions and the node they reach the repository through), `summary` (counts by
+status), `violations` (violated policies over all findings), `waived` (waived policies over all findings),
+and `findings`. When a decision's rule cannot be read, `rule_problems` lists each
 problem (`decision`, `rule`, the kind or null, and `problem`); the key is absent otherwise.
 
 An advisory finding has `package`, `advisory`, `severity`, `severity_source` (only when the severity was
@@ -702,7 +768,8 @@ A license or package finding has `kind` (`license` or `package`), `package`, the
 (`ecosystem`, `license_expression` and `licenses`, or `ecosystem`, `name` and `version`), `status`, `dev_only`, `path`
 (ids from `repo:<name>` to the package, see below), `source_system`, `fetched_at` of
 the inventory, and `policies`, each of which names its `rule` kind. Verdicts are `violated`,
-`not_violated`, `unresolved` (an unknown license) or `relevant`. `status` is `affected` when at least one
+`not_violated`, `unresolved` (an unknown license), `waived` (see [Waivers](#waivers)) or `relevant`. A
+`waived` policy has `waiver`, and a `violated` one whose waiver expired has `expired_waiver`. `status` is `affected` when at least one
 rule of that kind matches the package, whatever its `dependencies` modifier says, and `unresolved` when
 none matches and at least one cannot judge it. A package that no rule matches and every rule can judge
 gives no finding, and a report whose decisions have no license or package rules has none of these
@@ -731,7 +798,9 @@ dependencies); it is empty when there are none.
 `propose --out plan.json` writes `space`, `nodes` (records), `edges` (`relates_to` from a record to a
 decision, with the verdict as evidence), `held` (findings not recorded and why; a record that failed a
 re-derivation check has `record` and `failed`, the list of failed checks) and `digest`: the first 16 hex
-digits of SHA-256 over the space, nodes and edges as sorted JSON. Only `affected` findings become records;
+digits of SHA-256 over the space, nodes and edges as sorted JSON. Only `affected` findings become records,
+waived ones too: their record lists the decisions whose violation is waived in `waived` (absent when there are
+none), not in `violates`, and their edge evidence starts with `waived:`;
 one record covers every version of a package in one scope with the same claim.
 
 | Finding | Record id | `predicate` | `value` |
@@ -752,7 +821,8 @@ snapshot and the inventory. For an advisory record it checks the advisory hash a
 inside the advisory's ranges, each path and its scope, and each edge target. For a license or package
 record it checks that each version is a package of the record's ecosystem in the inventory whose license expression (or ecosystem
 and name) is the record's `value`, that each path is in the graph and matches the scope, that each
-decision in `violates` has a rule of that kind the package violates, and each edge target.
+decision in `violates` or `waived` has a rule of that kind the package violates, and each edge target. A
+waived finding's record is checked like any other, scope and paths included.
 
 ## The check report
 
@@ -772,15 +842,19 @@ decision in `violates` has a rule of that kind the package violates, and each ed
   `import`, `resolution` (`repository`, `external` or `unresolved`), `target` (a repository path, a Go
   package directory ending in `/`, `node_modules/<specifier>` for an external JavaScript package, or null)
   and `why` when it is unresolved. A Rust `import` is written `use <path>` or `mod <name>`.
-- `violations` and `unresolved`: one entry per file, import and rule, with `file`, `line` (null for
+- `today`: the date waivers were judged on.
+- `violations`, `unresolved` and `waived`: one entry per file, import and rule, with `file`, `line` (null for
   `review_required`), `decision`, `rule`, `verdict`, `why`, `import` and `target` (both null for
-  `review_required`).
-- `summary`: the count of `violated`, `unresolved` and `not_violated` results.
+  `review_required`). A `waived` entry adds `waiver`, and a violation whose waiver expired adds
+  `expired_waiver` (see [Waivers](#waivers)).
+- `summary`: the count of `violated`, `unresolved`, `waived` and `not_violated` results.
 - `impact`: the `impact` result for each changed file.
 - `rule_problems`, only when there are some: as in the audit report, for the governing decisions and for
-  any `review_required` or `imports_forbidden` entry that cannot be read.
+  any `review_required` or `imports_forbidden` entry that cannot be read, and for the waivers that cannot be
+  read of a decision that governs a changed file or has a `check` rule.
 
-`check` exits 1 when `violations` is not empty and 0 otherwise, including when no rule applies. An
+`check` exits 1 when `violations` is not empty and 0 otherwise, including when no rule applies or every
+violation is waived. An
 `unresolved` result or a rule problem does not change the exit code, unless `--fail-on-unresolved` is
 given: then an `unresolved` result also exits 1. A CI gate that must not pass what it could not judge
 uses that flag. With `--base REF`, the changed files

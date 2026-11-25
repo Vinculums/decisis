@@ -194,7 +194,7 @@ def front_matter(lines: list[str]) -> dict:
         key, raw = m.group(1), (m.group(2) or "").strip()
         if key in out:
             raise Malformed(f"front matter line {n}: {key} is given twice")
-        out[key] = [] if not raw or raw.startswith("#") else value(raw, n)
+        out[key] = [] if not raw or raw.startswith("#") else inline_json(raw, n, list) if key == "waivers" and raw.startswith("[") else value(raw, n)
         open_list = key if isinstance(out[key], list) and (not raw or raw.startswith("#")) else None
     return out
 
@@ -276,6 +276,8 @@ def typed(fm: dict) -> dict:
         elif key == "rule":
             if not isinstance(val, dict):
                 raise Malformed("front matter rule must be an inline JSON object")
+            out[key] = val
+        elif key == "waivers":
             out[key] = val
     return out
 
@@ -411,8 +413,9 @@ def read_adrs(tree: Tree) -> tuple[list[dict], list[dict]]:
         fields, supersedes, superseded_by = adr_fields(parsed)
         refs = parsed.refs or suggested_refs(tree, path, parsed)
         props = {**base_props(tree, path, parsed), **fields, **refs}
-        if "rule" in parsed.fm:
-            props["rule"] = parsed.fm["rule"]
+        for key in ("rule", "waivers"):
+            if key in parsed.fm:
+                props[key] = parsed.fm[key]
         nid = tree.node_id("decision", path)
         nodes.append({"id": nid, "kind": "decision", "title": parsed.fm.get("title") or parsed.doc.title, "props": props})
         if not refs:

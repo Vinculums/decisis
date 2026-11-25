@@ -35,9 +35,13 @@ inputs:
     required: false
     default: "."
   fail-on-violation:
-    description: true fails the step when check or audit finds a violation.
+    description: true fails the step when check or audit finds a violation. A waived finding is not a violation.
     required: false
     default: "false"
+  today:
+    description: The UTC date, YYYY-MM-DD, that waivers are judged on. Empty uses today's UTC date.
+    required: false
+    default: ""
   decisis-version:
     description: A decisis version to install from PyPI. Empty installs decisis from the action's own checkout, which is the release the action ref names.
     required: false
@@ -53,7 +57,7 @@ inputs:
 
 outputs:
   violations:
-    description: The number of check violations plus the audit violations of every inventory.
+    description: The number of check violations plus the audit violations of every inventory; waived findings are not counted.
     value: ${{ steps.check.outputs.violations }}
   comment-url:
     description: The comment's URL, empty when the result went only to the job summary.
@@ -102,6 +106,7 @@ runs:
         DECISIS_REPO: ${{ inputs.repo }}
         DECISIS_WORKING_DIRECTORY: ${{ inputs.working-directory }}
         DECISIS_FAIL_ON_VIOLATION: ${{ inputs.fail-on-violation }}
+        DECISIS_TODAY: ${{ inputs.today }}
         DECISIS_COMMENT_AUTHOR: ${{ inputs.comment-author }}
         DECISIS_TOKEN: ${{ inputs.github-token }}
       run: '"$PY" -I -m decisis.action'

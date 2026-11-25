@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import time
@@ -15,6 +16,7 @@ METHODS = ("A", "B", "C")
 GOVERNING = ("decision", "record")
 
 
+DAY = datetime.date(2026, 1, 1)
 NO_ADVISORIES = {"fetched_at": "", "queries": {}, "vulns": {}}
 
 
@@ -69,7 +71,7 @@ def governing(vinc: Subgraph, repo: str) -> list[dict]:
 def _policy_claims(pkg: str, adv: str, status: str, severity: str, dev: bool, gov: list[dict], path_steps: list[list[str]]) -> list[dict]:
     out = []
     for d in gov:
-        for p in audit.policies(d, d["rule"], "advisory", {"status": status, "severity": severity}, dev):
+        for p in audit.policies(d, d["rule"], "advisory", {"status": status, "severity": severity}, dev, day=DAY):
             out.append(_claim("policy_link", [pkg, adv, d["decision"], p["verdict"]], d["evidence"] + path_steps, d["decision"], adv))
     return out
 
@@ -195,7 +197,7 @@ def method_c_audit(inp: dict, subject: str) -> list[dict]:
     by_rule = {d["decision"]: d for d in governing(inp["vinc"], repo)}
     gov = [by_rule[d["decision"]] for d in sorted(audit.fold(decisions), key=lambda d: d["decision"]) if d["decision"] in by_rule]
     claims = []
-    for f in audit.verify(rows, graph, decisions):
+    for f in audit.verify(rows, graph, decisions, DAY):
         adv = f["advisory"]
         claims.append(_claim("finding", [subject, adv, f["status"]], [_step(subject, "AFFECTED_BY", adv)], subject, adv))
         mine = [r["path"] for r in rows if r["advisory"] == adv]

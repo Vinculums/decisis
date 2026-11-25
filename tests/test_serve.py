@@ -83,7 +83,7 @@ def test_the_server_lists_only_the_five_read_only_tools_with_the_cli_bounds():
     assert (p["hops"]["minimum"], p["hops"]["maximum"], p["limit"]["maximum"]) == (1, impact.MAX_HOPS, cli.MAX_LIMIT)
     assert all(t.input_schema["additionalProperties"] is False for t in listed.tools)
     c = by["check"].input_schema["properties"]
-    assert sorted(c) == ["base", "changed", "detail", "reviewers"] and c["changed"]["maxItems"] == check.MAX_CHANGED
+    assert sorted(c) == ["base", "changed", "detail", "reviewers", "today"] and c["changed"]["maxItems"] == check.MAX_CHANGED
     assert not by["check"].annotations.open_world_hint and by["check"].annotations.idempotent_hint
 
 

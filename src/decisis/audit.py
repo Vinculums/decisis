@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 import re
 
@@ -50,15 +51,16 @@ def _policy(d: str, verdict: str, why: str, rule: str | None, named: bool) -> di
     return {"decision": d, "verdict": verdict, "why": why, **({"rule": rule} if named else {})}
 
 
-def policies(governing: dict, parsed: rules.Parsed, subject: str, facts: dict, dev: bool, named: bool = False) -> list[dict]:
-    d, via = governing["decision"], governing["via"]
+def policies(governing: dict, parsed: rules.Parsed, subject: str, facts: dict, dev: bool, named: bool = False,
+             day: datetime.date | None = None) -> list[dict]:
+    d, via, day = governing["decision"], governing["via"], day or rules.today()
     if not parsed.stated:
         return [_policy(d, "relevant", f"governs this repository through {via}; it states no machine-checkable rule", None, named)]
     out = [_policy(d, "relevant", f"governs this repository through {via}; its rule cannot be checked: {p.reason}", p.kind, True)
            for p in parsed.problems]
     for rule in rules.judging(parsed, subject):
-        verdict, why = rules.verdict(rule, facts, dev)
-        out.append(_policy(d, verdict, why, rule.kind, named))
+        judged = rules.waived(rule, facts, dev, parsed.waivers, day)
+        out.append({**_policy(d, judged.pop("verdict"), judged.pop("why"), rule.kind, named), **judged})
     return out
 
 
@@ -75,7 +77,7 @@ def fold(decisions: list[dict]) -> list[dict]:
     return [{**g, "via": ", ".join(sorted(g["via"]))} for g in out.values()]
 
 
-def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dict]:
+def verify(rows: list[dict], graph: Subgraph, decisions: list[dict], day: datetime.date | None = None) -> list[dict]:
     by_id = {n["id"]: n for n in graph.nodes}
     governing = ruled(graph, decisions)
     findings = []
@@ -85,8 +87,9 @@ def verify(rows: list[dict], graph: Subgraph, decisions: list[dict]) -> list[dic
         applies = semver.affects(pkg["version"], pkg["ecosystem"], pkg["name"], json.loads(adv["affected_json"]))
         status = {True: "affected", False: "not_affected", None: "unresolved"}[applies]
         sev = adv.get("severity", "UNKNOWN")
-        facts = {"status": status, "severity": sev}
-        found = [p for d, parsed in governing for p in policies(d, parsed, "advisory", facts, bool(pkg.get("dev")))]
+        facts = {"status": status, "severity": sev, "ecosystem": pkg.get("ecosystem") or "", "name": pkg.get("name") or "",
+                 "version": pkg.get("version") or "", "advisory": row["advisory"].split(":", 1)[1]}
+        found = [p for d, parsed in governing for p in policies(d, parsed, "advisory", facts, bool(pkg.get("dev")), day=day)]
         source = {"severity_source": adv["severity_source"]} if adv.get("severity_source") else {}
         findings.append({"package": row["package"], "advisory": row["advisory"], "severity": sev, **source, "status": status,
                          "dev_only": bool(pkg.get("dev")), "path": row["path"], "source_url": adv.get("source_url"),
@@ -129,22 +132,22 @@ def _subject_fields(subject: str, props: dict) -> dict:
     return {"ecosystem": props.get("ecosystem") or "", "name": props.get("name") or "", "version": props.get("version") or ""}
 
 
-def package_finding(node: dict, subject: str, governing: list[tuple[dict, rules.Parsed]]) -> dict | None:
+def package_finding(node: dict, subject: str, governing: list[tuple[dict, rules.Parsed]], day: datetime.date | None = None) -> dict | None:
     props = node["props"]
     status = status_of(governing, subject, props)
     if status is None:
         return None
     dev = bool(props.get("dev"))
-    found = [p for d, parsed in governing for p in policies(d, parsed, subject, props, dev, named=True)]
+    found = [p for d, parsed in governing for p in policies(d, parsed, subject, props, dev, named=True, day=day)]
     return {"kind": subject, "package": node["id"], **_subject_fields(subject, props), "status": status, "dev_only": dev,
             "path": [], "source_system": props.get("source_system"), "fetched_at": props.get("fetched_at"), "policies": found}
 
 
-def package_findings(graph: Subgraph, decisions: list[dict], repo: str, depth: int) -> list[dict]:
+def package_findings(graph: Subgraph, decisions: list[dict], repo: str, depth: int, day: datetime.date | None = None) -> list[dict]:
     governing = ruled(graph, decisions)
     wanted = [s for s in rules.PACKAGE_SUBJECTS if any(rules.judging(p, s) for _, p in governing)]
     packages = sorted((n for n in graph.nodes if n["kind"] == "Package"), key=lambda n: n["id"])
-    found = [f for n in packages for s in wanted if (f := package_finding(n, s, governing)) is not None]
+    found = [f for n in packages for s in wanted if (f := package_finding(n, s, governing, day)) is not None]
     if not found:
         return []
     dev = graph_dev({n["id"]: n for n in graph.nodes})
@@ -192,19 +195,25 @@ def route(parent: dict[str, str | None], end: str) -> list[str]:
 
 
 def rule_problems(graph: Subgraph, decisions: list[dict]) -> list[dict]:
-    return [{"decision": d["decision"], "rule": p.kind, "problem": p.reason} for d, parsed in ruled(graph, decisions) for p in parsed.problems]
+    return [{"decision": d["decision"], "rule": p.kind, "problem": p.reason} for d, parsed in ruled(graph, decisions)
+            for p in parsed.problems + parsed.waiver_problems]
 
 
-def analyze(box, graph: Subgraph, repo: str, depth: int = 8) -> dict:
+def counted(findings: list[dict], verdict: str) -> int:
+    return sum(1 for f in findings for p in f["policies"] if p["verdict"] == verdict)
+
+
+def analyze(box, graph: Subgraph, repo: str, depth: int = 8, day: datetime.date | None = None) -> dict:
     if not 1 <= depth <= MAX_DEPTH:
         raise ValueError(f"depth must be between 1 and {MAX_DEPTH}")
     counts = box.load(graph)
     rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
     decisions = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
-    findings = ordered(verify(rows, graph, decisions) + package_findings(graph, decisions, repo, depth))
+    day = day or rules.today()
+    findings = ordered(verify(rows, graph, decisions, day) + package_findings(graph, decisions, repo, depth, day))
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
-    return {"meta": graph.meta, "loaded": counts, "governing": decisions, "summary": summary,
-            "violations": sum(1 for f in findings for p in f["policies"] if p["verdict"] == "violated"), "findings": findings,
+    return {"meta": graph.meta, "loaded": counts, "today": day.isoformat(), "governing": decisions, "summary": summary,
+            "violations": counted(findings, "violated"), "waived": counted(findings, rules.WAIVED), "findings": findings,
             "unresolved_packages": unresolved_packages(graph), "inventory_notes": inventory_notes(graph, repo),
             **problems_of(graph, decisions)}
 
@@ -225,9 +234,9 @@ def unresolved_packages(graph: Subgraph) -> list[dict]:
 
 def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories,
         limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None,
-        root=None) -> dict:
+        root=None, day: datetime.date | None = None) -> dict:
     graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
     with sandbox(root, limits) as box:
-        report = analyze(box, graph, repo, depth)
+        report = analyze(box, graph, repo, depth, day)
     extra = [n for n in inventory.notes(lock_text, filename) if n not in report["inventory_notes"]]
     return {**report, "inventory_notes": report["inventory_notes"] + extra}

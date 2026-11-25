@@ -24,6 +24,7 @@ CLASSES = {
     "endpoint": "fill:#ede9fe,stroke:#6d28d9,color:#1e1037",
     "violated": "fill:#fecaca,stroke:#b91c1c,stroke-width:3px,color:#3f0a0a",
     "superseded": "fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray:4 3,color:#4b5563",
+    "waived": "fill:#fef9c3,stroke:#a16207,stroke-dasharray:4 3,color:#3b2603",
 }
 VIOLATED_LINK = "stroke:#b91c1c,stroke-width:3px"
 
@@ -146,6 +147,18 @@ def violated(finding: dict) -> bool:
     return any(p.get("verdict") == "violated" for p in finding.get("policies", []))
 
 
+def waivers(finding: dict) -> list[dict]:
+    return [p for p in finding.get("policies", []) if p.get("verdict") == "waived" and p.get("waiver")]
+
+
+def until(w: dict) -> str:
+    return f"waived until {w.get('expires')}"
+
+
+def waiver_text(w: dict) -> str:
+    return f"waiver {w.get('waiver')} until {w.get('expires')}, approved by {w.get('approved_by')}: {w.get('reason')}"
+
+
 def target(finding: dict) -> str:
     return finding.get("advisory") or finding["package"]
 
@@ -174,12 +187,16 @@ def audit_graph(report: dict) -> Graph:
         for nid in path[:-1]:
             g.node(nid, (nid,), "package" if nid.startswith("pkg:") else "repository")
         end = target(f)
-        g.node(end, label(end, detail(f)), "violated" if bad else "advisory" if "advisory" in f else "package", replace=bad)
+        excused = not bad and bool(waivers(f))
+        cls = "violated" if bad else "waived" if excused else "advisory" if "advisory" in f else "package"
+        g.node(end, label(end, detail(f)), cls, replace=bad or excused)
         for a, b in zip(path, path[1:]):
             g.edge(a, "AFFECTED_BY" if b == f.get("advisory") else "DEPENDS_ON", b, bad)
         for p in f.get("policies", []):
             if p.get("verdict") == "violated":
                 g.edge(end, "violates", p["decision"], True)
+        for p in waivers(f):
+            g.edge(end, until(p["waiver"]), p["decision"])
     return g
 
 
@@ -197,6 +214,17 @@ def check_graph(report: dict) -> Graph:
             g.edge(end, "forbidden by", v["decision"], True)
         else:
             g.edge(code, f"violates {v['rule']}", v["decision"], True)
+    for w in report.get("waived", []):
+        code = f"path:{w['file']}"
+        g.node(code, (w["file"],), "code")
+        g.node(w["decision"], label(w["decision"], titles.get(w["decision"], "")), "decision")
+        if w.get("target"):
+            end = f"path:{w['target']}"
+            g.node(end, (w["target"],), "waived", replace=end not in g.nodes or g.nodes[end][1] != "violated")
+            g.edge(code, f"imports, line {w['line']}" if w.get("line") else "imports", end)
+            g.edge(end, f"{w['rule']} {until(w.get('waiver') or {})}", w["decision"])
+        else:
+            g.edge(code, f"{w['rule']} {until(w.get('waiver') or {})}", w["decision"])
     return g
 
 
@@ -206,6 +234,14 @@ def result_table(results: list[dict]) -> str:
     rows = "".join(f'<tr class="{esc(r.get("verdict"))}"><td>{code(r["file"])}</td><td>{esc(r.get("line") or "")}</td>'
                    f'<td>{code(r["decision"])}</td><td>{code(r["rule"])}</td><td>{esc(r.get("why"))}</td></tr>' for r in results)
     head = "<tr><th>file</th><th>line</th><th>decision</th><th>rule</th><th>why</th></tr>"
+    return f'<div class="scroll"><table>{head}{rows}</table></div>'
+
+
+def waived_table(results: list[dict]) -> str:
+    rows = "".join(f'<tr class="waived"><td>{code(r["file"])}</td><td>{esc(r.get("line") or "")}</td>'
+                   f'<td>{code(r["decision"])}</td><td>{code(r["rule"])}</td><td>{esc(r.get("why"))}</td>'
+                   f'<td>{esc(waiver_text(r.get("waiver") or {}))}</td></tr>' for r in results)
+    head = "<tr><th>file</th><th>line</th><th>decision</th><th>rule</th><th>why</th><th>waiver</th></tr>"
     return f'<div class="scroll"><table>{head}{rows}</table></div>'
 
 
@@ -230,10 +266,14 @@ def check_sections(report: dict) -> list[str]:
     head = [("changed files", esc(len(report.get("changed", [])))), ("base", esc(report.get("base") or "not given")),
             ("reviewers", esc(", ".join(report.get("reviewers", [])) or "none given")), ("loaded", loaded(report)),
             ("violations", esc(len(report.get("violations", [])))), ("cannot be judged", esc(len(report.get("unresolved", []))))]
+    waived = report.get("waived") or []
+    if waived:
+        head += [("waived", esc(len(waived))), ("waivers judged on", esc(report.get("today")))]
     problems = "".join(f"<li>{code(p['decision'])} {code(p.get('rule') or 'rule')}: {esc(p['problem'])}</li>"
                        for p in report.get("rule_problems", []))
     return [dl(head), section("Violations", result_table(report.get("violations", []))),
             section("Cannot be judged", result_table(report.get("unresolved", []))),
+            *([section("Waived, not counted as violations", waived_table(waived))] if waived else []),
             section("Governing decisions", decision_list(report.get("governing", []))),
             *([section("Superseded, not judged", decision_list(report["superseded"], "superseded by"))] if report.get("superseded") else []),
             *([section("Rules that cannot be checked", "<ul>" + problems + "</ul>")] if problems else []),
@@ -344,8 +384,9 @@ def policy_table(policies: list[dict]) -> str:
         return ""
     named = any("rule" in p for p in policies)
     rule = lambda p: f'<td>{code(p.get("rule")) if p.get("rule") else ""}</td>' if named else ""
+    note = lambda p: f'<div class="evidence">{esc(waiver_text(p["waiver"]))}</div>' if p.get("waiver") else ""
     rows = "".join(f'<tr class="{esc(p.get("verdict"))}"><td>{code(p.get("decision"))}</td>{rule(p)}<td>{esc(p.get("verdict"))}</td>'
-                   f'<td>{esc(p.get("why"))}</td></tr>' for p in policies)
+                   f'<td>{esc(p.get("why"))}{note(p)}</td></tr>' for p in policies)
     head = "<tr><th>decision</th>" + ("<th>rule</th>" if named else "") + "<th>verdict</th><th>why</th></tr>"
     return f'<div class="scroll"><table>{head}{rows}</table></div>'
 
@@ -360,10 +401,12 @@ def finding_title(f: dict) -> str:
 
 def finding_html(f: dict) -> str:
     chain = " <span class=\"rel\">to</span> ".join(code(n) for n in f.get("path", []))
-    bad = violated(f)
+    bad, excused = violated(f), waivers(f)
     mark = '<span class="badge bad">violates a decision</span> ' if bad else ""
+    mark += "".join(f'<span class="badge waived">{esc(until(p["waiver"]))}</span> ' for p in excused)
     what = code(f["advisory"]) if "advisory" in f else esc(f"{f.get('kind')} rule")
-    return (f'<li class="item{" violated" if bad else ""}"><div class="head">{mark}{code(f["package"])} {what}</div>'
+    cls = " violated" if bad else " waived" if excused else ""
+    return (f'<li class="item{cls}"><div class="head">{mark}{code(f["package"])} {what}</div>'
             f'<div class="title">{esc(finding_title(f))}</div>{dl(finding_rows(f))}<p class="chain">{chain}</p>'
             f'{policy_table(f.get("policies", []))}</li>')
 
@@ -374,6 +417,8 @@ def audit_sections(report: dict) -> list[str]:
     head = [("repository", esc(meta.get("repo"))), ("space", esc(meta.get("space"))), ("extracted at", esc(meta.get("extracted_at"))),
             ("lockfile hash", code(meta.get("lockfile_hash"))), ("loaded", loaded(report)),
             ("findings", esc(", ".join(f"{v} {k}" for k, v in summary.items()))), ("violations", esc(report.get("violations", 0)))]
+    if report.get("waived"):
+        head += [("waived", esc(report["waived"])), ("waivers judged on", esc(report.get("today")))]
     gov = "".join(f"<li>{code(d['decision'])} {esc(d.get('title'))} via {code(d.get('via'))}</li>" for d in report.get("governing", []))
     items = "".join(finding_html(f) for f in report.get("findings", []))
     notes = "".join(f"<li>{esc(n)}</li>" for n in report.get("inventory_notes") or report.get("notes") or [])
@@ -411,8 +456,8 @@ def mermaid(kind: str, report: dict) -> str:
 
 
 CSS = """
-:root{color-scheme:light dark;--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--line:#d1d9e0;--card:#f6f8fa;--bad:#b91c1c;--badbg:#fdecec;--accent:#1d4ed8}
-@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--line:#3d444d;--card:#151b23;--bad:#f87171;--badbg:#2d1214;--accent:#7aa2ff}}
+:root{color-scheme:light dark;--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--line:#d1d9e0;--card:#f6f8fa;--bad:#b91c1c;--badbg:#fdecec;--accent:#1d4ed8;--warn:#a16207}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--line:#3d444d;--card:#151b23;--bad:#f87171;--badbg:#2d1214;--accent:#7aa2ff;--warn:#facc15}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:60rem;margin:0 auto;padding:1rem}
@@ -424,8 +469,10 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
 ul.items{list-style:none;padding:0}
 .item{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:0.75rem;margin:0.75rem 0}
 .item.violated{border-color:var(--bad);background:var(--badbg)}
+.item.waived{border-style:dashed;border-color:var(--warn)}
 .badge{font-size:0.8em;border:1px solid var(--line);border-radius:4px;padding:0 0.3rem;color:var(--muted)}
 .badge.bad{border-color:var(--bad);color:var(--bad);font-weight:600}
+.badge.waived{border-color:var(--warn);color:var(--warn)}
 .title{font-weight:600}
 .steps{padding-left:1.4rem}
 .rel{color:var(--accent);font-size:0.85em}
@@ -435,6 +482,7 @@ ul.items{list-style:none;padding:0}
 table{border-collapse:collapse;width:100%}
 th,td{border-top:1px solid var(--line);padding:0.3rem;text-align:left;vertical-align:top}
 tr.violated td{color:var(--bad);font-weight:600}
+tr.waived td{color:var(--warn)}
 a{color:var(--accent);overflow-wrap:anywhere}
 pre{background:var(--card);border:1px solid var(--line);padding:0.5rem;overflow-x:auto}
 """

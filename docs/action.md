@@ -38,7 +38,8 @@ jobs:
 | `init` | `false` | `true` builds the snapshot from the repository's ADRs, CODEOWNERS and postmortems |
 | `github-token` | `github.token` | reads the reviews and writes the comment |
 | `inventory` | none | `auto`, or a lockfile or SBOM, or several, one per line; when given, `audit` runs on each (with `osv-cache`, offline) |
-| `fail-on-violation` | `false` | `true` fails the step when `check` or any audit finds a violation, after the comment is written |
+| `fail-on-violation` | `false` | `true` fails the step when `check` or any audit finds a violation, after the comment is written; a waived finding is not a violation |
+| `today` | today's UTC date | the date, `YYYY-MM-DD`, that decisions' waivers are judged on |
 | `decisis-version` | the action's own checkout | a version to install from PyPI instead |
 | `repo`, `working-directory`, `osv-cache`, `comment-author`, `python-version` | | see `action.yml` |
 
@@ -57,6 +58,9 @@ jobs:
   repository that is itself a fork still gets a comment.
 - Keep the `concurrency` block, so two runs on one pull request cannot both create a comment. Past 3,000
   comments on a pull request the action stops looking for its own and writes only the job summary.
+- Violations a decision's waiver covers are listed apart, under "Waived, not counted as violations", with
+  each waiver's expiry, approver and reason; they are not counted in the `violations` output or for
+  `fail-on-violation`. From the day after a waiver's `expires` date the finding is a violation again.
 - The comment stays under GitHub's 65,536-character limit: the graph is left out first, then the lists
   are cut, and the comment says what was cut.
 - The outputs `violations` and `comment-url` are set for later steps. `violations` is the check's

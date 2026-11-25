@@ -128,7 +128,8 @@ def _package_version(node: dict, version: str, facts: dict, decided: dict[str, d
     if pkg["package"] not in _ends(node):
         out.append(f"no dependency path of this record reaches {name} {version}")
     dev = p["scope"] == "development"
-    out += [f"{d} has no {kind} rule that {name} {version} violates" for d in p["violates"] if not _forbids(decided.get(d), kind, pkg, dev)]
+    out += [f"{d} has no {kind} rule that {name} {version} violates" for d in p["violates"] + p.get("waived", [])
+            if not _forbids(decided.get(d), kind, pkg, dev)]
     return out
 
 
@@ -140,7 +141,7 @@ def check_package_record(node: dict, edges: list[dict], facts: dict, decided: di
     for path in p["dependency_paths"]:
         problems += _package_path(path, p, own, facts)
     problems += [f"{e['to']} is not a decision in the snapshot" for e in edges if e["to"] not in decided]
-    checks = len(p["versions"]) * (2 + len(p["violates"])) + len(p["dependency_paths"]) + len(edges)
+    checks = len(p["versions"]) * (2 + len(p["violates"]) + len(p.get("waived", []))) + len(p["dependency_paths"]) + len(edges)
     return {"record": node["id"], "checks": checks, "problems": problems}
 
 
