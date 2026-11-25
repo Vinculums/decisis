@@ -5,7 +5,11 @@ commit's tree into a private temporary directory, through the hardened git helpe
 Only regular files are copied. What lies in an ADR directory is judged by `init.Survey`, the rule `init` applies to
 a working tree, so links, submodules and files in subfolders are listed the same way and the caps stop at the same entry.
 `stored` reads a snapshot file from the commit's tree and returns `None` when the commit has no file at the path.
-`changes` names the decisions and waivers that one snapshot adds, changes or removes against another.
+`changes` names the decisions and waivers that one snapshot adds, changes or removes against another. `supersession` names
+what that change does to supersession: each `SUPERSEDES` edge between decisions that one snapshot adds or removes against
+the other, the decisions that become superseded or return to force, and each `SUPERSEDES` cycle added or removed. A cycle
+of the old snapshot is removed when its members no longer lie together in one cycle of the new one, so a cycle that
+only grows is not removed.
 """
 from __future__ import annotations
 
@@ -17,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import checkout as co
-from . import codeowners, init
+from . import codeowners, cycles, impact, init
 from .sandbox import Subgraph
 
 GIT_SECONDS = 120
@@ -38,6 +42,18 @@ class Entry:
     oid: str
     size: int | None
     path: str
+
+
+@dataclass(frozen=True)
+class Supersession:
+    edges: tuple[dict, ...] = ()
+    superseded: tuple[dict, ...] = ()
+    restored: tuple[dict, ...] = ()
+    added: tuple[cycles.Cycle, ...] = ()
+    removed: tuple[cycles.Cycle, ...] = ()
+
+    def __bool__(self) -> bool:
+        return bool(self.edges or self.superseded or self.restored or self.added or self.removed)
 
 
 def git(root: Path, *args: str) -> bytes:
@@ -224,6 +240,31 @@ def changes(old: Subgraph, new: Subgraph) -> list[dict]:
         for change, w in waiver_changes(waiver_list(a), waiver_list(b)):
             out.append({"decision": nid, "waiver": waiver_label(w), "change": change})
     return out
+
+
+def supersedes(graph: Subgraph) -> set[tuple[str, str]]:
+    return {(e["source"], e["target"]) for e in graph.edges if e["type"] == cycles.SUPERSEDES}
+
+
+def standing(graph: Subgraph) -> dict[str, list[str]]:
+    kept = decisions(graph)
+    return {nid: by for nid, by in impact.superseded_by(graph).items() if nid in kept}
+
+
+def supersession(old: Subgraph, new: Subgraph) -> Supersession:
+    kinds = {n["id"]: n["kind"] for n in old.nodes + new.nodes}
+    before, after = supersedes(old), supersedes(new)
+    moved = [(s, t, "added") for s, t in after - before] + [(s, t, "removed") for s, t in before - after]
+    edges = [{"source": s, "target": t, "change": change} for s, t, change in sorted(moved)
+             if cycles.DECISION in (kinds.get(s), kinds.get(t))]
+    was, now = standing(old), standing(new)
+    kept_old, kept_new = decisions(old), decisions(new)
+    superseded = [{"decision": d, "by": now[d]} for d in sorted(now) if d not in was and d in kept_old]
+    restored = [{"decision": d, "by": was[d]} for d in sorted(was) if d not in now and d in kept_new]
+    loops_old, loops_new = cycles.find(old.nodes, old.edges), cycles.find(new.nodes, new.edges)
+    members_old, together = {c.members for c in loops_old}, [set(c.members) for c in loops_new]
+    return Supersession(tuple(edges), tuple(superseded), tuple(restored), tuple(c for c in loops_new if c.members not in members_old),
+                        tuple(c for c in loops_old if not any(set(c.members) <= held for held in together)))
 
 
 def source_files(changed: list[str], snapshot: str | None) -> list[str]:

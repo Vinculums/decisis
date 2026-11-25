@@ -19,9 +19,15 @@ its own audit section, and the audit violations of all of them are added to the 
 
 `DECISIS_DECISIONS_FROM` is `base` (the default) or `head`. With `base` the decisions come from the base commit's
 tree, read by `committed`, so a pull request is judged by the decisions it would merge into, not by ones it brings.
-When the pull request changes a file the decisions come from, the comment lists those files, and the decisions and
-waivers that change when both sides can be read; they change no verdict in this run. When the base commit has no
-decisions, nothing is judged. With `head` the decisions come from the checkout, as before.
+When the pull request changes a file the decisions come from, the comment lists those files, and when both sides can be
+read the decisions and waivers that change, each `SUPERSEDES` edge between decisions that it adds or removes, the decisions
+that become superseded or return to force once it is merged, and each `SUPERSEDES` cycle it adds or removes; they change no
+verdict in this run, except for cycles. A cycle it adds is also a result that cannot be judged in this run, so
+`DECISIS_FAIL_ON_UNRESOLVED` fails the pull request that adds it, also when the base commit has no decisions. A cycle
+of the base commit that it removes is named as removed once merged and is not listed as a result that cannot be judged,
+so the pull request that fixes a cycle is not held by it; the rules of its decisions are judged as before, and a cycle
+it leaves in place or only grows stays a result that cannot be judged. When the base commit has no decisions, nothing
+else is judged. With `head` the decisions come from the checkout, as before.
 
 The `unresolved` output counts the check results that cannot be judged, the audit findings whose status is unresolved
 and the unresolved packages of every inventory, and the decision files not read. With `DECISIS_FAIL_ON_UNRESOLVED`
@@ -54,7 +60,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Mapping
 
-from . import audit, check, codeowners, committed, external, init, inventory, render, rules, sarif, signature
+from . import audit, check, codeowners, committed, cycles, external, init, inventory, render, rules, sarif, signature
 from . import checkout as co
 from . import github as gh
 from .inventory import actions as workflows
@@ -114,6 +120,15 @@ class Audited:
 class Pending:
     files: list[str]
     changes: list[dict] | None = None
+    supersession: committed.Supersession | None = None
+
+    @property
+    def arriving(self) -> list[cycles.Cycle]:
+        return list(self.supersession.added) if self.supersession is not None else []
+
+    @property
+    def leaving(self) -> list[cycles.Cycle]:
+        return list(self.supersession.removed) if self.supersession is not None else []
 
 
 @dataclass
@@ -392,13 +407,50 @@ def pending(o: Outcome, rows: int) -> list[str]:
            *(f"- {code(f)}" for f in shown), *([""] if shown else []), *rest]
     if p.changes is None:
         return out + ["The decisions cannot be read on both sides, so the decisions and waivers that change are not named.", ""]
-    if not p.changes:
+    moved = p.supersession
+    if not p.changes and not moved:
         return out + ["No decision or waiver is added, changed or removed.", ""]
     shown, rest = cut(p.changes, rows, "decision changes")
     if shown:
         out += table(["Decision", "Waiver", "Change"],
                      [[code(c["decision"]), code(c["waiver"]) if c.get("waiver") else "", text(c["change"])] for c in shown])
-    return out + rest
+    return out + rest + (supersession(moved, rows) if moved else [])
+
+
+def superseders(by: list[str]) -> str:
+    return f"superseded by {', '.join(code(d) for d in by)}" if by else "its status says it is superseded"
+
+
+def supersession(s: committed.Supersession, rows: int) -> list[str]:
+    out: list[str] = []
+    if s.edges:
+        shown, rest = cut(list(s.edges), rows, "SUPERSEDES edge changes")
+        out += [f"`SUPERSEDES` edges this pull request adds or removes ({len(s.edges)}):", ""]
+        if shown:
+            out += table(["Decision", "Supersedes", "Change"], [[code(e["source"]), code(e["target"]), text(e["change"])] for e in shown])
+        out += rest
+    if s.superseded:
+        shown, rest = cut(list(s.superseded), rows, "decisions that become superseded")
+        out += [f"Decisions that become superseded once merged ({len(s.superseded)}):", "",
+                *(f"- {code(d['decision'])}: {superseders(d['by'])}" for d in shown), "", *rest]
+    if s.restored:
+        shown, rest = cut(list(s.restored), rows, "decisions that return to force")
+        out += [f"Decisions that return to force once merged ({len(s.restored)}), so their rules are judged again:", "",
+                *(f"- {code(d['decision'])}: {superseders(d['by'])} now" for d in shown), "", *rest]
+    loops = [("added", c) for c in s.added] + [("removed once merged", c) for c in s.removed]
+    if loops:
+        shown, rest = cut(loops, rows, "cycles")
+        out += [f"`SUPERSEDES` cycles this pull request adds or removes ({len(loops)}):", ""]
+        if shown:
+            out += table(["Change", "Decisions", "Files"], [[text(change), files_cell(list(c.decisions)), files_cell(list(c.files))] for change, c in shown])
+        out += rest
+    if s.added:
+        out += ["No decision in an added cycle is treated as superseded once merged, so their rules are judged. "
+                "This run lists each added cycle under \"Cannot be judged\".", ""]
+    if s.removed:
+        out += ["A cycle removed once merged is not listed under \"Cannot be judged\" in this run, and the rules of its decisions "
+                "are judged as before.", ""]
+    return out
 
 
 def audited(o: Outcome) -> bool:
@@ -433,6 +485,7 @@ def nothing_judged(o: Outcome, rows: int) -> str:
              f"{len(o.report['changed'])} changed file(s).", "", text(o.nothing), ""]
     lines += [f"> {text(n)}" for n in o.notes] + ([""] if o.notes else [])
     lines += pending(o, rows)
+    lines += results("Cannot be judged", o.report.get("unresolved") or [], rows)
     lines += code_owners(o.report, rows)
     lines.append(footer(o))
     return "\n".join(lines) + "\n"
@@ -607,7 +660,9 @@ def from_base(env: Mapping[str, str], root: Path, repo: str | None, base: str, c
     except (ValueError, KeyError, TypeError, OSError, subprocess.TimeoutExpired) as e:
         say(f"the decisions in HEAD cannot be read, so their changes are not named: {reason(e)}")
         head = None
-    return graph, source, Pending(sources, committed.changes(graph, head) if graph is not None and head is not None else None)
+    if graph is None or head is None:
+        return graph, source, Pending(sources)
+    return graph, source, Pending(sources, committed.changes(graph, head), committed.supersession(graph, head))
 
 
 def no_decisions(env: Mapping[str, str], graph) -> str:
@@ -795,10 +850,13 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
         say(f"{len(waiting.files)} changed file(s) hold decisions; they take effect once merged")
     if mode == BASE and not committed.has_decisions(graph):
         held = check.codeowners_notice(graph, sorted({check.normal(p) for p in changed}), repo=repo) if graph is not None else {}
-        return unjudged(env, client, Outcome({"changed": changed, **held}, pull, [], version(), source, pending=waiting,
+        arriving = check.shown({"unresolved": check.cycle_results(waiting.arriving, True)}) if waiting is not None and waiting.arriving else {}
+        return unjudged(env, client, Outcome({"changed": changed, **held, **arriving}, pull, [], version(), source, pending=waiting,
                                              nothing=no_decisions(env, graph), strict=strict), sarifing)
     approved, review_note = approvals(client, pull)
-    report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day, warn_days=warn)
+    report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day, warn_days=warn,
+                       arriving=waiting.arriving if waiting is not None else [],
+                       leaving=waiting.leaving if waiting is not None else [])
     done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day, warn, traffic)
     outcome = Outcome(report, pull, approved, version(), source, done, pending=waiting, strict=strict, sign=signing,
                       contacted=tuple(traffic.hosts))
@@ -822,8 +880,12 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
 
 def unjudged(env: Mapping[str, str], client: gh.Client, outcome: Outcome, sarifing: bool = False) -> int:
     link = publish(env, client, outcome)
-    append(env.get("GITHUB_OUTPUT"), f"violations=0\nunresolved=0\ncomment-url={link}\n{sarif_output(env, outcome, sarifing)}")
+    count = sum(unresolved(outcome).values())
+    append(env.get("GITHUB_OUTPUT"), f"violations=0\nunresolved={count}\ncomment-url={link}\n{sarif_output(env, outcome, sarifing)}")
     say("the base commit has no decisions yet; nothing was judged")
+    if count and outcome.strict:
+        say("fail-on-unresolved is on and the run found results that cannot be judged; the step fails")
+        return 1
     return 0
 
 
