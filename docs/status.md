@@ -78,6 +78,5 @@ Future work, not built:
 - Go packages under `vendor/`, and modules that a `replace` directive or `go.work` places inside the
   repository, are read as external, so no `to` glob can name them.
 - A memory limit on the query process (see `docs/threat-model.md`).
-- A listing on the GitHub Marketplace; refer to the action by repository and commit.
 - A benchmark that exercises the `RELATED_TO` carry rule and the audit policy rules on real repositories;
   method B and the coverage check of `compare` read npm lockfiles only.

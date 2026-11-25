@@ -7,9 +7,11 @@ the rule's own globs name the files it covers. `review_required` is judged on ea
 reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go or
 Rust file its `from` globs cover (see `imports.py`); no code of the repository is run. A violation that one of the
 decision's own waivers covers is `waived` through the waiver's expiry date, listed apart and never counted for the
-exit code. A rule or waiver of any decision that is not superseded and cannot be read is under `rule_problems`, whatever
-the decision governs. An ADR that `init` could not read is not in the snapshot, so its rules cannot be judged; each one the
-snapshot's `meta.problems` lists is under `unread_decisions` with its file and reason.
+exit code. The waiver of a waived result that ends within `warn_days` of the run's date is also listed under
+`expiring_soon`; that list changes no verdict and no exit code. A rule or waiver of any decision that is not
+superseded and cannot be read is under `rule_problems`, whatever the decision governs. An ADR that `init` could not
+read is not in the snapshot, so its rules cannot be judged; each one the snapshot's `meta.problems` lists is under
+`unread_decisions` with its file and reason.
 """
 from __future__ import annotations
 
@@ -113,6 +115,10 @@ def import_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str],
     return out, listed
 
 
+def expiring(waived: list[dict], day: datetime.date, warn_days: int) -> list[dict]:
+    return rules.expiring_soon([(r["decision"], r["waiver"]) for r in waived], day, warn_days)
+
+
 def problems(decisions: list[tuple[dict, rules.Parsed]]) -> list[dict]:
     return [{"decision": n["id"], "rule": p.kind, "problem": p.reason} for n, parsed in decisions
             for p in parsed.problems + parsed.waiver_problems]
@@ -127,7 +133,8 @@ def failed(report: dict, on_unresolved: bool) -> bool:
 
 
 def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = (), hops: int = 3, repo: str | None = None,
-        base: str | None = None, limits: Limits | None = None, sandbox_root=None, day: datetime.date | None = None) -> dict:
+        base: str | None = None, limits: Limits | None = None, sandbox_root=None, day: datetime.date | None = None,
+        warn_days: int = rules.WARN_DAYS) -> dict:
     files = sorted({normal(p) for p in changed})
     if len(files) > MAX_CHANGED:
         raise ValueError(f"the change set has {len(files)} files, more than the {MAX_CHANGED} check judges")
@@ -156,7 +163,9 @@ def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = 
         out["summary"]["unresolved"] = len(out["unresolved"])
     found_problems = problems(decisions)
     unread = init.unread_decisions(graph.meta)
-    return shown({**out, **({"rule_problems": found_problems} if found_problems else {}), **({"unread_decisions": unread} if unread else {})})
+    soon = expiring(waived, day, warn_days)
+    return shown({**out, **({"rule_problems": found_problems} if found_problems else {}), **({"unread_decisions": unread} if unread else {}),
+                  **({rules.EXPIRING: soon} if soon else {})})
 
 
 def utf8(name: str) -> bool:
@@ -193,6 +202,11 @@ def waived_lines(results: list[dict]) -> list[str]:
     return [f"  {where(r)}  {r['decision']}  {r['rule']}: {r['why']} ({until(r['waiver'])})" for r in results]
 
 
+def expiring_lines(entries: list[dict]) -> list[str]:
+    return [f"  {e['decision']}  waiver {e['waiver']} until {e['expires']} ({e['days_left']} day(s) left), "
+            f"approved by {e['approved_by']}: {e['reason']}" for e in entries]
+
+
 def render(report: dict) -> str:
     base = f" against {report['base']}" if report.get("base") else ""
     who = ", ".join(report["reviewers"]) or "none given"
@@ -210,6 +224,9 @@ def render(report: dict) -> str:
     if report.get("waived"):
         lines.append(f"waived, not counted as violations (today is {report['today']}): {len(report['waived'])}")
         lines += waived_lines(report["waived"])
+    if report.get(rules.EXPIRING):
+        lines.append(f"waivers that expire soon, still waiving (today is {report['today']}): {len(report[rules.EXPIRING])}")
+        lines += expiring_lines(report[rules.EXPIRING])
     if report.get("rule_problems"):
         lines.append("rules that cannot be checked:")
         lines += [f"  {p['decision']}  {p['rule'] or 'rule'}: {p['problem']}" for p in report["rule_problems"]]

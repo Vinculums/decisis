@@ -3,8 +3,13 @@
 `action.yml` at the root of this repository is a composite action. On a pull request it installs decisis,
 reads a snapshot from the pull request's base commit (or builds one there with `init: true`), runs `check` on the files the pull request changes and
 `audit` when you give an inventory, and keeps one comment on the pull request up to date: the decisions the
-change touches, the violations, and a Mermaid path graph. The action is not on the Marketplace; refer to it
-by repository and commit.
+change touches, the violations, and a Mermaid path graph. It is on the GitHub Marketplace as
+[decisis check](https://github.com/marketplace/actions/decisis-check).
+
+Refer to it as `Vinculums/decisis@v0` to follow every 0.x release, or as `Vinculums/decisis@v0.3.1` for one
+release. A tag can be moved, so for a required check pin the full commit SHA of a release instead, with the
+version in a comment, as the example below does for `actions/checkout`; Dependabot and Renovate update
+such pins. The action installs decisis from its own checkout, so the version it runs is the one you refer to.
 
 ```yaml
 name: decisis
@@ -25,12 +30,13 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: Vinculums/decisis@<commit SHA>
+      - uses: Vinculums/decisis@v0         # or a full commit SHA, see above
         with:
           snapshot: decisions.json        # or init: true
           inventory: auto                 # optional: also run audit; or one path per line
           fail-on-violation: false
           fail-on-unresolved: false
+          warn-days: 14                   # optional: list waivers that expire within this many days; 0 turns it off
 ```
 
 | Input | Default | What it does |
@@ -44,6 +50,7 @@ jobs:
 | `fail-on-unresolved` | `false` | `true` fails the step when the run finds anything that cannot be judged (see [What counts as unresolved](#what-counts-as-unresolved)), after the comment and the job summary are written |
 | `today` | today's UTC date | the date, `YYYY-MM-DD`, that decisions' waivers are judged on |
 | `sarif` | `false` | `true` writes `decisis.sarif` in the workspace, sets the `sarif-file` output and uploads the file to code scanning (see [Code scanning](#code-scanning-sarif)) |
+| `warn-days` | `14` | the comment lists, under "Waivers that expire soon", each waiver that covers a result and expires within this many days of `today`; `0` turns it off; it never fails the step. A value that is not a whole number from 0 to 3650 stops the step before any request |
 | `decisis-version` | the action's own checkout | a version to install from PyPI instead |
 | `repo`, `working-directory`, `osv-cache`, `comment-author`, `python-version` | | see `action.yml` |
 
@@ -65,6 +72,11 @@ jobs:
 - Violations a decision's waiver covers are listed apart, under "Waived, not counted as violations", with
   each waiver's expiry, approver and reason; they are not counted in the `violations` output or for
   `fail-on-violation`. From the day after a waiver's `expires` date the finding is a violation again.
+- Waivers that cover a result in this run and expire within `warn-days` days (14 by default) are listed above the
+  violations, under "Waivers that expire soon", with the decision, the waiver number, the expiry date, the days
+  left, the approver and the reason. A waiver is listed once, whether `check` or an audit found what it covers. The
+  section is a warning only: it is not counted in any output, and it changes no result of `fail-on-violation` or
+  `fail-on-unresolved`.
 - An ADR in the snapshot's `meta.problems` that `init` skipped or did not read, such as one whose `rule:` or
   `waivers:` line holds JSON that does not parse, is listed under "Decision files not read" with its file and
   reason, in the comment and the job summary, and counted in the comment's first line. Its rules are not

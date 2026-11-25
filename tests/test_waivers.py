@@ -13,7 +13,6 @@ from test_rules import LOCK, no_advisories, snapshot
 from decisis import action, audit, check, checker, cli, compact, compare, demo, init, madr, render, rules
 from decisis import checkout as co
 from decisis import commit as wb
-from decisis import serve
 
 ROOT = Path(__file__).resolve().parents[1]
 FIX = ROOT / "fixtures"
@@ -377,7 +376,8 @@ def test_the_mermaid_and_html_audit_views_show_waived_findings_apart_with_their_
 
 @pytest.mark.parametrize("kind", ["audit", "check"])
 @pytest.mark.parametrize("fmt,suffix", [("mermaid", "md"), ("html", "html")])
-def test_waived_views_render_to_the_committed_golden_output_on_a_fixed_date(kind, fmt, suffix, tmp_path, capsys, no_network):
+@pytest.mark.parametrize("name,warn", [("waived", ["--warn-days", "0"]), ("expiring", [])])
+def test_waived_views_render_to_the_committed_golden_output_on_a_fixed_date(kind, fmt, suffix, name, warn, tmp_path, capsys, no_network):
     import os
     if kind == "audit":
         snap = with_waivers(FIX / "audit" / "vinc.json", {ADVISORY_RULE: [waiver(package=LODASH, advisory="GHSA-p6mc-m468-83gw")]})
@@ -389,15 +389,18 @@ def test_waived_views_render_to_the_committed_golden_output_on_a_fixed_date(kind
     path = tmp_path / "snap.json"
     path.write_text(json.dumps(snap), encoding="utf-8")
     capsys.readouterr()
-    cli.main([kind, str(path), *args, "--format", fmt, "--today", DAY])
+    cli.main([kind, str(path), *args, "--format", fmt, "--today", DAY, *warn])
     out = capsys.readouterr().out
-    golden = ROOT / "tests" / "golden" / f"{kind}-waived.{suffix}"
+    golden = ROOT / "tests" / "golden" / f"{kind}-{name}.{suffix}"
     if os.environ.get("DECISIS_GOLDEN") == "write":
         golden.write_text(out, encoding="utf-8")
     assert out == golden.read_text(encoding="utf-8")
 
 
 def test_the_mcp_check_and_audit_replies_show_waived_results_apart(tmp_path, no_network):
+    pytest.importorskip("mcp")
+    pytest.importorskip("jsonschema")
+    from decisis import serve
     from test_serve import over_mcp
     snap = with_waivers(FIX / "check" / "vinc.json", {REVIEW_RULE: [waiver(path="src/payments/**")]})
     path = tmp_path / "check.json"

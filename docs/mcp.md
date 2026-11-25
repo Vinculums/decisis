@@ -63,7 +63,10 @@ report. Give one of:
 and optionally `reviewers`, the handles that reviewed the change (for example `["@alice", "@org/team"]`).
 The summary gives the counts, the governing decisions, and the first 10 violations and unjudged entries
 with the file, the line, the decision, the rule and why; `"detail": "full"` gives the report
-`decisis check` prints. Read `unresolved` as not judged, never as a pass.
+`decisis check` prints. Read `unresolved` as not judged, never as a pass. `check` and `audit` also take
+`warn_days`, 0 to 3650 (default 14): the reply lists under `expiring_soon`, apart from the waived results,
+the waivers that cover a result and expire within that many days of `today`, and 0 turns the list off. It
+changes no verdict (see [Waivers](data-model.md#waivers)).
 
 ## A changed snapshot is reloaded
 
