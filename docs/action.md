@@ -1,7 +1,7 @@
 # The GitHub Action
 
 `action.yml` at the root of this repository is a composite action. On a pull request it installs decisis,
-reads a snapshot (or builds one with `init: true`), runs `check` on the files the pull request changes and
+reads a snapshot from the pull request's base commit (or builds one there with `init: true`), runs `check` on the files the pull request changes and
 `audit` when you give an inventory, and keeps one comment on the pull request up to date: the decisions the
 change touches, the violations, and a Mermaid path graph. The action is not on the Marketplace; refer to it
 by repository and commit.
@@ -36,6 +36,7 @@ jobs:
 |---|---|---|
 | `snapshot` | none | a snapshot file, relative to the workspace; give this or `init` |
 | `init` | `false` | `true` builds the snapshot from the repository's ADRs, CODEOWNERS and postmortems |
+| `decisions-from` | `base` | `base` reads the decisions from the pull request's base commit; `head` reads them from the checkout (see [Trust model](#trust-model)) |
 | `github-token` | `github.token` | reads the reviews and writes the comment |
 | `inventory` | none | `auto`, or a lockfile or SBOM, or several, one per line; when given, `audit` runs on each (with `osv-cache`, offline) |
 | `fail-on-violation` | `false` | `true` fails the step when `check` or any audit finds a violation, after the comment is written; a waived finding is not a violation |
@@ -71,6 +72,51 @@ jobs:
   are cut, and the comment says what was cut.
 - The outputs `violations` and `comment-url` are set for later steps. `violations` is the check's
   violations plus the audit violations of every inventory.
+
+## Trust model
+
+The decisions a run uses are the snapshot file, or the ADRs, CODEOWNERS file and postmortems `init` reads.
+With `decisions-from: base`, the default, they are read from the pull request's base commit: the tip of the
+branch it would merge into. A change the pull request makes to the decision files themselves does not count
+in its own run, so it cannot waive its own violation, drop a rule it breaks, or move a CODEOWNERS line to
+escape a review by editing those files. What is judged still comes from the pull request: the changed files,
+their imports and the inventories.
+
+That alone does not stop a pull request from changing how it is judged. On `pull_request` the workflow file
+also comes from the pull request, so the pull request can edit the decisis step: set `decisions-from: head`,
+point `snapshot:` at a path the base commit does not have (which judges nothing and passes), set
+`fail-on-violation: false`, or remove the step. decisis cannot see or prevent that. What protects the setup
+is the repository's own settings:
+
+- Require review from the owners of `.github/workflows/` and of the decision files (the snapshot, the ADR and
+  postmortem directories, `CODEOWNERS`) with CODEOWNERS and branch protection, or a ruleset that restricts
+  changes to those paths.
+- Make the decisis check a required status check, so a pull request that removes or breaks the step cannot
+  merge. With `fail-on-violation: true` the check also fails on a violation.
+
+The rest of this section describes how the decisions are read.
+
+- The files are read from the base commit's tree with git (`git ls-tree` and `git cat-file`, with hooks,
+  fsmonitor and pagers off) into a private temporary directory that is removed afterwards. Nothing is checked
+  out and nothing from the base commit runs. Only regular files are read; a symbolic link in the base commit
+  is listed in the snapshot's problems and not followed. A `snapshot` file must be inside
+  `working-directory` and committed; the action stops with an error otherwise.
+- git runs on the repository whose `.git` is in `working-directory` or the nearest folder above it, named
+  with `--git-dir`, and that repository must be inside `GITHUB_WORKSPACE`. Implicit bare repositories and
+  replace refs are refused, so a folder the pull request adds cannot pose as the repository.
+- CODEOWNERS patterns come from the base commit and are matched against the files of both the base commit
+  and the checkout, so a new file is owned as the base's CODEOWNERS says. The 100,000-file cap counts the base's
+  files only, so files the pull request adds cannot drop the base's owners.
+- When the pull request changes a file the decisions come from, the comment and the job summary list those
+  files under "Decision changes that take effect once merged", and name each decision and waiver the pull
+  request adds, changes or removes when the decisions can be read on both sides. Those changes do not change
+  any verdict in the run.
+- When the base commit has no snapshot file at the path, or no ADR with a decision, the comment says that no
+  decisions exist on the base yet. Nothing is judged, `violations` is 0 and the step does not fail.
+
+`decisions-from: head` reads the decisions from the checkout, as the action did before. Then the pull request
+under review decides which rules and waivers judge it, so use it only where everyone who can open a pull
+request may also change the decisions.
 
 ## Inventories
 

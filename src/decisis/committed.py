@@ -1,0 +1,214 @@
+"""Read the decisions a commit holds without checking the commit out or running anything from it.
+
+`built` copies the files `decisis init` reads (the ADR and postmortem records and the CODEOWNERS file) from the
+commit's tree into a private temporary directory, through the hardened git helper, and runs `init.build` there.
+Only regular files are copied; a symbolic link in the commit is listed in `meta.problems` and not followed.
+`stored` reads a snapshot file from the commit's tree and returns `None` when the commit has no file at the path.
+`changes` names the decisions and waivers that one snapshot adds, changes or removes against another.
+"""
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
+from . import checkout as co
+from . import codeowners, init
+from .sandbox import Subgraph
+
+GIT_SECONDS = 120
+MAX_RECORDS = 5_000
+MAX_BYTES = 16 * 1024 * 1024
+MAX_SNAPSHOT_BYTES = 256 * 1024 * 1024
+REGULAR = ("100644", "100755")
+LINK = "120000"
+WAIVER_KEYS = ("path", "to", "package", "advisory", "rule")
+UNCOMPARED = ("waivers", "content_hash")
+
+
+@dataclass(frozen=True)
+class Entry:
+    mode: str
+    oid: str
+    size: int | None
+    path: str
+
+
+def git(root: Path, *args: str) -> bytes:
+    try:
+        done = codeowners.git(root, *args, timeout=GIT_SECONDS)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise ValueError(f"git {args[0]} could not run in {root}: {e}") from None
+    if done.returncode != 0:
+        why = done.stderr.decode("utf-8", "replace").strip().splitlines()
+        raise ValueError(f"git {args[0]} failed in {root}: {why[0] if why else 'exit ' + str(done.returncode)}")
+    return done.stdout
+
+
+def commit_name(commit: str) -> str:
+    if not commit or commit.startswith("-") or any(c.isspace() for c in commit):
+        raise ValueError(f"{commit!r} does not name a commit")
+    return commit
+
+
+def entries(root: Path, commit: str, *paths: str) -> list[Entry]:
+    out = []
+    for item in git(root, "ls-tree", "-l", "-z", commit_name(commit), "--", *paths).split(b"\0"):
+        if not item:
+            continue
+        info, _, name = item.partition(b"\t")
+        mode, _, oid, size = info.decode("ascii").split()
+        out.append(Entry(mode, oid, None if size == "-" else int(size), name.decode("utf-8", "surrogateescape")))
+    return out
+
+
+def names(root: Path, commit: str) -> list[str]:
+    listed = git(root, "ls-tree", "-r", "-z", "--name-only", commit_name(commit))
+    return sorted({p for p in listed.decode("utf-8", "surrogateescape").split("\0") if p})
+
+
+def inside(root: Path, path: str) -> str:
+    rel = os.path.relpath(os.path.normpath(os.path.abspath(path)), os.path.normpath(os.path.abspath(root)))
+    if rel == "." or rel == ".." or rel.startswith(".." + os.sep) or os.path.isabs(rel):
+        raise ValueError(f"the snapshot {path} is not inside working-directory {root}, so it cannot be read from the base commit; "
+                         "commit it to the repository or set decisions-from: head")
+    return Path(rel).as_posix()
+
+
+def blob(root: Path, entry: Entry, limit: int) -> bytes:
+    if entry.size is not None and entry.size > limit:
+        raise ValueError(f"{entry.path} is {entry.size} bytes, more than the {limit} decisis reads from a commit")
+    return git(root, "cat-file", "blob", entry.oid)
+
+
+def problem(path: str, reason: str) -> dict:
+    kind = {"kind": init.DECISION} if path.rpartition("/")[0] in init.ADR_DIRS else {}
+    return {"file": path, "reason": reason, "action": init.SKIPPED, **kind}
+
+
+def copy(root: Path, commit: str, into: Path) -> list[dict]:
+    dirs = init.ADR_DIRS + init.POSTMORTEM_DIRS
+    found = entries(root, commit, *(d + "/" for d in dirs), *init.CODEOWNERS_FILES)
+    problems = []
+    for folder in sorted({e.path.rpartition("/")[0] for e in found} & set(dirs)):
+        into.joinpath(*folder.split("/")).mkdir(parents=True, exist_ok=True, mode=0o700)
+    picked = [e for e in found if init.source(e.path)]
+    if len(picked) > MAX_RECORDS:
+        raise ValueError(f"the commit holds {len(picked)} decision files, more than the {MAX_RECORDS} decisis reads")
+    for e in picked:
+        if e.mode == LINK:
+            problems.append(problem(e.path, "it is a symbolic link in the commit, and decisions are read only from regular files"))
+            continue
+        if e.mode not in REGULAR:
+            continue
+        try:
+            data = blob(root, e, MAX_BYTES)
+        except ValueError as err:
+            problems.append(problem(e.path, str(err)))
+            continue
+        target = into.joinpath(*e.path.split("/"))
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+    return problems
+
+
+def built(root: Path, commit: str, repo: str | None, files: list[str], also: list[str] = ()) -> Subgraph:
+    with tempfile.TemporaryDirectory(prefix="decisis-decisions-") as tmp:
+        problems = copy(root, commit, Path(tmp))
+        snapshot = init.build(tmp, repo, files=files, also=also, problems=problems)
+    return co.load(init.dump(snapshot))
+
+
+def stored(root: Path, commit: str, path: str) -> Subgraph | None:
+    found = [e for e in entries(root, commit, path) if e.path == path]
+    if not found:
+        return None
+    if found[0].mode not in REGULAR:
+        raise ValueError(f"the snapshot {path} is not a regular file in the commit {commit[:12]}")
+    data = blob(root, found[0], MAX_SNAPSHOT_BYTES)
+    try:
+        return co.load(data.decode("utf-8"))
+    except UnicodeDecodeError:
+        raise ValueError(f"the snapshot {path} in the commit {commit[:12]} is not UTF-8 text") from None
+
+
+def has_decisions(graph: Subgraph | None) -> bool:
+    return graph is not None and (any(n.get("kind") == "decision" for n in graph.nodes) or bool(init.unread_decisions(graph.meta)))
+
+
+def canonical(value) -> str:
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
+
+
+def decisions(graph: Subgraph) -> dict[str, dict]:
+    return {n["id"]: n for n in graph.nodes if n.get("kind") == "decision"}
+
+
+def waiver_list(node: dict | None) -> list:
+    raw = ((node or {}).get("props") or {}).get("waivers")
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return [raw]
+    return raw if isinstance(raw, list) else [raw]
+
+
+def waiver_key(w) -> str:
+    return canonical([w.get(k) for k in WAIVER_KEYS]) if isinstance(w, dict) else canonical(w)
+
+
+def waiver_label(w) -> str:
+    if not isinstance(w, dict):
+        return "a waiver that cannot be read"
+    named = [f"{k} {w[k] if isinstance(w[k], str) else canonical(w[k])}" for k in WAIVER_KEYS if k in w]
+    return ", ".join(named) or "a waiver that names nothing"
+
+
+def waiver_changes(old: list, new: list) -> list[tuple[str, object]]:
+    rest_old, rest_new = list(old), []
+    for w in new:
+        same = next((i for i, o in enumerate(rest_old) if canonical(o) == canonical(w)), None)
+        if same is None:
+            rest_new.append(w)
+        else:
+            rest_old.pop(same)
+    out = []
+    for w in rest_new:
+        paired = next((i for i, o in enumerate(rest_old) if waiver_key(o) == waiver_key(w)), None)
+        out.append(("added", w) if paired is None else ("changed", w))
+        if paired is not None:
+            rest_old.pop(paired)
+    return out + [("removed", w) for w in rest_old]
+
+
+def body(node: dict) -> str:
+    props = {k: v for k, v in (node.get("props") or {}).items() if k not in UNCOMPARED}
+    return canonical({**node, "props": props})
+
+
+def changes(old: Subgraph, new: Subgraph) -> list[dict]:
+    before, after = decisions(old), decisions(new)
+    out = []
+    for nid in sorted(set(before) | set(after)):
+        a, b = before.get(nid), after.get(nid)
+        if a is None or b is None:
+            out.append({"decision": nid, "waiver": None, "change": "added" if a is None else "removed"})
+        elif body(a) != body(b):
+            out.append({"decision": nid, "waiver": None, "change": "changed"})
+        for change, w in waiver_changes(waiver_list(a), waiver_list(b)):
+            out.append({"decision": nid, "waiver": waiver_label(w), "change": change})
+    return out
+
+
+def source_files(changed: list[str], snapshot: str | None) -> list[str]:
+    if snapshot:
+        return [f for f in changed if f == snapshot]
+    return [f for f in changed if init.source(f)]

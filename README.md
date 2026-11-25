@@ -169,7 +169,7 @@ jobs:
           fail-on-violation: false
 ```
 
-[Inputs, permissions and fork handling](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
+The decisions come from the pull request's base commit, so editing a decision file does not change the pull request's own verdict; guard the workflow and the decision files with CODEOWNERS and make the check required. [Inputs, permissions, fork handling and the trust model](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
 
 ## AI agents: skill and MCP
 

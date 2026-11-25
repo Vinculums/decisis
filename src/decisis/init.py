@@ -60,6 +60,13 @@ class Tree:
     postmortem_dir: str | None = None
     problems: list[dict] = field(default_factory=list)
     suggest_refs: bool = False
+    files: list[str] | None = None
+    also: list[str] = field(default_factory=list)
+
+    def listing(self) -> list[str]:
+        if self.files is None:
+            return owners.repository_files(self.root)[0]
+        return sorted(set(owners.bounded(self.files)) | set(self.also))
 
     def rel(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()
@@ -81,8 +88,7 @@ class Tree:
     def records(self, directory: Path, kind: str | None = None) -> list[Path]:
         out = []
         for path in sorted(directory.iterdir()):
-            name = path.name.lower()
-            if path.suffix.lower() != ".md" or name in NOT_RECORDS or "template" in name or not path.is_file():
+            if not record(path.name) or not path.is_file():
                 continue
             if not path.resolve().is_relative_to(self.root.resolve()):
                 self.problem(path, "it is a link to a file outside the repository", kind=kind)
@@ -154,6 +160,15 @@ def slug(text: str) -> str:
 
 def content_hash(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def record(name: str) -> bool:
+    return Path(name).suffix.lower() == ".md" and name.lower() not in NOT_RECORDS and "template" not in name.lower()
+
+
+def source(path: str) -> bool:
+    folder, _, name = path.rpartition("/")
+    return path in CODEOWNERS_FILES or (folder in ADR_DIRS + POSTMORTEM_DIRS and record(name))
 
 
 def read_text(tree: Tree, path: Path, kind: str | None = None) -> tuple[str, bytes] | None:
@@ -528,7 +543,7 @@ def read_codeowners(tree: Tree) -> tuple[list[dict], list[dict]]:
         return [], []
     rules = owner_rules(tree, path, read[0])
     try:
-        files, _ = owners.repository_files(tree.root)
+        files = tree.listing()
     except owners.TooLarge as e:
         tree.problem(path, f"{e}; owners are not read")
         return [], []
@@ -564,13 +579,16 @@ READERS: tuple[Reader, ...] = (read_adrs, read_codeowners, read_postmortems)
 
 
 def build(repo_dir: str | Path, repo: str | None = None, *readers: Reader, adr_dir: str | None = None,
-          postmortem_dir: str | None = None, suggest_refs: bool = False) -> dict:
+          postmortem_dir: str | None = None, suggest_refs: bool = False, files: list[str] | None = None,
+          also: list[str] = (), problems: list[dict] = ()) -> dict:
     root = Path(os.path.abspath(repo_dir))
     if not root.is_dir():
         raise ValueError(f"{repo_dir} is not a directory")
     if repo is not None and not REPO_NAME.fullmatch(repo):
         raise ValueError(f"--repo {repo!r} must be letters, digits, '-' or '_'")
-    tree = Tree(root, repo, adr_dir, postmortem_dir, suggest_refs=suggest_refs)
+    tree = Tree(root, repo, adr_dir, postmortem_dir, suggest_refs=suggest_refs, files=None if files is None else sorted(set(files)),
+                also=sorted(set(also)))
+    tree.problems += problems
     nodes, edges = merge(tree, readers or READERS)
     problems = {(p["file"], p["action"], p["reason"]): p for p in tree.problems}
     meta = {"source": "decisis init", "repo": repo, "nodes": len(nodes), "edges": len(edges), "problems": [problems[k] for k in sorted(problems)]}

@@ -99,7 +99,7 @@ def environment(tmp_path: Path, root: Path, base: str, **extra) -> dict:
     env = {"GITHUB_EVENT_PATH": str(event(tmp_path, base, extra.pop("fork", False))), "GITHUB_REPOSITORY": REPO,
            "GITHUB_STEP_SUMMARY": str(tmp_path / "summary.md"), "GITHUB_OUTPUT": str(tmp_path / "output.txt"),
            "DECISIS_SNAPSHOT": str(ROOT / "fixtures" / "check" / "vinc.json"), "DECISIS_WORKING_DIRECTORY": str(root),
-           "DECISIS_TOKEN": TOKEN}
+           "DECISIS_TOKEN": TOKEN, "DECISIS_DECISIONS_FROM": "head"}
     env.update(extra)
     return env
 
@@ -328,7 +328,7 @@ def test_third_party_actions_are_pinned_and_no_expression_reaches_a_shell(name):
 def test_the_action_has_its_inputs_and_the_workflow_asks_for_the_least_permission():
     doc = yaml.safe_load((ROOT / "action.yml").read_text(encoding="utf-8"))
     assert doc["runs"]["using"] == "composite"
-    assert {"snapshot", "init", "github-token", "inventory", "fail-on-violation", "decisis-version"} <= set(doc["inputs"])
+    assert {"snapshot", "init", "github-token", "inventory", "fail-on-violation", "decisis-version", "decisions-from"} <= set(doc["inputs"])
     assert doc["inputs"]["fail-on-violation"]["default"] == "false"
     flow = yaml.safe_load((ROOT / ".github" / "workflows" / "decisis.yml").read_text(encoding="utf-8"))
     assert flow["permissions"] == {}

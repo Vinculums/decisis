@@ -14,6 +14,10 @@ inputs:
     description: true builds the snapshot from the repository's ADRs, CODEOWNERS and postmortems with decisis init.
     required: false
     default: "false"
+  decisions-from:
+    description: base (the default) reads the decisions, the snapshot file or what init reads, from the pull request's base commit; head reads them from the checkout, so the pull request can change the decisions it is judged by.
+    required: false
+    default: base
   github-token:
     description: Reads the reviews and writes the comment; needs pull-requests write and contents read.
     required: false
@@ -101,6 +105,7 @@ runs:
         PY: ${{ steps.install.outputs.python }}
         DECISIS_SNAPSHOT: ${{ inputs.snapshot }}
         DECISIS_INIT: ${{ inputs.init }}
+        DECISIS_DECISIONS_FROM: ${{ inputs.decisions-from }}
         DECISIS_INVENTORY: ${{ inputs.inventory }}
         DECISIS_OSV_CACHE: ${{ inputs.osv-cache }}
         DECISIS_REPO: ${{ inputs.repo }}

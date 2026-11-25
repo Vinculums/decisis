@@ -5,6 +5,10 @@ matches at any depth; a trailing `/` matches a directory and everything below it
 path segment; `**` spans segments. A pattern whose last segment is literal also owns everything below a
 directory of that name; one whose last segment has a wildcard matches files only (`docs/*` owns
 `docs/a.md` but not `docs/b/c.md`). The last matching line owns a file.
+
+`git` runs git on the repository whose `.git` is in the given directory or the nearest one above it, named with
+`--git-dir` and `--work-tree`, so a directory the checkout holds cannot pose as a bare repository. Replace refs,
+hooks, fsmonitor, lazy fetches and pagers are off, and an implicit bare repository is refused.
 """
 from __future__ import annotations
 
@@ -71,21 +75,31 @@ def tail(last: str, directory: bool) -> str:
 def repository_files(root: Path) -> tuple[list[str], str]:
     files = git_files(root)
     source = "git" if files is not None else "walk"
-    files = files if files is not None else walk_files(root)
+    return bounded(files if files is not None else walk_files(root)), source
+
+
+def bounded(files: list[str]) -> list[str]:
     if len(files) > MAX_FILES:
         raise TooLarge(f"the repository has {len(files)} files, more than the {MAX_FILES} init resolves owners for")
-    return files, source
+    return files
 
 
 GIT_SAFE = ("-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null",
-            "-c", "core.pager=cat")
+            "-c", "core.pager=cat", "-c", "safe.bareRepository=explicit")
+
+
+def repository(root: Path) -> Path | None:
+    here = Path(os.path.abspath(root))
+    return next((d for d in (here, *here.parents) if os.path.lexists(d / ".git")), None)
 
 
 def git(root: Path, *args: str, timeout: int) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    env.update(GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0", GIT_NO_LAZY_FETCH="1")
-    return subprocess.run(["git", *GIT_SAFE, "-C", str(root), *args], capture_output=True, timeout=timeout, env=env,
-                          stdin=subprocess.DEVNULL)
+    env.update(GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0", GIT_NO_LAZY_FETCH="1", GIT_NO_REPLACE_OBJECTS="1")
+    top = repository(root)
+    where = ["--git-dir", str(top / ".git"), "--work-tree", str(top)] if top is not None else []
+    return subprocess.run(["git", *GIT_SAFE, *where, "-C", str(os.path.abspath(root)), *args], capture_output=True, timeout=timeout,
+                          env=env, stdin=subprocess.DEVNULL)
 
 
 def git_files(root: Path) -> list[str] | None:
