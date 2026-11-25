@@ -13,7 +13,6 @@ from test_rules import LOCK, no_advisories, snapshot
 from decisis import action, audit, check, checker, cli, compact, compare, demo, init, madr, render, rules
 from decisis import checkout as co
 from decisis import commit as wb
-from decisis import serve
 
 ROOT = Path(__file__).resolve().parents[1]
 FIX = ROOT / "fixtures"
@@ -398,6 +397,9 @@ def test_waived_views_render_to_the_committed_golden_output_on_a_fixed_date(kind
 
 
 def test_the_mcp_check_and_audit_replies_show_waived_results_apart(tmp_path, no_network):
+    pytest.importorskip("mcp")
+    pytest.importorskip("jsonschema")
+    from decisis import serve
     from test_serve import over_mcp
     snap = with_waivers(FIX / "check" / "vinc.json", {REVIEW_RULE: [waiver(path="src/payments/**")]})
     path = tmp_path / "check.json"
