@@ -145,8 +145,33 @@ def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = 
            "summary": {"violated": len(violations), "unresolved": len(unresolved), "waived": len(waived),
                        "not_violated": sum(1 for r in results if r["verdict"] == "not_violated")},
            "impact": report["impact"]}
+    odd = [f for f in files if not utf8(f)]
+    if odd:
+        extra = [{"file": f, "line": None, "decision": r["decision"], "rule": r["rule"], "verdict": "unresolved",
+                  "why": "the file name is not UTF-8, so the rule cannot judge it", "import": None, "target": None}
+                 for r in ruled for f in odd if f in r["files"]]
+        out["unresolved"] = ordered(out["unresolved"] + extra, "unresolved")
+        out["summary"]["unresolved"] = len(out["unresolved"])
     found_problems = problems(decisions, {g["decision"] for g in gov})
-    return {**out, "rule_problems": found_problems} if found_problems else out
+    return shown({**out, "rule_problems": found_problems} if found_problems else out)
+
+
+def utf8(name: str) -> bool:
+    try:
+        name.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def shown(value):
+    if isinstance(value, str):
+        return value if utf8(value) else value.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+    if isinstance(value, dict):
+        return {shown(k): shown(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [shown(v) for v in value]
+    return value
 
 
 def where(r: dict) -> str:

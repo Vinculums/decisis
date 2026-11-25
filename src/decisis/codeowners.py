@@ -83,7 +83,7 @@ GIT_SAFE = ("-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c
 
 def git(root: Path, *args: str, timeout: int) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
-    env.update(GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0")
+    env.update(GIT_OPTIONAL_LOCKS="0", GIT_TERMINAL_PROMPT="0", GIT_NO_LAZY_FETCH="1")
     return subprocess.run(["git", *GIT_SAFE, "-C", str(root), *args], capture_output=True, timeout=timeout, env=env,
                           stdin=subprocess.DEVNULL)
 

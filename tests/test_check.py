@@ -810,3 +810,39 @@ def test_a_name_looked_up_in_a_module_file_that_cannot_be_read_is_unresolved(tmp
     judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})
     (tmp_path / "src" / "db.rs").write_bytes(b"\xff\xfe not utf-8")
     assert judge_import(tmp_path, {}, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})[0][2:] == ("unresolved", None, "unresolved")
+
+
+def test_git_is_told_never_to_fetch_from_a_remote(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake(argv, **kwargs):
+        seen.update(kwargs["env"])
+        return subprocess.CompletedProcess(argv, 0, b"", b"")
+
+    monkeypatch.setattr(subprocess, "run", fake)
+    from decisis import codeowners
+    codeowners.git(tmp_path, "status", timeout=5)
+    assert seen["GIT_NO_LAZY_FETCH"] == "1" and seen["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_a_changed_file_whose_name_is_not_utf8_is_escaped_in_the_report_and_unresolved(tmp_path, capsys):
+    import shutil
+    if shutil.which("git") is None:
+        pytest.skip("needs git")
+    repo = tmp_path / "repo"
+    shutil.copytree(REPO, repo)
+    run = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)
+    run("init", "-q")
+    run("-c", "user.email=t@t", "-c", "user.name=t", "add", "-A")
+    run("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base")
+    try:
+        (repo / "src" / "payments" / "caf\udce9.py").write_text("x = 1\n", encoding="utf-8")
+    except (OSError, UnicodeEncodeError):
+        pytest.skip("the file system refuses a name that is not UTF-8")
+    run("-c", "user.email=t@t", "-c", "user.name=t", "add", "-A")
+    run("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "head")
+    capsys.readouterr()
+    cli.main(["check", str(SNAPSHOT), "--repo-dir", str(repo), "--base", "HEAD~1", "--reviewers", "@alice"])
+    report = json.loads(capsys.readouterr().out)
+    assert report["changed"] == ["src/payments/caf\\xe9.py"]
+    assert {(u["file"], u["why"]) for u in report["unresolved"]} >= {("src/payments/caf\\xe9.py", "the file name is not UTF-8, so the rule cannot judge it")}
