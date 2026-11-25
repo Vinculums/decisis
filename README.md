@@ -179,14 +179,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: Vinculums/decisis@<commit SHA>
+      - uses: Vinculums/decisis@v0         # or pin a release commit SHA
         with:
           snapshot: decisions.json        # or init: true
           inventory: package-lock.json    # optional: also run audit
           fail-on-violation: false
 ```
 
-The decisions come from the pull request's base commit, so editing a decision file does not change the pull request's own verdict; guard the workflow and the decision files with CODEOWNERS and make the check required. [Inputs, permissions, fork handling and the trust model](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
+It is on the Marketplace as [decisis check](https://github.com/marketplace/actions/decisis-check). The decisions come from the pull request's base commit, so editing a decision file does not change the pull request's own verdict; guard the workflow and the decision files with CODEOWNERS and make the check required. [Inputs, permissions, fork handling and the trust model](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
 
 ## AI agents: skill and MCP
 

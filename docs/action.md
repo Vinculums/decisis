@@ -3,8 +3,13 @@
 `action.yml` at the root of this repository is a composite action. On a pull request it installs decisis,
 reads a snapshot from the pull request's base commit (or builds one there with `init: true`), runs `check` on the files the pull request changes and
 `audit` when you give an inventory, and keeps one comment on the pull request up to date: the decisions the
-change touches, the violations, and a Mermaid path graph. The action is not on the Marketplace; refer to it
-by repository and commit.
+change touches, the violations, and a Mermaid path graph. It is on the GitHub Marketplace as
+[decisis check](https://github.com/marketplace/actions/decisis-check).
+
+Refer to it as `Vinculums/decisis@v0` to follow every 0.x release, or as `Vinculums/decisis@v0.3.1` for one
+release. A tag can be moved, so for a required check pin the full commit SHA of a release instead, with the
+version in a comment, as the example below does for `actions/checkout`; Dependabot and Renovate update
+such pins. The action installs decisis from its own checkout, so the version it runs is the one you refer to.
 
 ```yaml
 name: decisis
@@ -25,7 +30,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: Vinculums/decisis@<commit SHA>
+      - uses: Vinculums/decisis@v0         # or a full commit SHA, see above
         with:
           snapshot: decisions.json        # or init: true
           inventory: auto                 # optional: also run audit; or one path per line
