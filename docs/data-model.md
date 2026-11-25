@@ -364,6 +364,7 @@ listed.
 | `--since DATE` | with `--github`: only pull requests merged on or after this date (UTC), such as `2026-01-31` |
 | `--limit N` | with `--github`: read at most N closed pull requests, most recently updated first (default 100, 1 to 5,000) |
 | `--suggest-refs` | give each ADR that states no code path the existing files and directories its text names (below) |
+| `--patch FILE` | with `--suggest-refs`: write the suggestions as a unified diff over the ADRs, for `git apply` (below); no ADR is changed |
 | `--out FILE` | where the snapshot goes; the command prints its counts and problems |
 
 Every `.md` file directly in those directories is read, except `README.md`, `index.md` and names that
@@ -474,6 +475,40 @@ per path, the first sentence of the ADR that named it. An ADR with suggested pat
 precision 0.622 and recall 0.778 (`bench/holdout/suggest-refs.md`), but the matching rules above were chosen
 while looking at those repositories, so the score is in-sample and says nothing yet about other repositories.
 Review the suggestions before relying on them.
+
+### Writing the suggestions into the ADRs: `--patch FILE`
+
+`--suggest-refs` leaves the suggestions in the snapshot only. With `--patch FILE`, `init` also writes them as one
+unified diff, so a repository with dozens of ADRs can state them in the front matter by reviewing a patch instead of
+copying paths by hand:
+
+```
+decisis init --repo-dir . --repo Shop --suggest-refs --patch ../code-refs.diff --out snapshot.json
+git apply --check ../code-refs.diff && git apply ../code-refs.diff
+```
+
+- Each ADR that got suggested refs has one hunk. An ADR with front matter gets a `code_ref` list before its closing `---`;
+  an ADR with no front matter gets a front matter block with `code_ref` above its first line; a front matter `code_ref` key
+  that is there and empty (`code_ref:` or `code_ref: []`) is replaced, so the key is never given twice. An ADR that
+  states `code_ref`, `subject_path` or `also_touches` has no hunk, and neither has an ADR with nothing suggested.
+- The refs are written as they sorted in the snapshot, without the `--repo` name, one per line. A comment line
+  `# suggested from: SENTENCE` above a run of refs names the first sentence of the ADR that named them (white space
+  collapsed, cut at 300 characters). `init` skips comment lines in front matter, so after `git apply` the next `init` reads
+  the same `code_ref` as stated: the decision has no `code_ref_source` and no `code_ref_evidence`.
+- A path that is not plain (a space, a leading `@` or `%`) is quoted, so that it reads back. Line endings, a byte order
+  mark and a missing final newline of each ADR are kept, and a file name that is not UTF-8 is written in the diff as git
+  quotes it.
+- The tokens `--suggest-refs` skipped, with the file and the reason (the `not suggested` entries), are listed in the lines
+  at the top of the diff, which start with `# ` and which `git apply` ignores; they are not applied. An ADR that changed
+  after `init` read it is left out of the diff and listed there as well. The diff is made from the bytes `init` read, so
+  `git apply --check` is the test that it still fits.
+- `decisis` changes nothing in the repository. FILE is created and never replaced: `init` stops before it reads anything
+  when FILE exists (a link to a file too), when it is in an ADR directory (`docs/adr`, `docs/decisions`, `adr`, `doc/adr` and
+  `--adr-dir`, after links are followed), or when it is the `--out` file. It needs `--suggest-refs`, and with `--github` it
+  needs `--repo-dir`. When no ADR gets a suggestion, no file is written, and the `patch` entry that `init` prints says so.
+
+`init` prints `patch`: the file, the number of ADRs and refs in it, the number of skipped tokens, and the ADRs left out.
+Read the diff before applying it: a suggestion is a guess from the ADR's text.
 
 ### CODEOWNERS owner sets become concepts
 
