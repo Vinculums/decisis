@@ -25,6 +25,7 @@ CLASSES = {
     "violated": "fill:#fecaca,stroke:#b91c1c,stroke-width:3px,color:#3f0a0a",
     "superseded": "fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray:4 3,color:#4b5563",
     "waived": "fill:#fef9c3,stroke:#a16207,stroke-dasharray:4 3,color:#3b2603",
+    "unread": "fill:#fde2e2,stroke:#b91c1c,stroke-dasharray:4 3,color:#3f0a0a",
 }
 VIOLATED_LINK = "stroke:#b91c1c,stroke-width:3px"
 
@@ -171,6 +172,18 @@ def detail(finding: dict) -> str:
     return finding.get("severity") or ""
 
 
+def unread_nodes(g: Graph, report: dict) -> Graph:
+    for u in report.get("unread_decisions", []):
+        g.node(f"unread:{u['file']}", (u["file"], f"decision file not read: {u['reason']}"), "unread")
+    return g
+
+
+def unread_list(report: dict) -> list[str]:
+    found = report.get("unread_decisions") or []
+    items = "".join(f"<li>{code(u['file'])} ({esc(u.get('action'))}): {esc(u['reason'])}</li>" for u in found)
+    return [section("Decision files not read, so their rules are not judged", "<ul>" + items + "</ul>")] if items else []
+
+
 def audit_graph(report: dict) -> Graph:
     g = Graph()
     repo = (report.get("meta") or {}).get("repo")
@@ -197,7 +210,7 @@ def audit_graph(report: dict) -> Graph:
                 g.edge(end, "violates", p["decision"], True)
         for p in waivers(f):
             g.edge(end, until(p["waiver"]), p["decision"])
-    return g
+    return unread_nodes(g, report)
 
 
 def check_graph(report: dict) -> Graph:
@@ -225,7 +238,7 @@ def check_graph(report: dict) -> Graph:
             g.edge(end, f"{w['rule']} {until(w.get('waiver') or {})}", w["decision"])
         else:
             g.edge(code, f"{w['rule']} {until(w.get('waiver') or {})}", w["decision"])
-    return g
+    return unread_nodes(g, report)
 
 
 def result_table(results: list[dict]) -> str:
@@ -277,6 +290,7 @@ def check_sections(report: dict) -> list[str]:
             section("Governing decisions", decision_list(report.get("governing", []))),
             *([section("Superseded, not judged", decision_list(report["superseded"], "superseded by"))] if report.get("superseded") else []),
             *([section("Rules that cannot be checked", "<ul>" + problems + "</ul>")] if problems else []),
+            *unread_list(report),
             section("Imports read", imports_table(report.get("imports", [])))]
 
 
@@ -427,6 +441,7 @@ def audit_sections(report: dict) -> list[str]:
     return [dl(head), *([section("Notes", "<ul>" + notes + "</ul>")] if notes else []),
             section("Governing decisions", "<ul>" + gov + "</ul>" if gov else NONE),
             *([section("Rules that cannot be checked", "<ul>" + problems + "</ul>")] if problems else []),
+            *unread_list(report),
             section("Findings", '<ul class="items">' + items + "</ul>" if items else NONE)]
 
 

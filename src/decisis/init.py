@@ -2,7 +2,8 @@
 
 Each reader takes a `Tree` and returns `(nodes, edges)` in snapshot shape. `build` runs the readers, merges
 what they return and sorts it, so the same tree always gives the same bytes. A file that cannot be read or
-parsed is listed in `meta.problems` with its path and the reason, and skipped; nothing is guessed from prose,
+parsed is listed in `meta.problems` with its path and the reason, and skipped; an entry about an ADR file has
+`kind: "decision"`, and `unread_decisions` reads back the ADRs left out for `check` and `audit`. Nothing is guessed from prose,
 except that `--suggest-refs` adds the paths an ADR's text names and marks them as suggested.
 docs/data-model.md lists the front matter keys and headings each reader understands.
 """
@@ -11,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import posixpath
 import re
 from dataclasses import dataclass, field
 from functools import cached_property
@@ -28,6 +30,8 @@ NOT_RECORDS = ("readme.md", "index.md")
 REPO_NAME = re.compile(r"[A-Za-z0-9_-]+")
 SKIPPED, KEPT, NO_EDGE, NOT_READ, NO_EFFECT = "skipped", "kept without code paths", "no edge", "not read", "no effect"
 NOT_SUGGESTED = "not suggested"
+DECISION = "decision"
+UNREAD = (SKIPPED, NOT_READ)
 
 TEXT_KEYS = ("title", "status", "date")
 LIST_KEYS = ("deciders", "decision-makers", "supersedes", "superseded_by", "superseded-by", "decisions", *REF_KEYS)
@@ -64,8 +68,9 @@ class Tree:
     def rel(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()
 
-    def problem(self, where: Path | str, reason: str, action: str = SKIPPED) -> None:
-        self.problems.append({"file": self.rel(where) if isinstance(where, Path) else where, "reason": reason, "action": action})
+    def problem(self, where: Path | str, reason: str, action: str = SKIPPED, kind: str | None = None) -> None:
+        self.problems.append({"file": self.rel(where) if isinstance(where, Path) else where, "reason": reason, "action": action,
+                              **({"kind": kind} if kind else {})})
 
     def located(self, given: str | None, defaults: tuple[str, ...]) -> list[Path]:
         if given is None:
@@ -77,20 +82,20 @@ class Tree:
             raise ValueError(f"{given} is not a directory under {self.root}")
         return [path]
 
-    def records(self, directory: Path) -> list[Path]:
+    def records(self, directory: Path, kind: str | None = None) -> list[Path]:
         out = []
         for path in sorted(directory.iterdir()):
             if not record(path.name) or not path.is_file():
                 continue
             if not path.resolve().is_relative_to(self.root.resolve()):
-                self.problem(path, "it is a link to a file outside the repository")
+                self.problem(path, "it is a link to a file outside the repository", kind=kind)
                 continue
             out.append(path)
         return out
 
     @cached_property
     def adr_files(self) -> list[Path]:
-        return [p for d in self.located(self.adr_dir, ADR_DIRS) for p in self.records(d)]
+        return [p for d in self.located(self.adr_dir, ADR_DIRS) for p in self.records(d, DECISION)]
 
     @cached_property
     def adr_index(self) -> dict[str, set[str]]:
@@ -163,16 +168,16 @@ def source(path: str) -> bool:
     return path in CODEOWNERS_FILES or (folder in ADR_DIRS + POSTMORTEM_DIRS and record(name))
 
 
-def read_text(tree: Tree, path: Path) -> tuple[str, bytes] | None:
+def read_text(tree: Tree, path: Path, kind: str | None = None) -> tuple[str, bytes] | None:
     try:
         data = path.read_bytes()
     except OSError as e:
-        tree.problem(path, f"cannot read it: {e.strerror or e}")
+        tree.problem(path, f"cannot read it: {e.strerror or e}", kind=kind)
         return None
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
-        tree.problem(path, f"it is not UTF-8 text (byte {e.start} cannot be decoded)")
+        tree.problem(path, f"it is not UTF-8 text (byte {e.start} cannot be decoded)", kind=kind)
         return None
     return text.lstrip("\ufeff").replace("\r\n", "\n"), data
 
@@ -373,8 +378,8 @@ class Parsed:
     refs: dict[str, list[str]]
 
 
-def parse(tree: Tree, path: Path) -> Parsed | None:
-    read = read_text(tree, path)
+def parse(tree: Tree, path: Path, kind: str | None = None) -> Parsed | None:
+    read = read_text(tree, path, kind)
     if read is None:
         return None
     text, data = read
@@ -386,7 +391,7 @@ def parse(tree: Tree, path: Path) -> Parsed | None:
             raise Malformed("it has no title: neither a front matter title nor a '# ' heading")
         refs = code_refs(tree, fm)
     except Malformed as e:
-        tree.problem(path, str(e))
+        tree.problem(path, str(e), kind=kind)
         return None
     return Parsed(fm, doc, data, refs)
 
@@ -419,7 +424,7 @@ def read_adrs(tree: Tree) -> tuple[list[dict], list[dict]]:
         tree.problem(".", f"no ADR directory: looked in {', '.join(ADR_DIRS)}", NOT_READ)
     nodes, edges = [], {}
     for path in tree.adr_files:
-        parsed = parse(tree, path)
+        parsed = parse(tree, path, DECISION)
         if parsed is None:
             continue
         fields, supersedes, superseded_by = adr_fields(parsed)
@@ -431,7 +436,7 @@ def read_adrs(tree: Tree) -> tuple[list[dict], list[dict]]:
         nid = tree.node_id("decision", path)
         nodes.append({"id": nid, "kind": "decision", "title": parsed.fm.get("title") or parsed.doc.title, "props": props})
         if not refs:
-            tree.problem(path, "it names no code paths (front matter code_ref, subject_path or also_touches)", KEPT)
+            tree.problem(path, "it names no code paths (front matter code_ref, subject_path or also_touches)", KEPT, DECISION)
         for verb, refs_named in (("supersedes", supersedes), ("is superseded by", superseded_by)):
             for ref in refs_named:
                 link(tree, path, nid, verb, ref, edges)
@@ -443,7 +448,7 @@ def suggested_refs(tree: Tree, path: Path, parsed: Parsed) -> dict:
         return {}
     found = suggest.suggest(tree.path_index, parsed.doc.body, tree.rel(path.parent))
     for token in sorted(found.skipped):
-        tree.problem(path, f"{found.skipped[token]}; it is not suggested as a code ref", NOT_SUGGESTED)
+        tree.problem(path, f"{found.skipped[token]}; it is not suggested as a code ref", NOT_SUGGESTED, DECISION)
     if not found.refs:
         return {}
     refs = sorted(found.refs)
@@ -455,11 +460,11 @@ def link(tree: Tree, path: Path, nid: str, verb: str, ref: str, edges: dict) -> 
     try:
         other = tree.resolve_adr(ref, path)
     except LookupError as e:
-        tree.problem(path, f"it {verb} {ref}, but {e}", NO_EDGE)
+        tree.problem(path, f"it {verb} {ref}, but {e}", NO_EDGE, DECISION)
         return
     new, old = (nid, other) if verb == "supersedes" else (other, nid)
     if new == old:
-        tree.problem(path, f"it {verb} itself ({ref})", NO_EDGE)
+        tree.problem(path, f"it {verb} itself ({ref})", NO_EDGE, DECISION)
         return
     edges.setdefault((new, old), {"source": new, "target": old, "type": "SUPERSEDES", "evidence": f"{tree.rel(path)} says it {verb} {ref}"})
 
@@ -593,13 +598,34 @@ def merge(tree: Tree, readers: tuple[Reader, ...]) -> tuple[list[dict], list[dic
         found, links = reader(tree)
         for node in found:
             if node["id"] in nodes:
-                tree.problem(origin(node), f"its id {node['id']} is already taken by {origin(nodes[node['id']])}")
+                tree.problem(origin(node), f"its id {node['id']} is already taken by {origin(nodes[node['id']])}", kind=adr_kind(node))
                 continue
             nodes[node["id"]] = node
         for e in links:
             edges.setdefault((e["source"], e["type"], e["target"]), e)
     kept = [e for _, e in sorted(edges.items()) if e["source"] in nodes and e["target"] in nodes]
     return [nodes[k] for k in sorted(nodes)], kept
+
+
+def adr_kind(node: dict) -> str | None:
+    return DECISION if node["kind"] == DECISION and "source_file" in (node.get("props") or {}) else None
+
+
+def unread_decisions(meta: dict) -> list[dict]:
+    found = {}
+    for p in (meta or {}).get("problems") or []:
+        if isinstance(p, dict) and p.get("action") in UNREAD and isinstance(p.get("reason"), str) and decision_file(p):
+            found.setdefault((p["file"], p["reason"]), {"file": p["file"], "reason": p["reason"], "action": p["action"]})
+    return [found[k] for k in sorted(found)]
+
+
+def decision_file(problem: dict) -> bool:
+    file = problem.get("file")
+    if not isinstance(file, str):
+        return False
+    if "kind" in problem:
+        return problem["kind"] == DECISION
+    return file.lower().endswith(".md") and posixpath.dirname(file) in ADR_DIRS
 
 
 def origin(node: dict) -> str:

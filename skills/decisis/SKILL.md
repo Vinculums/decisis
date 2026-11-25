@@ -150,6 +150,9 @@ On the command line the same query is
   Terraform provider) with the reason. Name them in your report.
 - `rule_problems`: decisions whose rule cannot be read, with the reason. Report them; they are never
   `violated`.
+- `unread_decisions`: ADR files `init` could not read, such as one with a `rule:` or `waivers:` line that
+  does not parse. They are not in the snapshot, so none of their rules were judged. Name each file and
+  its reason; a clean report with unread decision files is not a clean bill. `check` reports them too.
 
 For `check`, read `violations` (the file, the line for an import, the decision and the rule) and
 `unresolved` (imports or files that cannot be judged, such as an import computed at run time). An

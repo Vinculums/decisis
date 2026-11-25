@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     which.add_argument("--changed", nargs="+", metavar="FILE", help="the changed files, relative to --repo-dir")
     which.add_argument("--base", metavar="REF", help="list the changed files with git diff --name-only REF...HEAD in --repo-dir")
     ck.add_argument("--reviewers", nargs="+", default=[], metavar="HANDLE", help="the handles that reviewed the change, for example @alice @org/team")
-    ck.add_argument("--fail-on-unresolved", action="store_true", help="also exit 1 when an import or a file cannot be judged")
+    ck.add_argument("--fail-on-unresolved", action="store_true", help="also exit 1 when an import or a file cannot be judged, or a decision file was not read")
     ck.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far impact looks from a matching concept (0 to {impact.MAX_HOPS})")
     ck.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     ck.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
@@ -293,6 +293,7 @@ def run(a: argparse.Namespace) -> int:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
             print(json.dumps({"summary": report["summary"], "violations": report["violations"], "waived": report["waived"], "loaded": report["loaded"],
                               "unresolved_packages": len(report["unresolved_packages"]), "inventory_notes": report["inventory_notes"],
+                              **({"unread_decisions": len(report["unread_decisions"])} if report.get("unread_decisions") else {}),
                               "out": a.out}))
         else:
             sys.stdout.write(text + "\n")
@@ -340,7 +341,7 @@ def run_check(a: argparse.Namespace) -> int:
     else:
         json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
         sys.stdout.write("\n")
-    return 1 if report["violations"] or (a.fail_on_unresolved and report["unresolved"]) else 0
+    return 1 if check.failed(report, a.fail_on_unresolved) else 0
 
 
 def init_readers(a: argparse.Namespace) -> tuple:
