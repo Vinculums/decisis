@@ -223,7 +223,7 @@ def judge_import(tmp_path: Path, files: dict[str, str], rel: str, rule: dict) ->
     out = []
     for i in imports.read(imports.Repo(tmp_path), rel):
         verdict, _ = rules.verdict(parsed_rule, {"file": rel, "specifier": i.specifier, "resolution": i.resolution,
-                                                  "target": i.target, "why": i.why}, False)
+                                                  "target": i.target, "why": i.why, "also": i.also}, False)
         out.append((i.line, i.specifier, i.resolution, i.target, verdict))
     return out
 
@@ -422,3 +422,391 @@ def test_fail_on_unresolved_turns_an_unresolved_import_into_a_failure(tmp_path, 
     r = json.loads(capsys.readouterr().out)
     assert r["violations"] == [] and len(r["unresolved"]) == 1
     assert cli.main([*args, "--fail-on-unresolved"]) == 1
+
+
+GO_VIEW = "svc/internal/ui/view.go"
+RUST_UI = "crates/shop/src/ui.rs"
+FORBIDDEN = "decision:ui-does-not-import-db"
+
+
+def listed(r: dict, file: str) -> list[tuple]:
+    return [(i["line"], i["import"], i["resolution"], i["target"]) for i in r["imports"] if i["file"] == file]
+
+
+def test_go_single_and_grouped_imports_with_alias_dot_and_blank_names_resolve_through_go_mod(capsys, no_network):
+    code, r = report(capsys, "--changed", GO_VIEW)
+    assert code == 1
+    mod = "example.com/shop/svc/internal/"
+    assert [i for i in listed(r, GO_VIEW) if i[1] != mod + "ui" and "secret" not in i[1] and "raw" not in i[1]] == [
+        (4, mod + "db", "repository", "svc/internal/db/"), (7, "fmt", "external", None),
+        (8, mod + "db/models", "repository", "svc/internal/db/models/"), (9, mod + "api", "repository", "svc/internal/api/"),
+        (10, mod + "db/driver", "repository", "svc/internal/db/driver/"), (11, mod + "gone", "unresolved", None),
+        (12, "github.com/lib/pq", "external", None)]
+    assert rows(r["violations"]) == {(GO_VIEW, line, FORBIDDEN, "imports_forbidden") for line in (4, 8, 10)}
+    gone = next(u for u in r["unresolved"] if u["line"] == 11)
+    assert "under the module path example.com/shop/svc of svc/go.mod, but svc/internal/gone is not a directory" in gone["why"]
+
+
+def test_rust_use_mod_and_workspace_crate_paths_resolve_from_the_crate_root(capsys, no_network):
+    code, r = report(capsys, "--changed", RUST_UI)
+    assert code == 1
+    assert [i for i in listed(r, RUST_UI) if i[2] != "unresolved"] == [
+        (2, "mod widgets", "repository", "crates/shop/src/ui/widgets.rs"),
+        (4, "use crate::db::models::Order", "repository", "crates/shop/src/db/models.rs"),
+        (5, "use super::db", "repository", "crates/shop/src/db/mod.rs"),
+        (5, "use super::db::models", "repository", "crates/shop/src/db/models.rs"),
+        (6, "use shop_db::pool::Pool", "repository", "crates/shop-db/src/pool.rs"),
+        (7, "use std::collections::HashMap", "external", None),
+        (8, "use crate::api::Client", "repository", "crates/shop/src/api.rs"),
+        (18, "use crate::db::models::Total", "repository", "crates/shop/src/db/models.rs")]
+    assert {(v["line"], v["import"]) for v in r["violations"]} == {
+        (4, "use crate::db::models::Order"), (5, "use super::db"), (5, "use super::db::models"), (6, "use shop_db::pool::Pool"),
+        (18, "use crate::db::models::Total")}
+
+
+def test_go_and_rust_comments_and_strings_are_not_read_as_imports_but_a_text_search_flags_them(capsys, no_network):
+    _, r = report(capsys, "--changed", GO_VIEW, RUST_UI)
+    disagree = [(u["file"], u["line"], u["import"]) for u in r["unresolved"] if "the scanner and the text search disagree" in u["why"]]
+    assert disagree == [(RUST_UI, 10, "use crate::db::secret"), (RUST_UI, 11, "use crate::db::raw"),
+                        (GO_VIEW, 15, "example.com/shop/svc/internal/db/secret"), (GO_VIEW, 16, "example.com/shop/svc/internal/db/raw")]
+    canonical = [i for i in r["imports"] if i["file"] == GO_VIEW and i["line"] == 2]
+    assert [(i["resolution"], i["target"]) for i in canonical] == [("unresolved", "svc/internal/ui/")]
+    assert all(v["line"] != 2 for v in r["violations"] + r["unresolved"] if v["file"] == GO_VIEW)
+    assert r["summary"] == {"violated": 8, "unresolved": 5, "not_violated": 7}
+
+
+GO_MOD = {"go.mod": "module example.com/m // the module\n\ngo 1.22\n", "db/a.go": "package db\n", "db/sub/b.go": "package sub\n"}
+
+
+def test_a_go_package_matches_by_its_directory_or_a_go_file_directly_in_it(tmp_path):
+    files = {**GO_MOD, "ui/x.go": 'package ui\nimport m "example.com/m/db"\nimport . "example.com/m/db/sub"\nimport _ "example.com/m"\n'}
+    got = judge_import(tmp_path, files, "ui/x.go", {"from": ["ui/**"], "to": ["db/*.go"]})
+    assert got == [(2, "example.com/m/db", "repository", "db/", "violated"), (3, "example.com/m/db/sub", "repository", "db/sub/", "not_violated"),
+                   (4, "example.com/m", "repository", ".", "not_violated")]
+    assert [g[4] for g in judge_import(tmp_path, {}, "ui/x.go", {"from": ["ui/**"], "to": ["db"]})] == ["violated", "violated", "not_violated"]
+    assert [g[4] for g in judge_import(tmp_path, {}, "ui/x.go", {"from": ["ui/**"], "to": ["db/sub/"]})] == ["not_violated", "violated", "not_violated"]
+
+
+def test_a_go_import_outside_the_module_is_never_a_violation(tmp_path):
+    files = {**GO_MOD, "ui/x.go": 'package ui\n\nimport (\n\t"fmt"\n\tpq "github.com/lib/pq"\n\t"example.com/mother/db"\n)\n',
+             "github.com/lib/pq/pq.go": ""}
+    got = judge_import(tmp_path, files, "ui/x.go", {"from": ["ui/**"], "to": ["**"]})
+    assert [g[1:] for g in got] == [("fmt", "external", None, "not_violated"), ("github.com/lib/pq", "external", None, "not_violated"),
+                                    ("example.com/mother/db", "external", None, "not_violated")]
+
+
+@pytest.mark.parametrize("files,rel,expected", [
+    ({"ui/x.go": 'package ui\nimport ("fmt"; "example.com/m/db")\n'}, "ui/x.go",
+     [(2, "example.com/m/db", "unresolved"), (2, "fmt", "external")]),
+    ({**GO_MOD, "ui/x.go": 'package ui\nimport "example.com/m/db/../db"\n'}, "ui/x.go", [(2, "example.com/m/db/../db", "unresolved")]),
+    ({**GO_MOD, "ui/x.go": 'package ui\nimport "example.com/m/gone"\n'}, "ui/x.go", [(2, "example.com/m/gone", "unresolved")]),
+    ({"go.mod": "go 1.22\n", "ui/x.go": 'package ui\nimport "example.com/m/db"\n'}, "ui/x.go", [(2, "example.com/m/db", "unresolved")]),
+    ({**GO_MOD, "ui/x.go": 'package ui\nimport "example.com/m/\\x64b"\n'}, "ui/x.go",
+     [(2, "example.com/m/\\x64b", "unresolved"), (2, "import with a path that cannot be read", "unresolved")]),
+])
+def test_a_go_import_that_cannot_be_placed_is_unresolved(tmp_path, files, rel, expected):
+    got = judge_import(tmp_path, files, rel, {"from": ["ui/**"], "to": ["db/**"]})
+    assert [(g[0], g[1], g[2]) for g in got] == expected
+    assert all(g[4] == ("not_violated" if g[2] == "external" else "unresolved") for g in got)
+
+
+@pytest.mark.parametrize("gomod", [
+    "module (\n\texample.com/m\n)\n\ngo 1.22\n",
+    "// the module\nmodule example.com/m // trailing\n",
+    'module "example.com/m"\n',
+    "module `example.com/m`\n",
+])
+def test_every_form_of_the_go_mod_module_directive_gives_the_module_path(tmp_path, gomod):
+    files = {**GO_MOD, "go.mod": gomod, "ui/x.go": 'package ui\nimport "example.com/m/db"\n'}
+    assert judge_import(tmp_path, files, "ui/x.go", {"from": ["ui/**"], "to": ["db/**"]}) == [(2, "example.com/m/db", "repository", "db/", "violated")]
+
+
+@pytest.mark.parametrize("gomod", ["module (\n)\n", 'module "example.com/m//x"\n', "module (\n\texample.com/m\n", "go 1.22\n"])
+def test_a_go_mod_module_directive_that_cannot_be_read_leaves_imports_unresolved_not_external(tmp_path, gomod):
+    files = {**GO_MOD, "go.mod": gomod, "ui/x.go": 'package ui\nimport "example.com/m/db"\n'}
+    assert judge_import(tmp_path, files, "ui/x.go", {"from": ["ui/**"], "to": ["db/**"]}) == [(2, "example.com/m/db", "unresolved", None, "unresolved")]
+    assert "has no module line that can be read" in imports.read(imports.Repo(tmp_path), "ui/x.go")[0].why
+
+
+@pytest.mark.parametrize("text,reason", [
+    ('package ui\nimport "example.com/m/db"\nvar s = `oops\nimport "example.com/m/db/sub"\n', "raw string"),
+    ('package ui\nimport "example.com/m/db"\n/* oops\nimport "example.com/m/db/sub"\n', "comment"),
+    ('package ui\nimport "example.com/m/db"\nvar s = "oops\nimport "example.com/m/db/sub"\n', "string"),
+])
+def test_a_go_file_the_scanner_cannot_finish_is_unresolved_and_its_imports_still_count(tmp_path, text, reason):
+    got = judge_import(tmp_path, {**GO_MOD, "ui/x.go": text}, "ui/x.go", {"from": ["ui/**"], "to": ["db/**"]})
+    found = imports.read(imports.Repo(tmp_path), "ui/x.go")
+    assert any(i.line is None and "cannot be scanned to its end" in i.why and reason in i.why for i in found), found
+    assert (2, "example.com/m/db", "repository", "db/", "violated") in got
+    assert (4, "example.com/m/db/sub", "unresolved", "db/sub/", "unresolved") in got
+
+
+def test_a_go_text_search_hit_outside_the_module_is_not_listed(tmp_path):
+    files = {**GO_MOD, "ui/x.go": 'package ui // import "example.com/m/ui"\n\n// import "fmt"\nvar s = `import "example.com/m/db"`\n', "ui/y.go": ""}
+    got = judge_import(tmp_path, files, "ui/x.go", {"from": ["ui/**"], "to": ["db/**"]})
+    assert got == [(1, "example.com/m/ui", "unresolved", "ui/", "not_violated"), (4, "example.com/m/db", "unresolved", "db/", "unresolved")]
+
+
+CARGO = {"Cargo.toml": '[package]\nname = "app"\n\n[dependencies]\nstore = { package = "shop-db", path = "libs/db" }\nserde = "1"\n',
+         "src/lib.rs": "pub mod db;\npub mod ui;\npub mod x;\nmod a {\n    mod b;\n}\npub enum Error {}\npub use db::models::Order as Ordered;\npub use x::*;\n",
+         "src/db.rs": "pub mod models;\npub struct Pool;\n", "src/db/models.rs": "pub struct Order;\npub struct Total;\n", "src/a/b.rs": "pub struct Z;\n",
+         "src/x.rs": "pub fn helper() {}\n", "src/ui/helpers.rs": "pub struct Button;\n", "libs/db/Cargo.toml": '[package]\nname = "shop-db"\n',
+         "libs/db/src/lib.rs": "pub mod pool;\n", "libs/db/src/pool.rs": "pub struct Pool;\n", "cli/Cargo.toml": '[package]\nname = "cli"\n',
+         "cli/src/main.rs": "fn main() {}\n"}
+RUST_RULE = {"from": ["src/ui.rs", "src/ui/**", "tests/**"], "to": ["src/db/**", "libs/**"]}
+CRATE = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "pub mod db;\npub mod ui;\n", "src/db.rs": "pub struct Pool;\n"}
+
+
+def test_rust_paths_read_from_crate_self_super_child_and_inline_modules(tmp_path):
+    text = ("use crate::{db::{self, models::Order}, x::*};\nuse super::db as data;\nuse self::helpers::Button;\nuse helpers::Button as B;\n"
+            "mod helpers;\nmod tests {\n    use super::super::db;\n    use super::helpers;\n}\nuse crate::Error;\nuse crate::Ordered;\nuse crate::helper;\n")
+    got = judge_import(tmp_path, {**CARGO, "src/ui.rs": text}, "src/ui.rs", RUST_RULE)
+    assert got == [
+        (1, "use crate::db", "repository", "src/db.rs", "violated"), (1, "use crate::db::models::Order", "repository", "src/db/models.rs", "violated"),
+        (1, "use crate::x", "repository", "src/x.rs", "not_violated"), (2, "use super::db", "repository", "src/db.rs", "violated"),
+        (3, "use self::helpers::Button", "repository", "src/ui/helpers.rs", "not_violated"),
+        (4, "use helpers::Button", "repository", "src/ui/helpers.rs", "not_violated"), (5, "mod helpers", "repository", "src/ui/helpers.rs", "not_violated"),
+        (7, "use super::super::db", "repository", "src/db.rs", "violated"), (8, "use super::helpers", "repository", "src/ui/helpers.rs", "not_violated"),
+        (10, "use crate::Error", "repository", "src/lib.rs", "not_violated"), (11, "use crate::Ordered", "repository", "src/db/models.rs", "violated"),
+        (12, "use crate::helper", "repository", "src/x.rs", "not_violated")]
+
+
+def test_a_rust_module_matches_the_same_rule_in_either_layout(tmp_path):
+    for db in ("src/db.rs", "src/db/mod.rs"):
+        root = tmp_path / str(len(list(tmp_path.iterdir())))
+        files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "pub mod db;\npub mod ui;\n", db: "pub struct Pool;\n",
+                 "src/ui.rs": "use crate::db::Pool;\n"}
+        got = judge_import(root, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db/**"]})
+        assert [(g[3], g[4]) for g in got] == [(db, "violated")]
+
+
+def test_rust_paths_into_other_crates_of_the_repository_resolve_inside_them(tmp_path):
+    text = "use ::store::pool::Pool;\nuse shop_db::pool;\nuse app::db::models;\nuse serde::Serialize;\nuse cli::run;\nextern crate shop_db;\n"
+    got = judge_import(tmp_path, {**CARGO, "src/ui.rs": text}, "src/ui.rs", RUST_RULE)
+    assert got == [
+        (1, "use ::store::pool::Pool", "repository", "libs/db/src/pool.rs", "violated"), (2, "use shop_db::pool", "repository", "libs/db/src/pool.rs", "violated"),
+        (3, "use app::db::models", "repository", "src/db/models.rs", "violated"), (4, "use serde::Serialize", "external", None, "not_violated"),
+        (5, "use cli::run", "unresolved", None, "unresolved"), (6, "extern crate shop_db", "repository", "libs/db/src/lib.rs", "violated")]
+
+
+def test_rust_tests_and_binaries_are_crate_roots_of_their_own(tmp_path):
+    files = {**CARGO, "tests/common/mod.rs": "pub fn fixture() {}\n", "tests/it.rs": "mod common;\nuse app::db;\nuse crate::common::fixture;\n",
+             "src/bin/tool.rs": "mod helper;\nuse crate::helper::x;\n", "src/bin/helper.rs": "pub fn x() {}\n"}
+    assert [g[1:] for g in judge_import(tmp_path, files, "tests/it.rs", RUST_RULE)] == [
+        ("mod common", "repository", "tests/common/mod.rs", "not_violated"), ("use app::db", "repository", "src/db.rs", "violated"),
+        ("use crate::common::fixture", "repository", "tests/common/mod.rs", "not_violated")]
+    assert [g[3] for g in judge_import(tmp_path, {}, "src/bin/tool.rs", {"from": ["src/bin/**"], "to": ["src/db/**"]})] == [
+        "src/bin/helper.rs", "src/bin/helper.rs"]
+
+
+@pytest.mark.parametrize("files,rel,text,why", [
+    ({}, "x/y.rs", "use crate::a;\nmod z;\n", "no Cargo.toml lies above the file"),
+    ({"Cargo.toml": "[workspace]\nmembers = []\n"}, "src/ui.rs", "use crate::a;\n", "has no [package]"),
+    ({"Cargo.toml": "[package\n"}, "src/ui.rs", "use crate::a;\n", "cannot be read as TOML"),
+    ({"Cargo.toml": '[package]\nname = "p"\n'}, "src/ui.rs", "use crate::gone::Thing;\n", "has no root file the scanner finds"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": ""}, "src/lib.rs", "use super::x;\n", "goes above the crate root"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": ""}, "src/orphan.rs", "use super::x;\n", "is not reached from the crate root"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n"}, "src/ui.rs", "mod missing;\n",
+     "none of src/ui/missing.rs, src/ui/missing/mod.rs is in the repository"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n"}, "src/ui.rs", '#[path = "gone.rs"]\nmod g;\n', "mod g names no file: none of src/gone.rs"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n"}, "src/ui.rs", "macro_rules! m { () => { use $x; } }\n", "cannot be read"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n"}, "src/ui.rs", "use crate::dbx::models::T;\n", "dbx is no module, item or use in src/lib.rs"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n"}, "src/ui.rs", "use crate::Error;\n", "Error is no module, item or use in src/lib.rs"),
+    ({**CRATE}, "src/ui.rs", "use crate::db::Gone;\n", "Gone is no module, item or use in src/db.rs"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": '#[cfg_attr(unix, path = "a.rs")]\n#[cfg_attr(windows, path = "b.rs")]\nmod sys;\nmod ui;\n',
+      "src/a.rs": "pub struct X;\n", "src/b.rs": "pub struct Y;\n"}, "src/ui.rs", "use crate::sys::X;\n", "X is no module, item or use in src/b.rs"),
+    ({"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n"}, "src/ui.rs", "use crate::gone::*;\nuse serde::Serialize;\n", "gone is no module"),
+])
+def test_a_rust_path_that_cannot_be_placed_is_unresolved(tmp_path, files, rel, text, why):
+    got = judge_import(tmp_path, {**files, rel: text}, rel, {"from": ["**"], "to": ["db/**"]})
+    found = imports.read(imports.Repo(tmp_path), rel)
+    assert got and all(g[2] == "unresolved" and g[4] == "unresolved" for g in got), got
+    assert all(why in i.why for i in found), found
+
+
+@pytest.mark.parametrize("attr", ['#[path = "storage/db.rs"]', '#[cfg_attr(unix, path = "storage/db.rs")]'])
+def test_a_rust_module_moved_by_a_path_attribute_is_followed_from_the_crate_root(tmp_path, attr):
+    files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": f"{attr}\nmod store;\nmod ui;\n",
+             "src/storage/db.rs": "pub struct T;\npub mod models {\n    pub struct M;\n}\npub mod inner;\n", "src/storage/inner.rs": "pub struct I;\n",
+             "src/ui.rs": "use crate::store::T;\nuse crate::store::models::M;\nuse crate::store::inner::I;\n"}
+    assert judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/storage/**"]}) == [
+        (1, "use crate::store::T", "repository", "src/storage/db.rs", "violated"),
+        (2, "use crate::store::models::M", "repository", "src/storage/db.rs", "violated"),
+        (3, "use crate::store::inner::I", "repository", "src/storage/inner.rs", "violated")]
+    assert judge_import(tmp_path, {}, "src/lib.rs", {"from": ["src/lib.rs"], "to": ["src/storage/**"]})[0] == (
+        2, "mod store", "repository", "src/storage/db.rs", "violated")
+
+
+def test_a_rust_module_file_that_leads_outside_the_repository_is_unresolved(tmp_path):
+    root = tmp_path / "repo"
+    (tmp_path / "outside.rs").write_text("pub struct Q;\n", encoding="utf-8")
+    files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n", "src/ui.rs": "mod db2;\nuse crate::ui::db2::Q;\nuse self::db2::Q as R;\n"}
+    for name, text in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text, encoding="utf-8")
+    (root / "src" / "ui").mkdir()
+    os.symlink(tmp_path / "outside.rs", root / "src" / "ui" / "db2.rs")
+    got = judge_import(root, {}, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/ui/db2.rs"]})
+    assert [(g[1], g[2], g[4]) for g in got] == [("mod db2", "unresolved", "unresolved"), ("use crate::ui::db2::Q", "unresolved", "unresolved"),
+                                                 ("use self::db2::Q", "unresolved", "unresolved")]
+    assert all("leads outside the repository" in i.why for i in imports.read(imports.Repo(root), "src/ui.rs"))
+
+
+def test_rust_names_bound_by_use_and_extern_crate_resolve_to_what_they_bind(tmp_path):
+    text = ("use crate::db as data;\nuse data::models::Order;\nuse crate::db;\nuse db::models::Total;\nfn f() {\n    use crate::db::models as m;\n"
+            "    use m::Total;\n}\n// use data::models::Total;\nextern crate shop_db as d;\nuse d::pool::Pool;\n")
+    got = judge_import(tmp_path, {**CARGO, "src/ui.rs": text}, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db/models.rs", "libs/db/src/pool.rs"]})
+    assert got == [
+        (1, "use crate::db", "repository", "src/db.rs", "not_violated"), (2, "use data::models::Order", "repository", "src/db/models.rs", "violated"),
+        (3, "use crate::db", "repository", "src/db.rs", "not_violated"), (4, "use db::models::Total", "repository", "src/db/models.rs", "violated"),
+        (6, "use crate::db::models", "repository", "src/db/models.rs", "violated"), (7, "use m::Total", "repository", "src/db/models.rs", "violated"),
+        (9, "use data::models::Total", "unresolved", "src/db/models.rs", "unresolved"),
+        (10, "extern crate shop_db", "repository", "libs/db/src/lib.rs", "not_violated"), (11, "use d::pool::Pool", "repository", "libs/db/src/pool.rs", "violated")]
+
+
+@pytest.mark.parametrize("manifests", [
+    {"Cargo.toml": '[package]\nname = "app"\n\n[dependencies]\nstore = { workspace = true, package = "dbc" }\n'},
+    {"Cargo.toml": '[package]\nname = "app"\n\n[dependencies]\nstore = { package = "dbc", version = "1" }\n'},
+    {"Cargo.toml": '[package]\nname = "app"\n\n[dependencies]\nstore = { workspace = true }\n\n[workspace]\nmembers = ["dbc"]\n\n'
+                   '[workspace.dependencies]\nstore = { path = "dbc" }\n'},
+    {"Cargo.toml": '[package]\nname = "app"\n\n[target.\'cfg(unix)\'.dependencies]\nstore = { path = "dbc" }\n'},
+])
+def test_a_renamed_or_inherited_rust_dependency_resolves_into_the_repository_crate(tmp_path, manifests):
+    files = {**manifests, "src/lib.rs": "mod ui;\n", "dbc/Cargo.toml": '[package]\nname = "dbc"\n', "dbc/src/lib.rs": "pub mod pool;\n",
+             "dbc/src/pool.rs": "pub struct P;\n", "src/ui.rs": "use store::pool::P;\n"}
+    assert judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["dbc/**"]}) == [
+        (1, "use store::pool::P", "repository", "dbc/src/pool.rs", "violated")]
+
+
+def test_a_rust_path_attribute_names_a_file_from_the_files_own_directory(tmp_path):
+    files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": '#[cfg(unix)]\n#[path = "db/unix.rs"]\npub(crate) mod sys;\n', "src/db/unix.rs": ""}
+    assert judge_import(tmp_path, files, "src/lib.rs", {"from": ["src/lib.rs"], "to": ["src/db/**"]}) == [
+        (3, "mod sys", "repository", "src/db/unix.rs", "violated")]
+
+
+RUST_TRICKS = {
+    "a raw string with hashes": 'const S: &str = r##"a "# quote and a \\ backslash"##;\n',
+    "a byte string and a C string": 'const B: &[u8] = b"\\"use"; const C: &CStr = c"x\\"y";\n',
+    "a quote character": "const Q: char = '\"'; const R: u8 = b'\"';\n",
+    "lifetimes": "fn f<'a, 'b: 'a>(x: &'a str, y: &'b str) -> &'a str { 'outer: loop { break 'outer x; } }\n",
+    "an escaped character": "const E: char = '\\''; const U: char = '\\u{1F600}';\n",
+    "a nested comment": "/* a /* nested */ comment with \"quotes and 'ticks */\n",
+    "a doc comment": "/// Returns \"x\" or 'y\n//! a module doc with a \" quote\n",
+}
+
+
+@pytest.mark.parametrize("case", sorted(RUST_TRICKS))
+def test_rust_strings_characters_lifetimes_and_comments_are_skipped_and_the_use_after_them_is_judged(tmp_path, case):
+    files = {**CRATE, "src/ui.rs": RUST_TRICKS[case] + "use crate::db::Pool;\n"}
+    got = judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})
+    assert [g[1:] for g in got] == [("use crate::db::Pool", "repository", "src/db.rs", "violated")]
+
+
+@pytest.mark.parametrize("text,reason", [
+    ("use crate::db;\n/* a /* nested */ comment\nuse crate::db::Pool;\n", "comment"),
+    ('use crate::db;\nconst S: &str = r#"oops\nuse crate::db::Pool;\n', "raw string"),
+    ('use crate::db;\nconst S: &str = "oops\nuse crate::db::Pool;\n', "string"),
+])
+def test_a_rust_file_the_scanner_cannot_finish_is_unresolved_and_its_uses_still_count(tmp_path, text, reason):
+    got = judge_import(tmp_path, {**CRATE, "src/ui.rs": text}, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})
+    found = imports.read(imports.Repo(tmp_path), "src/ui.rs")
+    assert any(i.line is None and "cannot be scanned to its end" in i.why and reason in i.why for i in found), found
+    assert (1, "use crate::db", "repository", "src/db.rs", "violated") in got
+    assert (3, "use crate::db::Pool", "unresolved", "src/db.rs", "unresolved") in got
+
+
+def test_a_rust_text_search_hit_in_a_doc_example_is_unresolved_when_it_names_a_forbidden_file(tmp_path):
+    text = "/// ```\n/// use p::db::Pool;\n/// use std::io;\n/// ```\npub fn f() {}\n// mod hidden;\n"
+    got = judge_import(tmp_path, {**CRATE, "src/ui/hidden.rs": "", "src/ui.rs": text}, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})
+    assert got == [(2, "use p::db::Pool", "unresolved", "src/db.rs", "unresolved"), (6, "mod hidden", "unresolved", "src/ui/hidden.rs", "not_violated")]
+
+
+def test_a_macro_use_of_dollar_crate_reads_from_the_crate_root_and_an_empty_group_is_unresolved(tmp_path):
+    files = {**CRATE, "src/ui.rs": "macro_rules! m {\n    () => { use $crate::db::Pool; };\n}\nuse {};\n"}
+    got = judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})
+    assert got == [(2, "use crate::db::Pool", "repository", "src/db.rs", "violated"),
+                   (4, "use declaration that cannot be read", "unresolved", None, "unresolved")]
+
+
+def test_a_rust_module_with_a_file_per_cfg_is_judged_on_every_file(tmp_path):
+    files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": '#[cfg_attr(unix, path = "a.rs")]\n#[cfg_attr(windows, path = "b.rs")]\nmod sys;\nmod ui;\n',
+             "src/a.rs": "pub struct X;\n", "src/b.rs": "pub struct X;\n", "src/ui.rs": "use crate::sys::X;\nuse crate::sys;\n"}
+    assert judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/b.rs"]}) == [
+        (1, "use crate::sys::X", "repository", "src/a.rs", "violated"), (2, "use crate::sys", "repository", "src/a.rs", "violated")]
+
+
+def test_rust_items_and_modules_inside_an_item_level_macro_are_read(tmp_path):
+    lib = ("cfg_if::cfg_if! {\n    if #[cfg(unix)] {\n        pub mod db;\n        pub use db::Pool;\n    } else {\n        pub mod other;\n    }\n}\nmod ui;\n"
+           "glib::wrapper! {\n    pub struct Widget(Object<ffi::GtkWidget>);\n}\nmacro_rules! m {\n    () => { mod hidden; };\n}\n")
+    files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": lib, "src/db.rs": "pub struct Pool;\n", "src/other.rs": "",
+             "src/ui.rs": "use crate::db::Pool;\nuse crate::Pool as P;\nuse crate::Widget;\nuse std::io;\nuse crate::hidden::H;\n"}
+    assert judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]}) == [
+        (1, "use crate::db::Pool", "repository", "src/db.rs", "violated"), (2, "use crate::Pool", "repository", "src/db.rs", "violated"),
+        (3, "use crate::Widget", "repository", "src/lib.rs", "not_violated"), (4, "use std::io", "external", None, "not_violated"),
+        (5, "use crate::hidden::H", "unresolved", None, "unresolved")]
+
+
+def test_the_extern_prelude_stays_external_beside_a_glob_that_cannot_be_followed(tmp_path):
+    files = {"Cargo.toml": '[package]\nname = "p"\n', "src/lib.rs": "mod ui;\n", "src/ui.rs": "use crate::gone::*;\nuse std::io;\nuse core::mem;\n"}
+    assert [(g[1], g[2]) for g in judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/**"]})] == [
+        ("use crate::gone", "unresolved"), ("use std::io", "external"), ("use core::mem", "external")]
+
+
+P_CARGO = {"Cargo.toml": '[package]\nname = "p"\n'}
+
+
+def test_a_name_bound_to_a_module_with_a_file_per_cfg_goes_on_through_every_file(tmp_path):
+    lib = '#[cfg_attr(unix, path = "unix.rs")]\n#[cfg_attr(windows, path = "win.rs")]\npub mod sys;\nmod ui;\n'
+    files = {**P_CARGO, "src/lib.rs": lib, "src/unix.rs": "pub mod db {\n    pub struct T;\n}\n",
+             "src/win.rs": '#[path = "forbidden/db.rs"]\npub mod db;\n', "src/forbidden/db.rs": "pub struct T;\n"}
+    rule = {"from": ["src/ui.rs"], "to": ["src/forbidden/**"]}
+    bound = judge_import(tmp_path / "bound", {**files, "src/ui.rs": "use crate::sys as s;\nuse s::db::T;\n"}, "src/ui.rs", rule)
+    globbed = judge_import(tmp_path / "glob", {**files, "src/ui.rs": "use crate::sys::*;\nuse db::T;\n"}, "src/ui.rs", rule)
+    assert bound[1][4] == "violated" and globbed[1][4] == "violated"
+
+
+def test_every_cfg_gated_use_of_the_same_name_is_followed(tmp_path):
+    files = {**P_CARGO, "src/lib.rs": "pub mod unix;\npub mod forbidden;\nmod ui;\n", "src/unix.rs": "pub mod db {\n    pub struct T;\n}\n",
+             "src/forbidden/mod.rs": "pub mod db;\n", "src/forbidden/db.rs": "pub struct T;\n",
+             "src/ui.rs": "#[cfg(unix)]\nuse crate::unix as imp;\n#[cfg(windows)]\nuse crate::forbidden as imp;\nuse imp::db::T;\n"}
+    assert judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/forbidden/db.rs"]})[-1][4] == "violated"
+
+
+def test_every_cfg_gated_mod_declaration_of_the_same_name_is_followed(tmp_path):
+    lib = '#[cfg(windows)]\n#[path = "forbidden/imp.rs"]\npub mod imp;\n#[cfg(unix)]\n#[path = "unix_imp.rs"]\npub mod imp;\nmod ui;\n'
+    files = {**P_CARGO, "src/lib.rs": lib, "src/forbidden/imp.rs": "pub struct T;\n", "src/unix_imp.rs": "pub struct T;\n", "src/ui.rs": "use crate::imp::T;\n"}
+    assert judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/forbidden/**"]})[0][4] == "violated"
+
+
+def verdicts(repo, rel: str, rule: dict) -> list[tuple]:
+    (parsed,) = rules.parse({"imports_forbidden": rule}).rules
+    return [(i.specifier, i.target, rules.verdict(parsed, {"file": rel, "specifier": i.specifier, "resolution": i.resolution,
+                                                        "target": i.target, "why": i.why, "also": i.also}, False)[0])
+            for i in imports.read(repo, rel)]
+
+
+def test_a_glob_cycle_gives_the_same_verdict_whatever_file_is_read_first(tmp_path):
+    files = {**P_CARGO, "src/lib.rs": "pub mod a;\npub mod forbidden;\npub use self::a::*;\npub use self::forbidden::*;\nmod ui;\nmod other;\n",
+             "src/a.rs": "pub use crate::*;\npub use std::collections::*;\n", "src/forbidden/mod.rs": "pub mod x;\n", "src/forbidden/x.rs": "pub struct T;\n",
+             "src/ui.rs": "use crate::a::x::T;\n", "src/other.rs": "use crate::x::T;\n"}
+    judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/forbidden/**"]})
+    rule = {"from": ["src/*.rs"], "to": ["src/forbidden/**"]}
+    cold = verdicts(imports.Repo(tmp_path), "src/ui.rs", rule)
+    warm = imports.Repo(tmp_path)
+    verdicts(warm, "src/other.rs", rule)
+    assert verdicts(warm, "src/ui.rs", rule) == cold == [("use crate::a::x::T", "src/forbidden/x.rs", "violated")]
+
+
+def test_a_repository_crate_renamed_core_beside_a_glob_that_cannot_be_followed_is_judged_as_that_crate(tmp_path):
+    files = {"Cargo.toml": '[package]\nname = "p"\n\n[dependencies]\ncore = { package = "dbc", path = "dbc" }\n', "src/lib.rs": "mod ui;\n",
+             "dbc/Cargo.toml": '[package]\nname = "dbc"\n', "dbc/src/lib.rs": "pub mod db;\n", "dbc/src/db.rs": "pub struct T;\n",
+             "src/ui.rs": "use crate::gen::*;\nuse core::db::T;\n"}
+    got = judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["dbc/**"]})
+    assert got == [(1, "use crate::gen", "unresolved", None, "unresolved"), (2, "use core::db::T", "repository", "dbc/src/db.rs", "violated")]
+
+
+def test_a_name_looked_up_in_a_module_file_that_cannot_be_read_is_unresolved(tmp_path):
+    files = {**P_CARGO, "src/lib.rs": "pub mod db;\nmod ui;\n", "src/db.rs": "pub struct T;\n", "src/ui.rs": "use crate::db::T;\n"}
+    judge_import(tmp_path, files, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})
+    (tmp_path / "src" / "db.rs").write_bytes(b"\xff\xfe not utf-8")
+    assert judge_import(tmp_path, {}, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})[0][2:] == ("unresolved", None, "unresolved")

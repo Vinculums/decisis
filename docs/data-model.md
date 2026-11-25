@@ -115,12 +115,17 @@ below a directory of that name, and one whose last segment has a wildcard matche
 A reviewer handle matches without regard to case and with or without a leading `@` (`@Alice`, `alice`).
 A team handle, `@org/team`, matches only when written exactly the same. One listed reviewer is enough.
 
-`imports_forbidden` reads Python files (`.py`, `.pyi`) with `ast` and JavaScript and TypeScript files
+`imports_forbidden` reads Python files (`.py`, `.pyi`) with `ast`; JavaScript and TypeScript files
 (`.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`) with a scanner that skips comments,
 strings, template literals, regular expressions and JSX text (JSX is read in every file but `.ts`, `.mts`
-and `.cts`, where `<` starts a type). It reads `import`, `from ... import`, and `importlib.import_module`
-or `__import__` with a literal name in Python; `import ... from`, `import "x"`, `export ... from`, and
-`require` or `import()` with a literal specifier in JavaScript and TypeScript.
+and `.cts`, where `<` starts a type); and Go (`.go`) and Rust (`.rs`) files with scanners that skip
+comments, strings and character literals (Go raw strings and runes; Rust raw strings such as `r#"..."#`,
+byte and C strings, nested block comments, and lifetimes told apart from character literals). It reads
+`import`, `from ... import`, and `importlib.import_module` or `__import__` with a literal name in Python;
+`import ... from`, `import "x"`, `export ... from`, and `require` or `import()` with a literal specifier in
+JavaScript and TypeScript; single `import "path"` lines and grouped `import ( ... )` blocks, with an alias,
+a dot or a blank name, in Go; and `use` declarations (with `{...}` groups, `self`, `*` and `as` expanded
+into one path each), `mod x;` declarations and `extern crate x;` in Rust.
 
 A Python module resolves to a file under the root of the importing file's package (the first directory
 above it without an `__init__.py`), the nearest directory above the file with a `pyproject.toml`,
@@ -136,16 +141,74 @@ paths inside the repository (at most 16 deep). `baseUrl` is read relative to the
 matches a `paths` pattern but names no file is `unresolved`. Any other specifier is an external package:
 not a violation, unless a `to` glob that names `node_modules` covers `node_modules/<specifier>`.
 
-A plain text search for the same import forms runs over each JavaScript and TypeScript file too. A
-specifier it finds that the scanner did not read as code (in a comment or a string, or after a point the
-scanner misread) is `unresolved` with the reason "the scanner and the text search disagree" and the file
-it would name as `target`; it is `not_violated` only when that target is known and no `to` glob covers it.
+A Go import path resolves against the nearest `go.mod` above the file. A path equal to or under its
+`module` path names the package directory below that `go.mod` (`example.com/shop/svc/internal/db` with
+`module example.com/shop/svc` in `svc/go.mod` is `svc/internal/db`), given as `target` with a trailing `/`.
+It matches a `to` glob when the directory, with or without the `/`, or a `.go` file directly in it
+matches, so `svc/internal/db/**` and `svc/internal/db/*.go` both cover it. Any other path (the standard
+library, another module, a `replace` target) is external and never a violation. With no `go.mod` above the
+file, a path whose first element has no `.` is the standard library and external, and any other path is
+`unresolved`.
+
+A Rust path is read inside the crate of the nearest `Cargo.toml` above the file that has a `[package]`.
+The crate root is `src/lib.rs` (or the `[lib]` `path`) for files under its directory, `src/main.rs`
+for files under `src/` in a crate without a library, a target a `[[bin]]`, `[[test]]`, `[[example]]` or
+`[[bench]]` `path` declares, and, unless the matching `auto*` flag is `false`, a file directly in `src/bin/`,
+`tests/`, `examples/` or `benches/` or the `main.rs` of its subdirectory. The crate's modules are the tree
+of `mod` declarations followed from that root: `mod x;` names `x.rs` or `x/mod.rs` in the module's
+directory, a `#[path = "..."]` or `#[cfg_attr(..., path = "...")]` attribute names a file read from the
+declaring file's directory (or the inline module's directory), and `mod x { ... }` is an inline module.
+A name can have several meanings when they are gated by `cfg`: `cfg_attr` paths that name more than one
+existing file, two `mod` declarations of the same name, or two `use` bindings of the same name. The path is
+followed through every one of them, also through a name bound to such a module or a glob `use` of it, and
+every file it reaches is matched against the `to` globs. `mod` declarations and items inside an item-level macro
+call (`cfg_if! { ... }`, `wrapper! { ... }`) are read; the body of a `macro_rules!` definition is not. The
+importing file's own module is found in that tree, by its place under the root or else by walking the
+tree.
+
+A path that starts with `crate::` is read from the crate root, `self::` from the current module, and each
+`super::` one module up. Any other first name is looked up in the current module, then taken as a crate of
+the repository, then as external; `std`, `core` and `alloc` are always external. Each name of the path is looked up in turn in the module reached so far,
+as a child module, as an item the module declares (`struct`, `enum`, `trait`, `type`, `fn`, `const`,
+`static`, `union` or `macro_rules!`), as a name it binds with `use`, `pub use` or `extern crate` (followed to
+what it binds, also through a `use` inside a function), or as a name a `use ...::*` in it brings in. A
+child module moves on to that module. An item ends the path at the file that declares it, so
+`crate::db::models::Order` is `src/db/models.rs` and `crate::Error` is `src/lib.rs` when `lib.rs`
+declares or re-exports `Error`. A name found none of those ways is `unresolved`, never the root file: a
+module that does not exist, an item a macro generates, and a module whose file leads outside the
+repository are not judged. A module file `a/b.rs` found as `mod b;` also matches a `to` glob that covers
+its directory `a/b/`, so the verdict does not depend on which of the two layouts the crate uses.
+
+A crate of the repository is named by its `[package]` `name` or `[lib]` `name` (with `-` read as `_`), or
+by the name the current crate gives a dependency: with `path`, with `package = "..."` naming a crate of the
+repository, or with `workspace = true` and the entry of that name in the nearest `[workspace.dependencies]`
+above; target-specific dependency tables count too. A path into such a crate, with or without a leading
+`::`, is read from its library root the same way. Any other path (`std`, a crate from a registry) is
+external and never a violation.
+
+A plain text search for the same import forms runs over each JavaScript, TypeScript and Go file, and over
+each Rust file for `use` paths that start with `crate`, `self`, `super`, the name of a crate in the
+repository or a name the file binds, and for `mod x;`. A specifier it finds that the scanner did not read as code (in a comment or a
+string, or after a point the scanner misread) is `unresolved` with the reason "the scanner and the text
+search disagree" and the file it would name as `target`; it is `not_violated` only when that target is
+known and no `to` glob covers it. A Go or Rust hit that would be external is not listed, since read as an
+import it could not be a violation.
 
 `unresolved` is also given to an import whose specifier is computed at run time, a relative import that
 names no file, a file that cannot be parsed or scanned to its end (an unclosed string, template literal,
-comment, regular expression or JSX element), a config that cannot be read, extends a package or extends
-itself, and a file that leads outside the repository through a symbolic link. No code of the repository is
-run.
+comment, regular expression, JSX element, raw string or character literal), a config that cannot be read,
+extends a package or extends itself, and a file that leads outside the repository through a symbolic link.
+In Go it is given to a path under the module path with no directory in the repository, a path with `.`,
+`..` or an empty element, a path with an escape sequence, and a `go.mod` whose `module` directive is
+missing or cannot be read (both the one-line and the `module ( ... )` block form are read). Go packages
+under `vendor/`, and modules a `replace` directive or `go.work` places inside the repository, are external
+like any other path outside the module, so no `to` glob can name them. In Rust it is given to a `crate::`,
+`self::` or `super::` path or a `mod` declaration in a file with no `Cargo.toml` above it or whose nearest
+`Cargo.toml` has no `[package]` or cannot be read, a path with a name found no way above, a crate with no
+root file the scanner finds, a `super::` above the crate root or from a file the tree does not reach, a
+`mod x;` with no file, one whose file leads outside the repository, a path that one of several `cfg_attr`
+files of a module cannot resolve, a repository crate with no library root, and a
+`use` declaration that cannot be read (such as `use $x;` in a macro). No code of the repository is run.
 
 `package_denied` compares the ecosystem without regard to case and the name as OSV does (PyPI names are
 normalized). `versions` is a list of exact versions, as in an OSV record's `versions` field, not ranges. A
@@ -706,8 +769,9 @@ decision in `violates` has a rule of that kind the package violates, and each ed
   Every decision in the snapshot that is not superseded is judged, whether or not `impact` reaches it,
   because a rule's globs name the files it covers.
 - `imports`: each import read from a changed file that a `from` glob covers, with `file`, `line`,
-  `import`, `resolution` (`repository`, `external` or `unresolved`), `target` (a repository path,
-  `node_modules/<specifier>` for an external JavaScript package, or null) and `why` when it is unresolved.
+  `import`, `resolution` (`repository`, `external` or `unresolved`), `target` (a repository path, a Go
+  package directory ending in `/`, `node_modules/<specifier>` for an external JavaScript package, or null)
+  and `why` when it is unresolved. A Rust `import` is written `use <path>` or `mod <name>`.
 - `violations` and `unresolved`: one entry per file, import and rule, with `file`, `line` (null for
   `review_required`), `decision`, `rule`, `verdict`, `why`, `import` and `target` (both null for
   `review_required`).

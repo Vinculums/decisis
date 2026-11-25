@@ -4,8 +4,8 @@ The changed files come from `--changed` or from `git diff --name-only REF...HEAD
 is passed to `impact`, which lists the decisions that govern it; superseded decisions are listed apart and never
 judged. Every other decision whose `rule` has a `review_required` or `imports_forbidden` entry is judged, since
 the rule's own globs name the files it covers. `review_required` is judged on each changed file against the
-reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript or TypeScript
-file its `from` globs cover (see `imports.py`); no code of the repository is run.
+reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go or
+Rust file its `from` globs cover (see `imports.py`); no code of the repository is run.
 """
 from __future__ import annotations
 
@@ -86,7 +86,8 @@ def review_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str],
 
 
 def facts(file: str, found: imports.Import) -> dict:
-    return {"file": file, "specifier": found.specifier, "resolution": found.resolution, "target": found.target, "why": found.why}
+    return {"file": file, "specifier": found.specifier, "resolution": found.resolution, "target": found.target, "why": found.why,
+            "also": found.also}
 
 
 def import_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str], repo: imports.Repo) -> tuple[list[dict], list[dict]]:
