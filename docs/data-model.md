@@ -266,8 +266,9 @@ found.
 A plain text search for the same import forms runs over each JavaScript, TypeScript and Go file, over each
 Java and Kotlin file for an `import` at the start of a line or after a `;`, and over
 each Rust file for `use` paths that start with `crate`, `self`, `super`, the name of a crate in the
-repository or a name the file binds, and for `mod x;`. A specifier it finds that the scanner did not read as code (in a comment or a
-string, or after a point the scanner misread) is `unresolved` with the reason "the scanner and the text
+repository or a name the file binds, and for `mod x;`; a Rust file is searched with its comments, strings and character
+literals blanked out, so text in them is never a hit. A specifier it finds that the scanner did not read as code (in a comment
+or a string of a file that is not Rust, or after a point the scanner misread or could not scan past) is `unresolved` with the reason "the scanner and the text
 search disagree" and the file it would name as `target`; it is `not_violated` only when that target is
 known and no `to` glob covers it. A Go, Rust, Java or Kotlin hit that would be external is not listed, since read
 as an import it could not be a violation.
@@ -422,8 +423,8 @@ read or parse is listed in `meta.problems` with the reason and left out. The one
 `action`: `skipped` (the file or line is not in the snapshot), `kept without code paths` (the node is there
 but no code path anchors it), `no edge` (a reference did not resolve to exactly one ADR), `no effect` (a
 CODEOWNERS line that owns no file), `not suggested` (a path an ADR names that `--suggest-refs` left out), `ignored`
-(a front matter key `init` does not read, or an entry in an ADR directory that is not a record file; both below) or
-`not read`.
+(a front matter key `init` does not read, or an entry in an ADR directory that is not a record file; both below),
+`in force` (decisions in a `SUPERSEDES` cycle, below) or `not read`.
 An entry about an ADR file also has `kind: "decision"`. An ADR whose entry is `skipped` or `not read`, such as one
 whose `rule:` or `waivers:` line holds JSON that does not parse, is not in the snapshot, so neither is its rule;
 `check` and `audit` list each such file under `unread_decisions` so it does not drop out silently. A front matter key
@@ -525,12 +526,23 @@ either says so: front matter `supersedes`, `superseded_by` or `superseded-by`, a
 such as `3`, `0003` or `ADR-0003`, which matches the file whose name starts with
 that number. A reference that matches no ADR or more than one makes no edge and is listed.
 
+A `SUPERSEDES` cycle is a set of nodes that reach each other through `SUPERSEDES` edges: a decision that supersedes
+itself, two ADRs that name each other as `superseded_by`, or a longer ring. A typo can make one, and if every decision in it
+counted as superseded, their rules would drop out with no warning. So `init` keeps each edge in the snapshot as the
+evidence, and `impact`, `check` and `audit` treat no decision in a cycle as superseded, whatever its `status` says: its
+rules are judged as if there were no cycle. A decision outside the cycle that a decision in the cycle supersedes stays
+superseded. `init` lists each cycle as one problem with `action` `in force` and `kind` `decision`: its `file` is the first
+ADR file of the cycle in sorted order, and its `reason` names every decision in the cycle and every file that holds one. `check` lists it under
+`unresolved` (see [the check report](#the-check-report)), so `--fail-on-unresolved` fails until the lines are fixed. A cycle
+with no decision in it is ignored.
+
 `impact` gives each listed decision its `status` when the snapshot has one. A decision whose `status` starts
 with `superseded`, or that is the target of a `SUPERSEDES` edge, is not listed under `governing`: it goes
 under `superseded`, with `superseded_by` (the decisions that replace it), so a path shows what governs it now
 and, apart, what used to. `--format text` prints it after the governing nodes; Mermaid draws it dashed with
 the `SUPERSEDES` edge, and HTML lists it in its own part. The `superseded` key is left out when it would be
-empty, so a snapshot without superseded decisions gives the same output as before.
+empty, so a snapshot without superseded decisions gives the same output as before. A decision in a `SUPERSEDES` cycle
+(above) is the exception: it stays under `governing`.
 
 ### Suggested code refs: `--suggest-refs`
 
@@ -629,9 +641,18 @@ work tree, and otherwise every file below it outside `.git`. A tree of more than
 its owners are not read.
 
 Each distinct set of owners becomes one concept. Its `code_ref` is the fewest paths that cover exactly the
-files that set owns: a directory (with a trailing `/`) when every file below it has that owner set, otherwise
-the single file. It also has `owners` (sorted), `source_lines` (the lines that own those files), and
-`source_file` and `content_hash` of the CODEOWNERS file. Its id is `concept:<repo>-codeowners-`, the owners
+files that set owns: a directory (with a trailing `/`) when every file below it has that owner set and the
+CODEOWNERS file would give that same set to a new file at any depth below it, otherwise the narrower
+directories or the single files. A directory qualifies when a line owns all of it (`src/payments/`,
+`/src/payments`, `src/payments/**`, `docs/**`, or `*`) and is the last line that matches below it, and no
+later line that names a path below it (`src/payments/legacy/`, `src/payments/*.txt`) gives that path to
+other owners or to none. A pattern that matches only some files (`*.py`, `docs/*`) never makes a directory
+a path, and a later line that matches by name at any depth (`docs/`, `*.md`) is not read as owning files
+that do not exist yet. So a repository whose only folder under `src/` is `src/payments/`, with the line
+`src/payments/** @payments-team`, gets `src/payments/`, not `src/`, and a snapshot reused after
+`src/billing/` appears does not name `@payments-team` as the owner of the billing files. The concept also
+has `owners` (sorted), `source_lines` (the lines that own those files), and `source_file` and `content_hash`
+of the CODEOWNERS file. Its id is `concept:<repo>-codeowners-`, the owners
 as a slug, and the first 12 hex digits of the SHA-256 of the owners, so two owner sets never share an id.
 Title: `Owned by` and the owners.
 
@@ -867,7 +888,7 @@ A decision governs the repository `audit --repo NAME` reads in one of two ways:
   has `via` set to that node.
 
 In both, a superseded decision (its status says `superseded`, or it is the target of a `SUPERSEDES` edge)
-does not govern.
+does not govern, unless it is in a `SUPERSEDES` cycle (see [A snapshot from a repository](#a-snapshot-from-a-repository-init)).
 
 A decision whose rule holds a kind `audit` judges but that governs nothing in this audit is listed under
 `not_governing` in the report, with `decision`, `title` and `reason`: an `init` snapshot of another
@@ -1179,7 +1200,7 @@ waived finding's record is checked like any other, scope and paths included.
   sorted. `reviewers`: the handles given.
 - `governing`: each decision that `impact` reaches from a changed file, with `decision`, `title`, `status`
   when it has one, and `files`. `superseded`: the same for superseded decisions, with `superseded_by`;
-  these are never judged.
+  these are never judged. A decision in a `SUPERSEDES` cycle is not superseded: it is under `governing` and judged.
 - `rules`: each `review_required` and `imports_forbidden` rule judged, with `decision`, `rule`, its value
   (`paths` and `reviewers`, or `from` and `to`) and the changed `files` its `paths` or `from` globs cover.
   Every decision in the snapshot that is not superseded is judged, whether or not `impact` reaches it,
@@ -1195,7 +1216,11 @@ waived finding's record is checked like any other, scope and paths included.
 - `violations`, `unresolved` and `waived`: one entry per file, import and rule, with `file`, `line` (null for
   `review_required`), `decision`, `rule`, `verdict`, `why`, `import` and `target` (both null for
   `review_required`). A `waived` entry adds `waiver`, and a violation whose waiver expired adds
-  `expired_waiver` (see [Waivers](#waivers)).
+  `expired_waiver` (see [Waivers](#waivers)). `unresolved` also holds one entry for each `SUPERSEDES` cycle in the
+  snapshot, whatever the changed files are: its `rule` is `supersedes_cycle`, its `decision` is the first decision in the
+  cycle, its `file` is the first ADR file of the cycle in sorted order (empty when no decision has a `source_file`), its `line` is null, and its `why`
+  names every decision and file. It adds `decisions` (every node in the cycle) and `files`. It makes
+  `--fail-on-unresolved` and the Action's `fail-on-unresolved` exit 1 even when every reviewer was given, and SARIF gives it as a `warning`.
 - `summary`: the count of `violated`, `unresolved`, `waived` and `not_violated` results.
 - `impact`: the `impact` result for each changed file.
 - `rule_problems`, only when there are some: as in the audit report, for every decision in the snapshot that is

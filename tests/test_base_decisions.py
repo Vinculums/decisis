@@ -157,7 +157,7 @@ def test_codeowners_come_from_the_base_and_cover_the_heads_new_files(tmp_path):
                             {".github/CODEOWNERS": "src/payments/ @mallory\n", "src/payments/refund.py": "B = 1\n"})
     graph = committed.built(root, base, None, *action.listing(root, base))
     owners = [n for n in graph.nodes if n["kind"] == "concept"]
-    assert [n["props"]["owners"] for n in owners] == [["@alice"]] and owners[0]["props"]["code_ref"] == ["src/"]
+    assert [n["props"]["owners"] for n in owners] == [["@alice"]] and owners[0]["props"]["code_ref"] == ["src/payments/"]
     base_files, head_files = action.listing(root, base)
     assert "src/payments/refund.py" in head_files and "src/payments/refund.py" not in base_files and "src/payments/charge.py" in base_files
 

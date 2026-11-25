@@ -23,7 +23,7 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
 - `propose` re-derives each record in a fresh graph built from the snapshot, the lockfile and OSV: the
   advisory's content hash and severity, each version as a lockfile package inside the advisory's ranges,
   each dependency path from the repository to the record's own package and advisory, the record's scope
-  against the development flags on its paths, and each decision it names under `violates` or `waived`, or links with `relates_to`, as a decision in the snapshot that still governs the repository (as in `audit`: a superseded decision does not). A record that fails is held back with the failed
+  against the development flags on its paths, and each decision it names under `violates` or `waived`, or links with `relates_to`, as a decision in the snapshot that still governs the repository (as in `audit`: a superseded decision does not, but a decision in a `SUPERSEDES` cycle is not superseded and does). A record that fails is held back with the failed
   checks, and `propose` exits non-zero. The demo runs the same checks.
 - `check` judges `review_required` against the reviewers given and `imports_forbidden` on Python,
   JavaScript, TypeScript and JSX imports, absolute, relative, from a nested package root and through the
@@ -40,7 +40,7 @@ Proven by the tests in `tests/` (run offline in CI on Python 3.11 and 3.12) and 
   run time, a file the scanner cannot finish, a Go path under the module path with no directory, a Rust
   path with a name that is no module, item or `use` binding of the module it reaches, and a specifier a
   plain text search finds where the scanner did not are `unresolved`, never clean; a superseded decision
-  is not judged.
+  is not judged, but each decision in a `SUPERSEDES` cycle is, and the cycle is `unresolved`.
 - The action's comment, against a fake GitHub: a hostile decision title and file path reach it only as
   escaped text, the body stays under GitHub's limit and says what it cut, the bot's own marked comment is
   found across pages and updated (a marked comment by anyone else is left alone), only the latest approving

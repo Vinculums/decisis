@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import codeowners as owners
-from . import suggest, yamltext
+from . import cycles, suggest, yamltext
 from .impact import REF_KEYS, code_path
 
 ADR_DIRS = ("docs/adr", "docs/decisions", "adr", "doc/adr")
@@ -708,9 +708,6 @@ def link(tree: Tree, path: Path, nid: str, verb: str, ref: str, edges: dict) -> 
         tree.problem(path, f"it {verb} {ref}, but {e}", NO_EDGE, DECISION)
         return
     new, old = (nid, other) if verb == "supersedes" else (other, nid)
-    if new == old:
-        tree.problem(path, f"it {verb} itself ({ref})", NO_EDGE, DECISION)
-        return
     edges.setdefault((new, old), {"source": new, "target": old, "type": "SUPERSEDES", "evidence": f"{tree.rel(path)} says it {verb} {ref}"})
 
 
@@ -793,7 +790,7 @@ def read_codeowners(tree: Tree) -> tuple[list[dict], list[dict]]:
         return [], []
     won = owners.owning_rules(rules, files)
     report_idle_rules(tree, path, rules, files, won)
-    sets = owners.cover(files, {f: r.owners for f, r in won.items()})
+    sets = owners.cover(files, {f: r.owners for f, r in won.items()}, rules)
     lines: dict[tuple[str, ...], set[int]] = {}
     for rule in won.values():
         lines.setdefault(rule.owners, set()).add(rule.line)
@@ -834,6 +831,8 @@ def build(repo_dir: str | Path, repo: str | None = None, *readers: Reader, adr_d
                 also=sorted(set(also)))
     tree.problems += problems
     nodes, edges = merge(tree, readers or READERS)
+    for cycle in cycles.find(nodes, edges):
+        tree.problem(cycle.files[0] if cycle.files else ".", cycle.reason, cycles.IN_FORCE, DECISION)
     problems = {(p["file"], p["action"], p["reason"]): p for p in tree.problems}
     meta = {"source": "decisis init", "repo": repo, "nodes": len(nodes), "edges": len(edges), "problems": [problems[k] for k in sorted(problems)]}
     return {"meta": meta, "nodes": nodes, "edges": edges}

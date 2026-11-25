@@ -195,7 +195,7 @@ def test_a_covered_check_violation_is_waived_and_does_not_count_for_the_exit_cod
     capsys.readouterr()
     code, rep = run(DAY)
     assert code == 0 and rep["violations"] == [] and len(rep["waived"]) == 9 and rep["summary"]["waived"] == 9
-    assert rep["today"] == DAY and len(rep["unresolved"]) == 5
+    assert rep["today"] == DAY and len(rep["unresolved"]) == 3
     assert all(r["verdict"] == "waived" and r["waiver"]["expires"] == DAY for r in rep["waived"])
     code, later = run("2026-11-26")
     assert code == 1 and later["waived"] == [] and len(later["violations"]) == 9
@@ -257,7 +257,7 @@ def test_a_to_glob_must_name_every_file_an_import_is_forbidden_through():
 
 def test_a_waiver_never_turns_an_unresolved_result_into_waived():
     rep = checked({IMPORT_RULE: [waiver(path="**")]})
-    assert len(rep["unresolved"]) == 5 and all(r["verdict"] == "unresolved" for r in rep["unresolved"])
+    assert len(rep["unresolved"]) == 3 and all(r["verdict"] == "unresolved" for r in rep["unresolved"])
     assert all("waiver" not in r for r in rep["unresolved"])
 
 

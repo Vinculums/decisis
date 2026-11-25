@@ -42,6 +42,7 @@ sequenceDiagram
 | `src/decisis/audit.py` | Composes the snapshot, the inventory and the advisories into one graph, adds `DESCRIBED_BY` from the repository to each Vinc node whose `code_ref` names it and, for a snapshot from `init` of this repository, `RECORDS` from the repository to each decision with a dependency rule, runs the dependency and governance queries, and judges each finding against each governing decision. |
 | `src/decisis/rules.py` | Reads a decision's `rule` into rules and problems, and judges one advisory, license, package, changed file or import against one rule; `KINDS` holds one entry per rule kind. |
 | `src/decisis/impact.py` | Answers "this code path changes; what governs it": matches `code_ref`, `subject_path` and `also_touches` against the queried paths, keeps only the edges that carry governance (`CARRIES`), orients them from the governing node to the governed one, and walks back from the matching nodes. |
+| `src/decisis/cycles.py` | Finds each `SUPERSEDES` cycle among a snapshot's nodes (a strongly connected set, or one node with an edge to itself) that holds a decision, with its members, decisions and ADR files and the reason text `init` and `check` give. |
 | `src/decisis/jvm.py` | Reads the imports of a Java or Kotlin file and resolves each to the source file or package directory that holds the class, by `package` line and by path under the source roots (`src/<set>/java`, `src/<set>/kotlin`, and the directories a Gradle script or `pom.xml` declares). |
 | `src/decisis/workspaces.py` | Finds the packages of an npm, pnpm, Yarn or Bun workspace and resolves a bare specifier that names one (through `exports`, `main` and `workspace:` links) to its files. |
 | `src/decisis/check.py` | `check`: lists the changed files (`--changed`, or `git diff --name-only REF...HEAD` with hooks, fsmonitor and pager off), runs `impact` on them, sets superseded decisions apart, and judges `review_required` and `imports_forbidden` for the files each rule covers. |
@@ -133,7 +134,8 @@ The format is in [the data model](data-model.md#rules).
 off; a ref that looks like an option is refused. It runs `impact` on those files to list the governing
 decisions. It then judges the `review` and `import` kinds of every decision in the snapshot on the changed
 files its globs cover, except a decision that a `SUPERSEDES` edge replaces, which is listed apart and not
-judged. `review_required` compares the rule's handles with
+judged. A decision in a `SUPERSEDES` cycle is not replaced by it: `impact.superseded_by` leaves each member of a cycle
+out (`cycles.py`), and `check` lists the cycle as a result that cannot be judged. `review_required` compares the rule's handles with
 `--reviewers`. `imports_forbidden` reads the imports of each changed file its `from` globs cover
 (`imports.py`) and judges each resolved target against the `to` globs. Repository code is parsed and never
 run. An import that cannot be resolved is `unresolved`; `--fail-on-unresolved` turns those into a failure.
