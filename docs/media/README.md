@@ -5,7 +5,7 @@
 - `social-preview.png` (1280×640): the repository's social preview, with the mark next to the name. Upload it under Settings → Social preview.
 - `demo.gif`: the `decisis demo` recording shown in the README.
 
-`social-preview.png` and `demo.gif` are drawn by `make_media.py` from the real demo output and `logo-mark.png`, with Pillow and the DejaVu fonts:
+`social-preview.png` and `demo.gif` are drawn by `make_media.py` from the real demo output and `logo-mark.png`, with Pillow and the DejaVu fonts. The `pip install` line in `demo.gif` lists the installed versions of decisis and its dependencies, so draw it again after each release, in an environment where that release is installed:
 
 ```
 decisis demo --out /tmp/demo-out > /tmp/demo.txt
