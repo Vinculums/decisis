@@ -46,7 +46,9 @@ and one that a package of the repository could hold is unresolved.
 A plain text search for the same import forms runs over every JavaScript, TypeScript, Go, Rust, Java and Kotlin file as
 well. A specifier it finds that the scanner did not read as code is listed as unresolved, with the file it
 would name, so a scanner mistake can never make an import disappear; a Go, Rust, Java or Kotlin hit that would be external
-is left out, since it could not be a violation.
+is left out, since it could not be a violation. In a Rust file the text search runs over the file with every comment,
+string, raw, byte and C string and character literal the scanner read blanked out, so `use` and `mod` text in them is
+neither an import nor a disagreement; it still lists a hit in the part of a file the scanner could not scan to its end.
 
 A call whose specifier is not a literal, a relative import that names no file, a file that cannot be parsed
 or scanned to its end, and a config that cannot be read or extends a package are unresolved. Every path is
@@ -1027,10 +1029,12 @@ def go_imports(repo: Repo, rel: str, text: str) -> list[Import]:
     return out
 
 
-def rust_lex(text: str, out: list[Token]) -> None:
+def rust_lex(text: str, out: list[Token], spans: list[tuple[int, int]] | None = None) -> None:
     i, line, n = 0, 1, len(text)
+    spans = [] if spans is None else spans
     if text.startswith("#!") and not text[2:].lstrip().startswith("["):
         i = n if text.find("\n") < 0 else text.find("\n")
+        spans.append((0, i))
     while i < n:
         c = text[i]
         m = RUST_PREFIX.match(text, i) if c in "\"brc" else None
@@ -1041,19 +1045,28 @@ def rust_lex(text: str, out: list[Token]) -> None:
             i += 1
         elif text.startswith("//", i):
             j = text.find("\n", i)
-            i = n if j < 0 else j
+            j = n if j < 0 else j
+            spans.append((i, j))
+            i = j
         elif text.startswith("/*", i):
             j = rust_comment(text, i, line)
+            spans.append((i, j))
             line += text.count("\n", i, j)
             i = j
         elif m and m.group(0) == "b'":
-            i = rust_char(text, i + 1, line)
+            j = rust_char(text, i + 1, line)
+            spans.append((i, j))
+            i = j
         elif m:
             j = rust_string(text, m, line, out)
+            spans.append((i, j))
             line += text.count("\n", i, j)
             i = j
         elif c == "'":
-            i = rust_char(text, i, line)
+            j = rust_char(text, i, line)
+            if j > i + 1:
+                spans.append((i, j))
+            i = j
         elif name_char(c):
             j = i + 2 if text.startswith("r#", i) else i
             while j < n and name_char(text[j]):
@@ -1820,11 +1833,22 @@ def rust_sweep(repo: Repo, rel: str, text: str, ctx: tuple, names: set[str], see
     return out
 
 
+def rust_blank(text: str, spans: list[tuple[int, int]]) -> str:
+    out, last = [], 0
+    for start, end in spans:
+        out.append(text[last:start])
+        out.append(re.sub(r"[^\n]", " ", text[start:end]))
+        last = end
+    out.append(text[last:])
+    return "".join(out)
+
+
 def rust_imports(repo: Repo, rel: str, text: str) -> list[Import]:
+    spans: list[tuple[int, int]] = []
+    toks, lex_broken = lexed(lambda t, out: rust_lex(t, out, spans), text)
     info = repo.rust_infos.get(rel)
     if not isinstance(info, dict):
-        toks, broken = lexed(rust_lex, text)
-        info = repo.rust_infos[rel] = {**rust_parse(toks), "broken": broken}
+        info = repo.rust_infos[rel] = {**rust_parse(toks), "broken": lex_broken}
     broken = info["broken"]
     ctx = rust_context(repo, rel)
     out, seen = [], set()
@@ -1837,7 +1861,7 @@ def rust_imports(repo: Repo, rel: str, text: str) -> list[Import]:
         out.append(Import(None, rel, UNRESOLVED, None, f"the file cannot be scanned to its end: {broken}"))
     crates = ctx[0]["crates"] if ctx[0] is not None else rust_crates(repo, None, None)
     names = set(crates) | {r.bind for s in info["scopes"].values() for r in s["binds"] if r.bind}
-    return out + rust_sweep(repo, rel, text, ctx, names, seen)
+    return out + rust_sweep(repo, rel, rust_blank(text, spans), ctx, names, seen)
 
 
 def jvm_imports(repo: Repo, rel: str, text: str) -> list[Import]:

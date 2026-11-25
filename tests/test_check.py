@@ -464,15 +464,15 @@ def test_rust_use_mod_and_workspace_crate_paths_resolve_from_the_crate_root(caps
         (18, "use crate::db::models::Total")}
 
 
-def test_go_and_rust_comments_and_strings_are_not_read_as_imports_but_a_text_search_flags_them(capsys, no_network):
+def test_go_comments_and_strings_are_flagged_by_a_text_search_but_rust_comments_and_strings_are_not_imports_at_all(capsys, no_network):
     _, r = report(capsys, "--changed", GO_VIEW, RUST_UI)
     disagree = [(u["file"], u["line"], u["import"]) for u in r["unresolved"] if "the scanner and the text search disagree" in u["why"]]
-    assert disagree == [(RUST_UI, 10, "use crate::db::secret"), (RUST_UI, 11, "use crate::db::raw"),
-                        (GO_VIEW, 15, "example.com/shop/svc/internal/db/secret"), (GO_VIEW, 16, "example.com/shop/svc/internal/db/raw")]
+    assert disagree == [(GO_VIEW, 15, "example.com/shop/svc/internal/db/secret"), (GO_VIEW, 16, "example.com/shop/svc/internal/db/raw")]
+    assert not [x for x in r["imports"] + r["unresolved"] + r["violations"] if x["file"] == RUST_UI and x["line"] in (10, 11, 12)]
     canonical = [i for i in r["imports"] if i["file"] == GO_VIEW and i["line"] == 2]
     assert [(i["resolution"], i["target"]) for i in canonical] == [("unresolved", "svc/internal/ui/")]
     assert all(v["line"] != 2 for v in r["violations"] + r["unresolved"] if v["file"] == GO_VIEW)
-    assert r["summary"] == {"violated": 8, "unresolved": 5, "waived": 0, "not_violated": 7}
+    assert r["summary"] == {"violated": 8, "unresolved": 3, "waived": 0, "not_violated": 7}
 
 
 GO_MOD = {"go.mod": "module example.com/m // the module\n\ngo 1.22\n", "db/a.go": "package db\n", "db/sub/b.go": "package sub\n"}
@@ -660,7 +660,6 @@ def test_rust_names_bound_by_use_and_extern_crate_resolve_to_what_they_bind(tmp_
         (1, "use crate::db", "repository", "src/db.rs", "not_violated"), (2, "use data::models::Order", "repository", "src/db/models.rs", "violated"),
         (3, "use crate::db", "repository", "src/db.rs", "not_violated"), (4, "use db::models::Total", "repository", "src/db/models.rs", "violated"),
         (6, "use crate::db::models", "repository", "src/db/models.rs", "violated"), (7, "use m::Total", "repository", "src/db/models.rs", "violated"),
-        (9, "use data::models::Total", "unresolved", "src/db/models.rs", "unresolved"),
         (10, "extern crate shop_db", "repository", "libs/db/src/lib.rs", "not_violated"), (11, "use d::pool::Pool", "repository", "libs/db/src/pool.rs", "violated")]
 
 
@@ -715,10 +714,10 @@ def test_a_rust_file_the_scanner_cannot_finish_is_unresolved_and_its_uses_still_
     assert (3, "use crate::db::Pool", "unresolved", "src/db.rs", "unresolved") in got
 
 
-def test_a_rust_text_search_hit_in_a_doc_example_is_unresolved_when_it_names_a_forbidden_file(tmp_path):
+def test_a_rust_use_or_mod_in_a_doc_example_or_a_comment_is_not_an_import_and_is_not_unresolved(tmp_path):
     text = "/// ```\n/// use p::db::Pool;\n/// use std::io;\n/// ```\npub fn f() {}\n// mod hidden;\n"
     got = judge_import(tmp_path, {**CRATE, "src/ui/hidden.rs": "", "src/ui.rs": text}, "src/ui.rs", {"from": ["src/ui.rs"], "to": ["src/db.rs"]})
-    assert got == [(2, "use p::db::Pool", "unresolved", "src/db.rs", "unresolved"), (6, "mod hidden", "unresolved", "src/ui/hidden.rs", "not_violated")]
+    assert got == []
 
 
 def test_a_macro_use_of_dollar_crate_reads_from_the_crate_root_and_an_empty_group_is_unresolved(tmp_path):
