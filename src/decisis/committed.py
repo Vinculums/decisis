@@ -1,8 +1,9 @@
 """Read the decisions a commit holds without checking the commit out or running anything from it.
 
-`built` copies the files `decisis init` reads (the ADR and postmortem records and the CODEOWNERS file) from the
-commit's tree into a private temporary directory, through the hardened git helper, and runs `init.build` there.
-Only regular files are copied; a symbolic link in the commit is listed in `meta.problems` and not followed.
+`built` copies the files `decisis init` reads (the ADR records, also in folders below an ADR directory, the
+postmortem records and the CODEOWNERS file) from the commit's tree into a private temporary directory, through the
+hardened git helper, and runs `init.build` there. Only regular files are copied; a symbolic link in the commit to a
+record, or one below an ADR directory that may be a folder, is listed in `meta.problems` and not followed.
 `stored` reads a snapshot file from the commit's tree and returns `None` when the commit has no file at the path.
 `changes` names the decisions and waivers that one snapshot adds, changes or removes against another.
 """
@@ -20,7 +21,6 @@ from . import codeowners, init
 from .sandbox import Subgraph
 
 GIT_SECONDS = 120
-MAX_RECORDS = 5_000
 MAX_BYTES = 16 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 256 * 1024 * 1024
 REGULAR = ("100644", "100755")
@@ -54,9 +54,9 @@ def commit_name(commit: str) -> str:
     return commit
 
 
-def entries(root: Path, commit: str, *paths: str) -> list[Entry]:
+def entries(root: Path, commit: str, *paths: str, deep: bool = False) -> list[Entry]:
     out = []
-    for item in git(root, "ls-tree", "-l", "-z", commit_name(commit), "--", *paths).split(b"\0"):
+    for item in git(root, "ls-tree", "-l", "-z", *(["-r"] if deep else []), commit_name(commit), "--", *paths).split(b"\0"):
         if not item:
             continue
         info, _, name = item.partition(b"\t")
@@ -84,20 +84,30 @@ def blob(root: Path, entry: Entry, limit: int) -> bytes:
     return git(root, "cat-file", "blob", entry.oid)
 
 
-def problem(path: str, reason: str) -> dict:
-    kind = {"kind": init.DECISION} if path.rpartition("/")[0] in init.ADR_DIRS else {}
-    return {"file": path, "reason": reason, "action": init.SKIPPED, **kind}
+def problem(path: str, reason: str, action: str = init.SKIPPED) -> dict:
+    kind = {"kind": init.DECISION} if init.adr_dir_of(path) else {}
+    return {"file": path, "reason": reason, "action": action, **kind}
+
+
+def folder_link(e: Entry) -> bool:
+    top = init.adr_dir_of(e.path)
+    below = e.path[len(top) + 1:] if top else ""
+    return e.mode == LINK and bool(below) and "." not in below.rpartition("/")[2] and "template" not in below.lower()
 
 
 def copy(root: Path, commit: str, into: Path) -> list[dict]:
     dirs = init.ADR_DIRS + init.POSTMORTEM_DIRS
-    found = entries(root, commit, *(d + "/" for d in dirs), *init.CODEOWNERS_FILES)
-    problems = []
-    for folder in sorted({e.path.rpartition("/")[0] for e in found} & set(dirs)):
+    found = entries(root, commit, *(d + "/" for d in init.ADR_DIRS), deep=True)
+    if len(found) > init.MAX_ENTRIES:
+        raise ValueError(f"the ADR directories of the commit hold {len(found)} files, more than the {init.MAX_ENTRIES} decisis reads")
+    found += entries(root, commit, *(d + "/" for d in init.POSTMORTEM_DIRS), *init.CODEOWNERS_FILES)
+    problems = [problem(e.path, "it is a symbolic link in the commit, and decisis does not follow links inside an ADR directory",
+                        init.NOT_READ) for e in found if folder_link(e)]
+    for folder in sorted({d for e in found for d in dirs if e.path.startswith(d + "/")}):
         into.joinpath(*folder.split("/")).mkdir(parents=True, exist_ok=True, mode=0o700)
     picked = [e for e in found if init.source(e.path)]
-    if len(picked) > MAX_RECORDS:
-        raise ValueError(f"the commit holds {len(picked)} decision files, more than the {MAX_RECORDS} decisis reads")
+    if len(picked) > init.MAX_RECORDS:
+        raise ValueError(f"the commit holds {len(picked)} decision files, more than the {init.MAX_RECORDS} decisis reads")
     for e in picked:
         if e.mode == LINK:
             problems.append(problem(e.path, "it is a symbolic link in the commit, and decisions are read only from regular files"))

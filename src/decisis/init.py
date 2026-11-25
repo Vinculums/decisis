@@ -3,12 +3,15 @@
 Each reader takes a `Tree` and returns `(nodes, edges)` in snapshot shape. `build` runs the readers, merges
 what they return and sorts it, so the same tree always gives the same bytes. A file that cannot be read or
 parsed is listed in `meta.problems` with its path and the reason, and skipped; an entry about an ADR file has
-`kind: "decision"`, and `unread_decisions` reads back the ADRs left out for `check` and `audit`. Nothing is guessed from prose,
+`kind: "decision"`, and `unread_decisions` reads back the ADRs left out for `check` and `audit`, with each front matter key
+close to `rule` or `waivers` that the reader does not know. ADRs are read from the ADR directories and every folder below
+them; postmortems only from the folder itself. Nothing is guessed from prose,
 except that `--suggest-refs` adds the paths an ADR's text names and marks them as suggested.
 docs/data-model.md lists the front matter keys and headings each reader understands.
 """
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import os
@@ -29,12 +32,19 @@ CODEOWNERS_FILES = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 NOT_RECORDS = ("readme.md", "index.md")
 REPO_NAME = re.compile(r"[A-Za-z0-9_-]+")
 SKIPPED, KEPT, NO_EDGE, NOT_READ, NO_EFFECT = "skipped", "kept without code paths", "no edge", "not read", "no effect"
-NOT_SUGGESTED = "not suggested"
+NOT_SUGGESTED, IGNORED = "not suggested", "ignored"
 DECISION = "decision"
 UNREAD = (SKIPPED, NOT_READ)
 
 TEXT_KEYS = ("title", "status", "date")
 LIST_KEYS = ("deciders", "decision-makers", "supersedes", "superseded_by", "superseded-by", "decisions", *REF_KEYS)
+RULE_KEYS = ("rule", "waivers")
+UNUSED_KEYS = ("consulted", "informed")
+ADR_KEYS = (*TEXT_KEYS, *LIST_KEYS, *RULE_KEYS, *UNUSED_KEYS)
+CLOSE = 0.75
+MAX_RECORDS = 5_000
+MAX_ENTRIES = owners.MAX_FILES
+LINKED_DIR = "it is a link to a directory, and decisis does not follow links inside an ADR directory"
 KEY_LINE = re.compile(r"([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?$")
 LIST_ITEM = re.compile(r"\s*-(?:[ \t]+(.*))?$")
 PREAMBLE = re.compile(r"\s*(?:[*-]\s+)?(\*\*|__)?(status|date|deciders|decision-makers)(?(1)(?::\1|\1\s*:)|\s*:)\s*(.+)$", re.I)
@@ -71,9 +81,9 @@ class Tree:
     def rel(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()
 
-    def problem(self, where: Path | str, reason: str, action: str = SKIPPED, kind: str | None = None) -> None:
+    def problem(self, where: Path | str, reason: str, action: str = SKIPPED, kind: str | None = None, **extra) -> None:
         self.problems.append({"file": self.rel(where) if isinstance(where, Path) else where, "reason": reason, "action": action,
-                              **({"kind": kind} if kind else {})})
+                              **({"kind": kind} if kind else {}), **extra})
 
     def located(self, given: str | None, defaults: tuple[str, ...]) -> list[Path]:
         if given is None:
@@ -85,20 +95,38 @@ class Tree:
             raise ValueError(f"{given} is not a directory under {self.root}")
         return [path]
 
-    def records(self, directory: Path, kind: str | None = None) -> list[Path]:
-        out = []
-        for path in sorted(directory.iterdir()):
-            if not record(path.name) or not path.is_file():
-                continue
-            if not path.resolve().is_relative_to(self.root.resolve()):
-                self.problem(path, "it is a link to a file outside the repository", kind=kind)
-                continue
-            out.append(path)
-        return out
+    def records(self, directory: Path, kind: str | None = None, deep: bool = False) -> list[Path]:
+        out, todo, seen = [], [directory], 0
+        while todo:
+            for path in sorted(todo.pop().iterdir()):
+                seen += 1
+                if seen > MAX_ENTRIES:
+                    raise ValueError(f"{self.rel(directory)} holds more than {MAX_ENTRIES} files and folders, more than decisis reads")
+                if deep and path.is_dir():
+                    if path.is_symlink():
+                        self.problem(path, LINKED_DIR, NOT_READ, kind)
+                    elif "template" not in path.name.lower():
+                        todo.append(path)
+                    continue
+                if not record(path.name):
+                    continue
+                if path.is_symlink() and not path.exists():
+                    self.problem(path, "it is a link to a file that does not exist", kind=kind)
+                    continue
+                if not path.is_file():
+                    continue
+                if not path.resolve().is_relative_to(self.root.resolve()):
+                    self.problem(path, "it is a link to a file outside the repository", kind=kind)
+                    continue
+                out.append(path)
+        return sorted(out, key=self.rel)
 
     @cached_property
     def adr_files(self) -> list[Path]:
-        return [p for d in self.located(self.adr_dir, ADR_DIRS) for p in self.records(d, DECISION)]
+        found = [p for d in self.located(self.adr_dir, ADR_DIRS) for p in self.records(d, DECISION, deep=True)]
+        if len(found) > MAX_RECORDS:
+            raise ValueError(f"the ADR directories hold {len(found)} decision files, more than the {MAX_RECORDS} decisis reads")
+        return found
 
     @cached_property
     def adr_index(self) -> dict[str, set[str]]:
@@ -166,9 +194,21 @@ def record(name: str) -> bool:
     return Path(name).suffix.lower() == ".md" and name.lower() not in NOT_RECORDS and "template" not in name.lower()
 
 
+def adr_dir_of(path: str) -> str | None:
+    return next((d for d in ADR_DIRS if path.startswith(d + "/")), None)
+
+
+def adr_record(path: str) -> bool:
+    top = adr_dir_of(path)
+    if top is None:
+        return False
+    *folders, name = path[len(top) + 1:].split("/")
+    return record(name) and not any("template" in f.lower() for f in folders)
+
+
 def source(path: str) -> bool:
     folder, _, name = path.rpartition("/")
-    return path in CODEOWNERS_FILES or (folder in ADR_DIRS + POSTMORTEM_DIRS and record(name))
+    return path in CODEOWNERS_FILES or (folder in POSTMORTEM_DIRS and record(name)) or adr_record(path)
 
 
 def read_text(tree: Tree, path: Path, kind: str | None = None) -> tuple[str, bytes] | None:
@@ -214,9 +254,22 @@ def front_matter(lines: list[str]) -> dict:
         key, raw = m.group(1), (m.group(2) or "").strip()
         if key in out:
             raise Malformed(f"front matter line {n}: {key} is given twice")
-        out[key] = [] if not raw or raw.startswith("#") else inline_json(raw, n, list) if key == "waivers" and raw.startswith("[") else value(raw, n)
+        out[key] = [] if not raw or raw.startswith("#") else entry_value(key, raw, n)
         open_list = key if isinstance(out[key], list) and (not raw or raw.startswith("#")) else None
     return out
+
+
+def entry_value(key: str, raw: str, n: int):
+    if key == "waivers" and raw.startswith("["):
+        return inline_json(raw, n, list)
+    return value(raw, n) if key in ADR_KEYS else loose(raw, n)
+
+
+def loose(raw: str, n: int):
+    try:
+        return inline_json(raw, n, list if raw.startswith("[") else dict) if raw[:1] in ("[", "{") else value(raw, n)
+    except Malformed:
+        return value(raw, n)
 
 
 def value(raw: str, n: int):
@@ -388,7 +441,8 @@ def parse(tree: Tree, path: Path, kind: str | None = None) -> Parsed | None:
     text, data = read
     try:
         lines, body = split_front_matter(text)
-        fm = typed(front_matter(lines)) if lines is not None else {}
+        raw = front_matter(lines) if lines is not None else {}
+        fm = typed(raw)
         doc = markdown(body)
         if not (fm.get("title") or doc.title):
             raise Malformed("it has no title: neither a front matter title nor a '# ' heading")
@@ -396,7 +450,21 @@ def parse(tree: Tree, path: Path, kind: str | None = None) -> Parsed | None:
     except Malformed as e:
         tree.problem(path, str(e), kind=kind)
         return None
+    if kind == DECISION:
+        unknown_keys(tree, path, raw)
     return Parsed(fm, doc, data, refs)
+
+
+def unknown_keys(tree: Tree, path: Path, fm: dict) -> None:
+    for key in fm:
+        if key in ADR_KEYS:
+            continue
+        close = difflib.get_close_matches(key.lower(), ADR_KEYS, n=3, cutoff=CLOSE)
+        ruled = bool(set(close) & set(RULE_KEYS))
+        lost = "a rule or waiver written there is not judged" if ruled else "it is ignored"
+        meant = f"it may mean {' or '.join(close)}" if close else "it is close to no key decisis reads"
+        tree.problem(path, f"front matter key {key} is not a key decisis reads, so {lost}; {meant}", NOT_READ if ruled else IGNORED,
+                     DECISION, key=key, may_mean=close)
 
 
 def base_props(tree: Tree, path: Path, parsed: Parsed) -> dict:

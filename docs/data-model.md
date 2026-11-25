@@ -318,10 +318,14 @@ read or parse is listed in `meta.problems` with the reason and left out. The one
 `--suggest-refs` (below), which marks every code path it adds as suggested and keeps the sentence it came from. Each entry has `file`, `reason` and
 `action`: `skipped` (the file or line is not in the snapshot), `kept without code paths` (the node is there
 but no code path anchors it), `no edge` (a reference did not resolve to exactly one ADR), `no effect` (a
-CODEOWNERS line that owns no file), `not suggested` (a path an ADR names that `--suggest-refs` left out) or `not read`.
+CODEOWNERS line that owns no file), `not suggested` (a path an ADR names that `--suggest-refs` left out), `ignored`
+(a front matter key `init` does not read, below) or `not read`.
 An entry about an ADR file also has `kind: "decision"`. An ADR whose entry is `skipped` or `not read`, such as one
 whose `rule:` or `waivers:` line holds JSON that does not parse, is not in the snapshot, so neither is its rule;
-`check` and `audit` list each such file under `unread_decisions` so it does not drop out silently. A snapshot
+`check` and `audit` list each such file under `unread_decisions` so it does not drop out silently. A front matter key
+close to `rule` or `waivers`, such as `rules:` or `waiver:`, is also `not read`: the decision is in the snapshot,
+but what that key holds is not judged, so the file is listed under `unread_decisions` as well (see
+[The front matter subset](#the-front-matter-subset)). A snapshot
 written before `kind` existed has no `kind` on any entry; there an `.md` file directly in `docs/adr`,
 `docs/decisions`, `adr` or `doc/adr` counts as an ADR file, and an ADR read from another `--adr-dir` is not
 listed.
@@ -340,8 +344,17 @@ listed.
 | `--suggest-refs` | give each ADR that states no code path the existing files and directories its text names (below) |
 | `--out FILE` | where the snapshot goes; the command prints its counts and problems |
 
-Every `.md` file directly in those directories is read, except `README.md`, `index.md` and names that
-contain `template`. Every node carries `source_file` (the path from the repository root) and
+Every `.md` file in an ADR directory and in every folder below it is read, except `README.md`, `index.md`,
+names that contain `template` and what is below a folder whose name contains `template`; so ADRs grouped in
+folders by area or year, such as `docs/adr/payments/0007-retry-once.md`, are read like the others, and their ids
+carry the folder (`decision:shop-docs-adr-payments-0007-retry-once`). A link to a folder inside an ADR directory
+is not followed and is listed as `not read`, so the ADRs behind it are listed under `unread_decisions`; a link
+to a file that does not exist is listed as `skipped`. More than 100,000 files and folders below one ADR
+directory, or more than 5,000 ADR files in all, stops the command with an error, the same 5,000 the Action
+reads from the base commit (see [`docs/action.md`](action.md)). Folders are read rather than listed as not
+read because the Action reads the base commit's ADRs from these directories and has no `--adr-dir`: an ADR in a
+folder that was only listed could never be judged there. Postmortems are read only from the files directly in
+their directory. Every node carries `source_file` (the path from the repository root) and
 `content_hash` (`sha256:` and the hex digest of the file it was read from). Ids come from the repository name and the file path, such as
 `decision:shop-docs-adr-0003-retry-payment-calls-once`, so they stay the same while the file keeps its
 path. Nodes, edges and problems are sorted and nothing depends on the clock, so two runs on the same tree
@@ -504,7 +517,20 @@ YAML and needs no YAML library:
 
 Anything else is refused with the line number and the file is skipped: nested mappings, block text (`|`,
 `>`), anchors and aliases (`&`, `*`), tags (`!`), nested lists, and text that holds `: ` without quotes.
-Keys other than those above are ignored.
+
+The keys an ADR's front matter may hold are those in the table above, `decisions`, and MADR's `consulted` and
+`informed`, which are read and not used. Keys are compared as written, so `Rule:` is not `rule:`. Each other key
+of an ADR is listed in `meta.problems` with `key` (the key as written) and `may_mean` (the known keys whose
+spelling is close to it, compared in lower case, at most three, possibly none), and the reason names both. The
+entry is `not read` when `may_mean` holds `rule` or `waivers`, so a rule or waiver under a misspelled key, such
+as `rules:` or `waiver:`, shows under `unread_decisions` in `check` and `audit`; any other key is `ignored`.
+The value of such a key may also be inline JSON, so `waiver: [{...}]` does not stop the file from being read.
+Postmortems are not checked for other keys. Example entry:
+
+```json
+{"file": "docs/adr/0005-ui-imports.md", "kind": "decision", "action": "not read", "key": "rules", "may_mean": ["rule"],
+ "reason": "front matter key rules is not a key decisis reads, so a rule or waiver written there is not judged; it may mean rule"}
+```
 
 ## A new ADR: `new-adr`
 
@@ -859,9 +885,9 @@ waived finding's record is checked like any other, scope and paths included.
   `expired_waiver` (see [Waivers](#waivers)).
 - `summary`: the count of `violated`, `unresolved`, `waived` and `not_violated` results.
 - `impact`: the `impact` result for each changed file.
-- `rule_problems`, only when there are some: as in the audit report, for the governing decisions and for
-  any `review_required` or `imports_forbidden` entry that cannot be read, and for the waivers that cannot be
-  read of a decision that governs a changed file or has a `check` rule.
+- `rule_problems`, only when there are some: as in the audit report, for every decision in the snapshot that is
+  not superseded, whatever it governs: a rule entry that cannot be read (an unknown kind, a kind with a value of
+  the wrong shape, an `audit` kind as well as a `check` kind) and each waiver that cannot be read.
 - `unread_decisions`, only when there are some: as in the audit report, each ADR file the snapshot's
   `meta.problems` says was `skipped` or `not read`, with `file`, `reason` and `action`. The text view lists
   them under `decision files not read`, the HTML view in their own section, and the Mermaid view as one
