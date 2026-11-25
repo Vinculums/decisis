@@ -1,0 +1,309 @@
+{
+ "server": {
+  "command": "decisis",
+  "args": [
+   "serve",
+   "--mcp",
+   "--snapshot",
+   "snapshot.json",
+   "--osv-cache",
+   "osv-cache.json",
+   "--root",
+   "app"
+  ]
+ },
+ "tools": [
+  "audit",
+  "check",
+  "impact",
+  "paths",
+  "query"
+ ],
+ "calls": [
+  {
+   "tool": "impact",
+   "arguments": {
+    "code_paths": [
+     "src/bookshop/payments/charge.py"
+    ]
+   },
+   "result": {
+    "detail": "summary",
+    "loaded": {
+     "nodes": 7,
+     "edges": 1
+    },
+    "hops": 3,
+    "repo": null,
+    "impact": [
+     {
+      "path": "src/bookshop/payments/charge.py",
+      "matched_as": "src/bookshop/payments/charge.py",
+      "governing_count": 3,
+      "governing": [
+       {
+        "id": "decision:bookshop-docs-adr-0002-payment-changes-need-a-payments-review",
+        "kind": "decision",
+        "title": "Payment changes need a review from the payments team",
+        "hops": 0,
+        "via": "decision:bookshop-docs-adr-0002-payment-changes-need-a-payments-review",
+        "status": "accepted"
+       },
+       {
+        "id": "record:bookshop-docs-postmortems-2026-10-14-a-retry-charged-a-card-twice",
+        "kind": "record",
+        "title": "A retry charged a card twice",
+        "hops": 0,
+        "via": "record:bookshop-docs-postmortems-2026-10-14-a-retry-charged-a-card-twice"
+       },
+       {
+        "id": "concept:bookshop-codeowners-bookshop-payments-50c2702431b3",
+        "kind": "concept",
+        "title": "Owned by @bookshop/payments",
+        "hops": 0,
+        "via": "concept:bookshop-codeowners-bookshop-payments-50c2702431b3"
+       }
+      ]
+     }
+    ],
+    "note": "detail \"summary\" gives counts, ids and titles, and at most 10 items of each list; call again with detail \"full\" for every item and field"
+   }
+  },
+  {
+   "tool": "check",
+   "arguments": {
+    "changed": [
+     "src/bookshop/ui/catalog.py",
+     "src/bookshop/payments/charge.py"
+    ],
+    "reviewers": [
+     "@bob"
+    ],
+    "today": "2026-11-25"
+   },
+   "result": {
+    "detail": "summary",
+    "loaded": {
+     "nodes": 7,
+     "edges": 1
+    },
+    "hops": 3,
+    "repo": null,
+    "base": null,
+    "today": "2026-11-25",
+    "reviewers": [
+     "@bob"
+    ],
+    "summary": {
+     "violated": 3,
+     "unresolved": 1,
+     "waived": 0,
+     "not_violated": 2
+    },
+    "changed_count": 2,
+    "changed": [
+     "src/bookshop/payments/charge.py",
+     "src/bookshop/ui/catalog.py"
+    ],
+    "governing_count": 2,
+    "governing": [
+     {
+      "decision": "decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer",
+      "title": "The user interface does not import the database layer"
+     },
+     {
+      "decision": "decision:bookshop-docs-adr-0002-payment-changes-need-a-payments-review",
+      "title": "Payment changes need a review from the payments team"
+     }
+    ],
+    "superseded_count": 0,
+    "superseded": [],
+    "rules_count": 2,
+    "rules_covering_a_change": 2,
+    "imports_count": 5,
+    "violations_count": 3,
+    "violations": [
+     {
+      "file": "src/bookshop/payments/charge.py",
+      "decision": "decision:bookshop-docs-adr-0002-payment-changes-need-a-payments-review",
+      "rule": "review_required",
+      "why": "src/bookshop/payments/** needs a review from @alice or @bookshop/payments; none of them is among the reviewers given"
+     },
+     {
+      "file": "src/bookshop/ui/catalog.py",
+      "line": 4,
+      "decision": "decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer",
+      "rule": "imports_forbidden",
+      "why": "src/bookshop/ui/** must not import src/bookshop/db/**; from bookshop.db import models is src/bookshop/db/models.py",
+      "import": "from bookshop.db import models"
+     },
+     {
+      "file": "src/bookshop/ui/catalog.py",
+      "line": 5,
+      "decision": "decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer",
+      "rule": "imports_forbidden",
+      "why": "src/bookshop/ui/** must not import src/bookshop/db/**; from ..db.session import open_session is src/bookshop/db/session.py",
+      "import": "from ..db.session import open_session"
+     }
+    ],
+    "unresolved_count": 1,
+    "unresolved": [
+     {
+      "file": "src/bookshop/ui/catalog.py",
+      "line": 9,
+      "decision": "decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer",
+      "rule": "imports_forbidden",
+      "why": "import_module() with a computed name: the specifier is computed at run time; it cannot be judged",
+      "import": "import_module() with a computed name"
+     }
+    ],
+    "waived_count": 0,
+    "waived": [],
+    "note": "detail \"summary\" gives counts, ids and titles, and at most 10 items of each list; call again with detail \"full\" for every item and field"
+   }
+  },
+  {
+   "tool": "audit",
+   "arguments": {
+    "lockfile": "package-lock.json",
+    "repo": "Bookshop",
+    "today": "2026-11-25"
+   },
+   "result": {
+    "detail": "summary",
+    "meta": {
+     "source": "decisis init",
+     "repo": "Bookshop",
+     "nodes": 18,
+     "edges": 15,
+     "lockfile_hash": "ec9c43cc8a259c501bae1dd5e985b2bba686a35550009e619c716d09d36074e6",
+     "packages": 5,
+     "advisories": 5,
+     "governance_links": 0,
+     "snapshot_repo": "Bookshop",
+     "recorded_links": 2
+    },
+    "loaded": {
+     "nodes": 18,
+     "edges": 15
+    },
+    "summary": {
+     "affected": 7,
+     "unresolved": 0,
+     "not_affected": 0
+    },
+    "violations": 3,
+    "waived": 0,
+    "today": "2026-11-25",
+    "governing_count": 2,
+    "governing": [
+     {
+      "decision": "decision:bookshop-docs-adr-0004-pin-github-actions-to-a-commit",
+      "title": "Pin GitHub Actions to a commit"
+     },
+     {
+      "decision": "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies",
+      "title": "No high advisories in shipped dependencies"
+     }
+    ],
+    "findings_count": 7,
+    "findings": [
+     {
+      "package": "pkg:npm/lodash@4.17.15",
+      "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+      "severity": "HIGH",
+      "status": "affected",
+      "dev_only": false,
+      "violated": [
+       "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies"
+      ]
+     },
+     {
+      "package": "pkg:npm/lodash@4.17.15",
+      "advisory": "adv:GHSA-p6mc-m468-83gw",
+      "severity": "HIGH",
+      "status": "affected",
+      "dev_only": false,
+      "violated": [
+       "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies"
+      ]
+     },
+     {
+      "package": "pkg:npm/lodash@4.17.15",
+      "advisory": "adv:GHSA-35jh-r3h4-6jhm",
+      "severity": "HIGH",
+      "status": "affected",
+      "dev_only": false,
+      "violated": [
+       "decision:bookshop-docs-adr-0003-no-high-advisories-in-shipped-dependencies"
+      ]
+     },
+     {
+      "package": "pkg:npm/lodash@4.17.21",
+      "advisory": "adv:GHSA-r5fr-rjxr-66jc",
+      "severity": "HIGH",
+      "status": "affected",
+      "dev_only": true,
+      "violated": []
+     },
+     {
+      "package": "pkg:npm/lodash@4.17.15",
+      "advisory": "adv:GHSA-xxjr-mmjv-4gpg",
+      "severity": "MODERATE",
+      "status": "affected",
+      "dev_only": false,
+      "violated": []
+     },
+     {
+      "package": "pkg:npm/lodash@4.17.15",
+      "advisory": "adv:GHSA-29mw-wpgm-hmr9",
+      "severity": "MODERATE",
+      "status": "affected",
+      "dev_only": false,
+      "violated": []
+     },
+     {
+      "package": "pkg:npm/lodash@4.17.21",
+      "advisory": "adv:GHSA-xxjr-mmjv-4gpg",
+      "severity": "MODERATE",
+      "status": "affected",
+      "dev_only": true,
+      "violated": []
+     }
+    ],
+    "unresolved_packages_count": 0,
+    "unresolved_packages": [],
+    "inventory_notes_count": 0,
+    "inventory_notes": [],
+    "note": "detail \"summary\" gives counts, ids and titles, and at most 10 items of each list; call again with detail \"full\" for every item and field"
+   }
+  },
+  {
+   "tool": "query",
+   "arguments": {
+    "cypher": "MATCH (r:Record)-[e:ABOUT]->(d:Decision) RETURN r.id AS record, d.id AS decision, e.evidence AS evidence"
+   },
+   "result": {
+    "detail": "summary",
+    "loaded": {
+     "nodes": 7,
+     "edges": 1
+    },
+    "columns": [
+     "record",
+     "decision",
+     "evidence"
+    ],
+    "row_count": 1,
+    "rows": [
+     {
+      "record": "record:bookshop-docs-postmortems-2026-10-14-a-retry-charged-a-card-twice",
+      "decision": "decision:bookshop-docs-adr-0002-payment-changes-need-a-payments-review",
+      "evidence": "docs/postmortems/2026-10-14-a-retry-charged-a-card-twice.md names ADR-0002"
+     }
+    ],
+    "note": "detail \"summary\" gives counts, ids and titles, and at most 10 items of each list; call again with detail \"full\" for every item and field"
+   }
+  }
+ ]
+}
