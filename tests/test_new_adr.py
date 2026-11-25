@@ -111,7 +111,7 @@ def test_a_default_adr_directory_that_links_outside_the_repository_is_refused(tm
     (root / "docs").mkdir(parents=True)
     outside.mkdir()
     (root / "docs" / "adr").symlink_to(outside, target_is_directory=True)
-    assert "the ADR directory docs/adr is outside the repository" in refused(capsys, "Escape", "--repo-dir", str(root))
+    assert "the ADR directory docs/adr is a symbolic link, and init does not read it" in refused(capsys, "Escape", "--repo-dir", str(root))
     assert list(outside.iterdir()) == []
 
 
@@ -149,3 +149,33 @@ def test_a_write_that_fails_after_the_file_is_created_leaves_no_file(tmp_path, c
     err = refused(capsys, "Partial", "--repo-dir", str(root))
     assert "File too large; nothing was kept" in err
     assert list(adr.iterdir()) == []
+
+
+def test_a_default_adr_directory_that_links_inside_the_repository_is_refused_and_init_would_not_read_it(tmp_path, capsys):
+    root = tmp_path / "repo"
+    (root / "records").mkdir(parents=True)
+    (root / "docs").mkdir()
+    (root / "docs" / "adr").symlink_to("../records", target_is_directory=True)
+    err = refused(capsys, "Linked", "--repo-dir", str(root))
+    assert "the ADR directory docs/adr is a symbolic link, and init does not read it" in err and "--adr-dir" in err
+    assert list((root / "records").iterdir()) == []
+    assert {p["file"]: p["action"] for p in init.build(root)["meta"]["problems"]}["docs/adr"] == "not read"
+
+
+def test_a_default_adr_directory_that_is_a_submodule_is_refused(tmp_path, capsys):
+    root = tmp_path / "repo"
+    adr = root / "docs" / "adr"
+    adr.mkdir(parents=True)
+    (adr / ".git").write_text("gitdir: ../../.git/modules/adr\n", encoding="utf-8")
+    assert "the ADR directory docs/adr is a git submodule" in refused(capsys, "Sub", "--repo-dir", str(root))
+    assert sorted(p.name for p in adr.iterdir()) == [".git"]
+
+
+def test_an_explicit_adr_dir_through_a_link_writes_where_init_with_the_same_adr_dir_reads(tmp_path, capsys):
+    root = tmp_path / "repo"
+    (root / "records").mkdir(parents=True)
+    (root / "linked").symlink_to("records", target_is_directory=True)
+    path = new_adr(capsys, root, "Through a link", "--adr-dir", "linked", "--code-ref", "src/")
+    [node] = init.build(root, adr_dir="linked")["nodes"]
+    assert node["title"] == "Through a link" and node["props"]["code_ref"] == ["src/"]
+    assert path.resolve().parent == (root / "records").resolve()
