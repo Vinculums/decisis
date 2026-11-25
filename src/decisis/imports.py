@@ -114,6 +114,8 @@ class Repo:
         self.rust_ctx: dict[tuple[str, str | None], dict] = {}
         self.rust_found: dict[tuple, tuple[str, object]] = {}
         self.rust_explored: set[tuple] = set()
+        self.rust_cuts = 0
+        self.rust_local: dict[tuple, tuple[str, object]] = {}
 
     def kind(self, rel: str) -> str | None:
         if rel not in self.seen:
@@ -1241,11 +1243,11 @@ def rust_parse(toks: list[Token]) -> dict:
                 ref = RustRef(tok.line, "mod", (name,), inline, frames, mod_attrs(toks, i), id=len(refs))
                 refs.append(ref)
                 if not frames:
-                    scope["mods"][name] = ref
+                    scope["mods"].setdefault(name, []).append(ref)
             elif is_punct(after, "{"):
                 pending = name
                 if not frames:
-                    scope["mods"][name] = "inline"
+                    scope["mods"].setdefault(name, []).append("inline")
             i += 2
             continue
         elif word == "extern" and getattr(nxt, "value", None) == "crate" and after is not None and after.kind == "name":
@@ -1523,19 +1525,26 @@ def mod_files(repo: Repo, m: Mod, ref: RustRef) -> list[Mod] | str:
     return found or f"mod {name} names no file: none of {', '.join(tried)} is in the repository"
 
 
+def declared(repo: Repo, m: Mod, name: str, decl) -> list[Mod] | str:
+    if decl == "inline":
+        return [Mod(m.file, m.inline + (name,), joined(m.dir, name), (), m)]
+    return mod_files(repo, m, decl)
+
+
 def child(repo: Repo, m: Mod, name: str) -> tuple[str, object]:
     scope = scope_of(repo, m)
     if isinstance(scope, str):
         return "unresolved", scope
-    decl = scope["mods"].get(name)
-    if decl is None:
+    decls = scope["mods"].get(name)
+    if not decls:
         return "none", None
-    if decl == "inline":
-        return "mod", Mod(m.file, m.inline + (name,), joined(m.dir, name), (), m)
-    files = mod_files(repo, m, decl)
-    if isinstance(files, str):
-        return "unresolved", files
-    return ("mod", files[0]) if len(files) == 1 else ("multi", files)
+    found: list[Mod] = []
+    for decl in decls:
+        files = declared(repo, m, name, decl)
+        if isinstance(files, str):
+            return "unresolved", files
+        found += [f for f in files if f not in found]
+    return ("mod", found[0]) if len(found) == 1 else ("multi", [("mod", f) for f in found])
 
 
 def visible(refs: list[RustRef], frames: tuple[int, ...]) -> list[RustRef]:
@@ -1546,54 +1555,78 @@ def lookup(repo: Repo, crate: dict, m: Mod, name: str, frames: tuple[int, ...], 
     key = (crate["cargo"], crate["root"], m, name, frames)
     if key in repo.rust_found:
         return repo.rust_found[key]
+    if key in repo.rust_local:
+        return repo.rust_local[key]
     if key in repo.rust_explored:
+        repo.rust_cuts += 1
         return "none", None
+    cuts = repo.rust_cuts
     repo.rust_explored.add(key)
-    found = find(repo, crate, m, name, frames, seen)
-    if found[0] in ("mod", "item", "external", "multi"):
-        repo.rust_found[key] = found
+    try:
+        found = find(repo, crate, m, name, frames, seen)
+    finally:
+        repo.rust_explored.discard(key)
+    (repo.rust_found if repo.rust_cuts == cuts else repo.rust_local)[key] = found
     return found
 
 
+def alternatives(kind: str, value) -> list[tuple[str, Mod]]:
+    return list(value) if kind == "multi" else [(kind, value)] if kind in ("mod", "item") else []
+
+
+def combined(results: list[tuple[str, object]]) -> tuple[str, object]:
+    bad = next((r for r in results if r[0] == "unresolved"), None)
+    if bad is not None:
+        return bad
+    found: list[tuple[str, Mod]] = []
+    for kind, value in results:
+        found += [a for a in alternatives(kind, value) if a not in found]
+    if not found:
+        return next((r for r in results if r[0] == "external"), results[0] if results else ("none", None))
+    return found[0] if len(found) == 1 else ("multi", found)
+
+
+def onward(repo: Repo, crate: dict, kind: str, value, rest: tuple[str, ...], seen: frozenset) -> tuple[str, object]:
+    return combined([walk(repo, crate, alt, rest, seen) if k == "mod" else (k, alt) for k, alt in value])
+
+
 def find(repo: Repo, crate: dict, m: Mod, name: str, frames: tuple[int, ...], seen: frozenset) -> tuple[str, object]:
+    results = []
     kind, value = child(repo, m, name)
     if kind != "none":
-        return kind, value
+        results.append((kind, value))
     scope = scope_of(repo, m)
+    if isinstance(scope, str):
+        return "unresolved", scope
+    binds = [r for r in visible(scope["binds"], frames) if r.bind == name and (m.file, r.id) not in seen]
+    depth = max((len(r.frames) for r in binds), default=0)
+    for ref in binds:
+        if len(ref.frames) == depth:
+            results.append(resolve(repo, crate, m, ref.path, ref.frames, seen | {(m.file, ref.id)}))
+    if results:
+        return combined(results)
     if name in scope["items"]:
         return "item", m
-    for ref in visible(scope["binds"], frames):
-        if ref.bind == name and (m.file, ref.id) not in seen:
-            return resolve(repo, crate, m, ref.path, ref.frames, seen | {(m.file, ref.id)})
-    outcome = "none", None
+    outcome, hits = ("none", None), []
     for ref in visible(scope["globs"], frames):
         if (m.file, ref.id) in seen:
             continue
         inner = seen | {(m.file, ref.id)}
         kind, value = resolve(repo, crate, m, ref.path, ref.frames, inner)
-        if kind == "mod":
-            kind, value = lookup(repo, crate, value, name, (), inner)
-        if kind in ("mod", "item"):
-            return kind, value
-        if kind == "unresolved" or (kind == "external" and outcome[0] == "none"):
+        if kind in ("mod", "multi"):
+            kind, value = combined([lookup(repo, crate, alt, name, (), inner) if k == "mod" else ("none", None) for k, alt in alternatives(kind, value)])
+        if kind in ("mod", "item", "multi"):
+            hits.append((kind, value))
+        elif kind == "unresolved" or (kind == "external" and outcome[0] == "none"):
             outcome = kind, value
-    return outcome
-
-
-def merged(results: list[tuple[str, object]]) -> tuple[str, object]:
-    found = [value for kind, value in results if kind in ("mod", "item")]
-    bad = next((r for r in results if r[0] == "unresolved"), None)
-    if bad is not None or not found:
-        return bad or results[0]
-    kind = next(k for k, _ in results if k in ("mod", "item"))
-    return kind, replace(found[0], also=found[0].also + tuple(p for f in found[1:] for p in (f.file, *f.also) if p != found[0].file))
+    return combined(hits) if hits else outcome
 
 
 def walk(repo: Repo, crate: dict, m: Mod, rest: tuple[str, ...], seen: frozenset) -> tuple[str, object]:
     for k, name in enumerate(rest):
         kind, value = lookup(repo, crate, m, name, (), seen)
         if kind == "multi":
-            return merged([walk(repo, crate, alt, rest[k + 1:], seen) for alt in value])
+            return onward(repo, crate, kind, value, rest[k + 1:], seen)
         if kind == "mod":
             m = value
         elif kind == "none":
@@ -1626,12 +1659,12 @@ def resolve(repo: Repo, crate: dict, m: Mod, path: tuple[str, ...], frames: tupl
             start = start.parent
         return walk(repo, crate, start, path[ups:], seen)
     kind, value = lookup(repo, crate, m, first, frames, seen)
-    if kind in ("none", "external") and first in crate["crates"]:
+    if kind in ("none", "external", "unresolved") and first in crate["crates"]:
         return other_crate(repo, crate, first, path[1:], seen)
     if kind == "none" or (kind == "unresolved" and first in EXTERN_PRELUDE):
         return "external", None
     if kind == "multi":
-        return merged([walk(repo, crate, alt, path[1:], seen) for alt in value])
+        return onward(repo, crate, kind, value, path[1:], seen)
     if kind == "mod":
         return walk(repo, crate, value, path[1:], seen)
     return kind, value
@@ -1670,9 +1703,8 @@ def reachable(repo: Repo, root: Mod, rel: str) -> Mod | None:
         m = queue.pop(0)
         scope = scope_of(repo, m)
         for name in sorted(scope["mods"]) if isinstance(scope, dict) else ():
-            decl = scope["mods"][name]
-            found = [Mod(m.file, m.inline + (name,), joined(m.dir, name), (), m)] if decl == "inline" else mod_files(repo, m, decl)
-            for sub in found if isinstance(found, list) else ():
+            found = [f for decl in scope["mods"][name] for f in (lambda x: x if isinstance(x, list) else [])(declared(repo, m, name, decl))]
+            for sub in found:
                 if sub.file == rel and not sub.inline:
                     return sub
                 if sub not in seen:
@@ -1706,6 +1738,10 @@ def inner(m: Mod, names: tuple[str, ...]) -> Mod:
 
 
 def as_import(kind: str, value) -> tuple[str, str | None, str, tuple[str, ...]]:
+    if kind == "multi":
+        first = value[0][1]
+        rest = tuple(p for _, f in value[1:] for p in (f.file, *f.also) if p != first.file)
+        return REPOSITORY, first.file, "", tuple(dict.fromkeys(first.also + rest))
     if kind in ("mod", "item"):
         return REPOSITORY, value.file, "", value.also
     if kind == "external":
@@ -1732,7 +1768,7 @@ def rust_target(repo: Repo, crate: dict | None, m0: Mod | None, why: str, ref: R
         if isinstance(files, str):
             return UNRESOLVED, None, files, ()
         return REPOSITORY, files[0].file, "", files[0].also + tuple(p for f in files[1:] for p in (f.file, *f.also))
-    repo.rust_explored = set()
+    repo.rust_explored, repo.rust_local = set(), {}
     kind, value = resolve(repo, crate, m, ref.path, ref.frames, frozenset({(m.file, ref.id)}))
     return as_import(kind, value)
 

@@ -158,8 +158,10 @@ for files under `src/` in a crate without a library, a target a `[[bin]]`, `[[te
 of `mod` declarations followed from that root: `mod x;` names `x.rs` or `x/mod.rs` in the module's
 directory, a `#[path = "..."]` or `#[cfg_attr(..., path = "...")]` attribute names a file read from the
 declaring file's directory (or the inline module's directory), and `mod x { ... }` is an inline module.
-When `cfg_attr` paths name more than one existing file, the path is followed through each, and each file
-it reaches is matched against the `to` globs. `mod` declarations and items inside an item-level macro
+A name can have several meanings when they are gated by `cfg`: `cfg_attr` paths that name more than one
+existing file, two `mod` declarations of the same name, or two `use` bindings of the same name. The path is
+followed through every one of them, also through a name bound to such a module or a glob `use` of it, and
+every file it reaches is matched against the `to` globs. `mod` declarations and items inside an item-level macro
 call (`cfg_if! { ... }`, `wrapper! { ... }`) are read; the body of a `macro_rules!` definition is not. The
 importing file's own module is found in that tree, by its place under the root or else by walking the
 tree.
