@@ -50,6 +50,10 @@ inputs:
     description: The UTC date, YYYY-MM-DD, that waivers are judged on. Empty uses today's UTC date.
     required: false
     default: ""
+  warn-days:
+    description: The comment lists, under "Waivers that expire soon", each waiver that covers a result and expires within this many days of today. 0 turns it off. It never fails the step.
+    required: false
+    default: "14"
   decisis-version:
     description: A decisis version to install from PyPI. Empty installs decisis from the action's own checkout, which is the release the action ref names.
     required: false
@@ -120,6 +124,7 @@ runs:
         DECISIS_FAIL_ON_VIOLATION: ${{ inputs.fail-on-violation }}
         DECISIS_FAIL_ON_UNRESOLVED: ${{ inputs.fail-on-unresolved }}
         DECISIS_TODAY: ${{ inputs.today }}
+        DECISIS_WARN_DAYS: ${{ inputs.warn-days }}
         DECISIS_COMMENT_AUTHOR: ${{ inputs.comment-author }}
         DECISIS_TOKEN: ${{ inputs.github-token }}
       run: '"$PY" -I -m decisis.action'

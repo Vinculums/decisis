@@ -27,12 +27,18 @@ The `unresolved` output counts the check results that cannot be judged, the audi
 and the unresolved packages of every inventory, and the decision files not read. With `DECISIS_FAIL_ON_UNRESOLVED`
 the step fails when that count is not 0, after the comment and the job summary are written, and the comment's first
 line after `MARKER` names what was found. A waiver covers only a violation, so a waived result is never unresolved.
+
+`DECISIS_WARN_DAYS` is a whole number from 0 to 3650, and an empty value means 14. The comment lists under "Waivers that
+expire soon", above the violations, each waiver of the check and of every audit that covers a result and expires within
+that many days of the run's date; 0 leaves the section out. The list changes no output, count or exit code. A value that
+is not a whole number in that range stops the step before any request.
 """
 from __future__ import annotations
 
 import html
 import json
 import os
+import re
 import subprocess
 import sys
 import unicodedata
@@ -64,6 +70,7 @@ BASE, HEAD = "base", "head"
 AUTO = "auto"
 WORKFLOWS = ".github/workflows"
 UNRESOLVED = "unresolved"
+WHOLE = re.compile(r"[0-9]{1,4}")
 CAUSES = (("check", "check result(s) that cannot be judged"), ("audit", "unresolved audit finding(s)"),
           ("packages", "unresolved package(s)"), ("unread", "decision file(s) not read"))
 LOCKFILES = frozenset(("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "uv.lock", "poetry.lock",
@@ -122,6 +129,15 @@ def flag(env: Mapping[str, str], name: str) -> bool:
     if value in FALSE:
         return False
     raise ValueError(f"{name} must be true or false, not {value!r}")
+
+
+def warn_days(env: Mapping[str, str]) -> int:
+    value = env.get("DECISIS_WARN_DAYS", "").strip()
+    if not value:
+        return rules.WARN_DAYS
+    if not WHOLE.fullmatch(value) or int(value) > rules.MAX_WARN_DAYS:
+        raise ValueError(f"DECISIS_WARN_DAYS must be a whole number from 0 to {rules.MAX_WARN_DAYS}, not {value!r}")
+    return int(value)
 
 
 def sha(value) -> str:
@@ -203,6 +219,25 @@ def waived_results(found: list[dict], rows: int) -> list[str]:
     body = table(["File", "Decision", "Rule", "Why", "Waived until"],
                  [[code(where(r)), code(r["decision"]), code(r["rule"]), text(r["why"]), expiry(r.get("waiver") or {})] for r in shown])
     return [f"#### Waived, not counted as violations ({len(found)})", "", *(body if shown else []), *rest]
+
+
+def expiring_entries(o: Outcome) -> list[dict]:
+    reports = [o.report] + [a.report for a in o.audits or [] if a.report is not None]
+    found = {(e["decision"], e["waiver"]): e for r in reports for e in r.get(rules.EXPIRING) or []}
+    return sorted(found.values(), key=lambda e: (e["expires"], e["decision"], e["waiver"]))
+
+
+def expiring_waivers(o: Outcome, rows: int) -> list[str]:
+    found = expiring_entries(o)
+    if not found:
+        return []
+    shown, rest = cut(found, rows, "waivers")
+    body = table(["Decision", "Waiver", "Expires", "Days left", "Approved by", "Reason"],
+                 [[code(e["decision"]), text(e["waiver"]), text(e["expires"]), text(e["days_left"]), text(e["approved_by"]), text(e["reason"])]
+                  for e in shown])
+    return [f"#### Waivers that expire soon ({len(found)})", "",
+            "Each still waives its violation today. The day after its expiry date the violation counts again.", "",
+            *(body if shown else []), *rest]
 
 
 def files_cell(files: list[str]) -> str:
@@ -368,6 +403,7 @@ def compose(o: Outcome, rows: int, graph: bool) -> str:
                   + ("the graph is left out and " if not graph else "") + f"each list shows at most {rows} rows.", ""]
     lines += [f"> {text(n)}" for n in o.notes] + ([""] if o.notes else [])
     lines += pending(o, rows)
+    lines += expiring_waivers(o, rows)
     lines += results("Violations", r["violations"], rows)
     lines += waived_results(r.get("waived") or [], rows)
     lines += decisions(r, rows)
@@ -565,19 +601,20 @@ def found(root: Path) -> list[tuple[str, str | None, str | None]]:
     return out + ([(WORKFLOWS, first, None)] if first else [])
 
 
-def audit_file(graph, path: Path, repo: str, advisories, root: Path | None = None, day=None) -> dict:
+def audit_file(graph, path: Path, repo: str, advisories, root: Path | None = None, day=None, warn: int = rules.WARN_DAYS) -> dict:
     lock_text, siblings = inventory.load(path, root=root)
-    return audit.run(graph, lock_text, repo, advisories=advisories, filename=path.name, siblings=siblings, day=day)
+    return audit.run(graph, lock_text, repo, advisories=advisories, filename=path.name, siblings=siblings, day=day, warn_days=warn)
 
 
-def audit_found(graph, root: Path, name: str, repo: str, advisories, day=None) -> dict:
+def audit_found(graph, root: Path, name: str, repo: str, advisories, day=None, warn: int = rules.WARN_DAYS) -> dict:
     real = Path(directory_resolver(root, root)(name))
     if not real.is_file():
         raise ValueError(f"{name} is not a file")
-    return audit_file(graph, root / name, repo, advisories, root, day)
+    return audit_file(graph, root / name, repo, advisories, root, day, warn)
 
 
-def audits(env: Mapping[str, str], graph, repo: str, root: Path, day=None) -> tuple[list[Audited] | None, bool]:
+def audits(env: Mapping[str, str], graph, repo: str, root: Path, day=None,
+           warn: int = rules.WARN_DAYS) -> tuple[list[Audited] | None, bool]:
     lines = [line.strip() for line in env.get("DECISIS_INVENTORY", "").splitlines() if line.strip()]
     if not lines:
         return None, False
@@ -592,7 +629,7 @@ def audits(env: Mapping[str, str], graph, repo: str, root: Path, day=None) -> tu
         if line != AUTO:
             if identity(Path(line)) not in seen:
                 seen.add(identity(Path(line)))
-                out.append(Audited(line, audit_file(graph, Path(line), repo, advisories, day=day)))
+                out.append(Audited(line, audit_file(graph, Path(line), repo, advisories, day=day, warn=warn)))
             continue
         here = found(root)
         empty = empty or not here
@@ -603,7 +640,7 @@ def audits(env: Mapping[str, str], graph, repo: str, root: Path, day=None) -> tu
             seen.add(key)
             if problem is None:
                 try:
-                    out.append(Audited(label, audit_found(graph, root, name, repo, advisories, day)))
+                    out.append(Audited(label, audit_found(graph, root, name, repo, advisories, day, warn)))
                     continue
                 except (ValueError, OSError) as e:
                     problem = reason(e)
@@ -644,6 +681,7 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     repo = env.get("DECISIS_REPO", "").strip() or None
     strict = flag(env, "DECISIS_FAIL_ON_UNRESOLVED")
     failing = flag(env, "DECISIS_FAIL_ON_VIOLATION")
+    warn = warn_days(env)
     mode, waiting = decisions_from(env), None
     if mode == HEAD:
         graph, source = snapshot_of(env, root, repo)
@@ -663,8 +701,8 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
         return unjudged(env, client, Outcome({"changed": changed}, pull, [], version(), source, pending=waiting,
                                              nothing=no_decisions(env, graph), strict=strict))
     approved, review_note = approvals(client, pull)
-    report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day)
-    done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day)
+    report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day, warn_days=warn)
+    done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day, warn)
     outcome = Outcome(report, pull, approved, version(), source, done, pending=waiting, strict=strict)
     if review_note:
         outcome.notes.append(review_note)

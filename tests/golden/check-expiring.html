@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check: 4 changed file(s)</title>
+<style>
+:root{color-scheme:light dark;--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--line:#d1d9e0;--card:#f6f8fa;--bad:#b91c1c;--badbg:#fdecec;--accent:#1d4ed8;--warn:#a16207}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--line:#3d444d;--card:#151b23;--bad:#f87171;--badbg:#2d1214;--accent:#7aa2ff;--warn:#facc15}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:60rem;margin:0 auto;padding:1rem}
+h1{font-size:1.4rem;overflow-wrap:anywhere}
+h2{font-size:1.1rem;margin-top:1.5rem;overflow-wrap:anywhere}
+code{font:0.9em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-wrap:anywhere}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:0.2rem 0.8rem;margin:0.5rem 0}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
+ul.items{list-style:none;padding:0}
+.item{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:0.75rem;margin:0.75rem 0}
+.item.violated{border-color:var(--bad);background:var(--badbg)}
+.item.waived{border-style:dashed;border-color:var(--warn)}
+.badge{font-size:0.8em;border:1px solid var(--line);border-radius:4px;padding:0 0.3rem;color:var(--muted)}
+.badge.bad{border-color:var(--bad);color:var(--bad);font-weight:600}
+.badge.waived{border-color:var(--warn);color:var(--warn)}
+.title{font-weight:600}
+.steps{padding-left:1.4rem}
+.rel{color:var(--accent);font-size:0.85em}
+.evidence,.none{color:var(--muted)}
+.chain{overflow-wrap:anywhere}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{border-top:1px solid var(--line);padding:0.3rem;text-align:left;vertical-align:top}
+tr.violated td{color:var(--bad);font-weight:600}
+tr.waived td{color:var(--warn)}
+a{color:var(--accent);overflow-wrap:anywhere}
+pre{background:var(--card);border:1px solid var(--line);padding:0.5rem;overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Check: 4 changed file(s)</h1>
+<dl><dt>changed files</dt><dd>4</dd><dt>base</dt><dd>not given</dd><dt>reviewers</dt><dd>none given</dd><dt>loaded</dt><dd>8 nodes, 5 edges</dd><dt>violations</dt><dd>8</dd><dt>cannot be judged</dt><dd>5</dd><dt>waived</dt><dd>1</dd><dt>waivers judged on</dt><dd>2026-11-25</dd></dl>
+<section><h2>Waivers that expire soon</h2><div class="scroll"><table><tr><th>decision</th><th>waiver</th><th>reason</th><th>approved by</th><th>expires</th><th>days left</th></tr><tr class="expiring"><td><code>decision:payments-need-a-payments-review</code></td><td>1</td><td>no patched release yet</td><td>@shop/security</td><td>2026-11-25</td><td>0</td></tr></table></div></section>
+<section><h2>Violations</h2><div class="scroll"><table><tr><th>file</th><th>line</th><th>decision</th><th>rule</th><th>why</th></tr><tr class="violated"><td><code>crates/shop/src/ui.rs</code></td><td>4</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>crates/shop/src/ui.rs must not import crates/shop/src/db/**; use crate::db::models::Order is crates/shop/src/db/models.rs</td></tr><tr class="violated"><td><code>crates/shop/src/ui.rs</code></td><td>5</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>crates/shop/src/ui.rs must not import crates/shop/src/db/**; use super::db is crates/shop/src/db/mod.rs</td></tr><tr class="violated"><td><code>crates/shop/src/ui.rs</code></td><td>5</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>crates/shop/src/ui.rs must not import crates/shop/src/db/**; use super::db::models is crates/shop/src/db/models.rs</td></tr><tr class="violated"><td><code>crates/shop/src/ui.rs</code></td><td>6</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>crates/shop/src/ui.rs must not import crates/shop-db/**; use shop_db::pool::Pool is crates/shop-db/src/pool.rs</td></tr><tr class="violated"><td><code>crates/shop/src/ui.rs</code></td><td>18</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>crates/shop/src/ui.rs must not import crates/shop/src/db/**; use crate::db::models::Total is crates/shop/src/db/models.rs</td></tr><tr class="violated"><td><code>src/shop/ui/view.py</code></td><td>4</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>src/shop/ui/** must not import src/shop/db/**; from shop.db import models is src/shop/db/models.py</td></tr><tr class="violated"><td><code>src/shop/ui/view.py</code></td><td>5</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>src/shop/ui/** must not import src/shop/db/**; from ..db.session import open_session is src/shop/db/session.py</td></tr><tr class="violated"><td><code>web/src/ui/page.ts</code></td><td>1</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>web/src/ui/** must not import web/src/db/**; ../db/client is web/src/db/client.ts; waiver 1 (no patched release yet, approved by @shop/security) expired at the end of 2026-11-24</td></tr></table></div></section>
+<section><h2>Cannot be judged</h2><div class="scroll"><table><tr><th>file</th><th>line</th><th>decision</th><th>rule</th><th>why</th></tr><tr class="unresolved"><td><code>crates/shop/src/ui.rs</code></td><td>10</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>use crate::db::secret: a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree; it cannot be judged</td></tr><tr class="unresolved"><td><code>crates/shop/src/ui.rs</code></td><td>11</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>use crate::db::raw: a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree; it cannot be judged</td></tr><tr class="unresolved"><td><code>src/shop/ui/view.py</code></td><td>10</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>import_module() with a computed name: the specifier is computed at run time; it cannot be judged</td></tr><tr class="unresolved"><td><code>web/src/ui/page.ts</code></td><td>3</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>../db/secret: a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree; it cannot be judged</td></tr><tr class="unresolved"><td><code>web/src/ui/page.ts</code></td><td>9</td><td><code>decision:ui-does-not-import-db</code></td><td><code>imports_forbidden</code></td><td>import() with a computed specifier: the specifier is computed at run time; it cannot be judged</td></tr></table></div></section>
+<section><h2>Waived, not counted as violations</h2><div class="scroll"><table><tr><th>file</th><th>line</th><th>decision</th><th>rule</th><th>why</th><th>waiver</th></tr><tr class="waived"><td><code>src/payments/charge.py</code></td><td></td><td><code>decision:payments-need-a-payments-review</code></td><td><code>review_required</code></td><td>src/payments/** needs a review from @alice or @shop/payments; none of them is among the reviewers given</td><td>waiver 1 until 2026-11-25, approved by @shop/security: no patched release yet</td></tr></table></div></section>
+<section><h2>Governing decisions</h2><ul><li><code>decision:payments-need-a-payments-review</code> Payment changes need a review from the payments team (<code>src/payments/charge.py</code>)</li><li><code>decision:ui-does-not-import-db</code> The user interface reads data through the API, never the database layer (<code>src/shop/ui/view.py</code>, <code>web/src/ui/page.ts</code>)</li></ul></section>
+<section><h2>Superseded, not judged</h2><ul><li><code>decision:payments-reviewed-by-carol</code> Carol reviews every payment change (<code>src/payments/charge.py</code>) superseded by <code>decision:payments-need-a-payments-review</code></li></ul></section>
+<section><h2>Imports read</h2><div class="scroll"><table><tr><th>file</th><th>line</th><th>import</th><th>resolution</th><th>target</th></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>2</td><td><code>mod widgets</code></td><td>repository</td><td><code>crates/shop/src/ui/widgets.rs</code></td></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>4</td><td><code>use crate::db::models::Order</code></td><td>repository</td><td><code>crates/shop/src/db/models.rs</code></td></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>5</td><td><code>use super::db</code></td><td>repository</td><td><code>crates/shop/src/db/mod.rs</code></td></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>5</td><td><code>use super::db::models</code></td><td>repository</td><td><code>crates/shop/src/db/models.rs</code></td></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>6</td><td><code>use shop_db::pool::Pool</code></td><td>repository</td><td><code>crates/shop-db/src/pool.rs</code></td></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>7</td><td><code>use std::collections::HashMap</code></td><td>external</td><td></td></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>8</td><td><code>use crate::api::Client</code></td><td>repository</td><td><code>crates/shop/src/api.rs</code></td></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>10</td><td><code>use crate::db::secret</code></td><td>unresolved</td><td>a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree</td></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>11</td><td><code>use crate::db::raw</code></td><td>unresolved</td><td>a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree</td></tr><tr><td><code>crates/shop/src/ui.rs</code></td><td>18</td><td><code>use crate::db::models::Total</code></td><td>repository</td><td><code>crates/shop/src/db/models.rs</code></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>1</td><td><code>import importlib</code></td><td>external</td><td></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>2</td><td><code>import os</code></td><td>external</td><td></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>4</td><td><code>from shop.db import models</code></td><td>repository</td><td><code>src/shop/db/models.py</code></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>5</td><td><code>from ..db.session import open_session</code></td><td>repository</td><td><code>src/shop/db/session.py</code></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>6</td><td><code>from . import widgets</code></td><td>repository</td><td><code>src/shop/ui/widgets.py</code></td></tr><tr><td><code>src/shop/ui/view.py</code></td><td>10</td><td><code>import_module() with a computed name</code></td><td>unresolved</td><td>the specifier is computed at run time</td></tr><tr><td><code>web/src/ui/page.ts</code></td><td>1</td><td><code>../db/client</code></td><td>repository</td><td><code>web/src/db/client.ts</code></td></tr><tr><td><code>web/src/ui/page.ts</code></td><td>2</td><td><code>react</code></td><td>external</td><td><code>node_modules/react</code></td></tr><tr><td><code>web/src/ui/page.ts</code></td><td>3</td><td><code>../db/secret</code></td><td>unresolved</td><td>a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree</td></tr><tr><td><code>web/src/ui/page.ts</code></td><td>9</td><td><code>import() with a computed specifier</code></td><td>unresolved</td><td>the specifier is computed at run time</td></tr></table></div></section>
+<details><summary>Mermaid source</summary><pre>```mermaid
+flowchart LR
+  n0[&quot;crates/shop/src/ui.rs&quot;]
+  n1[&quot;src/payments/charge.py&quot;]
+  n2[&quot;concept:payments&lt;br/&gt;Payments&quot;]
+  n3[&quot;decision:payments-need-a-payments-review&lt;br/&gt;Payment changes need a review from the payments team&quot;]
+  n4[&quot;record:double-charge-incident&lt;br/&gt;A retry charged a card twice&quot;]
+  n5[&quot;decision:payments-reviewed-by-carol&lt;br/&gt;Carol reviews every payment change&lt;br/&gt;superseded&quot;]
+  n6[&quot;src/shop/ui/view.py&quot;]
+  n7[&quot;concept:shop-ui&lt;br/&gt;Shop user interface&quot;]
+  n8[&quot;decision:ui-does-not-import-db&lt;br/&gt;The user interface reads data through the API, never the database layer&quot;]
+  n9[&quot;web/src/ui/page.ts&quot;]
+  n10[&quot;crates/shop/src/db/models.rs&quot;]
+  n11[&quot;crates/shop/src/db/mod.rs&quot;]
+  n12[&quot;crates/shop-db/src/pool.rs&quot;]
+  n13[&quot;src/shop/db/models.py&quot;]
+  n14[&quot;src/shop/db/session.py&quot;]
+  n15[&quot;web/src/db/client.ts&quot;]
+  n16[&quot;waiver 1 expires 2026-11-25, 0 day(s) left&quot;]
+  n2 --&gt;|&quot;code_ref encloses&quot;| n1
+  n3 --&gt;|&quot;ABOUT&quot;| n2
+  n4 --&gt;|&quot;RELATED_TO&quot;| n2
+  n5 --&gt;|&quot;ABOUT&quot;| n2
+  n3 --&gt;|&quot;SUPERSEDES&quot;| n5
+  n7 --&gt;|&quot;code_ref encloses&quot;| n6
+  n8 --&gt;|&quot;ABOUT&quot;| n7
+  n7 --&gt;|&quot;code_ref encloses&quot;| n9
+  n0 --&gt;|&quot;imports, line 4&quot;| n10
+  n10 --&gt;|&quot;forbidden by&quot;| n8
+  n0 --&gt;|&quot;imports, line 5&quot;| n11
+  n11 --&gt;|&quot;forbidden by&quot;| n8
+  n0 --&gt;|&quot;imports, line 5&quot;| n10
+  n0 --&gt;|&quot;imports, line 6&quot;| n12
+  n12 --&gt;|&quot;forbidden by&quot;| n8
+  n0 --&gt;|&quot;imports, line 18&quot;| n10
+  n6 --&gt;|&quot;imports, line 4&quot;| n13
+  n13 --&gt;|&quot;forbidden by&quot;| n8
+  n6 --&gt;|&quot;imports, line 5&quot;| n14
+  n14 --&gt;|&quot;forbidden by&quot;| n8
+  n9 --&gt;|&quot;imports, line 1&quot;| n15
+  n15 --&gt;|&quot;forbidden by&quot;| n8
+  n1 --&gt;|&quot;review_required waived until 2026-11-25&quot;| n3
+  n16 --&gt;|&quot;expires soon&quot;| n3
+  classDef code fill:#f3f4f6,stroke:#4b5563,color:#111827
+  classDef concept fill:#ecfdf5,stroke:#047857,color:#032b1f
+  classDef decision fill:#dbeafe,stroke:#1d4ed8,color:#0b1b3f
+  classDef expiring fill:#ffedd5,stroke:#c2410c,stroke-dasharray:2 2,color:#431407
+  classDef record fill:#fef3c7,stroke:#b45309,color:#3b2603
+  classDef superseded fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray:4 3,color:#4b5563
+  classDef violated fill:#fecaca,stroke:#b91c1c,stroke-width:3px,color:#3f0a0a
+  class n0,n1,n6,n9 code
+  class n2,n7 concept
+  class n3,n8 decision
+  class n16 expiring
+  class n4 record
+  class n5 superseded
+  class n10,n11,n12,n13,n14,n15 violated
+  linkStyle 8,9,10,11,12,13,14,15,16,17,18,19,20,21 stroke:#b91c1c,stroke-width:3px
+```
+</pre></details>
+</main>
+</body>
+</html>
