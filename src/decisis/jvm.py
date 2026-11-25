@@ -54,6 +54,11 @@ KOTLIN_TOP = re.compile(
     r"|tailrec|external|fun)[ \t]+)*(?:class|interface|object|typealias|fun|val|var)[ \t]+(?:<[^>\n]*>[ \t]*)?(?:[\w.<>?, *]{0,200}\.)?`?(\w+)")
 DECLARED = re.compile(r"\b(?:class|interface|enum|record|object|typealias|fun|val|var)\b[ \t]+(?:<[^>\n]{0,200}>[ \t]*)?(?:[\w.<>?, *]{0,200}\.)?`?(\w+)")
 PLATFORM = ("java", "javax", "jdk", "kotlin")
+STARTS = frozenset({"public", "private", "protected", "internal", "abstract", "final", "open", "sealed", "non", "data", "enum",
+                    "class", "interface", "object", "record", "fun", "val", "var", "typealias", "annotation", "inline", "value",
+                    "static", "strictfp", "expect", "actual", "external", "const", "lateinit", "suspend", "tailrec", "operator",
+                    "infix", "companion", "inner", "override", "native", "synchronized", "transient", "volatile", "default", "module"})
+PACKAGE_HEAD = re.compile(r"\bpackage[ \t\r\n]+`?([A-Za-z_$][\w$]*)")
 GRADLE_DIRS = re.compile(r"\b(?:srcDirs?|setSrcDirs)\b")
 LITERAL = re.compile(r"""(["'])([^"'\n$]+)\1""")
 POM_DIRS = re.compile(r"<(sourceDirectory|testSourceDirectory|source)>([^<>]{1,500})</\1>")
@@ -78,6 +83,7 @@ class Index:
     declared: dict[str, frozenset[str]] = field(default_factory=dict)
     unplaced: list[str] = field(default_factory=list)
     mentioned: dict[str, frozenset[str] | None] = field(default_factory=dict)
+    heads: dict[str, frozenset[str] | None] = field(default_factory=dict)
 
 
 def jvm_tokens(text: str, kotlin: bool):
@@ -274,11 +280,15 @@ def header(toks: list[Token], kotlin: bool, complete: bool = True) -> Header:
         tok = toks[i]
         if is_punct(tok, ";"):
             i += 1
+        elif is_punct(tok, "@") and getattr(at(toks, i + 1), "value", None) == "interface":
+            ended = True
+            break
         elif is_punct(tok, "@"):
             i, ok, facades = annotation(toks, i)
             out.facades += facades
             if not ok:
                 ended = True
+                package_ok = package_ok and out.package is not None
                 break
         elif tok.kind == "name" and tok.value == "package":
             found = qualified(toks, i + 1)
@@ -292,6 +302,8 @@ def header(toks: list[Token], kotlin: bool, complete: bool = True) -> Header:
             out.refs.append(ref)
         else:
             ended = True
+            if out.package is None and not (tok.kind == "name" and tok.value in STARTS):
+                package_ok = False
             break
     out.readable = package_ok and (out.package is not None or ended or complete)
     return out
@@ -417,6 +429,8 @@ def package_info(repo, rel: str) -> Header:
         text, whole = read_head(repo, rel, size)
         if text is None:
             return info
+        if "\x00" in text:
+            return Header(readable=False)
         toks, complete = head_tokens(text, kotlin)
         info = header(toks, kotlin, complete and whole)
         if info.readable or whole:
@@ -500,8 +514,15 @@ def mentioned(repo, index: Index, rel: str) -> frozenset[str] | None:
     if rel not in index.mentioned:
         text, whole = read_head(repo, rel, MAX_BYTES)
         stem = posixpath.basename(rel).rsplit(".", 1)[0]
-        index.mentioned[rel] = None if text is None or not whole else frozenset([stem, stem + "Kt", *DECLARED.findall(text), *FACADE.findall(text)])
+        index.mentioned[rel] = None if text is None or not whole or "\x00" in text else frozenset([stem, stem + "Kt", *DECLARED.findall(text), *FACADE.findall(text)])
     return index.mentioned[rel]
+
+
+def package_heads(repo, index: Index, rel: str) -> frozenset[str] | None:
+    if rel not in index.heads:
+        text, whole = read_head(repo, rel, MAX_BYTES)
+        index.heads[rel] = None if text is None or not whole or "\x00" in text else frozenset(PACKAGE_HEAD.findall(text))
+    return index.heads[rel]
 
 
 def declaring(repo, index: Index, package: tuple[str, ...], name: str) -> list[str]:
@@ -549,7 +570,8 @@ def target_of(repo, ref: Ref) -> tuple[str, str | None, str, tuple[str, ...]]:
             name = names[size] if size < len(names) else "*"
             return UNRESOLVED, target, f"{where} is a package of the repository, but no source file in it declares {name}; it may be generated or live in a library", also
     segments = set(names)
-    maybe = [f for f in index.unplaced if (found := mentioned(repo, index, f)) is None or segments & found]
+    maybe = [f for f in index.unplaced if (found := mentioned(repo, index, f)) is None or segments & found
+             or (ref.wildcard and ((heads := package_heads(repo, index, f)) is None or not heads or names[0] in heads))]
     if maybe:
         why = f"{len(index.unplaced)} source file(s) of the repository have a package line that cannot be read, and {maybe[0]} may declare a name this import uses"
         return UNRESOLVED, maybe[0], why, tuple(maybe[1:])

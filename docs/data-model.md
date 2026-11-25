@@ -245,13 +245,19 @@ declare the class.
 
 The `package` line is read from the token list of the file, so a byte order mark, a file annotation over several
 lines, a comment after the name, spaces around the dots and a long header do not hide it. A file whose package line
-still cannot be read (the header does not scan, the line is malformed, the file is too large to read to its
-`package` line) is unplaced, whatever directory holds it, since a Kotlin directory need not mirror its package.
+still cannot be read is unplaced, whatever directory holds it, since a Kotlin directory need not mirror its
+package. That is a header that does not scan, a malformed `package` line, a file too large to read to its
+`package` line, a file that holds a NUL character (such as a UTF-16 source), and a file with no `package` line
+whose header stops at something that cannot start a declaration (a stray `#`, `~` or `?`, or an annotation that
+does not parse). A file with no `package` line whose header ends at a modifier, `class`, `fun`, `@interface` or
+another declaration keyword is in the default package.
 While the repository has an unplaced file, an import that would be external is unresolved when it is not
 clearly outside the repository. It is clearly outside only when no unplaced file declares any name the import
 uses: the names of a file are its own name (and the name plus `Kt`), its `@file:JvmName`, and every name that
 follows `class`, `interface`, `enum`, `record`, `object`, `typealias`, `fun`, `val` or `var` in it, and an unplaced
-file that cannot be read to its end declares every name. The `target` of such an import is the unplaced file.
+file that cannot be read to its end declares every name. A wildcard import (`import a.b.*`) is also unresolved
+when an unplaced file has no readable `package` text or names `a` as its first package name after the word
+`package`. The `target` of such an import is the unplaced file.
 When the walk over the repository was cut at 200000 files, an import that would be external is unresolved
 unless its first name is `java`, `javax`, `jdk` or `kotlin`. A name is never clearly outside because it was not
 found.
