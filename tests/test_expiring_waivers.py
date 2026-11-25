@@ -12,7 +12,6 @@ from test_audit import advisories, lock, no_network
 from test_waivers import (ADVISORY_RULE, CHANGED, CHECK_REPO, DAY, FIX, IMPORT_RULE, LODASH, REVIEW_RULE, TODAY, waiver, with_waivers)
 from decisis import action, audit, check, cli, compact, render, rules
 from decisis import checkout as co
-from decisis import serve
 
 ROOT = Path(__file__).resolve().parents[1]
 PAYMENTS = "src/payments/**"
@@ -233,6 +232,9 @@ def test_a_hostile_waiver_reaches_the_expiring_views_only_as_escaped_text():
 
 
 def test_the_mcp_check_and_audit_replies_show_expiring_waivers_apart_and_take_warn_days(tmp_path, no_network):
+    pytest.importorskip("mcp")
+    pytest.importorskip("jsonschema")
+    from decisis import serve
     from test_serve import over_mcp
     path = snapshot_file(tmp_path, "check", {REVIEW_RULE: [waiver(path=PAYMENTS, expires=days(4))]})
     _, (short, full, off, bad, text) = over_mcp(
@@ -257,6 +259,9 @@ def test_the_mcp_check_and_audit_replies_show_expiring_waivers_apart_and_take_wa
 
 
 def test_the_mcp_tool_schemas_bound_warn_days_as_the_cli_does():
+    pytest.importorskip("mcp")
+    pytest.importorskip("jsonschema")
+    from decisis import serve
     for name in ("audit", "check"):
         prop = serve.SCHEMAS[name]["properties"]["warn_days"]
         assert (prop["type"], prop["minimum"], prop["maximum"], prop["default"]) == ("integer", 0, rules.MAX_WARN_DAYS, rules.WARN_DAYS)
