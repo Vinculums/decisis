@@ -84,6 +84,11 @@ def blob(root: Path, entry: Entry, limit: int) -> bytes:
     return git(root, "cat-file", "blob", entry.oid)
 
 
+def problem(path: str, reason: str) -> dict:
+    kind = {"kind": init.DECISION} if path.rpartition("/")[0] in init.ADR_DIRS else {}
+    return {"file": path, "reason": reason, "action": init.SKIPPED, **kind}
+
+
 def copy(root: Path, commit: str, into: Path) -> list[dict]:
     dirs = init.ADR_DIRS + init.POSTMORTEM_DIRS
     found = entries(root, commit, *(d + "/" for d in dirs), *init.CODEOWNERS_FILES)
@@ -95,15 +100,14 @@ def copy(root: Path, commit: str, into: Path) -> list[dict]:
         raise ValueError(f"the commit holds {len(picked)} decision files, more than the {MAX_RECORDS} decisis reads")
     for e in picked:
         if e.mode == LINK:
-            problems.append({"file": e.path, "reason": "it is a symbolic link in the commit, and decisions are read only from regular files",
-                             "action": init.SKIPPED})
+            problems.append(problem(e.path, "it is a symbolic link in the commit, and decisions are read only from regular files"))
             continue
         if e.mode not in REGULAR:
             continue
         try:
             data = blob(root, e, MAX_BYTES)
         except ValueError as err:
-            problems.append({"file": e.path, "reason": str(err), "action": init.SKIPPED})
+            problems.append(problem(e.path, str(err)))
             continue
         target = into.joinpath(*e.path.split("/"))
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -113,10 +117,10 @@ def copy(root: Path, commit: str, into: Path) -> list[dict]:
     return problems
 
 
-def built(root: Path, commit: str, repo: str | None, files: list[str]) -> Subgraph:
+def built(root: Path, commit: str, repo: str | None, files: list[str], also: list[str] = ()) -> Subgraph:
     with tempfile.TemporaryDirectory(prefix="decisis-decisions-") as tmp:
         problems = copy(root, commit, Path(tmp))
-        snapshot = init.build(tmp, repo, files=files, problems=problems)
+        snapshot = init.build(tmp, repo, files=files, also=also, problems=problems)
     return co.load(init.dump(snapshot))
 
 
@@ -134,7 +138,7 @@ def stored(root: Path, commit: str, path: str) -> Subgraph | None:
 
 
 def has_decisions(graph: Subgraph | None) -> bool:
-    return graph is not None and any(n.get("kind") == "decision" for n in graph.nodes)
+    return graph is not None and (any(n.get("kind") == "decision" for n in graph.nodes) or bool(init.unread_decisions(graph.meta)))
 
 
 def canonical(value) -> str:

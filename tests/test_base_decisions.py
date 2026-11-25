@@ -11,7 +11,7 @@ import yaml
 
 from test_action import DEMO_LOCK, HOSTILE, HOSTILE_PATH, FakeGitHub, environment, git, hostile_outcome, osv_cache, outputs
 from test_audit import no_network
-from decisis import action, committed, init
+from decisis import action, codeowners, committed, init
 
 ROOT = Path(__file__).resolve().parents[1]
 DAY = "2026-11-25"
@@ -155,10 +155,11 @@ def test_base_decisions_are_read_in_a_private_temporary_directory_that_is_remove
 def test_codeowners_come_from_the_base_and_cover_the_heads_new_files(tmp_path):
     root, base = repository(tmp_path, {".github/CODEOWNERS": "src/payments/ @alice\n", "src/payments/charge.py": "A = 1\n"},
                             {".github/CODEOWNERS": "src/payments/ @mallory\n", "src/payments/refund.py": "B = 1\n"})
-    graph = committed.built(root, base, None, action.listing(root, base))
+    graph = committed.built(root, base, None, *action.listing(root, base))
     owners = [n for n in graph.nodes if n["kind"] == "concept"]
     assert [n["props"]["owners"] for n in owners] == [["@alice"]] and owners[0]["props"]["code_ref"] == ["src/"]
-    assert "src/payments/refund.py" in action.listing(root, base) and "src/payments/charge.py" in action.listing(root, base)
+    base_files, head_files = action.listing(root, base)
+    assert "src/payments/refund.py" in head_files and "src/payments/refund.py" not in base_files and "src/payments/charge.py" in base_files
 
 
 def test_a_symbolic_link_in_the_base_is_listed_as_a_problem_and_not_followed(tmp_path):
@@ -171,7 +172,7 @@ def test_a_symbolic_link_in_the_base_is_listed_as_a_problem_and_not_followed(tmp
     head = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
     graph = committed.built(root, head, None, [])
     assert [n["id"] for n in graph.nodes] == [DECISION]
-    assert {"file": "docs/adr/0002-link.md", "action": "skipped",
+    assert {"file": "docs/adr/0002-link.md", "action": "skipped", "kind": "decision",
             "reason": "it is a symbolic link in the commit, and decisions are read only from regular files"} in graph.meta["problems"]
 
 
@@ -294,3 +295,122 @@ def test_this_repository_snapshot_is_tracked_so_the_self_test_reads_it_from_the_
     used, = [s for s in job["steps"] if s.get("uses") == "./"]
     assert used["with"].get("decisions-from", "base") == "base"
     assert (ROOT / used["with"]["snapshot"]).is_file() and not (ROOT / used["with"]["snapshot"]).is_symlink()
+
+
+def run_git(root: Path, *args: str) -> str:
+    return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@e", "-C", str(root), *args], capture_output=True,
+                          check=True).stdout.decode().strip()
+
+
+def in_app(tmp_path: Path) -> tuple[Path, str]:
+    root = tmp_path / "shop"
+    root.mkdir()
+    git(root, "init", "-q", "-b", "main")
+    write(root, {"app/README.md": "shop\n", "app/" + ADR: adr()})
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "base")
+    return root, run_git(root, "rev-parse", "HEAD")
+
+
+def run_in_app(tmp_path: Path, root: Path, base: str) -> tuple[int, str, str]:
+    env = env_for(tmp_path, root, base, GITHUB_WORKSPACE=str(root))
+    env["DECISIS_WORKING_DIRECTORY"] = str(root / "app")
+    code = action.main(env, FakeGitHub())
+    return code, outputs(tmp_path)["violations"], summary(tmp_path)
+
+
+def test_a_subdirectory_working_directory_reads_the_base_decisions_of_the_repository(tmp_path, no_network):
+    root, base = in_app(tmp_path)
+    write(root, {"app/src/payments/pay.py": "x = 1\n"})
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "head")
+    code, violations, text = run_in_app(tmp_path, root, base)
+    assert violations == "1" and "#### Violations (1)" in text
+
+
+def test_a_bare_repository_planted_in_working_directory_does_not_supply_the_base_decisions(tmp_path, no_network):
+    root, base = in_app(tmp_path)
+    side = tmp_path / "side"
+    side.mkdir()
+    git(side, "init", "-q")
+    (side / ".git" / "objects" / "info" / "alternates").write_text(str(root / ".git" / "objects") + "\n")
+    write(side, {"README.md": "shop\n", ADR: adr([SELF_WAIVER])})
+    git(side, "add", "-A")
+    fake_base = run_git(side, "commit-tree", run_git(side, "write-tree"), "-m", "replaced base")
+    write(side, {"src/payments/pay.py": "x = 1\n"})
+    git(side, "add", "-A")
+    fake_head = run_git(side, "commit-tree", run_git(side, "write-tree"), "-p", base, "-m", "head")
+    app = root / "app"
+    write(root, {"app/src/payments/pay.py": "x = 1\n"})
+    for d in (side / ".git" / "objects").iterdir():
+        if len(d.name) == 2:
+            shutil.copytree(d, app / "objects" / d.name)
+    write(root, {"app/objects/info/alternates": "../../.git/objects\n", "app/HEAD": fake_head + "\n", "app/refs/replace/" + base: fake_base + "\n"})
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "head with a planted bare repository")
+    assert run_git(app, "rev-parse", "--git-dir") == "."
+    code, violations, text = run_in_app(tmp_path, root, base)
+    assert violations == "1" and "Waived, not counted" not in text and "built with decisis init from the base commit" in text
+    assert committed.changes(committed.built(root, base, None, []), committed.built(root, "HEAD", None, [])) == []
+
+
+def test_a_replace_ref_in_the_repository_does_not_change_what_the_base_read_returns(tmp_path):
+    root, base = self_waived(tmp_path)
+    before = committed.built(root, base, None, [])
+    git(root, "replace", base, "HEAD")
+    assert run_git(root, "cat-file", "-p", f"{base}:{ADR}") == adr([SELF_WAIVER]).strip()
+    after = committed.built(root, base, None, [])
+    assert after.nodes == before.nodes and "waivers" not in after.nodes[0]["props"]
+
+
+def test_a_checkout_outside_the_workspace_stops_the_step(tmp_path, capsys, no_network):
+    root, base = self_waived(tmp_path)
+    elsewhere = tmp_path / "workspace"
+    elsewhere.mkdir()
+    assert action.main(env_for(tmp_path, root, base, GITHUB_WORKSPACE=str(elsewhere)), FakeGitHub()) == 2
+    assert "is not inside GITHUB_WORKSPACE" in capsys.readouterr().out
+
+
+def test_files_the_head_adds_past_the_cap_do_not_drop_the_bases_codeowners(tmp_path, monkeypatch):
+    monkeypatch.setattr(codeowners, "MAX_FILES", 20)
+    root, base = repository(tmp_path, {".github/CODEOWNERS": "src/payments/ @shop/payments\n", ADR: adr(), "src/payments/pay.py": "x = 1\n"},
+                            {f"junk/{i}.txt": "" for i in range(25)})
+    graph = committed.built(root, base, None, *action.listing(root, base))
+    owners = [n for n in graph.nodes if n["kind"] == "concept"]
+    assert [n["props"]["owners"] for n in owners] == [["@shop/payments"]]
+    assert not any("owners are not read" in p["reason"] for p in graph.meta["problems"])
+
+
+def test_a_base_too_large_for_the_cap_still_says_its_owners_are_not_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(codeowners, "MAX_FILES", 20)
+    files = {f"junk/{i}.txt": "" for i in range(25)}
+    root, base = repository(tmp_path, {".github/CODEOWNERS": "src/ @a\n", **files}, {"src/x.py": "X = 1\n"})
+    graph = committed.built(root, base, None, *action.listing(root, base))
+    assert any("owners are not read" in p["reason"] for p in graph.meta["problems"])
+
+
+def test_an_unreadable_adr_on_the_base_is_shown_and_keeps_its_decision_kind(tmp_path, no_network):
+    root, base = repository(tmp_path, {ADR: "---\ntitle: [broken\n---\n# Broken\n", "src/payments/charge.py": "A = 1\n"},
+                            {"src/payments/charge.py": "A = 2\n"})
+    (root / "docs" / "adr" / "0002-link.md").symlink_to(root / "README.md")
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "link")
+    graph = committed.built(root, base, None, [])
+    assert {p.get("kind") for p in graph.meta["problems"] if p["file"].startswith("docs/adr/")} == {"decision"}
+    linked = committed.built(root, "HEAD", None, [])
+    assert {"file": "docs/adr/0002-link.md", "kind": "decision"}.items() <= next(
+        p for p in linked.meta["problems"] if p["file"] == "docs/adr/0002-link.md").items()
+    assert action.main(env_for(tmp_path, root, base), FakeGitHub()) == 0
+    out = summary(tmp_path)
+    assert "No decisions exist on the base commit" not in out
+    assert "#### Decision files not read (1)" in out and f"- {action.code(ADR)}" in out
+
+
+def test_the_comment_shows_the_unread_section_next_to_the_pending_section(tmp_path, no_network):
+    root, base = repository(tmp_path, {ADR: adr(), "docs/adr/0002-broken.md": "---\ntitle: [broken\n---\n# Broken\n",
+                                       "src/payments/charge.py": "A = 1\n"},
+                            {"src/payments/charge.py": "A = 2\n", ADR: adr([SELF_WAIVER])})
+    assert action.main(env_for(tmp_path, root, base), FakeGitHub()) == 0
+    out = summary(tmp_path)
+    assert "#### Decision changes that take effect once merged (1)" in out and "#### Decision files not read (1)" in out
+    assert "#### Violations (1)" in out

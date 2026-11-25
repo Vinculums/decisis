@@ -447,15 +447,24 @@ def snapshot_of(env: Mapping[str, str], root: Path, repo: str | None) -> tuple[o
     return co.load(Path(path).read_text(encoding="utf-8")), path
 
 
-def listing(root: Path, base: str) -> list[str]:
+def listing(root: Path, base: str) -> tuple[list[str], list[str]]:
     head = codeowners.git_files(root)
-    return sorted(set(committed.names(root, base)) | set(head if head is not None else codeowners.walk_files(root)))
+    return committed.names(root, base), sorted(head if head is not None else codeowners.walk_files(root))
 
 
-def at(root: Path, commit: str, snapshot: str, repo: str | None, files: list[str] | None):
+def at(root: Path, commit: str, snapshot: str, repo: str | None, files: tuple[list[str], list[str]] | None):
     if snapshot:
         return committed.stored(root, commit, snapshot)
-    return committed.built(root, commit, repo, files or [])
+    return committed.built(root, commit, repo, *(files or ([], [])))
+
+
+def workspace_repository(env: Mapping[str, str], root: Path) -> None:
+    top = codeowners.repository(root)
+    if top is None:
+        raise ValueError(f"working-directory {root} is not inside a git checkout")
+    space = env.get("GITHUB_WORKSPACE", "").strip()
+    if space and not top.is_relative_to(Path(os.path.abspath(space))):
+        raise ValueError(f"the git checkout {top} that holds working-directory is not inside GITHUB_WORKSPACE {space}")
 
 
 def from_base(env: Mapping[str, str], root: Path, repo: str | None, base: str, changed: list[str]):
@@ -606,6 +615,7 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
         changed = check.changed_since(root, pull.base)
     else:
         given(env)
+        workspace_repository(env, root)
         fetch_base(root, pull.base)
         changed = check.changed_since(root, pull.base)
         graph, source, waiting = from_base(env, root, repo, pull.base, changed)

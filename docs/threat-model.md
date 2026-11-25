@@ -170,15 +170,21 @@ fork the result goes to the job summary. (`src/decisis/action.py`, `action.yml`;
 
 **Decisions from the base commit.** By default the action reads the snapshot file, or the ADRs, CODEOWNERS
 file and postmortems `init` reads, from the pull request's base commit, so a pull request cannot waive its
-own violation or drop a rule it breaks. The files are read from the commit's tree with the hardened git
-helper into a private temporary directory; nothing is checked out or run, and a symbolic link is not
-followed. A change to those files is listed in the comment and takes effect only once merged.
+own violation or drop a rule it breaks by editing the decision files. The files are read from the commit's
+tree with the hardened git helper into a private temporary directory; nothing is checked out or run, and a
+symbolic link is not followed. The helper names the repository whose `.git` holds working-directory with
+`--git-dir`, refuses implicit bare repositories and ignores replace refs, so a directory in the checkout
+cannot pose as the repository and supply the base's tree. The 100,000-file cap on CODEOWNERS applies to the
+base's files only, so files a pull request adds cannot drop the base's owners. A change to those files is listed in the comment and takes effect only once merged.
 (`src/decisis/committed.py`, `src/decisis/action.py`;
 `test_a_waiver_the_pull_request_adds_does_not_waive_its_own_violation`,
 `test_a_pull_request_that_removes_the_rule_and_the_adr_is_still_judged_by_the_base`,
 `test_the_head_working_tree_is_not_read_for_the_decisions`,
 `test_base_decisions_are_read_in_a_private_temporary_directory_that_is_removed`,
-`test_a_symbolic_link_in_the_base_is_listed_as_a_problem_and_not_followed`.)
+`test_a_symbolic_link_in_the_base_is_listed_as_a_problem_and_not_followed`,
+`test_a_bare_repository_planted_in_working_directory_does_not_supply_the_base_decisions`,
+`test_a_replace_ref_in_the_repository_does_not_change_what_the_base_read_returns`,
+`test_files_the_head_adds_past_the_cap_do_not_drop_the_bases_codeowners`.)
 
 ## What it does not protect
 
@@ -230,6 +236,10 @@ followed. A change to those files is listed in the comment and takes effect only
 - **A pull request that changes the snapshot, with `decisions-from: head`.** Then the action reads the
   snapshot and the rules from the pull request's own checkout, so a pull request can edit a decision, add a
   waiver or drop a rule and the comment judges the edited version. The default, `base`, does not.
+- **A pull request that changes the workflow.** On `pull_request` the workflow file comes from the pull
+  request, so it can set `decisions-from: head`, point `snapshot:` at a path the base lacks, or remove the
+  step. Guard `.github/workflows/` and the decision files with CODEOWNERS review or a ruleset, and make the
+  decisis check required.
 - **Who can merge.** With `decisions-from: base` the decisions are whatever the base branch holds; anyone
   who can push to it, or merge into it, can change them. Protect that branch.
 - **The endpoint.** The key is sent to the Vinc MCP URL, which `VINC_MCP_URL` can change. Point it only

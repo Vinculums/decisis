@@ -61,9 +61,12 @@ class Tree:
     problems: list[dict] = field(default_factory=list)
     suggest_refs: bool = False
     files: list[str] | None = None
+    also: list[str] = field(default_factory=list)
 
     def listing(self) -> list[str]:
-        return owners.bounded(self.files) if self.files is not None else owners.repository_files(self.root)[0]
+        if self.files is None:
+            return owners.repository_files(self.root)[0]
+        return sorted(set(owners.bounded(self.files)) | set(self.also))
 
     def rel(self, path: Path) -> str:
         return path.relative_to(self.root).as_posix()
@@ -577,13 +580,14 @@ READERS: tuple[Reader, ...] = (read_adrs, read_codeowners, read_postmortems)
 
 def build(repo_dir: str | Path, repo: str | None = None, *readers: Reader, adr_dir: str | None = None,
           postmortem_dir: str | None = None, suggest_refs: bool = False, files: list[str] | None = None,
-          problems: list[dict] = ()) -> dict:
+          also: list[str] = (), problems: list[dict] = ()) -> dict:
     root = Path(os.path.abspath(repo_dir))
     if not root.is_dir():
         raise ValueError(f"{repo_dir} is not a directory")
     if repo is not None and not REPO_NAME.fullmatch(repo):
         raise ValueError(f"--repo {repo!r} must be letters, digits, '-' or '_'")
-    tree = Tree(root, repo, adr_dir, postmortem_dir, suggest_refs=suggest_refs, files=None if files is None else sorted(set(files)))
+    tree = Tree(root, repo, adr_dir, postmortem_dir, suggest_refs=suggest_refs, files=None if files is None else sorted(set(files)),
+                also=sorted(set(also)))
     tree.problems += problems
     nodes, edges = merge(tree, readers or READERS)
     problems = {(p["file"], p["action"], p["reason"]): p for p in tree.problems}
