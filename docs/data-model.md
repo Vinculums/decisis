@@ -355,8 +355,9 @@ the same entries with the same reasons:
 | a regular `.md` record file in a folder below the ADR directory (`docs/adr/archive/0007-old.md`) | `ignored`: ADRs in subfolders are not read; move it up or pass its folder with `--adr-dir` |
 | a symbolic link with a record name, directly in the ADR directory | `skipped`: decisions are read only from regular files |
 | a symbolic link with a record name in a folder below it | `ignored`, as a file in a subfolder |
-| any other symbolic link at any depth (`docs/adr/v1.2`, `docs/adr/LICENSE`), or an ADR directory that is itself a link | `ignored`: it is not followed |
-| a git submodule at any depth, or an ADR directory that is one | `ignored`: decisis does not read ADRs from it |
+| an ADR directory that is itself a symbolic link or a git submodule | `not read`: none of its ADRs are read, so it is listed under `unread_decisions` and counts for `--fail-on-unresolved` |
+| any other symbolic link at any depth (`docs/adr/v1.2`, `docs/adr/LICENSE`) | `ignored`: it is not followed |
+| a git submodule inside an ADR directory | `ignored`: decisis does not read ADRs from it |
 
 Folders and links whose name contains `template`, and everything below such a folder, are left out without an
 entry. `ignored` entries carry `kind: "decision"` and stay in `meta.problems`, but they are not listed under
