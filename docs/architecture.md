@@ -50,7 +50,7 @@ sequenceDiagram
 | `src/decisis/compact.py` | The `summary` form of each tool reply (counts, ids, titles and the first 10 items of each list) and `fit`, which shortens the longest list until a reply is under 1 MiB and adds a `cut` note. |
 | `src/decisis/action.py` | The code behind `action.yml`: reads the pull request from the event payload, the approving reviews through `github.py`, runs `check` and `audit`, and writes or updates one marked comment, falling back to the job summary on a fork or a read-only token. |
 | `src/decisis/commit.py` | `propose` turns `affected` findings into record nodes and `relates_to` edges, with a digest over the space, nodes and edges. `commit` checks the digest, writes with `create_only` and an operation id derived from the digest, and reads every node and edge back. |
-| `src/decisis/checker.py` | The Checker that `propose` and the demo share: `check_plan` re-derives each record from a loaded sandbox (advisory hash and severity, version, dependency path and scope, decision target; for a license or package record, the package's license expression or name and the decision's rule); it finds each record's package by name and version in the sandbox and checks the version under that package's ecosystem, `withhold` moves a failed record and its edges to `held` and recomputes the digest, and `rederive` builds the fresh sandbox `propose` checks in. |
+| `src/decisis/checker.py` | The Checker that `propose` and the demo share: `check_plan` re-derives each record from a loaded sandbox (advisory hash and severity, version, dependency path and scope, decision target and that the decision still governs the repository, by the same `audit.governing` the audit uses; for a license or package record, the package's license expression or name and the decision's rule); it finds each record's package by name and version in the sandbox and checks the version under that package's ecosystem, `withhold` moves a failed record and its edges to `held` and recomputes the digest, and `rederive` builds the fresh sandbox `propose` checks in. |
 | `src/decisis/fake_vinc.py` | An in-process stand-in for Vinc's `vinc_node`, `vinc_graph` and `vinc_ingest`, used by the demo and the tests. It stores a record's edge the way Vinc returns it (`ATTACHES_TO` with a role). |
 | `src/decisis/demo.py` | The judge demo: the whole procedure against the fake Vinc and the fixtures, with a Checker step (`checker.check_plan`) and a transcript. |
 | `src/decisis/compare.py` | The A/B/C benchmark over `bench/tasks.json`, or over another task file such as `bench/holdout/tasks.json` with `--tasks`. |
@@ -154,7 +154,9 @@ lockfile and OSV (or `--osv-cache`), and for each record compares the advisory h
 OSV record in that graph; checks that each version is a package of that name in the lockfile, inside the
 advisory's ranges and reached by one of the record's paths; checks that each dependency path runs from the
 repository to the record's own package and advisory, exists in the graph, and has development flags that
-match the record's scope; and confirms each `relates_to` target is a decision in the snapshot. A record that fails any check is left out with its
+match the record's scope; and confirms each decision the record names under `violates` or `waived`, or links with `relates_to`, is a decision in the snapshot that
+governs the repository there, by the same `audit.governing` the audit judges with (a superseded decision, a decision with no link to the
+repository and another repository's `init` decision do not). A record that fails any check is left out with its
 edges and listed under `held` with the failed checks, the digest covers only what is left, and `propose`
 exits non-zero. The demo runs the same `checker.check_plan` in its own sandbox.
 
