@@ -107,6 +107,17 @@ cannot be judged: 1
 
 In CI, pass the base branch instead of a file list: `decisis check snapshot.json --base origin/main --reviewers @alice`.
 
+CODEOWNERS gives ownership context only: `check` lists the owners of the changed files that no `review_required` rule
+covers, and a missing owner review changes no verdict. To enforce it, turn on "Require review from Code Owners" in
+GitHub's branch protection, or write the rule in an ADR so `check` judges it:
+
+```yaml
+rule:
+  review_required:
+    paths: ["src/payments/**"]
+    reviewers: ["@shop/payments"]
+```
+
 **4. Audit a lockfile against the decisions.** In the snapshot `init` built in step 1, each ADR with a
 dependency rule (advisory, license, package or pin) governs the repository `init` read, whatever code it
 names, so give `audit` the same `--repo`:

@@ -210,6 +210,15 @@ def unread_list(report: dict) -> list[str]:
     return [section("Decision files not read, so their rules are not judged", "<ul>" + items + "</ul>")] if items else []
 
 
+def codeowners_list(report: dict) -> list[str]:
+    found = report.get("codeowners")
+    if not found:
+        return []
+    rows = "".join(f"<tr><td>{code(e['file'])}</td><td>{', '.join(code(o) for o in e['owners'])}</td></tr>" for e in found["files"])
+    table = f'<div class="scroll"><table><tr><th>file</th><th>owners</th></tr>{rows}</table></div>'
+    return [section("CODEOWNERS owners of changed files, shown and not enforced", f"<p>{esc(found['note'])}</p>{table}")]
+
+
 def idle_list(report: dict) -> list[str]:
     found = report.get("not_governing") or []
     items = "".join(f"<li>{code(d['decision'])} {esc(d.get('title'))}: {esc(d['reason'])}</li>" for d in found)
@@ -328,7 +337,7 @@ def check_sections(report: dict) -> list[str]:
             section("Governing decisions", decision_list(report.get("governing", []))),
             *([section("Superseded, not judged", decision_list(report["superseded"], "superseded by"))] if report.get("superseded") else []),
             *([section("Rules that cannot be checked", "<ul>" + problems + "</ul>")] if problems else []),
-            *unread_list(report),
+            *unread_list(report), *codeowners_list(report),
             section("Imports read", imports_table(report.get("imports", [])))]
 
 

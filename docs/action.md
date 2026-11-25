@@ -82,6 +82,11 @@ jobs:
   reason, in the comment and the job summary, and counted in the comment's first line. Its rules are not
   judged. It is not a violation: neither the `violations` output nor `fail-on-violation` counts it. The
   `unresolved` output and `fail-on-unresolved` count it, as `decisis check --fail-on-unresolved` does.
+- A changed file that a CODEOWNERS owner set covers and no `review_required` rule covers is listed with its owners under
+  "CODEOWNERS owners of changed files, not enforced", with a note that decisis does not enforce CODEOWNERS: turn on "Require
+  review from Code Owners" in branch protection, or add a `review_required` rule to an ADR (see
+  [the data model](data-model.md#codeowners-owner-sets-become-concepts)). The section is information only; it is not
+  counted in any output and changes no result. It is also in the comment that says the base commit has no decisions.
 - The comment stays under GitHub's 65,536-character limit: the graph is left out first, then the lists
   are cut, and the comment says what was cut.
 - The outputs `violations`, `unresolved` and `comment-url` are set for later steps, and `sarif-file` with `sarif: true`. `violations` is the

@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from test_audit import no_network
 from decisis import cli
 
@@ -94,3 +96,36 @@ def test_the_readme_says_the_old_name_was_removed_and_nothing_installs_it():
     assert "vinc-relate" in history and "removed in 0.2.0" in history
     assert "vinc-relate" not in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert not (ROOT / "src" / "vinc_relate").exists()
+
+
+
+CONTEXT_ONLY = "CODEOWNERS gives ownership context only"
+
+
+def front_matter(block: str) -> str:
+    return block if block.startswith("---") else "---\nstatus: accepted\ncode_ref: [src/payments/]\n" + block + "---\n"
+
+
+@pytest.mark.parametrize("doc", [README, DATA_MODEL], ids=["readme", "data-model"])
+def test_the_docs_say_codeowners_is_context_only_and_the_adr_example_they_show_enforces_a_review(doc, tmp_path, capsys, no_network):
+    assert doc.count(CONTEXT_ONLY) == 1
+    here = doc[doc.index(CONTEXT_ONLY):]
+    saying = " ".join(here[:here.index("```yaml")].split())
+    assert "branch protection" in saying and "Require review from Code Owners" in saying and "ADR" in saying
+    block = re.search(r"```yaml\n(.*?)```", here, re.S).group(1)
+    assert "review_required" in block
+    root = tmp_path / "shop"
+    for folder in ("docs/adr", "src/payments", ".github"):
+        (root / folder).mkdir(parents=True)
+    (root / ".github" / "CODEOWNERS").write_text("src/payments/ @shop/payments\n")
+    (root / "src" / "payments" / "charge.py").write_text("A = 1\n")
+    (root / "docs" / "adr" / "0001-payments.md").write_text(front_matter(block) + "\n# Payment changes need a review\n\nDecided.\n")
+    snap = tmp_path / "snapshot.json"
+    capsys.readouterr()
+    assert cli.main(["init", "--repo-dir", str(root), "--repo", "Shop", "--out", str(snap)]) == 0
+    capsys.readouterr()
+    assert cli.main(["check", str(snap), "--repo-dir", str(root), "--changed", "src/payments/charge.py"]) == 1
+    shown = json.loads(capsys.readouterr().out)
+    assert [(v["rule"], v["file"]) for v in shown["violations"]] == [("review_required", "src/payments/charge.py")]
+    assert cli.main(["check", str(snap), "--repo-dir", str(root), "--changed", "src/payments/charge.py", "--reviewers", "@shop/payments"]) == 0
+    assert "codeowners" not in json.loads(capsys.readouterr().out)

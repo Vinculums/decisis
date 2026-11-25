@@ -159,7 +159,10 @@ On the command line the same query is
 
 For `check`, read `violations` (the file, the line for an import, the decision and the rule) and
 `unresolved` (imports or files that cannot be judged, such as an import computed at run time). An
-`unresolved` entry is not a pass; report it. A superseded decision is listed apart and not judged.
+`unresolved` entry is not a pass; report it. A superseded decision is listed apart and not judged. `codeowners`, when
+present, lists the changed files that a CODEOWNERS owner set covers and no `review_required` rule covers, with their
+owners. It is information, not a verdict: decisis does not enforce CODEOWNERS, so do not report an owner review as
+judged. GitHub's "Require review from Code Owners" in branch protection, or a `review_required` rule in an ADR, enforces it.
 
 When you report back, quote the path and the decision for each violation, and name the digest the
 person needs to approve.

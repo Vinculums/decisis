@@ -69,13 +69,18 @@ violations: 3
   src/bookshop/ui/catalog.py:5  decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer  imports_forbidden: src/bookshop/ui/** must not import src/bookshop/db/**; from ..db.session import open_session is src/bookshop/db/session.py
 cannot be judged: 1
   src/bookshop/ui/catalog.py:9  decision:bookshop-docs-adr-0001-the-user-interface-does-not-import-the-database-layer  imports_forbidden: import_module() with a computed name: the specifier is computed at run time; it cannot be judged
+CODEOWNERS owners of changed files, shown and not enforced: 1
+  src/bookshop/ui/catalog.py  @bookshop/platform
+decisis does not enforce CODEOWNERS: these owners are shown for context, and a missing owner review changes no verdict. To enforce it, turn on "Require review from Code Owners" in the branch protection rule on GitHub, or add a review_required rule to an ADR.
 ```
 
 The command exits 1 because three rules are violated: the payment change lacks a review from the payments team,
 and the catalog screen imports the database layer twice (`from bookshop.db import models` and the relative
 `from ..db.session import open_session`). The fourth line is not a pass: `import_module(name)` has a computed
 name, so `check` says it cannot judge it. Imports that follow the rule, such as `from bookshop.api import client`,
-are not listed. The same report as JSON, SARIF, Mermaid or HTML comes from `--format`.
+are not listed. The last lines show who owns the catalog screen in the code owners file; they change no verdict, and the
+payment file is not listed because ADR 0002 already covers it. The same report as JSON, SARIF, Mermaid or HTML comes
+from `--format`.
 
 ## 3. `audit`: judge the lockfile and the workflow
 

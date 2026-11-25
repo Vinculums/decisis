@@ -137,8 +137,10 @@ DESCRIPTIONS = {
              "Give changed (files under the server's root) or base (a git ref, for git diff base...HEAD in the root), and the "
              "reviewers. Returns the governing decisions, the violations with file, line, decision and rule, and what cannot be "
              "judged, and apart from them the waived results with each waiver's reason and expiry, and under expiring_soon the "
-             "waivers that cover a result and expire within warn_days (default 14). The changed files are read "
-             "under the root and never run.",
+             "waivers that cover a result and expire within warn_days (default 14). When a CODEOWNERS owner set covers a changed "
+             "file that no review_required rule covers, the reply lists the file and its owners under codeowners as information: "
+             "decisis does not enforce CODEOWNERS, and the list changes no verdict. The changed files are read under the root "
+             "and never run.",
     "query": "Run one read-only Cypher statement on a fresh sandbox of the snapshot and return its rows. Use it for a question "
              "the fixed tools do not answer: impact for the decisions on code paths, paths between two ids, audit for a "
              "lockfile. CREATE, MERGE, SET, DELETE, REMOVE, LOAD CSV, admin clauses and procedures other than the db.labels "
