@@ -6,6 +6,7 @@ parsed is listed in `meta.problems` with its path and the reason, and skipped; a
 `kind: "decision"`, and `unread_decisions` reads back the ADRs left out for `check` and `audit`, with each front matter key
 the reader does not know that is close to `rule` or `waivers` or spells them as a compound, such as `ruleset` or `waiver-list`.
 ADRs are read only from the files directly in an ADR directory; `Survey` lists, as `ignored`, what lies below it, by one rule that `committed` applies to a commit's tree as well.
+A front matter `rule` or `waivers` may also be written as YAML, which `yamltext.plain` reads within fixed bounds; every other key reads as a subset of YAML.
 Nothing is guessed from prose,
 except that `--suggest-refs` adds the paths an ADR's text names and marks them as suggested.
 docs/data-model.md lists the front matter keys and headings each reader understands.
@@ -25,7 +26,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import codeowners as owners
-from . import suggest
+from . import suggest, yamltext
 from .impact import REF_KEYS, code_path
 
 ADR_DIRS = ("docs/adr", "docs/decisions", "adr", "doc/adr")
@@ -41,6 +42,9 @@ UNREAD = (SKIPPED, NOT_READ)
 TEXT_KEYS = ("title", "status", "date")
 LIST_KEYS = ("deciders", "decision-makers", "supersedes", "superseded_by", "superseded-by", "decisions", *REF_KEYS)
 RULE_KEYS = ("rule", "waivers")
+YAML_BYTES = 64 * 1024
+YAML_NODES = 20_000
+YAML_DEPTH = 16
 UNUSED_KEYS = ("consulted", "informed")
 ADR_KEYS = (*TEXT_KEYS, *LIST_KEYS, *RULE_KEYS, *UNUSED_KEYS)
 CLOSE = 0.75
@@ -319,10 +323,13 @@ def split_front_matter(text: str) -> tuple[list[str] | None, str]:
     raise Malformed("the front matter opens with --- on line 1 and never closes")
 
 
-def front_matter(lines: list[str]) -> dict:
+def front_matter(lines: list[str], first: int = 2, blocks: bool = True) -> dict:
     out: dict = {}
     open_list = None
-    for n, line in enumerate(lines, start=2):
+    held = 0
+    for n, line in enumerate(lines, start=first):
+        if n <= held:
+            continue
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         if item := LIST_ITEM.match(line):
@@ -338,9 +345,52 @@ def front_matter(lines: list[str]) -> dict:
         key, raw = m.group(1), (m.group(2) or "").strip()
         if key in out:
             raise Malformed(f"front matter line {n}: {key} is given twice")
+        if blocks and key in RULE_KEYS:
+            held = n + continued(lines, n - first)
+            out[key] = rule_value(key, lines[n - first:held - first + 1], n)
+            open_list = None
+            continue
         out[key] = [] if not raw or raw.startswith("#") else entry_value(key, raw, n)
         open_list = key if isinstance(out[key], list) and (not raw or raw.startswith("#")) else None
     return out
+
+
+def continues(line: str) -> bool:
+    return not line.strip() or line[0].isspace() or line.startswith(("#", "}", "]")) or bool(LIST_ITEM.match(line))
+
+
+def continued(lines: list[str], at: int) -> int:
+    end = at + 1
+    while end < len(lines) and continues(lines[end]):
+        end += 1
+    return end - at - 1
+
+
+def rule_value(key: str, lines: list[str], n: int):
+    try:
+        return front_matter(lines, n, blocks=False)[key]
+    except Malformed:
+        pass
+    raw = "\n".join([KEY_LINE.match(lines[0].rstrip()).group(2) or "", *lines[1:]]).strip()
+    shown = None
+    if raw[:1] in ("{", "["):
+        try:
+            return inline_json(raw, n, dict if raw[0] == "{" else list)
+        except Malformed as e:
+            shown = e
+    try:
+        found = yamltext.plain("\n".join(lines), key, YAML_BYTES, YAML_NODES, YAML_DEPTH)
+    except ValueError as e:
+        at = min(n + (getattr(e, "line", None) or 1) - 1, n + len(lines) - 1)
+        raise Malformed(f"{shown}; {e}" if shown else f"front matter line {at}: {e}") from None
+    val = found.get(key) if isinstance(found, dict) and len(found) == 1 else None
+    if not mappings(val):
+        raise Malformed(f"front matter line {n}: {key} must be a mapping or a list of mappings")
+    return val
+
+
+def mappings(val) -> bool:
+    return isinstance(val, dict) or isinstance(val, list) and all(isinstance(i, dict) for i in val)
 
 
 def entry_value(key: str, raw: str, n: int):
@@ -369,6 +419,8 @@ def inline_json(raw: str, n: int, kind: type):
         parsed, end = json.JSONDecoder().raw_decode(raw)
     except json.JSONDecodeError as e:
         raise Malformed(f"front matter line {n}: inline JSON does not parse ({e.msg})") from None
+    except RecursionError:
+        raise Malformed(f"front matter line {n}: inline JSON nests too deeply") from None
     rest = raw[end:].strip()
     if rest and not rest.startswith("#"):
         raise Malformed(f"front matter line {n}: text after the inline JSON")
@@ -431,8 +483,8 @@ def typed(fm: dict) -> dict:
                 raise Malformed(f"front matter {key} must be text or a list of text")
             out[key] = val
         elif key == "rule":
-            if not isinstance(val, dict):
-                raise Malformed("front matter rule must be an inline JSON object")
+            if not mappings(val) or val == []:
+                raise Malformed("front matter rule must be an inline JSON object, a YAML mapping or a list of mappings")
             out[key] = val
         elif key == "waivers":
             out[key] = val

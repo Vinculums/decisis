@@ -67,8 +67,9 @@ Properties the commands read:
 
 ### Rules
 
-A `rule` is a mapping, a list of mappings, or a JSON string of either. Each mapping names one or more rule
-kinds and may add the modifier `dependencies`:
+A `rule` is a mapping, a list of mappings, or a JSON string of either. In an ADR's front matter it is written as inline JSON
+or as YAML (see [The front matter subset](#the-front-matter-subset)); both give the same `props.rule`. Each mapping names one or
+more rule kinds and may add the modifier `dependencies`:
 
 | Kind | Value | Judges | Violated when |
 |---|---|---|---|
@@ -321,7 +322,8 @@ judges again against the decision's rules.
 
 ### Waivers
 
-A decision's `props` may carry `waivers`: a list (or a JSON string of one) of exceptions to its own rules. A
+A decision's `props` may carry `waivers`: a list (or a JSON string of one) of exceptions to its own rules. In an ADR's
+front matter it is written as inline JSON or as YAML, with the same result. A
 waiver records a violation the team accepts for a while, such as an advisory with no patched release yet.
 Each waiver is a mapping with these keys:
 
@@ -498,8 +500,8 @@ write the same bytes.
 | `deciders` | `deciders` or `decision-makers` (a list, or names split at commas) | a `Deciders:` or `Decision-makers:` line under the title |
 | `statement` | | the first paragraph of `## Decision` or `## Decision Outcome` |
 | `code_ref`, `subject_path`, `also_touches` | the keys of the same name, a path or a list of paths from the repository root | none, unless `--suggest-refs` is given: then `code_ref` lists the paths the text names (below) |
-| `rule` | `rule`, an inline JSON object, kept as it is | |
-| `waivers` | `waivers`, an inline JSON list of objects, kept as it is and read as described in [Waivers](#waivers) | |
+| `rule` | `rule`, written as inline JSON or as YAML (a mapping, or a list of mappings), kept as the plain data it reads as | |
+| `waivers` | `waivers`, written as inline JSON or as YAML, kept as the plain data it reads as and read as described in [Waivers](#waivers) | |
 
 The `Status:`, `Date:`, `Deciders:` and `Decision-makers:` lines under the title may stand alone or be list items
 (`- ` or `* `), and the key may be bold with the colon inside or outside the bold: `- **Status:** accepted`,
@@ -670,17 +672,66 @@ redirect or `Link` to another host stop the command with exit code 1 and write n
 ### The front matter subset
 
 Front matter is the block between a first line `---` and the next `---` or `...`. `init` reads a subset of
-YAML and needs no YAML library:
+YAML with a small reader of its own, and hands `rule` and `waivers` to a bounded YAML loader:
 
 - `key: value` at the start of a line, each key once; lines that start with `#` are comments;
 - a value is plain text (a trailing ` # comment` is dropped), `'single quoted'` (`''` is a quote) or
   `"double quoted"` (JSON escapes);
 - a list is `[a, b]`, a JSON array, or `- item` lines under a `key:` with no value;
-- `rule` is one inline JSON object, such as `{"advisory_severity_at_least": "HIGH"}`. The value is kept as it is and read as described in [Rules](#rules).
-- `waivers` is one inline JSON list of objects on one line. The value is kept as it is; a waiver that cannot be
-  read is a rule problem of the decision, as described in [Waivers](#waivers).
+- `rule` and `waivers` take the forms below.
 
-Anything else is refused with the line number and the file is skipped: nested mappings, block text (`|`,
+`rule` is one rule (a mapping) or several (a list of mappings), and `waivers` is a list of mappings. Each is written in
+any of these forms, and each gives the same `props.rule` or `props.waivers` as the inline JSON beside it:
+
+- inline JSON on the key's line, an object or an array: `rule: {"advisory_severity_at_least": "HIGH"}`, or
+  `rule: [{"advisory_severity_at_least": "HIGH"}, {"pinned_to_commit": true}]`. JSON is read as JSON, so `1.0` there is the number 1.0;
+- YAML flow style, on one line or several: `rule: {advisory_severity_at_least: HIGH}`;
+- a YAML block under the key, indented or with the list dashes at the key's own column: a mapping, or a list of mappings.
+
+```yaml
+---
+status: accepted
+code_ref: [src/payments/]
+rule:
+  - review_required:
+      paths: [src/payments/**]
+      reviewers: ["@shop/payments"]
+  - advisory_severity_at_least: HIGH
+    dependencies: shipped
+waivers:
+  - reason: legacy handler, replaced in Q1
+    expires: 2026-12-31
+    approved_by: "@shop/security"
+    path: src/payments/legacy/**
+---
+```
+
+reads exactly as
+
+```yaml
+---
+status: accepted
+code_ref: [src/payments/]
+rule: [{"review_required": {"paths": ["src/payments/**"], "reviewers": ["@shop/payments"]}}, {"advisory_severity_at_least": "HIGH", "dependencies": "shipped"}]
+waivers: [{"reason": "legacy handler, replaced in Q1", "expires": "2026-12-31", "approved_by": "@shop/security", "path": "src/payments/legacy/**"}]
+---
+```
+
+The YAML under `rule` and `waivers` is read with PyYAML's `BaseLoader` after a scan of its events, as `decisis.yamltext`
+reads lockfiles: no Python or other YAML tags, no more than 16 levels of nesting (the key counts as the first), no more than 64 KiB of text, and aliases
+(`&a`, `*a`) allowed only while the value they expand to stays under 20000 nodes; a value that holds itself is refused. It
+yields only mappings, lists, text, whole numbers, `true` and `false`, and null (`null`, `~` or nothing). Everything else
+stays the text as written, so `versions: [1.0]` keeps `"1.0"`, `expires: 2026-12-31` keeps `"2026-12-31"`, and `yes`, `1e3`
+and `007` are text. A key that is given twice, or is not text, is refused. Text that YAML cannot start a plain value with, such
+as one that begins with `@`, `*` or `&`, is quoted: `approved_by: "@shop/security"`.
+
+A value that does not parse, or that is not a mapping or a list of mappings, leaves the ADR unread: it is `skipped` in
+`meta.problems`, with the front matter line of the key and the reason, and listed under `unread_decisions` as any other
+unreadable ADR is. A rule kind or a value the rule reader refuses is not that: the ADR is read and the problem is listed
+under `rule_problems`. A `rule` or `waivers` value that read as one JSON object, a scalar or a list of text before reads as it did.
+`new-adr` writes inline JSON, and `init --suggest-refs --patch` adds `code_ref` before the closing `---`, below a YAML block as well.
+
+Under any other key, anything else is refused with the line number and the file is skipped: nested mappings, block text (`|`,
 `>`), anchors and aliases (`&`, `*`), tags (`!`), nested lists, and text that holds `: ` without quotes.
 
 The keys an ADR's front matter may hold are those in the table above, `decisions`, and MADR's `consulted` and
