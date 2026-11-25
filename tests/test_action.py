@@ -318,7 +318,7 @@ def test_third_party_actions_are_pinned_and_no_expression_reaches_a_shell(name):
     doc = yaml.safe_load((ROOT / name).read_text(encoding="utf-8"))
     for step in steps(doc):
         if "uses" in step and not step["uses"].startswith("./"):
-            assert re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", step["uses"]), step["uses"]
+            assert re.fullmatch(r"[\w.-]+/[\w.-]+(?:/[\w.-]+)*@[0-9a-f]{40}", step["uses"]), step["uses"]
         if "run" in step:
             assert "${{" not in step["run"]
             for call in re.findall(r'"\$(?:PY|py|PYTHON)"[^\n]*', step["run"]):
@@ -333,7 +333,7 @@ def test_the_action_has_its_inputs_and_the_workflow_asks_for_the_least_permissio
     flow = yaml.safe_load((ROOT / ".github" / "workflows" / "decisis.yml").read_text(encoding="utf-8"))
     assert flow["permissions"] == {}
     job, = flow["jobs"].values()
-    assert job["permissions"] == {"contents": "read", "pull-requests": "write"}
+    assert job["permissions"] == {"contents": "read", "pull-requests": "write", "security-events": "write"}
     assert list(flow[True]) == ["pull_request"]
     assert not any(s.get("with", {}).get("fail-on-violation") for s in job["steps"])
 

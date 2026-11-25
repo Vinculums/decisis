@@ -19,8 +19,8 @@ and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --h
 
 ## Output
 
-`impact`, `check`, `paths`, `audit` and `query` print JSON (`impact --format text` and `check --format text` read better for people); `demo`, `propose`
-and `compare` print text. `decisis <command> --help` lists the rest.
+`impact`, `check`, `paths`, `audit` and `query` print JSON (`impact --format text` and `check --format text` read better for people); `check` and
+`audit` also print SARIF with `--format sarif`; `demo`, `propose` and `compare` print text. `decisis <command> --help` lists the rest.
 
 ## Mermaid and HTML views
 
@@ -42,6 +42,36 @@ and `compare` print text. `decisis <command> --help` lists the rest.
 The HTML page is one file with inline styles only: no scripts, fonts or network requests, so it opens
 offline. Its only links are the sources of the findings.
 
+## SARIF for code scanning
+
+`check --format sarif` and `audit --format sarif` print one SARIF 2.1.0 log, the format GitHub's Security tab (code
+scanning) reads. The exit code is the one `--format json` gives. The log has one run with these parts:
+
+- The tool driver is `decisis` with the installed version. Each rule kind that judged something is a
+  `reportingDescriptor` whose `id` is the kind (`imports_forbidden`, `advisory_severity_at_least`, and so on); a
+  kind that judged nothing in this run is left out.
+- Each violated result is a `result` with `level` `error`, and each result that cannot be judged one with `warning`. A result that
+  is not violated is left out.
+- `message.text` holds the decision id and the reason. For `audit` it also names the package and the advisory.
+- `locations` hold a repository-relative file and, where one exists, a line. `check` points to the changed file and the
+  line of the import; a `review_required` result has no line, so it points to the file. `audit` points to the inventory
+  file, with no line. A file that is absolute, leaves the repository, names a drive or holds a backslash gets no location. The
+  file is percent-encoded, so a name with a space or a `#` stays one path.
+- `properties` carry the decision id, the rule kind and the path evidence in `path`: for `check`, the changed file and the
+  file the import resolves to (with the `import` as written and its `target`); for `audit`, the dependency chain from the
+  repository to the package and the advisory (with the `package` and the `advisory`).
+- A result a decision's waiver covers is kept, still at `error`, with a `suppressions` entry of kind `external` and status
+  `accepted` whose `justification` is the waiver, its expiry, its approver and its reason. From the day after the expiry the
+  suppression is gone and the result is a violation again.
+- Every result has a `partialFingerprints` value, `decisis/v1`, the SHA-256 of the decision, the rule kind, the file and the
+  import (`check`) or the package and the advisory (`audit`). It does not hold the line, so a finding that only moves
+  down a file stays one alert in code scanning. Two identical findings in one file get the second one a `:2` suffix.
+- Text from a snapshot or a pull request is put into JSON values and nowhere else. In `message.text` the characters
+  `\`, `[` and `]` are escaped, so no title or reason becomes a link.
+
+With `audit --out report.json` the JSON report goes to that file and the SARIF to stdout. The GitHub Action writes the same
+log with its `sarif` input; see [the Action](action.md#code-scanning-sarif). GitHub shows at most 5,000 results of a run.
+
 ## Try them on the fixtures
 
 From a checkout of this repository:
@@ -51,5 +81,7 @@ decisis paths fixtures/vinc_subgraph.json record:tls-advisory-example concept:se
 decisis impact fixtures/impact/vinc.json reports/export.py storage/ --format text
 decisis check fixtures/check/vinc.json --repo-dir fixtures/check/repo --changed src/shop/ui/view.py web/src/ui/page.ts --format html > check.html
 decisis audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --out report.json --format html > audit.html
+decisis check fixtures/check/vinc.json --repo-dir fixtures/check/repo --changed src/shop/ui/view.py web/src/ui/page.ts --format sarif > check.sarif
+decisis audit fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --osv-cache fixtures/audit/osv-cache.json --format sarif > audit.sarif
 decisis propose report.json fixtures/audit/vinc.json fixtures/audit/demo-lockfile.json --repo Demo --space demo-space --osv-cache fixtures/audit/osv-cache.json --out plan.json
 ```

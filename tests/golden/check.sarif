@@ -1,0 +1,500 @@
+{
+ "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+ "version": "2.1.0",
+ "runs": [
+  {
+   "tool": {
+    "driver": {
+     "name": "decisis",
+     "version": "0.0.0",
+     "informationUri": "https://github.com/Vinculums/decisis",
+     "rules": [
+      {
+       "id": "imports_forbidden",
+       "shortDescription": {
+        "text": "A changed file imports a path a decision forbids"
+       },
+       "defaultConfiguration": {
+        "level": "error"
+       }
+      },
+      {
+       "id": "review_required",
+       "shortDescription": {
+        "text": "A changed file lacks a review a decision requires"
+       },
+       "defaultConfiguration": {
+        "level": "error"
+       }
+      }
+     ]
+    }
+   },
+   "automationDetails": {
+    "id": "decisis/check/"
+   },
+   "results": [
+    {
+     "ruleId": "imports_forbidden",
+     "level": "error",
+     "message": {
+      "text": "decision:ui-does-not-import-db: crates/shop/src/ui.rs must not import crates/shop/src/db/**; use crate::db::models::Order is crates/shop/src/db/models.rs"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "crates/shop/src/ui.rs"
+        },
+        "region": {
+         "startLine": 4
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "0ee9d4e47f4ef78f9841c5292cffe121d6a394b3a207531daaafe30cf359b328"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "crates/shop/src/ui.rs",
+      "import": "use crate::db::models::Order",
+      "target": "crates/shop/src/db/models.rs",
+      "path": [
+       "crates/shop/src/ui.rs",
+       "crates/shop/src/db/models.rs"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "error",
+     "message": {
+      "text": "decision:ui-does-not-import-db: crates/shop/src/ui.rs must not import crates/shop/src/db/**; use super::db is crates/shop/src/db/mod.rs"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "crates/shop/src/ui.rs"
+        },
+        "region": {
+         "startLine": 5
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "29a8141d6e698efb4b4fb48f4cf644d0b24bed949787e9f7121051e5b323dbec"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "crates/shop/src/ui.rs",
+      "import": "use super::db",
+      "target": "crates/shop/src/db/mod.rs",
+      "path": [
+       "crates/shop/src/ui.rs",
+       "crates/shop/src/db/mod.rs"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "error",
+     "message": {
+      "text": "decision:ui-does-not-import-db: crates/shop/src/ui.rs must not import crates/shop/src/db/**; use super::db::models is crates/shop/src/db/models.rs"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "crates/shop/src/ui.rs"
+        },
+        "region": {
+         "startLine": 5
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "59641ed27b68c388264379844b45eb490fe65561090e79e7936dbcd8de03ed65"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "crates/shop/src/ui.rs",
+      "import": "use super::db::models",
+      "target": "crates/shop/src/db/models.rs",
+      "path": [
+       "crates/shop/src/ui.rs",
+       "crates/shop/src/db/models.rs"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "error",
+     "message": {
+      "text": "decision:ui-does-not-import-db: crates/shop/src/ui.rs must not import crates/shop-db/**; use shop_db::pool::Pool is crates/shop-db/src/pool.rs"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "crates/shop/src/ui.rs"
+        },
+        "region": {
+         "startLine": 6
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "d6f8aee9be75188c273f93af5aa589b0beb2aedf74b50642e90d15e2f0d151fe"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "crates/shop/src/ui.rs",
+      "import": "use shop_db::pool::Pool",
+      "target": "crates/shop-db/src/pool.rs",
+      "path": [
+       "crates/shop/src/ui.rs",
+       "crates/shop-db/src/pool.rs"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "error",
+     "message": {
+      "text": "decision:ui-does-not-import-db: crates/shop/src/ui.rs must not import crates/shop/src/db/**; use crate::db::models::Total is crates/shop/src/db/models.rs"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "crates/shop/src/ui.rs"
+        },
+        "region": {
+         "startLine": 18
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "b20fef5a532b4ca597ed321ca7f836daee06d73e50b95317ddb5f6c6e460466b"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "crates/shop/src/ui.rs",
+      "import": "use crate::db::models::Total",
+      "target": "crates/shop/src/db/models.rs",
+      "path": [
+       "crates/shop/src/ui.rs",
+       "crates/shop/src/db/models.rs"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "review_required",
+     "level": "error",
+     "message": {
+      "text": "decision:payments-need-a-payments-review: src/payments/** needs a review from @alice or @shop/payments; none of them is among the reviewers given"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "src/payments/charge.py"
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "c23a91948cb3c13035750e1d1930cb0cfb8796b88669c2fc4bfca7766a4f469e"
+     },
+     "properties": {
+      "decision": "decision:payments-need-a-payments-review",
+      "rule": "review_required",
+      "file": "src/payments/charge.py",
+      "path": [
+       "src/payments/charge.py"
+      ]
+     },
+     "ruleIndex": 1
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "error",
+     "message": {
+      "text": "decision:ui-does-not-import-db: src/shop/ui/** must not import src/shop/db/**; from shop.db import models is src/shop/db/models.py"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "src/shop/ui/view.py"
+        },
+        "region": {
+         "startLine": 4
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "186686659d9d4c4526d4c4cfb9c436e81a14ccd81b6e1bbe0fc8fb34b38f12e4"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "src/shop/ui/view.py",
+      "import": "from shop.db import models",
+      "target": "src/shop/db/models.py",
+      "path": [
+       "src/shop/ui/view.py",
+       "src/shop/db/models.py"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "error",
+     "message": {
+      "text": "decision:ui-does-not-import-db: src/shop/ui/** must not import src/shop/db/**; from ..db.session import open_session is src/shop/db/session.py"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "src/shop/ui/view.py"
+        },
+        "region": {
+         "startLine": 5
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "fbf31b76555913822a8a9a6c9793accb920c742e021e80480dbe4e07302b9d0a"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "src/shop/ui/view.py",
+      "import": "from ..db.session import open_session",
+      "target": "src/shop/db/session.py",
+      "path": [
+       "src/shop/ui/view.py",
+       "src/shop/db/session.py"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "error",
+     "message": {
+      "text": "decision:ui-does-not-import-db: web/src/ui/** must not import web/src/db/**; ../db/client is web/src/db/client.ts"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/src/ui/page.ts"
+        },
+        "region": {
+         "startLine": 1
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "0b23c562adf36485881ee8e9c3104ed48e539951a1259bb28d49f54a9e3b21a4"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "web/src/ui/page.ts",
+      "import": "../db/client",
+      "target": "web/src/db/client.ts",
+      "path": [
+       "web/src/ui/page.ts",
+       "web/src/db/client.ts"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "warning",
+     "message": {
+      "text": "decision:ui-does-not-import-db: use crate::db::secret: a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree; it cannot be judged"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "crates/shop/src/ui.rs"
+        },
+        "region": {
+         "startLine": 10
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "702ff7022a981642ac25e082b88eda16f0084456f628f9191b184ee9b42885e9"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "crates/shop/src/ui.rs",
+      "import": "use crate::db::secret",
+      "path": [
+       "crates/shop/src/ui.rs"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "warning",
+     "message": {
+      "text": "decision:ui-does-not-import-db: use crate::db::raw: a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree; it cannot be judged"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "crates/shop/src/ui.rs"
+        },
+        "region": {
+         "startLine": 11
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "a483be0e9fb271da086421f5e939b0c521c268e4f07d6fcd70ca11172f530b81"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "crates/shop/src/ui.rs",
+      "import": "use crate::db::raw",
+      "path": [
+       "crates/shop/src/ui.rs"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "warning",
+     "message": {
+      "text": "decision:ui-does-not-import-db: import_module() with a computed name: the specifier is computed at run time; it cannot be judged"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "src/shop/ui/view.py"
+        },
+        "region": {
+         "startLine": 10
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "daaf91510730489014a9a68a5d0198ba0e77412add4151fbbabf576894b9d769"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "src/shop/ui/view.py",
+      "import": "import_module() with a computed name",
+      "path": [
+       "src/shop/ui/view.py"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "warning",
+     "message": {
+      "text": "decision:ui-does-not-import-db: ../db/secret: a text search finds this specifier where the scanner read a comment, a string or other text; the scanner and the text search disagree; it cannot be judged"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/src/ui/page.ts"
+        },
+        "region": {
+         "startLine": 3
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "7aeb05a33bcf5c0a64681fa48584338af12dddd175e11878451e1af4f97cc3fb"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "web/src/ui/page.ts",
+      "import": "../db/secret",
+      "path": [
+       "web/src/ui/page.ts"
+      ]
+     },
+     "ruleIndex": 0
+    },
+    {
+     "ruleId": "imports_forbidden",
+     "level": "warning",
+     "message": {
+      "text": "decision:ui-does-not-import-db: import() with a computed specifier: the specifier is computed at run time; it cannot be judged"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/src/ui/page.ts"
+        },
+        "region": {
+         "startLine": 9
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "decisis/v1": "b0195764370ea8f10a5e729cd2d65a65a589e140281851cd5bb9d9efc73c7cd5"
+     },
+     "properties": {
+      "decision": "decision:ui-does-not-import-db",
+      "rule": "imports_forbidden",
+      "file": "web/src/ui/page.ts",
+      "import": "import() with a computed specifier",
+      "path": [
+       "web/src/ui/page.ts"
+      ]
+     },
+     "ruleIndex": 0
+    }
+   ]
+  }
+ ]
+}

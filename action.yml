@@ -50,6 +50,10 @@ inputs:
     description: The UTC date, YYYY-MM-DD, that waivers are judged on. Empty uses today's UTC date.
     required: false
     default: ""
+  sarif:
+    description: true also writes the check and audit results as SARIF 2.1.0 to decisis.sarif in the workspace, sets the sarif-file output, and uploads the file to GitHub code scanning. The job needs security-events write. A pull request from a fork cannot upload. The comment and the exit code do not change.
+    required: false
+    default: "false"
   decisis-version:
     description: A decisis version to install from PyPI. Empty installs decisis from the action's own checkout, which is the release the action ref names.
     required: false
@@ -73,6 +77,9 @@ outputs:
   comment-url:
     description: The comment's URL, empty when the result went only to the job summary.
     value: ${{ steps.check.outputs.comment-url }}
+  sarif-file:
+    description: The absolute path of decisis.sarif when sarif is true, else empty.
+    value: ${{ steps.check.outputs.sarif-file }}
 
 runs:
   using: composite
@@ -120,6 +127,12 @@ runs:
         DECISIS_FAIL_ON_VIOLATION: ${{ inputs.fail-on-violation }}
         DECISIS_FAIL_ON_UNRESOLVED: ${{ inputs.fail-on-unresolved }}
         DECISIS_TODAY: ${{ inputs.today }}
+        DECISIS_SARIF: ${{ inputs.sarif }}
         DECISIS_COMMENT_AUTHOR: ${{ inputs.comment-author }}
         DECISIS_TOKEN: ${{ inputs.github-token }}
       run: '"$PY" -I -m decisis.action'
+    - name: Upload the SARIF file
+      if: ${{ !cancelled() && steps.check.outputs.sarif-file != '' && github.event.pull_request.head.repo.full_name == github.repository }}
+      uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+      with:
+        sarif_file: ${{ steps.check.outputs.sarif-file }}

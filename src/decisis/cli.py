@@ -21,6 +21,7 @@ from . import inventory
 from . import madr
 from . import render
 from . import rules
+from . import sarif
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
@@ -121,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     ck.add_argument("--fail-on-unresolved", action="store_true", help="also exit 1 when an import or a file cannot be judged, or a decision file was not read")
     ck.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far impact looks from a matching concept (0 to {impact.MAX_HOPS})")
     ck.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
-    ck.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
+    ck.add_argument("--format", choices=["json", "text", *VIEWS, "sarif"], default="json")
     ck.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
     au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
@@ -129,8 +130,8 @@ def main(argv: list[str] | None = None) -> int:
                     "a GitHub Actions workflow (read with the workflows next to it), action.yml, .terraform.lock.hcl, or another format in the README")
     au.add_argument("--repo", required=True, help="repository name as it appears in Vinc code_ref, for example Vinc")
     au.add_argument("--depth", type=bounded(1, audit.MAX_DEPTH), default=8, help=f"longest dependency chain to follow (1 to {audit.MAX_DEPTH})")
-    au.add_argument("--out", help="write the JSON report here; with --format mermaid or html the view still goes to stdout")
-    au.add_argument("--format", choices=["json", *VIEWS], default="json")
+    au.add_argument("--out", help="write the JSON report here; with --format mermaid, html or sarif the view still goes to stdout")
+    au.add_argument("--format", choices=["json", *VIEWS, "sarif"], default="json")
     au.add_argument("--osv-cache", metavar="FILE", help="read OSV advisories from this file and never from the network")
     au.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
     au.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
@@ -285,10 +286,11 @@ def run(a: argparse.Namespace) -> int:
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
                            advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings, day=a.today)
         text = json.dumps(report, ensure_ascii=False, indent=1)
-        if a.format in VIEWS:
+        if a.format in VIEWS or a.format == "sarif":
             if a.out:
                 Path(a.out).write_text(text + "\n", encoding="utf-8")
-            sys.stdout.write(VIEWS[a.format]("audit", report))
+            sys.stdout.write(VIEWS[a.format]("audit", report) if a.format in VIEWS
+                             else sarif.dumps(sarif.log([sarif.audit_run(report, sarif.inventory_path(Path(a.lockfile), a.root))])))
         elif a.out:
             Path(a.out).write_text(text + "\n", encoding="utf-8")
             print(json.dumps({"summary": report["summary"], "violations": report["violations"], "waived": report["waived"], "loaded": report["loaded"],
@@ -339,6 +341,8 @@ def run_check(a: argparse.Namespace) -> int:
         print(check.render(report))
     elif a.format in VIEWS:
         sys.stdout.write(VIEWS[a.format]("check", report))
+    elif a.format == "sarif":
+        sys.stdout.write(sarif.dumps(sarif.log([sarif.check_run(report)])))
     else:
         json.dump(report, sys.stdout, ensure_ascii=False, indent=1)
         sys.stdout.write("\n")
