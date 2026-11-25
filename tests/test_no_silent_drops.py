@@ -123,7 +123,7 @@ def test_an_unknown_front_matter_key_is_listed_with_the_keys_it_may_mean(repo):
 
 @pytest.mark.parametrize("key,close", [("Rule", ["rule"]), ("rulez", ["rule"]), ("WAIVERS", ["waivers"]), ("wavers", ["waivers"]),
                                        ("waive", ["waivers"]), ("ruel", ["rule"]), ("code-ref", ["code_ref"]), ("author", []),
-                                       ("role", []), ("Role", []), ("roles", []), ("tags", [])])
+                                       ("role", []), ("Role", []), ("roles", []), ("tags", []), ("xrule", ["rule"]), ("unrule", ["rule"])])
 def test_each_misspelling_names_the_known_keys_and_only_rule_or_waivers_ones_are_unread(tmp_path, key, close):
     write(tmp_path, {"docs/adr/0001-a.md": adr("A", f"{key}: x")})
     (p,) = [p for p in init.build(tmp_path)["meta"]["problems"] if "key" in p]
@@ -134,9 +134,10 @@ def test_each_misspelling_names_the_known_keys_and_only_rule_or_waivers_ones_are
 COMPOUNDS = {"ruleset": "rule", "rule_set": "rule", "rules-v2": "rule", "my_rule": "rule", "decisis_rule": "rule",
              "waivers_list": "waivers", "waiver-list": "waivers", "myRule": "rule", "RuleSet": "rule", "RULESET": "rule",
              "decisisRule": "rule", "XMLRule": "rule", "rule2": "rule", "ruleSets": "rule", "waiverList": "waivers",
-             "WAIVER_LIST": "waivers", "waiverlist": "waivers", "my-waivers-file": "waivers"}
+             "WAIVER_LIST": "waivers", "waiverlist": "waivers", "my-waivers-file": "waivers", "RULEset": "rule", "RULEsets": "rule",
+             "RULEbook": "rule", "RULEfile": "rule", "WAIVERfile": "waivers", "myRULEset": "rule", "my_RULEset": "rule"}
 REAL_WORDS = ["ruler", "rulers", "ruled", "Ruler", "schedule", "unruled", "ruling", "scheduler", "my_ruler", "ruler-set", "rulerSet",
-              "wavier_list", *init.COMMON_KEYS]
+              "wavier_list", "ruler2", "ruler1", "ruled2", "Ruler2", "rulers3", "RULERSet", *init.COMMON_KEYS]
 
 
 def front_matter_problem(root: Path, key: str) -> dict:

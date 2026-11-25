@@ -553,11 +553,14 @@ as `rules:` or `waiver:`, shows under `unread_decisions` in `check` and `audit`;
 A key also names `rule` when it holds `rule` or `rules`, and `waivers` when it holds `waiver` or `waivers`, as a
 word part or at the start of one. Word parts are split at `_`, `-`, digits and a change of case, so `ruleset`,
 `rule_set`, `rules-v2`, `my_rule`, `decisis_rule`, `RuleSet`, `waivers_list` and `waiver-list` are `not read`.
+Capitals that lead into lower case count as one word part as well, so `RULEset` and `WAIVERfile` are `not read`.
 Words that front matter often holds for other tools are never matched to `rule` or `waivers`, so `role:` is
 `ignored` and fails no check (`COMMON_KEYS` in `src/decisis/init.py`: `role`, `roles`, `tags`, `type`, `author`,
 `owner`, `category`, `layout`, `slug`, `id`, `draft`, `summary`, `description`, `version` and a few more). Nor are
-the words that begin with `rule` and mean something else (`WORDS_WITH_RULE`: `ruled`, `ruler`, `rulers`), and a key
-that holds `rule` in the middle of a word part, such as `schedule` or `unruled`, is `ignored`.
+the words that begin with `rule` and mean something else (`WORDS_WITH_RULE`: `ruled`, `ruler`, `rulers`, also with
+digits at either end, such as `ruler2`). A key that holds `rule` in the middle of a word part is not matched by the
+compound rule; only the spelling check applies, so `schedule` and `unruled` are `ignored` and `xrule` and `unrule`,
+which are close to `rule`, are `not read`.
 The value of such a key may also be inline JSON, so `waiver: [{...}]` does not stop the file from being read.
 Postmortems are not checked for other keys. Example entry:
 

@@ -18,6 +18,7 @@ import json
 import os
 import posixpath
 import re
+import string
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
@@ -48,6 +49,7 @@ COMMON_KEYS = ("role", "roles", "tag", "tags", "type", "kind", "author", "author
 WORDS_WITH_RULE = ("ruled", "ruler", "rulers")
 RULE_STEMS = (("rule", "rule"), ("waiver", "waivers"))
 WORD_PARTS = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+")
+LETTERS = re.compile(r"[A-Za-z]+")
 MAX_RECORDS = 5_000
 MAX_ENTRIES = owners.MAX_FILES
 MAX_LISTED = 20
@@ -536,9 +538,18 @@ def parse(tree: Tree, path: Path, kind: str | None = None) -> Parsed | None:
     return Parsed(fm, doc, data, refs)
 
 
+def word_parts(key: str) -> list[str]:
+    found: list[str] = []
+    for run in LETTERS.findall(key):
+        parts = WORD_PARTS.findall(run)
+        found += parts
+        found += [a + b for a, b in zip(parts, parts[1:]) if a.isupper() and a.lower() not in WORDS_WITH_RULE]
+    return [w.lower() for w in found]
+
+
 def compound_keys(key: str) -> list[str]:
     named: list[str] = []
-    for part in (w.lower() for w in WORD_PARTS.findall(key)):
+    for part in word_parts(key):
         if part in WORDS_WITH_RULE:
             continue
         named += [known for stem, known in RULE_STEMS if part.startswith(stem) and known not in named]
@@ -548,7 +559,7 @@ def compound_keys(key: str) -> list[str]:
 def may_mean(key: str) -> list[str]:
     low = key.lower()
     close = difflib.get_close_matches(low, ADR_KEYS, n=3, cutoff=CLOSE)
-    if low in COMMON_KEYS or low in WORDS_WITH_RULE:
+    if low in COMMON_KEYS or low.strip(string.digits) in WORDS_WITH_RULE:
         close = [c for c in close if c not in RULE_KEYS]
     named = compound_keys(key)
     return [*named, *(c for c in close if c not in named)][:3]
