@@ -537,7 +537,10 @@ ADR states itself is never changed, and nothing is suggested for postmortems or 
   URLs and paths that leave the repository are not candidates. In a fenced code block only words with a `/`
   count, so a directory listing or a command does not suggest every file name in it. `./`, a leading or
   trailing `/`, a `#anchor` and a `:line` suffix are dropped; a glob such as `pkg/**/*.go` or
-  `src/auth/{login,logout}` names the directory before its first wildcard.
+  `src/auth/{login,logout}` names the directory before its first wildcard. A backticked token that holds
+  spaces (`src/my app/handler.py`, `docs/設計/`) is one more candidate when the whole of it names an existing file
+  or directory, and then its words are not read one by one; when it names none, its words are read as before. Text
+  outside backticks is never read across a space.
 - A candidate matches the file or directory with that path from the repository root. When there is none, a
   candidate with a `/` or an extension also matches every path that ends with it (`handler.py`,
   `v7/push`); a bare backticked word (`command`) matches only at the root.
@@ -581,9 +584,12 @@ with `git apply --directory=<repo-dir>` when `--repo-dir` is a subdirectory.
   `# suggested from: SENTENCE` above a run of refs names the first sentence of the ADR that named them (white space
   collapsed, cut at 300 characters). `init` skips comment lines in front matter, so after `git apply` the next `init` reads
   the same `code_ref` as stated: the decision has no `code_ref_source` and no `code_ref_evidence`.
-- A path that is not plain (a space, a leading `@` or `%`) is quoted, so that it reads back. Line endings, a byte order
-  mark and a missing final newline of each ADR are kept, and a file name that is not UTF-8 is written in the diff as git
-  quotes it.
+- A path that is not plain (a space, a leading `@` or `%`) is quoted, and a character a YAML parser would not read as it
+  is (a control character, U+0085 or a line or paragraph separator) is written as a `\uXXXX` escape, so that the path
+  reads back the same. The added lines use the line ending that most of the ADR's lines use: CRLF when every line is
+  CRLF, the first line's ending when CRLF and LF lines are equally many, and LF when the ADR has no line break. The other
+  lines are not changed. A byte order mark and a missing final newline of each ADR are kept, and a file name that is not
+  UTF-8 is written in the diff as git quotes it.
 - The tokens `--suggest-refs` skipped, with the file and the reason (the `not suggested` entries), are listed in the lines
   at the top of the diff, which start with `# ` and which `git apply` ignores; they are not applied. An ADR that changed
   after `init` read it is left out of the diff and listed there as well. The diff is made from the bytes `init` read, so

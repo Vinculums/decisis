@@ -232,3 +232,35 @@ def test_a_directory_whose_only_file_is_not_utf8_is_still_suggested(tmp_path):
         pytest.skip("the file system refuses a name that is not UTF-8")
     snap = init.build(repo, suggest_refs=True)
     assert decision(snap, "0001-x.md")["code_ref"] == ["pkg/"]
+
+
+@pytest.mark.parametrize("git", [False, True])
+def test_a_backticked_path_with_spaces_or_non_ascii_characters_is_suggested_when_it_exists(tmp_path, git):
+    if git and shutil.which("git") is None:
+        pytest.skip("needs git")
+    adr = ("# 결제 규칙\n\n코드는 `src/my app/결제.py`와 `src/db/store.py`에 있다.\n\n"
+           "문서는 `docs/設計/`와 `my notes`에 있고, `src/no such file.py`는 없다.\n")
+    repo = write(tmp_path / "repo", {"docs/adr/0001-payments.md": adr, "src/my app/결제.py": "", "src/db/store.py": "",
+                                     "docs/設計/개요.md": "", "my notes/plan.md": ""})
+    if git:
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    props = decision(init.build(repo, "Shop", suggest_refs=True), "0001-payments.md")
+    assert props["code_ref"] == ["Shop:docs/設計/", "Shop:my notes/", "Shop:src/db/store.py", "Shop:src/my app/결제.py"]
+    evidence = {e["code_ref"]: e["sentence"] for e in props["code_ref_evidence"]}
+    assert evidence["Shop:src/my app/결제.py"] == "코드는 `src/my app/결제.py`와 `src/db/store.py`에 있다."
+    assert evidence["Shop:docs/設計/"] == "문서는 `docs/設計/`와 `my notes`에 있고, `src/no such file.py`는 없다."
+
+
+def test_a_backticked_path_with_spaces_stands_for_the_whole_and_not_for_the_fragments_of_its_words(tmp_path):
+    adr = "# Notes\n\nThe plan is `my notes/plan.md`.\n"
+    repo = write(tmp_path / "repo", {"docs/adr/0001-notes.md": adr, "my notes/plan.md": "", "notes/plan.md": ""})
+    assert decision(init.build(repo, None, suggest_refs=True), "0001-notes.md")["code_ref"] == ["my notes/plan.md"]
+
+
+def test_unquoted_text_and_a_backticked_phrase_that_names_no_path_keep_the_rules_they_had(tmp_path):
+    adr = ("# Notes\n\nOpen src/my app/결제.py in the editor. See `the store module` and `read src/db/store.py first`, "
+           "then `my notes plan`.\n")
+    repo = write(tmp_path / "repo", {"docs/adr/0001-notes.md": adr, "src/my app/결제.py": "", "src/db/store.py": "", "my notes/plan.md": ""})
+    snap = init.build(repo, None, suggest_refs=True)
+    assert decision(snap, "0001-notes.md")["code_ref"] == ["src/db/store.py"]
+    assert not [p for p in snap["meta"]["problems"] if p["action"] == "not suggested"]

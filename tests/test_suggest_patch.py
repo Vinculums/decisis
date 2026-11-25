@@ -3,11 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 from decisis import cli, init, patch
 
@@ -422,3 +424,78 @@ def test_the_docs_describe_the_patch():
         assert name in model, name
     assert "--patch FILE" in (ROOT / "docs" / "commands.md").read_text(encoding="utf-8")
     assert "--patch" in (ROOT / "README.md").read_text(encoding="utf-8")
+
+
+def front_of(patched: str) -> dict:
+    return yaml.safe_load(patched.replace("\r\n", "\n").split("---\n")[1])
+
+
+@needs_git
+def test_a_path_with_spaces_or_non_ascii_characters_is_written_as_yaml_that_reads_back_as_the_same_path(tmp_path):
+    adr = ("---\nstatus: accepted\n---\n# 결제 규칙\n\n코드는 `src/my app/결제.py`와 `src/db/store.py`에 있고, 문서는 `docs/設計/`에 있다.\n")
+    repo = write(tmp_path / "repo", {"docs/adr/0001-payments.md": adr, "src/my app/결제.py": "", "src/db/store.py": "", "docs/設計/개요.md": ""})
+    before = decisions(init.build(repo, None, suggest_refs=True))["docs/adr/0001-payments.md"]
+    assert before["code_ref"] == ["docs/設計/", "src/db/store.py", "src/my app/결제.py"]
+    text, diff = made(tmp_path, repo)
+    assert '+  - "src/my app/결제.py"\n' in text and "+  - docs/設計/\n" in text
+    assert git_apply(repo, diff).returncode == 0
+    patched = (repo / "docs" / "adr" / "0001-payments.md").read_bytes().decode("utf-8")
+    assert front_of(patched)["code_ref"] == before["code_ref"]
+    after = decisions(init.build(repo, None))["docs/adr/0001-payments.md"]
+    assert after["code_ref"] == before["code_ref"] and "code_ref_source" not in after
+
+
+@pytest.mark.parametrize("name", [
+    "src/my app/결제.py", "x/😀 smile.py", "x/nel\u0085.py", "x/c1\u009f.py", "x/del\x7f.py", "x/ls .py", "x/ps .py",
+    "x/tab\there.py", 'x/q"uote.py', "x/back\\slash.py", "x/a: b #c.py", "@types/node/index.d.ts",
+])
+def test_a_ref_is_written_so_that_a_yaml_parser_and_init_read_back_the_same_path(name):
+    doc = "code_ref:\n  - " + patch.item(name) + "\n"
+    assert yaml.safe_load(doc) == {"code_ref": [name]}
+    assert init.front_matter(doc.split("\n"))["code_ref"] == [name]
+
+
+BOM = b"\xef\xbb\xbf"
+
+MIXED = [
+    ("first line LF, the rest CRLF", "---\nstatus: accepted\r\n---\r\n# Use the app\r\n\r\nThe app is `src/app.py`.\r\n", "\r\n"),
+    ("first line CRLF, the rest LF", "---\r\nstatus: accepted\n---\n# Use the app\n\nThe app is `src/app.py`.\n", "\n"),
+    ("no front matter, first line LF, the rest CRLF", "# Use the app\n\r\nThe app is `src/app.py`.\r\nMore text.\r\n", "\r\n"),
+    ("no front matter, first line CRLF, the rest LF", "# Use the app\r\n\nThe app is `src/app.py`.\nMore text.\n", "\n"),
+    ("empty code_ref key, first line LF, the rest CRLF", "---\ncode_ref:\r\nstatus: accepted\r\n---\r\n# Use the app\r\n\r\nThe app is `src/app.py`.\r\n", "\r\n"),
+    ("BOM, first line LF, the rest CRLF", "﻿---\nstatus: accepted\r\n---\r\n# Use the app\r\n\r\nThe app is `src/app.py`.\r\n", "\r\n"),
+    ("BOM, first line CRLF, the rest LF", "﻿---\r\nstatus: accepted\n---\n# Use the app\n\nThe app is `src/app.py`.\n", "\n"),
+    ("BOM, no front matter, first line LF, the rest CRLF", "﻿# Use the app\n\r\nThe app is `src/app.py`.\r\n", "\r\n"),
+    ("BOM, no front matter, first line CRLF, the rest LF", "﻿# Use the app\r\n\nThe app is `src/app.py`.\nMore.\n", "\n"),
+    ("every line CRLF", "---\r\nstatus: accepted\r\n---\r\n# Use the app\r\n\r\nThe app is `src/app.py`.\r\n", "\r\n"),
+    ("every line LF", "---\nstatus: accepted\n---\n# Use the app\n\nThe app is `src/app.py`.\n", "\n"),
+    ("a tie follows the first line", "# Use the app `src/app.py`\r\nMore text.\n", "\r\n"),
+    ("a tie follows the first line, LF", "# Use the app `src/app.py`\nMore text.\r\n", "\n"),
+    ("one CRLF line and no final newline", "# Use the app\r\n\r\nThe app is `src/app.py`.", "\r\n"),
+]
+
+
+@needs_git
+@pytest.mark.parametrize("name, adr, eol", MIXED, ids=[m[0] for m in MIXED])
+def test_the_added_lines_use_the_line_ending_most_of_the_adr_uses(tmp_path, name, adr, eol):
+    repo = write(tmp_path / "repo", {"src/app.py": ""})
+    path = repo / "docs" / "adr" / "0001-app.md"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(adr.encode("utf-8"))
+    before = decisions(init.build(repo, None, suggest_refs=True))["docs/adr/0001-app.md"]
+    assert before["code_ref"] == ["src/app.py"]
+    _, diff = made(tmp_path, repo)
+    raw = diff.read_bytes()
+    moved = {line[1:].removeprefix(BOM) for line in re.findall(rb"^-[^\n]*\n", raw, re.M) if line[1:].startswith(BOM)}
+    added = [line for line in re.findall(rb"^\+[^\n]*\n", raw, re.M) if not line.startswith(b"+++") and line[1:] not in moved]
+    assert len(added) >= 3
+    want = eol.encode()
+    assert all(line.endswith(want) and (want == b"\r\n" or not line.endswith(b"\r\n")) for line in added), added
+    assert git_apply(repo, diff, "--check").returncode == 0
+    assert git_apply(repo, diff).returncode == 0
+    patched = path.read_bytes()
+    kept = adr.encode("utf-8")
+    assert all(line.removeprefix(BOM) in patched for line in kept.splitlines(keepends=True) if not line.startswith(b"code_ref:"))
+    assert patched.startswith(BOM) == kept.startswith(BOM) and patched.endswith(b"\n") == kept.endswith(b"\n")
+    after = decisions(init.build(repo, None))["docs/adr/0001-app.md"]
+    assert after["code_ref"] == ["src/app.py"] and "code_ref_source" not in after
