@@ -168,6 +168,18 @@ fork the result goes to the job summary. (`src/decisis/action.py`, `action.yml`;
 `test_the_base_must_be_a_commit_sha_from_the_payload`, `test_the_bots_marked_comment_is_found_across_pages_and_updated`,
 `test_a_fork_pull_request_writes_only_the_job_summary`.)
 
+**Decisions from the base commit.** By default the action reads the snapshot file, or the ADRs, CODEOWNERS
+file and postmortems `init` reads, from the pull request's base commit, so a pull request cannot waive its
+own violation or drop a rule it breaks. The files are read from the commit's tree with the hardened git
+helper into a private temporary directory; nothing is checked out or run, and a symbolic link is not
+followed. A change to those files is listed in the comment and takes effect only once merged.
+(`src/decisis/committed.py`, `src/decisis/action.py`;
+`test_a_waiver_the_pull_request_adds_does_not_waive_its_own_violation`,
+`test_a_pull_request_that_removes_the_rule_and_the_adr_is_still_judged_by_the_base`,
+`test_the_head_working_tree_is_not_read_for_the_decisions`,
+`test_base_decisions_are_read_in_a_private_temporary_directory_that_is_removed`,
+`test_a_symbolic_link_in_the_base_is_listed_as_a_problem_and_not_followed`.)
+
 ## What it does not protect
 
 - **Erasure.** Deleting a file is not secure erasure. tmpfs can be swapped to disk, and where `/dev/shm`
@@ -215,10 +227,11 @@ fork the result goes to the job summary. (`src/decisis/action.py`, `action.yml`;
 - **Memory and disk.** The caps bound the number of nodes and edges, not the size of their properties,
   and a query can use a lot of memory before its time limit; there is no memory limit on the query
   process. Loading is not under the time limit; the size caps bound it.
-- **A pull request that changes the snapshot.** The action reads the snapshot, the inventory and the
-  rules from the pull request's own checkout, so a pull request can edit a decision or drop a rule and the
-  comment judges the edited version. Keep the snapshot path under CODEOWNERS review, or read it from the
-  base branch in an earlier step.
+- **A pull request that changes the snapshot, with `decisions-from: head`.** Then the action reads the
+  snapshot and the rules from the pull request's own checkout, so a pull request can edit a decision, add a
+  waiver or drop a rule and the comment judges the edited version. The default, `base`, does not.
+- **Who can merge.** With `decisions-from: base` the decisions are whatever the base branch holds; anyone
+  who can push to it, or merge into it, can change them. Protect that branch.
 - **The endpoint.** The key is sent to the Vinc MCP URL, which `VINC_MCP_URL` can change. Point it only
   at a server you trust.
 - **The fake Vinc.** The demo's in-process Vinc imitates the calls the tool makes; it is not a security

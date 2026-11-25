@@ -16,6 +16,12 @@ files in `LOCKFILES`, any `requirements*.txt`, and `.github/workflows` when it h
 is searched. A found file is read only when it resolves inside the working directory, with its siblings bounded the
 same way; one that cannot be audited gets a section that says why and does not stop the step. Each inventory has
 its own audit section, and the audit violations of all of them are added to the check's.
+
+`DECISIS_DECISIONS_FROM` is `base` (the default) or `head`. With `base` the decisions come from the base commit's
+tree, read by `committed`, so a pull request is judged by the decisions it would merge into, not by ones it brings.
+When the pull request changes a file the decisions come from, the comment lists those files, and the decisions and
+waivers that change when both sides can be read; they change no verdict in this run. When the base commit has no
+decisions, nothing is judged. With `head` the decisions come from the checkout, as before.
 """
 from __future__ import annotations
 
@@ -31,7 +37,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Callable, Mapping
 
-from . import audit, check, codeowners, external, init, inventory, render, rules
+from . import audit, check, codeowners, committed, external, init, inventory, render, rules
 from . import checkout as co
 from . import github as gh
 from .inventory import actions as workflows
@@ -49,6 +55,7 @@ ESCAPED = frozenset("\\`*_{}[]()#+-!|~$:")
 JOINER = "⁠"
 TRUE = ("true", "yes", "1")
 FALSE = ("false", "no", "0", "")
+BASE, HEAD = "base", "head"
 AUTO = "auto"
 WORKFLOWS = ".github/workflows"
 LOCKFILES = frozenset(("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "uv.lock", "poetry.lock",
@@ -80,6 +87,12 @@ class Audited:
     problem: str | None = None
 
 
+@dataclass(frozen=True)
+class Pending:
+    files: list[str]
+    changes: list[dict] | None = None
+
+
 @dataclass
 class Outcome:
     report: dict
@@ -89,6 +102,8 @@ class Outcome:
     snapshot: str
     audits: list[Audited] | None = None
     notes: list[str] = field(default_factory=list)
+    pending: Pending | None = None
+    nothing: str | None = None
 
 
 def flag(env: Mapping[str, str], name: str) -> bool:
@@ -264,7 +279,39 @@ def reviewers_line(o: Outcome, rows: int) -> list[str]:
     return [line, ""]
 
 
+def pending(o: Outcome, rows: int) -> list[str]:
+    p = o.pending
+    if p is None:
+        return []
+    shown, rest = cut(p.files, rows, "files")
+    out = [f"#### Decision changes that take effect once merged ({len(p.files)})", "",
+           "This pull request changes files the decisions come from. This run read the decisions from the base commit, so "
+           "these changes take effect once the pull request is merged and change no verdict here.", "",
+           *(f"- {code(f)}" for f in shown), *([""] if shown else []), *rest]
+    if p.changes is None:
+        return out + ["The decisions cannot be read on both sides, so the decisions and waivers that change are not named.", ""]
+    if not p.changes:
+        return out + ["No decision or waiver is added, changed or removed.", ""]
+    shown, rest = cut(p.changes, rows, "decision changes")
+    if shown:
+        out += table(["Decision", "Waiver", "Change"],
+                     [[code(c["decision"]), code(c["waiver"]) if c.get("waiver") else "", text(c["change"])] for c in shown])
+    return out + rest
+
+
+def nothing_judged(o: Outcome, rows: int) -> str:
+    lines = [MARKER, "### decisis", "",
+             f"**No decisions exist on the base commit {code(o.pull.base[:12])} yet**, so nothing was judged in "
+             f"{len(o.report['changed'])} changed file(s).", "", text(o.nothing), ""]
+    lines += [f"> {text(n)}" for n in o.notes] + ([""] if o.notes else [])
+    lines += pending(o, rows)
+    lines.append(f"<sub>decisis {text(o.version)}, snapshot {code(o.snapshot)}. This comment is updated on each run.</sub>")
+    return "\n".join(lines) + "\n"
+
+
 def compose(o: Outcome, rows: int, graph: bool) -> str:
+    if o.nothing is not None:
+        return nothing_judged(o, rows)
     r = o.report
     head = (f"**{len(r['governing'])} decision(s) touched, {len(r['violations'])} violation(s)"
             + (f", {audit_violations(o.audits)} audit violation(s)" if o.audits is not None else "")
@@ -276,6 +323,7 @@ def compose(o: Outcome, rows: int, graph: bool) -> str:
         lines += [f"Cut to fit GitHub's {MAX_BODY:,}-character limit for a comment: "
                   + ("the graph is left out and " if not graph else "") + f"each list shows at most {rows} rows.", ""]
     lines += [f"> {text(n)}" for n in o.notes] + ([""] if o.notes else [])
+    lines += pending(o, rows)
     lines += results("Violations", r["violations"], rows)
     lines += waived_results(r.get("waived") or [], rows)
     lines += decisions(r, rows)
@@ -367,13 +415,61 @@ def fetch_base(root: Path, base: str) -> None:
         raise ValueError(f"git fetch of the base commit {base} failed in {root}; check out with fetch-depth: 0")
 
 
-def snapshot_of(env: Mapping[str, str], root: Path, repo: str | None) -> tuple[object, str]:
+def given(env: Mapping[str, str]) -> str:
     path, built = env.get("DECISIS_SNAPSHOT", "").strip(), flag(env, "DECISIS_INIT")
     if bool(path) == built:
         raise ValueError("give the snapshot input or init: true, not both and not neither")
-    if built:
+    return path
+
+
+def decisions_from(env: Mapping[str, str]) -> str:
+    value = env.get("DECISIS_DECISIONS_FROM", "").strip().lower() or BASE
+    if value not in (BASE, HEAD):
+        raise ValueError(f"DECISIS_DECISIONS_FROM must be base or head, not {value!r}")
+    return value
+
+
+def snapshot_of(env: Mapping[str, str], root: Path, repo: str | None) -> tuple[object, str]:
+    path = given(env)
+    if not path:
         return co.load(init.dump(init.build(root, repo))), "built with decisis init"
     return co.load(Path(path).read_text(encoding="utf-8")), path
+
+
+def listing(root: Path, base: str) -> list[str]:
+    head = codeowners.git_files(root)
+    return sorted(set(committed.names(root, base)) | set(head if head is not None else codeowners.walk_files(root)))
+
+
+def at(root: Path, commit: str, snapshot: str, repo: str | None, files: list[str] | None):
+    if snapshot:
+        return committed.stored(root, commit, snapshot)
+    return committed.built(root, commit, repo, files or [])
+
+
+def from_base(env: Mapping[str, str], root: Path, repo: str | None, base: str, changed: list[str]):
+    path = given(env)
+    snapshot = committed.inside(root, path) if path else ""
+    files = None if snapshot else listing(root, base)
+    graph = at(root, base, snapshot, repo, files)
+    source = f"{snapshot} at the base commit" if snapshot else "built with decisis init from the base commit"
+    sources = committed.source_files(changed, snapshot or None)
+    if not sources:
+        return graph, source, None
+    try:
+        head = at(root, "HEAD", snapshot, repo, files)
+    except (ValueError, KeyError, TypeError, OSError, subprocess.TimeoutExpired) as e:
+        say(f"the decisions in HEAD cannot be read, so their changes are not named: {reason(e)}")
+        head = None
+    return graph, source, Pending(sources, committed.changes(graph, head) if graph is not None and head is not None else None)
+
+
+def no_decisions(env: Mapping[str, str], graph) -> str:
+    if graph is None:
+        return (f"The base commit has no snapshot file at {env.get('DECISIS_SNAPSHOT', '').strip()}. Decisions are read from the "
+                "base commit, so they apply once a pull request that adds them is merged.")
+    return ("The base commit has no ADR with a decision. Decisions are read from the base commit, so they apply once a pull "
+            "request that adds them is merged.")
 
 
 def reason(e: Exception) -> str:
@@ -492,19 +588,48 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
     if not root.is_dir():
         raise ValueError(f"working-directory {root} is not a directory")
     repo = env.get("DECISIS_REPO", "").strip() or None
-    graph, source = snapshot_of(env, root, repo)
-    fetch_base(root, pull.base)
-    changed = check.changed_since(root, pull.base)
+    mode, waiting = decisions_from(env), None
+    if mode == HEAD:
+        graph, source = snapshot_of(env, root, repo)
+        fetch_base(root, pull.base)
+        changed = check.changed_since(root, pull.base)
+    else:
+        given(env)
+        fetch_base(root, pull.base)
+        changed = check.changed_since(root, pull.base)
+        graph, source, waiting = from_base(env, root, repo, pull.base, changed)
     client = gh.Client(gh.clean_token(env.get("DECISIS_TOKEN")), opener)
-    approved, review_note = approvals(client, pull)
     day = rules.today(env.get("DECISIS_TODAY", "").strip() or None)
+    if waiting is not None:
+        say(f"{len(waiting.files)} changed file(s) hold decisions; they take effect once merged")
+    if mode == BASE and not committed.has_decisions(graph):
+        return unjudged(env, client, Outcome({"changed": changed}, pull, [], version(), source, pending=waiting,
+                                             nothing=no_decisions(env, graph)))
+    approved, review_note = approvals(client, pull)
     report = check.run(graph, changed, root, approved, repo=repo, base=pull.base, day=day)
     done, empty = audits(env, graph, repo or pull.repo.split("/")[1], root, day)
-    outcome = Outcome(report, pull, approved, version(), source, done)
+    outcome = Outcome(report, pull, approved, version(), source, done, pending=waiting)
     if review_note:
         outcome.notes.append(review_note)
     if empty:
         outcome.notes.append("inventory: auto found no inventory in the repository root, so it audited nothing there.")
+    link = publish(env, client, outcome)
+    violations = len(report["violations"]) + audit_violations(done)
+    append(env.get("GITHUB_OUTPUT"), f"violations={violations}\ncomment-url={link}\n")
+    say(f"{len(report['governing'])} decision(s) touched, {violations} violation(s)")
+    return 1 if violations and flag(env, "DECISIS_FAIL_ON_VIOLATION") else 0
+
+
+def unjudged(env: Mapping[str, str], client: gh.Client, outcome: Outcome) -> int:
+    flag(env, "DECISIS_FAIL_ON_VIOLATION")
+    link = publish(env, client, outcome)
+    append(env.get("GITHUB_OUTPUT"), f"violations=0\ncomment-url={link}\n")
+    say("the base commit has no decisions yet; nothing was judged")
+    return 0
+
+
+def publish(env: Mapping[str, str], client: gh.Client, outcome: Outcome) -> str:
+    pull = outcome.pull
     if pull.fork:
         outcome.notes.append("This pull request comes from a fork, so its token cannot comment; the result is in the job summary.")
     text_body = body(outcome)
@@ -521,10 +646,7 @@ def run(env: Mapping[str, str], opener: Callable | None = None) -> int:
             say(f"{e}; the result is only in the job summary")
     else:
         say("fork pull request; the result is in the job summary")
-    violations = len(report["violations"]) + audit_violations(done)
-    append(env.get("GITHUB_OUTPUT"), f"violations={violations}\ncomment-url={link}\n")
-    say(f"{len(report['governing'])} decision(s) touched, {violations} violation(s)")
-    return 1 if violations and flag(env, "DECISIS_FAIL_ON_VIOLATION") else 0
+    return link
 
 
 def main(env: Mapping[str, str] | None = None, opener: Callable | None = None) -> int:

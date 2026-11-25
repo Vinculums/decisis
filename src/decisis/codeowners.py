@@ -71,10 +71,13 @@ def tail(last: str, directory: bool) -> str:
 def repository_files(root: Path) -> tuple[list[str], str]:
     files = git_files(root)
     source = "git" if files is not None else "walk"
-    files = files if files is not None else walk_files(root)
+    return bounded(files if files is not None else walk_files(root)), source
+
+
+def bounded(files: list[str]) -> list[str]:
     if len(files) > MAX_FILES:
         raise TooLarge(f"the repository has {len(files)} files, more than the {MAX_FILES} init resolves owners for")
-    return files, source
+    return files
 
 
 GIT_SAFE = ("-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "core.hooksPath=/dev/null",
