@@ -630,9 +630,18 @@ work tree, and otherwise every file below it outside `.git`. A tree of more than
 its owners are not read.
 
 Each distinct set of owners becomes one concept. Its `code_ref` is the fewest paths that cover exactly the
-files that set owns: a directory (with a trailing `/`) when every file below it has that owner set, otherwise
-the single file. It also has `owners` (sorted), `source_lines` (the lines that own those files), and
-`source_file` and `content_hash` of the CODEOWNERS file. Its id is `concept:<repo>-codeowners-`, the owners
+files that set owns: a directory (with a trailing `/`) when every file below it has that owner set and the
+CODEOWNERS file would give that same set to a new file at any depth below it, otherwise the narrower
+directories or the single files. A directory qualifies when a line owns all of it (`src/payments/`,
+`/src/payments`, `src/payments/**`, `docs/**`, or `*`) and is the last line that matches below it, and no
+later line that names a path below it (`src/payments/legacy/`, `src/payments/*.txt`) gives that path to
+other owners or to none. A pattern that matches only some files (`*.py`, `docs/*`) never makes a directory
+a path, and a later line that matches by name at any depth (`docs/`, `*.md`) is not read as owning files
+that do not exist yet. So a repository whose only folder under `src/` is `src/payments/`, with the line
+`src/payments/** @payments-team`, gets `src/payments/`, not `src/`, and a snapshot reused after
+`src/billing/` appears does not name `@payments-team` as the owner of the billing files. The concept also
+has `owners` (sorted), `source_lines` (the lines that own those files), and `source_file` and `content_hash`
+of the CODEOWNERS file. Its id is `concept:<repo>-codeowners-`, the owners
 as a slug, and the first 12 hex digits of the SHA-256 of the owners, so two owner sets never share an id.
 Title: `Owned by` and the owners.
 
