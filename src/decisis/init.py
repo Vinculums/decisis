@@ -20,6 +20,7 @@ import os
 import posixpath
 import re
 import string
+import unicodedata
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
@@ -34,6 +35,7 @@ POSTMORTEM_DIRS = ("docs/postmortems",)
 CODEOWNERS_FILES = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 NOT_RECORDS = ("readme.md", "index.md")
 REPO_NAME = re.compile(r"[A-Za-z0-9_-]+")
+ID_HASH_DIGITS = 8
 SKIPPED, KEPT, NO_EDGE, NOT_READ, NO_EFFECT = "skipped", "kept without code paths", "no edge", "not read", "no effect"
 NOT_SUGGESTED, IGNORED = "not suggested", "ignored"
 DECISION = "decision"
@@ -181,9 +183,13 @@ class Tree:
         return suggest.Index.of(files)
 
     def node_id(self, kind: str, path: Path, extra: str = "") -> str:
-        stem = self.rel(path)[: -len(path.suffix)] if path.suffix else self.rel(path)
+        rel = self.rel(path)
+        stem = rel[: -len(path.suffix)] if path.suffix else rel
         parts = [self.repo or "", stem, extra]
-        return f"{kind}:" + "-".join(s for s in (slug(p) for p in parts) if s)
+        named = [s for s in (slug(p) for p in parts) if s]
+        if not all(p.isascii() for p in parts):
+            named.append(path_digest(rel, extra))
+        return f"{kind}:" + "-".join(named)
 
     def ref(self, raw: str) -> str:
         named = f"{self.repo}:{raw}"
@@ -213,6 +219,11 @@ class Tree:
 
 def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def path_digest(rel: str, extra: str = "") -> str:
+    whole = unicodedata.normalize("NFC", rel if not extra else f"{rel}\0{extra}")
+    return hashlib.sha256(whole.encode("utf-8", "surrogateescape")).hexdigest()[:ID_HASH_DIGITS]
 
 
 def content_hash(data: bytes) -> str:
