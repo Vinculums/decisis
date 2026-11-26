@@ -47,7 +47,7 @@ inputs:
     required: false
     default: "false"
   today:
-    description: The UTC date, YYYY-MM-DD, that waivers are judged on. Empty uses today's UTC date.
+    description: The UTC date, YYYY-MM-DD, that waivers are judged on and that a decision's valid_until is compared with (on or before it, the decision is closed and not judged). Empty uses today's UTC date.
     required: false
     default: ""
   sarif:

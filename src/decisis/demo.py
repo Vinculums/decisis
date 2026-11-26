@@ -109,10 +109,10 @@ def run(out: Path, fixtures: Path | None = None, approve: str | None = None, yes
 
     cache = external.read_osv_cache((fixtures / "audit" / "osv-cache.json").read_text(encoding="utf-8"))
     lock = (fixtures / "audit" / "demo-lockfile.json").read_text(encoding="utf-8")
-    graph = audit.compose(vinc, lock, REPO, external.cached_advisories(cache))
+    today = cache["fetched_at"][:10]
+    graph = audit.compose(vinc, lock, REPO, external.cached_advisories(cache), day=rules.today(today))
     box = Sandbox(sandbox_root)
     try:
-        today = cache["fetched_at"][:10]
         report = audit.analyze(box, graph, REPO, day=rules.today(today))
         m = graph.meta
         demo.step("Relate graph: Vinc knowledge joined with external data", [
@@ -136,7 +136,7 @@ def run(out: Path, fixtures: Path | None = None, approve: str | None = None, yes
         ], path=path)
 
         plan = wb.propose(report, REPO, SPACE, today=today)
-        checked = checker.check_plan(plan, box, graph, REPO)
+        checked = checker.check_plan(plan, box, graph, REPO, day=rules.today(today))
         plan = checker.withhold(plan, checked)
         failed = [c for c in checked if c["problems"]]
         demo.step("Checker and approval", [

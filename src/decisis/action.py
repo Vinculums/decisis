@@ -287,6 +287,11 @@ def decisions(report: dict, rows: int) -> list[str]:
     if sup:
         shown, rest = cut(sup, rows, "superseded decisions")
         out += [f"Superseded, not judged: {', '.join(code(g['decision']) for g in shown)}", "", *rest]
+    shut = report.get("closed") or []
+    if shut:
+        shown, rest = cut(shut, rows, "closed decisions")
+        named = ", ".join(code(g["decision"]) + " (" + code(g["valid_until"]) + ")" for g in shown)
+        out += [f"Closed by valid_until, not judged (today is {text(report['today'])}): {named}", "", *rest]
     return out
 
 
@@ -377,7 +382,7 @@ def failure(o: Outcome) -> list[str]:
 
 
 def graphs(o: Outcome) -> list[str]:
-    governed = [r for r in o.report["impact"] if r.get("governing") or r.get("superseded")]
+    governed = [r for r in o.report["impact"] if r.get("governing") or r.get("superseded") or r.get("closed")]
     out = ["<details><summary>Path graph</summary>", "", render.mermaid("check", {**o.report, "impact": governed})]
     out += [render.mermaid("audit", a.report) for a in o.audits or [] if a.report is not None]
     return out + ["</details>", ""]

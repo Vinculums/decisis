@@ -26,6 +26,7 @@ CLASSES = {
     "endpoint": "fill:#ede9fe,stroke:#6d28d9,color:#1e1037",
     "violated": "fill:#fecaca,stroke:#b91c1c,stroke-width:3px,color:#3f0a0a",
     "superseded": "fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray:4 3,color:#4b5563",
+    "closed": "fill:#f3f4f6,stroke:#9ca3af,stroke-dasharray:4 3,color:#4b5563",
     "waived": "fill:#fef9c3,stroke:#a16207,stroke-dasharray:4 3,color:#3b2603",
     "expiring": "fill:#ffedd5,stroke:#c2410c,stroke-dasharray:2 2,color:#431407",
     "unread": "fill:#fde2e2,stroke:#b91c1c,stroke-dasharray:4 3,color:#3f0a0a",
@@ -97,7 +98,8 @@ def mermaid_lines(g: Graph) -> list[str]:
 
 def impact_graph(report: dict) -> Graph:
     g = Graph()
-    titles = {i["id"]: i.get("title") or "" for r in report.get("impact", []) for i in r.get("governing", []) + r.get("superseded", [])}
+    titles = {i["id"]: i.get("title") or "" for r in report.get("impact", [])
+              for i in r.get("governing", []) + r.get("superseded", []) + r.get("closed", [])}
     for r in report.get("impact", []):
         code = f"path:{r['path']}"
         g.node(code, (r["path"],), "code")
@@ -108,6 +110,8 @@ def impact_graph(report: dict) -> Graph:
             for new in item.get("superseded_by", []):
                 g.node(new, label(new, titles.get(new, "")), "decision")
                 g.edge(new, "SUPERSEDES", item["id"])
+        for item in r.get("closed", []):
+            impact_node(g, item, code, titles, "closed", (f"closed {item.get('valid_until')}",))
     return g
 
 
@@ -324,6 +328,12 @@ def decision_list(decisions: list[dict], note: str = "") -> str:
     return "<ul>" + items + "</ul>"
 
 
+def closed_list(decisions: list[dict], today) -> str:
+    items = "".join(f"<li>{code(d['decision'])} {esc(d.get('title'))} ({', '.join(code(f) for f in d.get('files', []))}) "
+                    f"valid_until {code(d.get('valid_until'))}</li>" for d in decisions)
+    return f"<p>Judged on {esc(today)}.</p><ul>{items}</ul>"
+
+
 def check_sections(report: dict) -> list[str]:
     head = [("changed files", esc(len(report.get("changed", [])))), ("base", esc(report.get("base") or "not given")),
             ("reviewers", esc(", ".join(report.get("reviewers", [])) or "none given")), ("loaded", loaded(report)),
@@ -338,6 +348,7 @@ def check_sections(report: dict) -> list[str]:
             *([section("Waived, not counted as violations", waived_table(waived))] if waived else []),
             section("Governing decisions", decision_list(report.get("governing", []))),
             *([section("Superseded, not judged", decision_list(report["superseded"], "superseded by"))] if report.get("superseded") else []),
+            *([section("Closed by valid_until, not judged", closed_list(report["closed"], report.get("today")))] if report.get("closed") else []),
             *([section("Rules that cannot be checked", "<ul>" + problems + "</ul>")] if problems else []),
             *unread_list(report), *codeowners_list(report),
             section("Imports read", imports_table(report.get("imports", [])))]
@@ -375,12 +386,14 @@ def impact_item(item: dict, cls: str = "") -> str:
     rows = [("hops", esc(item.get("hops"))), ("via", code(item.get("via")))]
     if item.get("status"):
         rows.append(("status", esc(item["status"])))
+    if item.get("valid_until"):
+        rows.append(("valid_until", code(item["valid_until"])))
     if item.get("code_ref"):
         rows.append(("code_ref", ", ".join(f"{code(c['ref'])} ({esc(c['match'])})" for c in item["code_ref"])))
     if item.get("superseded_by"):
         rows.append(("superseded by", ", ".join(code(n) for n in item["superseded_by"])))
     kind = esc(item.get("kind")) + (f" {cls}" if cls else "")
-    badge = '<span class="badge">superseded</span> ' if cls else ""
+    badge = f'<span class="badge">{esc(cls)}</span> ' if cls else ""
     style = ' style="border-style:dashed"' if cls else ""
     return (f'<li class="item {kind}"{style}><div class="head"><span class="badge">{esc(item.get("kind"))}</span> {badge}'
             f'{code(item["id"])}</div><div class="title">{esc(item.get("title"))}</div>{dl(rows)}{steps_html(item.get("path", []))}</li>')
@@ -394,6 +407,9 @@ def impact_sections(report: dict) -> list[str]:
         old = r.get("superseded", [])
         if old:
             body += (f'<h3>Superseded, listed for the record</h3><ul class="items">' + "".join(impact_item(i, "superseded") for i in old) + "</ul>")
+        shut = r.get("closed", [])
+        if shut:
+            body += (f'<h3>Closed by valid_until, listed for the record</h3><ul class="items">' + "".join(impact_item(i, "closed") for i in shut) + "</ul>")
         out.append(f"<section><h2>{code(r['path'])}</h2><p>{esc(len(gov))} node(s), matched as {code(r.get('matched_as'))}</p>{body}</section>")
     return out
 

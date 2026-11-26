@@ -64,6 +64,8 @@ Properties the commands read:
   and `also_touches`. A snapshot from `init` needs no such link: see [Which decisions an audit judges](#which-decisions-an-audit-judges).
 - `rule` on a decision: what the decision forbids, in the format below. A decision without a `rule` is
   reported as `relevant`, never `violated`.
+- `valid_until` on a decision: the day it stops governing, read as [A decision closed by `valid_until`](#a-decision-closed-by-valid_until)
+  says. It is the node's own `valid_until` field, which `checkout` copies from Vinc, or `props.valid_until`, which Vinc keeps on a decision.
 
 ### Rules
 
@@ -363,8 +365,9 @@ and `waiver`: the waiver's position in the list (`waiver`, from 1), `reason`, `e
 When several waivers cover it, the one that lasts longest is shown. From the day after `expires` it is
 `violated` again, its `why` ends with which waiver expired and when, and it carries `expired_waiver` with the
 same keys. `unresolved` and `not_violated` results are never waived. "Today" is the UTC date, or the date
-`--today YYYY-MM-DD` gives (`audit`, `check`, the MCP `today` argument and the Action's `today` input), and
-the reports name it as `today`. The demo judges waivers on the date its OSV cache was fetched and the
+`--today YYYY-MM-DD` gives (`impact`, `audit`, `check`, the MCP `today` argument and the Action's `today` input), and
+the reports name it as `today`. The same date closes a decision whose `valid_until` is on or before it (see
+[A decision closed by `valid_until`](#a-decision-closed-by-valid_until)). The demo judges waivers on the date its OSV cache was fetched and the
 benchmark on a fixed date, so neither changes from day to day.
 
 `waived` is never a violation: it is not counted in `violations`, in the `check` exit code, in the Action's
@@ -543,6 +546,43 @@ and, apart, what used to. `--format text` prints it after the governing nodes; M
 the `SUPERSEDES` edge, and HTML lists it in its own part. The `superseded` key is left out when it would be
 empty, so a snapshot without superseded decisions gives the same output as before. A decision in a `SUPERSEDES` cycle
 (above) is the exception: it stays under `governing`.
+
+#### A decision closed by `valid_until`
+
+A decision can end without a replacement: Vinc closes it by setting `valid_until`, and an ADR calls that deprecated. `impact`,
+`check` and `audit` read the date the same way Vinc does, and a closed decision no longer governs:
+
+- **Where it is read.** From the node's own `valid_until` field (the one `checkout` writes) and from `props.valid_until`. When both
+  hold a date, the earlier one counts. `init` does not write one, because an ADR's front matter has no `valid_until` key (it is
+  reported as ignored); add the date to the snapshot, or write the snapshot from Vinc.
+- **What counts as a date.** `YYYY-MM-DD`, or `YYYY-MM` or `YYYY`, which name the first day of the month or the year. A time after
+  the day (`2026-11-25T15:11:23Z`) is dropped. An empty value, or one that is not a date (`soon`, `2026-13-01`), is no date: the
+  decision keeps governing and nothing is reported.
+- **When it closes.** The interval is half open, `[valid_from, valid_until)`, as in Vinc: a decision whose `valid_until` is on or
+  before the run's date is closed, and one whose `valid_until` is after it still governs. So `valid_until: 2026-11-26` governs on
+  2026-11-25 and is closed on 2026-11-26. This differs from a waiver, whose `expires` is the last day it holds. The run's date is
+  `--today YYYY-MM-DD` (`impact`, `check` and `audit`), the MCP `today` argument or the Action's `today` input, and is
+  the UTC date when none is given. A decision without a `valid_until` is not affected, and neither is any other kind of node.
+- **`impact`.** The decision is listed under `closed` in the result of each path it reaches, with its `valid_until` as written, and
+  never under `governing`. The `closed` key is left out when it would be empty. A decision that has a date also carries it as
+  `valid_until` under `governing`. The report names the date it judged on as `today` when some decision in the snapshot has a date
+  that can be read, and not otherwise, so a snapshot with no `valid_until` gives the same output as before.
+  `--format text` prints the decision after the superseded ones, HTML lists it in its own part, and Mermaid draws it dashed with
+  `closed <date>` under its name.
+- **`check`.** A closed decision is listed under `closed` (see [the check report](#the-check-report)) and never judged: its rules
+  are not in `rules`, and no `violations`, `unresolved`, `waived` or `rule_problems` entry comes from it.
+- **`audit`.** A closed decision does not govern the repository: it is not under `governing`, an `init` snapshot gives it no
+  `RECORDS` edge, and none of its rules is judged. If its rule holds a kind `audit` judges, it is listed under `not_governing` with the reason `it is closed by its valid_until <date>, and a
+  closed decision is not judged` (see [Which decisions an audit judges](#which-decisions-an-audit-judges)). `propose` holds back
+  a record that cites it, as it does for a superseded decision, and judges on the date of the audit report it was given.
+- **Superseded and closed.** A decision that is superseded and also closed is listed as superseded, with what replaces it. It is not
+  listed under `closed` as well.
+- **A `SUPERSEDES` cycle wins.** A decision in a cycle (above) is held in force, and a `valid_until` does not close it. The cycle
+  rule keeps every member of a cycle governing, so that a typo in the supersedes lines cannot drop their rules with no warning,
+  and a closing date is not read past it. `check` lists the cycle as `unresolved` until the lines are fixed, and names each member
+  whose date it holds back: `decision:a (valid_until 2026-11-01) would be closed by its valid_until, but stays in force while the
+  cycle holds`. Fix the cycle and the decision closes. A decision outside the cycle is closed as usual, and a decision a cycle member
+  supersedes is superseded as usual.
 
 ### Suggested code refs: `--suggest-refs`
 
@@ -889,10 +929,12 @@ A decision governs the repository `audit --repo NAME` reads in one of two ways:
 
 In both, a superseded decision (its status says `superseded`, or it is the target of a `SUPERSEDES` edge)
 does not govern, unless it is in a `SUPERSEDES` cycle (see [A snapshot from a repository](#a-snapshot-from-a-repository-init)).
+A decision closed by its `valid_until` on or before the run's date (`--today`) does not govern either, and the same cycle
+exception holds (see [A decision closed by `valid_until`](#a-decision-closed-by-valid_until)).
 
 A decision whose rule holds a kind `audit` judges but that governs nothing in this audit is listed under
 `not_governing` in the report, with `decision`, `title` and `reason`: an `init` snapshot of another
-repository, a superseded decision, or a hand-written decision with no path to the repository. Its rules are
+repository, a superseded decision, a closed decision, or a hand-written decision with no path to the repository. Its rules are
 not judged.
 
 `propose` asks the same question again in the fresh graph: the Checker takes the decisions that govern the
@@ -1199,11 +1241,15 @@ waived finding's record is checked like any other, scope and paths included.
 - `base`: the `--base` ref, or null with `--changed`. `changed`: the changed files, relative to `--repo-dir`,
   sorted. `reviewers`: the handles given.
 - `governing`: each decision that `impact` reaches from a changed file, with `decision`, `title`, `status`
-  when it has one, and `files`. `superseded`: the same for superseded decisions, with `superseded_by`;
-  these are never judged. A decision in a `SUPERSEDES` cycle is not superseded: it is under `governing` and judged.
+  when it has one, `valid_until` when it has a date, and `files`. `superseded`: the same for superseded decisions, with
+  `superseded_by`; these are never judged. A decision in a `SUPERSEDES` cycle is not superseded: it is under `governing` and judged.
+- `closed`, only when there are some: the same for decisions closed by a `valid_until` on or before `today`, with `decision`,
+  `title`, `files` and `valid_until` as written; these are never judged either. A decision in a `SUPERSEDES` cycle is not closed (see
+  [A decision closed by `valid_until`](#a-decision-closed-by-valid_until)). The text view lists them under `closed by valid_until`,
+  the HTML view in the section "Closed by valid_until, not judged", and the Action comment on the line "Closed by valid_until, not judged".
 - `rules`: each `review_required` and `imports_forbidden` rule judged, with `decision`, `rule`, its value
   (`paths` and `reviewers`, or `from` and `to`) and the changed `files` its `paths` or `from` globs cover.
-  Every decision in the snapshot that is not superseded is judged, whether or not `impact` reaches it,
+  Every decision in the snapshot that is neither superseded nor closed is judged, whether or not `impact` reaches it,
   because a rule's globs name the files it covers.
 - `imports`: each import read from a changed file that a `from` glob covers, with `file`, `line`,
   `import`, `resolution` (`repository`, `external` or `unresolved`), `target` (a repository path, a Go
@@ -1212,19 +1258,19 @@ waived finding's record is checked like any other, scope and paths included.
   `import a.b.*`, with `as D` for a Kotlin alias. The `target` of a Java or Kotlin import is a source file, or a package
   directory ending in `/` for a wildcard, and null for an external class; that of a workspace package is its file or
   its directory ending in `/`.
-- `today`: the date waivers were judged on.
+- `today`: the date waivers were judged on, and the date a `valid_until` was compared with.
 - `violations`, `unresolved` and `waived`: one entry per file, import and rule, with `file`, `line` (null for
   `review_required`), `decision`, `rule`, `verdict`, `why`, `import` and `target` (both null for
   `review_required`). A `waived` entry adds `waiver`, and a violation whose waiver expired adds
   `expired_waiver` (see [Waivers](#waivers)). `unresolved` also holds one entry for each `SUPERSEDES` cycle in the
   snapshot, whatever the changed files are: its `rule` is `supersedes_cycle`, its `decision` is the first decision in the
   cycle, its `file` is the first ADR file of the cycle in sorted order (empty when no decision has a `source_file`), its `line` is null, and its `why`
-  names every decision and file. It adds `decisions` (every node in the cycle) and `files`. It makes
+  names every decision and file, and each member whose `valid_until` the cycle holds back. It adds `decisions` (every node in the cycle) and `files`. It makes
   `--fail-on-unresolved` and the Action's `fail-on-unresolved` exit 1 even when every reviewer was given, and SARIF gives it as a `warning`.
 - `summary`: the count of `violated`, `unresolved`, `waived` and `not_violated` results.
 - `impact`: the `impact` result for each changed file.
 - `rule_problems`, only when there are some: as in the audit report, for every decision in the snapshot that is
-  not superseded, whatever it governs: a rule entry that cannot be read (an unknown kind, a kind with a value of
+  neither superseded nor closed, whatever it governs: a rule entry that cannot be read (an unknown kind, a kind with a value of
   the wrong shape, an `audit` kind as well as a `check` kind) and each waiver that cannot be read.
 - `unread_decisions`, only when there are some: as in the audit report, each ADR file the snapshot's
   `meta.problems` says was `skipped` or `not read`, with `file`, `reason` and `action`. The text view lists
@@ -1310,8 +1356,9 @@ the `impact`, `paths`, `check` or `audit` JSON above, or the query result. With 
 the reply has `"detail": "summary"`, the counts, ids and titles of the report, at most 10 items of each
 list, and a `note` that says how to get the rest. The `check` summary keeps `summary`, `base` and
 `reviewers`, counts each list (`changed_count`, `governing_count`, `violations_count`, `unresolved_count`,
-`rules_count`, `rules_covering_a_change`, `imports_count`), and lists the first 10 violations and
-unjudged entries with `file`, `line`, `decision`, `rule`, `why` and `import`. The `check` summary keeps `codeowners` when the report has it: `enforced`, `note`, `files_count` and the first 10 `files`.
+`rules_count`, `rules_covering_a_change`, `imports_count`, and `closed_count` when the report has `closed`), and lists the first 10 violations and
+unjudged entries with `file`, `line`, `decision`, `rule`, `why` and `import`. The `impact` summary keeps `today` when the report has it, and
+gives each path a `closed_count` and the first 10 `closed` decisions with `id`, `title` and `valid_until`. The `check` summary keeps `codeowners` when the report has it: `enforced`, `note`, `files_count` and the first 10 `files`.
 The `check` and `audit`
 summaries keep `rule_problems`, `unread_decisions` and `expiring_soon` when the report has them, as
 `rule_problems_count`, `unread_decisions_count` and `expiring_soon_count` with the first 10 entries; the `audit` summary also keeps

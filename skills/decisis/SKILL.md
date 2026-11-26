@@ -154,13 +154,15 @@ On the command line the same query is
   does not parse. They are not in the snapshot, so none of their rules were judged. Name each file and
   its reason; a clean report with unread decision files is not a clean bill. `check` reports them too.
 - `not_governing`: decisions with a dependency rule that govern nothing in this audit, with the reason,
-  such as a snapshot `init` built from another repository than `repo` names. Their rules were not judged;
+  such as a snapshot `init` built from another repository than `repo` names, or a decision closed by its `valid_until`. Their rules were not judged;
   name each one, and audit again with the right `repo` if the reason says so.
 
 For `check`, read `violations` (the file, the line for an import, the decision and the rule) and
 `unresolved` (imports or files that cannot be judged, such as an import computed at run time). An
 `unresolved` entry is not a pass; report it. A superseded decision is listed apart and not judged, except a decision in a `SUPERSEDES` cycle: it is judged, and the
-cycle is an `unresolved` entry with the rule `supersedes_cycle` that names each decision and file. `codeowners`, when
+cycle is an `unresolved` entry with the rule `supersedes_cycle` that names each decision and file. A decision whose `valid_until`
+is on or before `today` is closed: it is listed under `closed` with its date and not judged, unless a cycle holds it in force,
+which the cycle entry says. `codeowners`, when
 present, lists the changed files that a CODEOWNERS owner set covers and no `review_required` rule covers, with their
 owners. It is information, not a verdict: decisis does not enforce CODEOWNERS, so do not report an owner review as
 judged. GitHub's "Require review from Code Owners" in branch protection, or a `review_required` rule in an ADR, enforces it.

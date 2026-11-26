@@ -134,8 +134,9 @@ The format is in [the data model](data-model.md#rules).
 off; a ref that looks like an option is refused. It runs `impact` on those files to list the governing
 decisions. It then judges the `review` and `import` kinds of every decision in the snapshot on the changed
 files its globs cover, except a decision that a `SUPERSEDES` edge replaces, which is listed apart and not
-judged. A decision in a `SUPERSEDES` cycle is not replaced by it: `impact.superseded_by` leaves each member of a cycle
-out (`cycles.py`), and `check` lists the cycle as a result that cannot be judged. `review_required` compares the rule's handles with
+judged, and a decision that its `valid_until` has closed as of the run's date (`impact.closed_by`), which is listed apart
+under `closed` and not judged either. A decision in a `SUPERSEDES` cycle is not replaced by it: `impact.superseded_by` leaves each member of a cycle
+out (`cycles.py`), `impact.closed_by` leaves it out too, so the cycle keeps a closed member in force, and `check` lists the cycle as a result that cannot be judged. `review_required` compares the rule's handles with
 `--reviewers`. `imports_forbidden` reads the imports of each changed file its `from` globs cover
 (`imports.py`) and judges each resolved target against the `to` globs. Repository code is parsed and never
 run. An import that cannot be resolved is `unresolved`; `--fail-on-unresolved` turns those into a failure.

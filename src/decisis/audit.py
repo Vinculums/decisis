@@ -45,14 +45,20 @@ def ruled_decisions(vinc: Subgraph) -> list[dict]:
     return [n for n in vinc.nodes if n["kind"] == "decision" and audit_rule(rules.of(n))]
 
 
-def recorded_links(vinc: Subgraph, repo: str) -> list[dict]:
+def retired(graph: Subgraph, day: datetime.date | None) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """The decisions that no longer govern: each superseded one with what replaces it, and each closed one with its valid_until."""
+    replaced = impact.superseded_by(graph)
+    return replaced, impact.closed_by(graph, day, replaced)
+
+
+def recorded_links(vinc: Subgraph, repo: str, day: datetime.date | None = None) -> list[dict]:
     named = (vinc.meta or {}).get("repo")
     if not from_init(vinc.meta) or not same_repo(named, repo):
         return []
-    replaced = impact.superseded_by(vinc)
+    replaced, closed = retired(vinc, day)
     where = f"the repository {named}" if named else f"one repository with no name, which --repo names {repo}"
     return [{"source": f"repo:{repo}", "target": n["id"], "type": RECORDS, "evidence": f"{INIT} read {init.origin(n)} from {where}"}
-            for n in ruled_decisions(vinc) if n["id"] not in replaced]
+            for n in ruled_decisions(vinc) if n["id"] not in replaced and n["id"] not in closed]
 
 
 def recorded(rows: list[dict], graph: Subgraph) -> list[dict]:
@@ -60,39 +66,42 @@ def recorded(rows: list[dict], graph: Subgraph) -> list[dict]:
     return [{**r, "via": init.origin(by_id[r["decision"]]), "link": RECORDS} for r in rows]
 
 
-def not_governing(graph: Subgraph, decisions: list[dict], repo: str) -> list[dict]:
-    why = idle(graph, decisions, repo)
+def not_governing(graph: Subgraph, decisions: list[dict], repo: str, day: datetime.date | None = None) -> list[dict]:
+    why = idle(graph, decisions, repo, day)
     return [{"decision": n["id"], "title": n.get("title") or "", "reason": why[n["id"]]}
             for n in sorted(ruled_decisions(graph), key=lambda n: n["id"]) if n["id"] in why]
 
 
-def unlinked(node: dict, meta: dict, repo: str, replaced: dict[str, list[str]]) -> str:
+def unlinked(node: dict, meta: dict, repo: str, replaced: dict[str, list[str]], closed: dict[str, str] | None = None) -> str:
     if from_init(meta) and not same_repo(meta.get("snapshot_repo"), repo):
         return f"{INIT} read it from the repository {meta['snapshot_repo']}, and this audit is of {repo}"
     if node["id"] in replaced:
         by = ", ".join(replaced[node["id"]]) or "a later decision"
         return f"it is superseded by {by}, and a superseded decision is not judged"
+    if node["id"] in (closed or {}):
+        return f"it is closed by its valid_until {closed[node['id']]}, and a closed decision is not judged"
     if from_init(meta):
         return f"{INIT} links only a decision whose rule holds a kind audit judges, and this one has none"
     return (f"nothing links it to repo:{repo}: the snapshot does not come from {INIT}, and no edge runs "
             f"repo:{repo} -DESCRIBED_BY-> a node it is ABOUT")
 
 
-def governing(box, graph: Subgraph, repo: str) -> list[dict]:
+def governing(box, graph: Subgraph, repo: str, day: datetime.date | None = None) -> list[dict]:
     rows = box.query(query("governing_decisions"), {"repo": f"repo:{repo}"})
     rows += recorded(box.query(query("recorded_decisions"), {"repo": f"repo:{repo}"}), graph)
-    replaced = impact.superseded_by(graph)
-    return [r for r in rows if r["decision"] not in replaced]
+    replaced, closed = retired(graph, day)
+    return [r for r in rows if r["decision"] not in replaced and r["decision"] not in closed]
 
 
-def idle(graph: Subgraph, rows: list[dict], repo: str) -> dict[str, str]:
+def idle(graph: Subgraph, rows: list[dict], repo: str, day: datetime.date | None = None) -> dict[str, str]:
     held = {r["decision"] for r in rows}
-    replaced = impact.superseded_by(graph)
-    return {n["id"]: unlinked(n, graph.meta or {}, repo, replaced) for n in graph.nodes if n["kind"] == "decision" and n["id"] not in held}
+    replaced, closed = retired(graph, day)
+    return {n["id"]: unlinked(n, graph.meta or {}, repo, replaced, closed)
+            for n in graph.nodes if n["kind"] == "decision" and n["id"] not in held}
 
 
 def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories, filename: str = "package-lock.json",
-            siblings: dict[str, str] | None = None) -> Subgraph:
+            siblings: dict[str, str] | None = None, day: datetime.date | None = None) -> Subgraph:
     pkg_nodes, dep_edges = inventory.read(lock_text, filename, repo, siblings)
     if (pinned := external.pinned_at(advisories)) is not None:
         for node in pkg_nodes:
@@ -102,7 +111,7 @@ def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch
         nothing_to_query(pkg_nodes, filename)
     adv_nodes, adv_edges = advisories(pkg_nodes)
     links = governance_links(vinc.nodes, repo)
-    kept = recorded_links(vinc, repo)
+    kept = recorded_links(vinc, repo, day)
     lock_hash = next((n["props"].get("content_hash") for n in pkg_nodes if n["kind"] == "Repository"), "")
     nodes, edges = vinc.nodes + pkg_nodes + adv_nodes, vinc.edges + dep_edges + adv_edges + links + kept
     meta = {**vinc.meta, "nodes": len(nodes), "edges": len(edges), "repo": repo, "lockfile_hash": lock_hash, "packages": sum(1 for n in pkg_nodes if n["kind"] == "Package"),
@@ -289,19 +298,19 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8, day: datetime.date 
         raise ValueError(f"depth must be between 1 and {MAX_DEPTH}")
     counts = box.load(graph)
     rows = box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})
-    decisions = governing(box, graph, repo)
     day = day or rules.today()
+    decisions = governing(box, graph, repo, day)
     findings = ordered(verify(rows, graph, decisions, day) + package_findings(graph, decisions, repo, depth, day))
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
     soon = expiring(findings, day, warn_days)
     return {"meta": graph.meta, "loaded": counts, "today": day.isoformat(), "governing": decisions, "summary": summary,
             "violations": counted(findings, "violated"), "waived": counted(findings, rules.WAIVED), "findings": findings,
             "unresolved_packages": unresolved_packages(graph), "inventory_notes": inventory_notes(graph, repo),
-            **problems_of(graph, decisions, repo), **({rules.EXPIRING: soon} if soon else {})}
+            **problems_of(graph, decisions, repo, day), **({rules.EXPIRING: soon} if soon else {})}
 
 
-def problems_of(graph: Subgraph, decisions: list[dict], repo: str) -> dict:
-    found, unread, idle = rule_problems(graph, decisions), init.unread_decisions(graph.meta), not_governing(graph, decisions, repo)
+def problems_of(graph: Subgraph, decisions: list[dict], repo: str, day: datetime.date | None = None) -> dict:
+    found, unread, idle = rule_problems(graph, decisions), init.unread_decisions(graph.meta), not_governing(graph, decisions, repo, day)
     return {**({"rule_problems": found} if found else {}), **({"unread_decisions": unread} if unread else {}),
             **({"not_governing": idle} if idle else {})}
 
@@ -318,7 +327,8 @@ def unresolved_packages(graph: Subgraph) -> list[dict]:
 def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories,
         limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None,
         root=None, day: datetime.date | None = None, warn_days: int = rules.WARN_DAYS) -> dict:
-    graph = compose(vinc, lock_text, repo, advisories, filename, siblings)
+    day = day or rules.today()
+    graph = compose(vinc, lock_text, repo, advisories, filename, siblings, day)
     with sandbox(root, limits) as box:
         report = analyze(box, graph, repo, depth, day, warn_days)
     extra = [n for n in inventory.notes(lock_text, filename) if n not in report["inventory_notes"]]
