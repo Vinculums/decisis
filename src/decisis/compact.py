@@ -21,7 +21,7 @@ def first(items: list, pick=None) -> list:
 
 def impact(report: dict) -> dict:
     return {"loaded": report["loaded"], "hops": report["hops"], "repo": report["repo"],
-            "impact": [impact_path(r) for r in report["impact"]]}
+            **({"today": report["today"]} if "today" in report else {}), "impact": [impact_path(r) for r in report["impact"]]}
 
 
 def impact_path(result: dict) -> dict:
@@ -31,11 +31,15 @@ def impact_path(result: dict) -> dict:
     if old:
         out["superseded_count"] = len(old)
         out["superseded"] = first(old, lambda i: {"id": i["id"], "title": i["title"], "superseded_by": i["superseded_by"]})
+    shut = result.get("closed")
+    if shut:
+        out["closed_count"] = len(shut)
+        out["closed"] = first(shut, lambda i: {"id": i["id"], "title": i["title"], "valid_until": i["valid_until"]})
     return out
 
 
 def governing_item(item: dict) -> dict:
-    keys = ("id", "kind", "title", "hops", "via", "status")
+    keys = ("id", "kind", "title", "hops", "via", "status", "valid_until")
     return {k: item[k] for k in keys if k in item}
 
 
@@ -81,6 +85,8 @@ def check(report: dict) -> dict:
            "reviewers": report["reviewers"], "summary": report["summary"], **counted("changed", report["changed"]),
            **counted("governing", report["governing"], lambda g: {"decision": g["decision"], "title": g["title"]}),
            **counted("superseded", report["superseded"], lambda g: {"decision": g["decision"], "superseded_by": g.get("superseded_by", [])}),
+           **(counted("closed", report["closed"], lambda g: {"decision": g["decision"], "valid_until": g["valid_until"]})
+              if report.get("closed") else {}),
            "rules_count": len(report["rules"]), "rules_covering_a_change": sum(1 for r in report["rules"] if r["files"]),
            "imports_count": len(report["imports"]),
            **counted("violations", report["violations"], judged), **counted("unresolved", report["unresolved"], judged),

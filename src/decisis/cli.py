@@ -55,7 +55,9 @@ def day(text: str):
         raise argparse.ArgumentTypeError(f"{text!r} is not a date such as 2026-01-31") from None
 
 
-TODAY_HELP = "judge waivers as of this UTC date, YYYY-MM-DD (default: today in UTC)"
+TODAY_HELP = ("judge waivers as of this UTC date, YYYY-MM-DD, and treat a decision whose valid_until is on or before it as closed "
+              "(default: today in UTC)")
+IMPACT_TODAY_HELP = "treat a decision whose valid_until is on or before this UTC date, YYYY-MM-DD, as closed (default: today in UTC)"
 WARN_HELP = ("list under expiring_soon the waivers that cover a result and expire within N days of the run's date, 0 turns it off "
              f"(default {rules.WARN_DAYS}, at most {rules.MAX_WARN_DAYS}); this never changes a verdict or the exit code")
 
@@ -130,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--hops", type=bounded(0, impact.MAX_HOPS), default=3, help=f"how far from a matching concept to look (0 to {impact.MAX_HOPS})")
     im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     im.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
+    im.add_argument("--today", type=day, metavar="DATE", help=IMPACT_TODAY_HELP)
     ck = sub.add_parser("check", help="judge a change set against the review and import rules of the decisions in a snapshot; exits 1 on a violation")
     ck.add_argument("snapshot")
     ck.add_argument("--repo-dir", default=".", help="the repository the changed files are read from (default: the current directory)")
@@ -263,13 +266,14 @@ def run(a: argparse.Namespace) -> int:
         return demo.run(Path(a.out), a.fixtures, approve=a.approve, yes=a.yes)[0]
     if a.cmd == "propose":
         lock_text, siblings = inventory.load(Path(a.lockfile), root=a.root)
-        plan = wb.propose(json.loads(Path(a.report).read_text(encoding="utf-8")), a.repo, a.space,
-                          lockfile_path=a.lockfile_path or subject_file(lock_text, Path(a.lockfile)), ref=a.ref)
+        report = json.loads(Path(a.report).read_text(encoding="utf-8"))
+        plan = wb.propose(report, a.repo, a.space, lockfile_path=a.lockfile_path or subject_file(lock_text, Path(a.lockfile)), ref=a.ref)
         advisories = external.fetch_advisories
         if a.osv_cache:
             advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
         plan, checked = checker.rederive(plan, co.load(Path(a.snapshot).read_text(encoding="utf-8")), lock_text, a.repo, advisories,
-                                         a.depth, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings)
+                                         a.depth, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings,
+                                         day=rules.today(report["today"]) if isinstance(report.get("today"), str) else None)
         Path(a.out).write_text(init.dump(plan), encoding="utf-8")
         failed = sum(1 for c in checked if c["problems"])
         print(f"Re-derived {len(checked)} records with {sum(c['checks'] for c in checked)} checks; {failed} failed.\n")
@@ -288,7 +292,7 @@ def run(a: argparse.Namespace) -> int:
         sys.stdout.write(init.dump(report))
         return 0
     if a.cmd == "impact":
-        report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo, limits=limits(a))
+        report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo, limits=limits(a), day=a.today)
         if a.format == "text":
             print(impact.render(report))
         elif a.format in VIEWS:

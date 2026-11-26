@@ -45,7 +45,8 @@ MAX_PARAMS = 32
 MAX_REVIEWERS = 256
 MAX_SENT = cypher.MAX_BYTES
 TODAY = {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
-         "description": "judge waivers as of this UTC date, YYYY-MM-DD (default: today in UTC)"}
+         "description": "judge waivers as of this UTC date, YYYY-MM-DD, and treat a decision whose valid_until is on or before it "
+                        "as closed (default: today in UTC)"}
 WARN_DAYS = {"type": "integer", "minimum": 0, "maximum": rules.MAX_WARN_DAYS, "default": rules.WARN_DAYS,
              "description": "list under expiring_soon the waivers that cover a result and expire within this many days of today "
                             "(0 turns it off); it never changes a verdict"}
@@ -62,6 +63,8 @@ SCHEMAS = {
             "hops": {"type": "integer", "minimum": 0, "maximum": impact.MAX_HOPS, "default": 3,
                      "description": f"how far from a matching concept to look (0 to {impact.MAX_HOPS})"},
             "repo": {**TEXT, "description": "skip code_refs that name another repository, for example Demo"},
+            "today": {**TODAY, "description": "treat a decision whose valid_until is on or before this UTC date, YYYY-MM-DD, as closed "
+                                              "(default: today in UTC)"},
             "detail": DETAIL,
         },
         "required": ["code_paths"],
@@ -190,7 +193,11 @@ class Tools:
         repo = args.get("repo")
         for raw in args["code_paths"]:
             inside_repo(raw, repo)
-        return impact.run(self.graph, args["code_paths"], args.get("hops", 3), repo, root=self.scratch)
+        try:
+            day = rules.today(args.get("today"))
+        except ValueError as e:
+            raise Refused(f"impact: {e}") from None
+        return impact.run(self.graph, args["code_paths"], args.get("hops", 3), repo, root=self.scratch, day=day)
 
     def check(self, args: dict) -> dict:
         given = [k for k in ("changed", "base") if k in args]

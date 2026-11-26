@@ -1,10 +1,11 @@
 """Judge a change set against the review and import rules of the decisions in a snapshot.
 
 The changed files come from `--changed` or from `git diff --name-only REF...HEAD` in the repository. Each file
-is passed to `impact`, which lists the decisions that govern it; superseded decisions are listed apart and never
-judged. Every other decision whose `rule` has a `review_required` or `imports_forbidden` entry is judged, since
-the rule's own globs name the files it covers. A decision in a `SUPERSEDES` cycle is not superseded, so its rules are judged,
-and each cycle is a result under `unresolved`. The Action passes the cycles a pull request adds, which take effect once it is
+is passed to `impact`, which lists the decisions that govern it; superseded decisions, and decisions closed by a `valid_until`
+on or before the run's date, are listed apart and never judged. Every other decision whose `rule` has a `review_required` or
+`imports_forbidden` entry is judged, since the rule's own globs name the files it covers. A decision in a `SUPERSEDES` cycle is
+not superseded and not closed, so its rules are judged, and each cycle is a result under `unresolved`; the result names each
+member whose `valid_until` has passed. The Action passes the cycles a pull request adds, which take effect once it is
 merged, as `arriving`, and each is a result under `unresolved` too. It passes the cycles of the base the pull request removes as
 `leaving`, and each is left out of `unresolved`; the rules of its decisions are judged all the same. `review_required` is judged on each changed file against the
 reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go, Rust,
@@ -56,8 +57,8 @@ def normal(path: str) -> str:
     return p
 
 
-def judged(graph: Subgraph, replaced: dict) -> list[tuple[dict, rules.Parsed]]:
-    found = [(n, rules.of(n)) for n in graph.nodes if n["kind"] == "decision" and n["id"] not in replaced]
+def judged(graph: Subgraph, retired) -> list[tuple[dict, rules.Parsed]]:
+    found = [(n, rules.of(n)) for n in graph.nodes if n["kind"] == "decision" and n["id"] not in retired]
     return sorted(found, key=lambda d: d[0]["id"])
 
 
@@ -72,6 +73,8 @@ def governing(report: dict, key: str) -> list[dict]:
                 entry["status"] = item["status"]
             if "superseded_by" in item:
                 entry["superseded_by"] = item["superseded_by"]
+            if item.get("valid_until"):
+                entry["valid_until"] = item["valid_until"]
             entry["files"].append(r["path"])
     return [out[k] for k in sorted(out)]
 
@@ -156,9 +159,18 @@ def import_results(decisions: list[tuple[dict, rules.Parsed]], files: list[str],
     return out, listed
 
 
-def cycle_results(found: list[cycles.Cycle], arriving: bool = False) -> list[dict]:
+def lapsed_note(c: cycles.Cycle, lapsed: dict[str, str]) -> str:
+    named = [f"{m} (valid_until {lapsed[m]})" for m in c.decisions if m in lapsed]
+    if not named:
+        return ""
+    one = len(named) == 1
+    return f". {', '.join(named)} would be closed by {'its' if one else 'their'} valid_until, but {'stays' if one else 'stay'} in force while the cycle holds"
+
+
+def cycle_results(found: list[cycles.Cycle], arriving: bool = False, lapsed: dict[str, str] | None = None) -> list[dict]:
     return [{"file": c.files[0] if c.files else "", "line": None, "decision": c.decisions[0], "rule": cycles.RULE, "verdict": "unresolved",
-             "why": c.arriving if arriving else c.reason, "import": None, "target": None, "decisions": list(c.members), "files": list(c.files)}
+             "why": (c.arriving if arriving else c.reason) + lapsed_note(c, lapsed or {}), "import": None, "target": None,
+             "decisions": list(c.members), "files": list(c.files)}
             for c in found]
 
 
@@ -185,20 +197,24 @@ def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = 
     files = sorted({normal(p) for p in changed})
     if len(files) > MAX_CHANGED:
         raise ValueError(f"the change set has {len(files)} files, more than the {MAX_CHANGED} check judges")
-    report = impact.run(graph, files, hops, repo, root=sandbox_root, limits=limits)
-    decisions = judged(graph, impact.superseded_by(graph))
-    gov = governing(report, "governing")
     day = day or rules.today()
+    report = impact.run(graph, files, hops, repo, root=sandbox_root, limits=limits, day=day)
+    replaced = impact.superseded_by(graph)
+    closed = impact.closed_by(graph, day, replaced)
+    decisions = judged(graph, replaced.keys() | closed.keys())
+    gov = governing(report, "governing")
     results = review_results(decisions, files, list(reviewers), day)
     found, listed = import_results(decisions, files, imports.Repo(root), day)
     gone = {c.members for c in leaving}
-    results += found + cycle_results([c for c in cycles.find(graph.nodes, graph.edges) if c.members not in gone]) + cycle_results(list(arriving), True)
+    held = [c for c in cycles.find(graph.nodes, graph.edges) if c.members not in gone]
+    results += found + cycle_results(held, lapsed=impact.lapsed(graph, day)) + cycle_results(list(arriving), True)
     violations, unresolved, waived = ordered(results, "violated"), ordered(results, "unresolved"), ordered(results, rules.WAIVED)
+    shut = governing(report, "closed")
     ruled = [{"decision": n["id"], "rule": r.kind, **value_of(r), "files": covered(r, files)}
              for n, parsed in decisions for s in rules.CHANGE_SUBJECTS for r in rules.judging(parsed, s)]
     out = {"loaded": report["loaded"], "hops": hops, "repo": repo, "base": base, "today": day.isoformat(), "changed": files,
-           "reviewers": list(reviewers), "governing": gov, "superseded": governing(report, "superseded"), "rules": ruled, "imports": listed,
-           "violations": violations, "unresolved": unresolved, "waived": waived,
+           "reviewers": list(reviewers), "governing": gov, "superseded": governing(report, "superseded"), **({"closed": shut} if shut else {}),
+           "rules": ruled, "imports": listed, "violations": violations, "unresolved": unresolved, "waived": waived,
            "summary": {"violated": len(violations), "unresolved": len(unresolved), "waived": len(waived),
                        "not_violated": sum(1 for r in results if r["verdict"] == "not_violated")},
            "impact": report["impact"]}
@@ -265,6 +281,9 @@ def render(report: dict) -> str:
     if report["superseded"]:
         lines.append("superseded, not judged:")
         lines += [f"  {g['decision']}  superseded by {', '.join(g.get('superseded_by') or ['a later decision'])}" for g in report["superseded"]]
+    if report.get("closed"):
+        lines.append(f"closed by valid_until (today is {report['today']}), not judged:")
+        lines += [f"  {g['decision']}  valid_until {g['valid_until']}" for g in report["closed"]]
     lines.append(f"rules that cover a changed file: {sum(1 for r in report['rules'] if r['files'])}")
     lines.append(f"violations: {len(report['violations'])}")
     lines += result_lines(report["violations"])

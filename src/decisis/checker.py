@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import json
 
 from . import audit, rules, semver
@@ -40,16 +41,16 @@ def _own(node: dict, facts: dict) -> set[str]:
     return {r["package"] for r in rows if r is not None}
 
 
-def _facts(box, graph: Subgraph, plan: dict, repo: str, depth: int) -> dict:
+def _facts(box, graph: Subgraph, plan: dict, repo: str, depth: int, day: datetime.date | None = None) -> dict:
     advisories = sorted({f"adv:{n['props']['value']}" for n in plan["nodes"] if subject(n) == "advisory"})
     names = sorted({_name(n) for n in plan["nodes"]})
     on_paths = sorted({x for n in plan["nodes"] for path in n["props"]["dependency_paths"] for x in path})
     packages = box.query(query("packages_named"), {"names": names}) + box.query(query("package_records"), {"ids": on_paths})
     steps = sorted({x for n in plan["nodes"] if subject(n) != "advisory" for path in n["props"]["dependency_paths"] for x in path[1:]})
-    governing = audit.governing(box, graph, repo)
+    governing = audit.governing(box, graph, repo, day)
     return {"repo": f"repo:{repo}",
             "governing": {r["decision"] for r in governing},
-            "idle": audit.idle(graph, governing, repo),
+            "idle": audit.idle(graph, governing, repo, day),
             "advisories": {r["advisory"]: r for r in box.query(query("advisory_records"), {"ids": advisories})},
             "packages": {r["package"]: r for r in packages},
             "paths": {tuple(r["path"]) for r in box.query(query("dependency_paths", depth=depth), {"repo": f"repo:{repo}"})},
@@ -174,10 +175,10 @@ def check_record(node: dict, edges: list[dict], facts: dict, known) -> dict:
     return {"record": node["id"], "checks": checks, "problems": problems}
 
 
-def check_plan(plan: dict, box, graph: Subgraph, repo: str, depth: int = 8) -> list[dict]:
+def check_plan(plan: dict, box, graph: Subgraph, repo: str, depth: int = 8, day: datetime.date | None = None) -> list[dict]:
     if not plan["nodes"]:
         return []
-    facts, known = _facts(box, graph, plan, repo, depth), decisions(graph)
+    facts, known = _facts(box, graph, plan, repo, depth, day), decisions(graph)
     return [check_record(n, [e for e in plan["edges"] if e["from"] == n["id"]], facts, known) for n in plan["nodes"]]
 
 
@@ -195,12 +196,13 @@ def withhold(plan: dict, checked: list[dict]) -> dict:
 
 def rederive(plan: dict, vinc: Subgraph, lock_text: str, repo: str, advisories, depth: int = 8,
              root=None, limits: Limits | None = None, filename: str = "package-lock.json",
-             siblings: dict[str, str] | None = None) -> tuple[dict, list[dict]]:
-    graph = audit.compose(vinc, lock_text, repo, advisories, filename, siblings)
+             siblings: dict[str, str] | None = None, day: datetime.date | None = None) -> tuple[dict, list[dict]]:
+    day = day or rules.today()
+    graph = audit.compose(vinc, lock_text, repo, advisories, filename, siblings, day)
     box = Sandbox(root, limits)
     try:
         box.load(graph)
-        checked = check_plan(plan, box, graph, repo, depth)
+        checked = check_plan(plan, box, graph, repo, depth, day)
     finally:
         box.destroy()
     return withhold(plan, checked), checked

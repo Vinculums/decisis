@@ -4,7 +4,7 @@ The README has the table of commands. This page has the flags, the limits and th
 
 ## Flags
 
-Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR --suggest-refs --patch FILE`, `new-adr --adr-dir DIR --code-ref PATH --rule JSON --date DATE`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --warn-days N --no-signature --format text`, `paths --hops N --limit N`,
+Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR --suggest-refs --patch FILE`, `new-adr --adr-dir DIR --code-ref PATH --rule JSON --date DATE`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --today DATE --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --warn-days N --no-signature --format text`, `paths --hops N --limit N`,
 `audit --osv-cache FILE --depth N --root DIR --warn-days N --no-signature`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit),
 `serve --osv-cache FILE --allow-network --root DIR`, `gc --root DIR --grace SECONDS`.
 
@@ -22,7 +22,9 @@ and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --h
 `decisis checkout SEED... --depth N --out snapshot.json` reads each seed from Vinc with one `vinc_graph` call at `detail: "full"`
 and writes the snapshot. The snapshot carries, for every node the hub returns, its `id`, `kind`, `title`, `domain`, `valid_until`
 and its whole `props`: `code_ref`, `subject_path`, `also_touches`, `status`, the decision's rules and waivers, and everything else
-stored on the node. `impact` and `check` match a path through those props, so a node that is not the seed anchors a path as well. The hub's layout
+stored on the node. `impact` and `check` match a path through those props, so a node that is not the seed anchors a path as well. `impact`, `check` and
+`audit` read `valid_until` of a decision, from the node's field or from `props.valid_until`, and a decision whose date is on or before
+the run's date (`--today`) no longer governs: see [A decision closed by `valid_until`](data-model.md#a-decision-closed-by-valid_until). The hub's layout
 and ranking fields (`x`, `y`, `z`, `ppr`, `degree`, `rev`, `tags`, timestamps) are left out. The edges keep their type, direction and
 evidence. The node and edge counts and the depth are the hub's; `--depth` is passed through, and a read is one call per seed.
 

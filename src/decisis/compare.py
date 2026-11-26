@@ -109,7 +109,7 @@ def method_a_impact(inp: dict, subject: str) -> list[dict]:
 
 
 def method_c_impact(inp: dict, subject: str) -> list[dict]:
-    report = impact.run(inp["impact"], [subject], inp["hops"], inp["repo"])
+    report = impact.run(inp["impact"], [subject], inp["hops"], inp["repo"], day=DAY)
     claims = []
     for g in report["impact"][0]["governing"]:
         if g["kind"] not in GOVERNING:
@@ -188,7 +188,7 @@ def method_b_audit(inp: dict, subject: str) -> list[dict]:
 
 def method_c_audit(inp: dict, subject: str) -> list[dict]:
     repo, repo_id = inp["repo"], f"repo:{inp['repo']}"
-    graph = audit.compose(inp["vinc"], inp["lock"], repo, external.cached_advisories(inp["cache"]))
+    graph = audit.compose(inp["vinc"], inp["lock"], repo, external.cached_advisories(inp["cache"]), day=DAY)
     with sandbox() as box:
         box.load(graph)
         rows = box.query(query("dependency_paths", depth=8), {"repo": repo_id})

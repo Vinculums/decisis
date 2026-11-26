@@ -10,12 +10,17 @@ evidence on each edge, in the snapshot's own edge direction.
 
 The walk follows only edges that carry governance, each from the node that governs to the node it governs
 (`CARRIES`). An edge type it does not name, or a direction it does not name, is not followed.
+
+A decision no longer governs when it is superseded (`superseded_by`) or closed by its `valid_until` date (`closed_by`). Each
+is listed apart from `governing`, under `superseded` and `closed`, and a node in a `SUPERSEDES` cycle is neither.
 """
 from __future__ import annotations
 
+import datetime
+import re
 from dataclasses import dataclass
 
-from . import cycles
+from . import cycles, rules
 from .queries import load as query
 from .sandbox import Limits, Subgraph, sandbox
 
@@ -168,6 +173,9 @@ def collect(rows: list[dict], graph: Subgraph, path: str, repo: str | None = Non
         status = (node.get("props") or {}).get("status")
         if item["kind"] == "decision" and isinstance(status, str) and status:
             item["status"] = status
+        until = valid_until(node) if item["kind"] == "decision" else None
+        if until is not None:
+            item["valid_until"] = until[1]
         if row["hops"] == 0:
             refs = [(r, code_path(r, repo)) for r in refs_of(node)]
             item["code_ref"] = [{"ref": r, "match": m} for r, p in refs if p and (m := match_kind(p, path))]
@@ -175,7 +183,8 @@ def collect(rows: list[dict], graph: Subgraph, path: str, repo: str | None = Non
     return sorted(out, key=lambda i: (i["hops"], KIND_ORDER.get(i["kind"], len(KIND_ORDER)), i["id"]))
 
 
-def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = None, root=None, limits: Limits | None = None) -> dict:
+def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = None, root=None, limits: Limits | None = None,
+        day: datetime.date | None = None) -> dict:
     if not 0 <= hops <= MAX_HOPS:
         raise ValueError(f"hops must be between 0 and {MAX_HOPS}")
     wanted = []
@@ -187,13 +196,20 @@ def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = Non
     prepared = prepare(graph, repo)
     cypher = query("governing_nodes", hops=hops)
     results = []
+    day = day or rules.today()
     replaced = superseded_by(graph)
+    closed = closed_by(graph, day, replaced)
     with sandbox(root, limits) as box:
         counts = box.load(Subgraph(prepared.nodes, governance_edges(prepared), prepared.meta))
         for raw, p in wanted:
             rows = [from_anchor(r) for r in box.query(cypher, {"path": p, "dir": p + "/", "kinds": GOVERNING})]
-            results.append(split_superseded({"path": raw, "matched_as": p}, collect(rows, prepared, p, repo), replaced))
-    return {"loaded": counts, "hops": hops, "repo": repo, "impact": results}
+            results.append(split_superseded({"path": raw, "matched_as": p}, collect(rows, prepared, p, repo), replaced, closed))
+    dated = any(valid_until(n) for n in graph.nodes if n["kind"] == "decision")
+    return {"loaded": counts, "hops": hops, "repo": repo, **({"today": day.isoformat()} if dated else {}), "impact": results}
+
+
+def in_cycle(graph: Subgraph) -> set[str]:
+    return {m for c in cycles.find(graph.nodes, graph.edges) for m in c.members}
 
 
 def superseded_by(graph: Subgraph) -> dict[str, list[str]]:
@@ -201,7 +217,7 @@ def superseded_by(graph: Subgraph) -> dict[str, list[str]]:
 
     A node in a SUPERSEDES cycle is not superseded, whatever its status says, so its rules are judged as if there were no cycle.
     """
-    held = {m for c in cycles.find(graph.nodes, graph.edges) for m in c.members}
+    held = in_cycle(graph)
     out: dict[str, set[str]] = {}
     for n in graph.nodes:
         status = (n.get("props") or {}).get("status")
@@ -213,26 +229,86 @@ def superseded_by(graph: Subgraph) -> dict[str, list[str]]:
     return {k: sorted(v) for k, v in out.items()}
 
 
-def split_superseded(result: dict, items: list[dict], replaced: dict[str, list[str]]) -> dict:
-    governing, old = [], []
+_UNTIL = re.compile(r"([0-9]{4})(?:-([0-9]{2})(?:-([0-9]{2}))?)?"
+                    r"(?:[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?(?:Z|[+-][0-9]{2}(?::?[0-9]{2})?)?)?")
+
+
+def until_of(value) -> datetime.date | None:
+    """The first day a `valid_until` value names, or None when it is empty or not a date.
+
+    Vinc writes `YYYY`, `YYYY-MM` or `YYYY-MM-DD` and reads the interval as half open, so a year or a month closes on its first
+    day, as comparing the text does there. A time after the day (`2026-11-25T15:11:23Z`) is dropped.
+    """
+    match = _UNTIL.fullmatch(value.strip()) if isinstance(value, str) else None
+    if match is None:
+        return None
+    year, month, day = (int(g) if g else 1 for g in match.groups())
+    try:
+        return datetime.date(year, month, day)
+    except ValueError:
+        return None
+
+
+def valid_until(node: dict) -> tuple[datetime.date, str] | None:
+    """The earliest date that the node's own `valid_until` field or its `props.valid_until` names, with the value as written."""
+    found = []
+    for raw in (node.get("valid_until"), (node.get("props") or {}).get("valid_until")):
+        if (day := until_of(raw)) is not None:
+            found.append((day, raw.strip()))
+    return min(found) if found else None
+
+
+def lapsed(graph: Subgraph, day: datetime.date) -> dict[str, str]:
+    """Each decision whose `valid_until` is on or before `day`, with that value as written.
+
+    Nothing else is asked here: `closed_by` leaves out the ones that a supersession or a cycle decides first.
+    """
+    out = {}
+    for n in graph.nodes:
+        until = valid_until(n) if n["kind"] == "decision" else None
+        if until is not None and until[0] <= day:
+            out[n["id"]] = until[1]
+    return out
+
+
+def closed_by(graph: Subgraph, day: datetime.date | None = None, replaced: dict[str, list[str]] | None = None) -> dict[str, str]:
+    """Each decision that its `valid_until` has closed as of `day` (default: today in UTC), with that date as written.
+
+    Vinc reads a decision's interval as half open, [valid_from, valid_until): it no longer holds on the day `valid_until` names.
+    A decision that is superseded is not listed, because it is listed as superseded with what replaces it. A node in a
+    `SUPERSEDES` cycle is not listed either: the cycle keeps it in force, as it does against a `status` that says superseded.
+    """
+    replaced = superseded_by(graph) if replaced is None else replaced
+    held = in_cycle(graph)
+    return {nid: value for nid, value in lapsed(graph, day or rules.today()).items() if nid not in replaced and nid not in held}
+
+
+def split_superseded(result: dict, items: list[dict], replaced: dict[str, list[str]], closed: dict[str, str] | None = None) -> dict:
+    governing, old, shut = [], [], []
     for item in items:
-        if item["id"] in replaced and item["kind"] == "decision":
+        if item["kind"] != "decision":
+            governing.append(item)
+        elif item["id"] in replaced:
             old.append({**item, "superseded_by": replaced[item["id"]]})
+        elif item["id"] in (closed or {}):
+            shut.append(item)
         else:
             governing.append(item)
     result["governing"] = governing
     if old:
         result["superseded"] = old
+    if shut:
+        result["closed"] = shut
     return result
 
 
 def render(report: dict) -> str:
     lines = []
     for r in report["impact"]:
-        gov, old = r["governing"], r.get("superseded", [])
-        tail = f", and {len(old)} superseded decision(s)" if old else ""
+        gov, old, shut = r["governing"], r.get("superseded", []), r.get("closed", [])
+        tail = (f", and {len(old)} superseded decision(s)" if old else "") + (f", and {len(shut)} closed decision(s)" if shut else "")
         lines.append(f"{r['path']}: {len(gov)} node(s) within {report['hops']} hop(s){tail}")
-        if not gov and not old:
+        if not gov and not old and not shut:
             lines.append("  nothing in the snapshot names this path")
         for g in gov:
             lines += item_lines(g, "  ")
@@ -240,6 +316,10 @@ def render(report: dict) -> str:
             lines.append("  superseded, listed for the record:")
         for g in old:
             lines += item_lines(g, "  ", " superseded by " + ", ".join(g["superseded_by"]) if g["superseded_by"] else "")
+        if shut:
+            lines.append("  closed by valid_until, listed for the record:")
+        for g in shut:
+            lines += item_lines(g, "  ", "closed")
     return "\n".join(lines)
 
 
@@ -251,6 +331,8 @@ def item_lines(g: dict, indent: str, note: str = "") -> list[str]:
         head += f"  via {g['via']}"
     if g.get("status"):
         head += f"  status {g['status']}"
+    if g.get("valid_until"):
+        head += f"  valid_until {g['valid_until']}"
     lines = [head + (f"  ({note.strip()})" if note else "")]
     for s in g["path"]:
         ev = f"  ({s['evidence']})" if s["evidence"] else ""
