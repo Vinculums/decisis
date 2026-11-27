@@ -1303,12 +1303,12 @@ included; a REF that starts with `-` is refused.
 footer with the same line. It is built from the facts of the run that made it:
 
 ```
-Audited locally with decisis 0.4.5 (0 LLM calls · deterministic graph check · digest: 599582f5f4f7)
+Audited locally with decisis 0.4.6 (0 LLM calls · deterministic graph check · digest: 599582f5f4f7)
 ```
 
 - The verb is `Checked` for a run that only checked a change set, and `Audited` when an audit ran. The action says
   `Checked` when `inventory` audited nothing.
-- `decisis 0.4.5` is the installed version, linked to `https://github.com/Vinculums/decisis`. The HTML page has no
+- `decisis 0.4.6` is the installed version, linked to `https://github.com/Vinculums/decisis`. The HTML page has no
   other link besides the sources of the findings.
 - `0 LLM calls` is always true: decisis calls no language model. `deterministic graph check` means the verdicts are a
   function of the snapshot, the files and the advisories the run read.
