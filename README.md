@@ -197,7 +197,7 @@ jobs:
           fail-on-violation: false
 ```
 
-It is on the Marketplace as [decisis check](https://github.com/marketplace/actions/decisis-check). The decisions come from the pull request's base commit, so editing a decision file does not change the pull request's own verdict; guard the workflow and the decision files with CODEOWNERS and make the check required. The comment's footer holds one factual line, for example `Checked with decisis 0.4.4 (0 LLM calls · deterministic graph check · pull request reviews from api.github.com · digest: …)`, that says what the run fetched and gives a digest of the result; `signature: false` leaves it out, as `--no-signature` does for `check` and `audit` with `--format html`. [Inputs, permissions, fork handling and the trust model](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
+It is on the Marketplace as [decisis check](https://github.com/marketplace/actions/decisis-check). The decisions come from the pull request's base commit, so editing a decision file does not change the pull request's own verdict; guard the workflow and the decision files with CODEOWNERS and make the check required. The comment's footer holds one factual line, for example `Checked with decisis 0.4.5 (0 LLM calls · deterministic graph check · pull request reviews from api.github.com · digest: …)`, that says what the run fetched and gives a digest of the result; `signature: false` leaves it out, as `--no-signature` does for `check` and `audit` with `--format html`. [Inputs, permissions, fork handling and the trust model](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
 
 ## AI agents: skill and MCP
 
