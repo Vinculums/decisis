@@ -22,15 +22,98 @@ class TooLarge(ValueError):
 
 
 @dataclass(frozen=True)
+class SegmentPattern:
+    pattern: str
+
+    def fullmatch(self, segment: str) -> bool:
+        return match_segment(self.pattern, segment)
+
+
+@dataclass(frozen=True)
+class GlobPattern:
+    pattern: str
+    steps: tuple[str, ...]
+
+    def fullmatch(self, path: str) -> bool:
+        return match_steps(self.steps, path.split("/"))
+
+
+@dataclass(frozen=True)
 class Rule:
     line: int
     pattern: str
     owners: tuple[str, ...]
-    regex: re.Pattern
+    regex: GlobPattern
+
+
+def collapse_stars(segment: str) -> str:
+    out: list[str] = []
+    for c in segment:
+        if c == "*" and out and out[-1] == "*":
+            continue
+        out.append(c)
+    return "".join(out)
+
+
+def match_segment(pattern: str, text: str) -> bool:
+    pi = ti = 0
+    star = -1
+    match_t = 0
+    plen, tlen = len(pattern), len(text)
+    while ti < tlen:
+        if pi < plen and (pattern[pi] == "?" or pattern[pi] == text[ti]):
+            pi += 1
+            ti += 1
+        elif pi < plen and pattern[pi] == "*":
+            star = pi
+            match_t = ti
+            pi += 1
+        elif star != -1:
+            pi = star + 1
+            match_t += 1
+            ti = match_t
+        else:
+            return False
+    while pi < plen and pattern[pi] == "*":
+        pi += 1
+    return pi == plen
+
+
+def match_steps(steps: tuple[str, ...], parts: list[str]) -> bool:
+    si = pi = 0
+    star = -1
+    match_p = 0
+    slen, plen = len(steps), len(parts)
+    while pi < plen:
+        if si < slen and steps[si] == SPAN:
+            star = si
+            match_p = pi
+            si += 1
+        elif si < slen and match_segment(steps[si], parts[pi]):
+            si += 1
+            pi += 1
+        elif star != -1:
+            si = star + 1
+            match_p += 1
+            pi = match_p
+        else:
+            return False
+    while si < slen and steps[si] == SPAN:
+        si += 1
+    return si == slen
+
+
+def collapse_steps(steps: list[str]) -> tuple[str, ...]:
+    out: list[str] = []
+    for s in steps:
+        if s == SPAN and out and out[-1] == SPAN:
+            continue
+        out.append(s)
+    return tuple(out)
 
 
 def glob_segment(segment: str) -> str:
-    return "".join("[^/]*" if c == "*" else "[^/]" if c == "?" else re.escape(c) for c in segment)
+    return "".join("[^/]*" if c == "*" else "[^/]" if c == "?" else re.escape(c) for c in collapse_stars(segment))
 
 
 def split_pattern(pattern: str) -> tuple[list[str], bool, bool]:
@@ -42,31 +125,38 @@ def split_pattern(pattern: str) -> tuple[list[str], bool, bool]:
     return segments, directory, "/" in trimmed
 
 
-def compile_pattern(pattern: str) -> re.Pattern:
+def compile_steps(segments: list[str], directory: bool, anchored: bool) -> tuple[str, ...]:
+    steps = [] if anchored else [SPAN]
+    had_non_span = False
+    for i, segment in enumerate(segments):
+        if segment != SPAN:
+            steps.append(collapse_stars(segment))
+            had_non_span = True
+        elif i < len(segments) - 1:
+            steps.append(SPAN)
+        elif had_non_span:
+            steps += [ANY, SPAN]
+        else:
+            steps.append(SPAN)
+    if directory:
+        steps += [ANY, SPAN]
+    elif plain_name(segments[-1]):
+        steps.append(SPAN)
+    return collapse_steps(steps)
+
+
+def compile_pattern(pattern: str) -> GlobPattern:
     if pattern.startswith("!"):
         raise Unsupported(f"the pattern {pattern} negates with !, which GitHub does not support")
     for ch, what in NOT_SUPPORTED.items():
         if ch in pattern:
             raise Unsupported(f"the pattern {pattern} uses {what} ({ch}), which GitHub does not support")
     segments, directory, anchored = split_pattern(pattern)
-    body = "".join(segment_regex(s, i == len(segments) - 1) for i, s in enumerate(segments))
-    return re.compile(("" if anchored else "(?:.*/)?") + body + tail(segments[-1], directory))
-
-
-def segment_regex(segment: str, last: bool) -> str:
-    if segment == "**":
-        return ".*" if last else "(?:.*/)?"
-    return glob_segment(segment) + ("" if last else "/")
+    return GlobPattern(pattern, compile_steps(segments, directory, anchored))
 
 
 def plain_name(last: str) -> bool:
     return last != SPAN and "*" not in last and "?" not in last
-
-
-def tail(last: str, directory: bool) -> str:
-    if directory:
-        return "/.*"
-    return "(?:/.*)?" if plain_name(last) else ""
 
 
 def repository_files(root: Path) -> tuple[list[str], str]:
@@ -135,7 +225,7 @@ def pattern_steps(pattern: str) -> tuple[str, ...]:
     steps = [] if anchored else [SPAN]
     for i, segment in enumerate(segments):
         if segment != SPAN:
-            steps.append(segment)
+            steps.append(collapse_stars(segment))
         elif i < len(segments) - 1:
             steps.append(SPAN)
         else:
@@ -144,12 +234,12 @@ def pattern_steps(pattern: str) -> tuple[str, ...]:
         steps += [ANY, SPAN]
     elif plain_name(segments[-1]):
         steps.append(SPAN)
-    return tuple(steps)
+    return collapse_steps(steps)
 
 
 @functools.lru_cache(maxsize=4096)
-def segment_pattern(step: str) -> re.Pattern:
-    return re.compile(glob_segment(step))
+def segment_pattern(step: str) -> SegmentPattern:
+    return SegmentPattern(collapse_stars(step))
 
 
 State = tuple[int, bool]

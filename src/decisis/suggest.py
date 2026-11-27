@@ -71,12 +71,45 @@ class Suggested:
     skipped: dict[str, str] = field(default_factory=dict)
 
 
+def stays_inside(root: Path, top: Path, rel: str, dir_ok: dict[str, bool]) -> bool:
+    if not utf8(rel):
+        return True
+    parts = rel.split("/")
+    cur = root
+    prefix = ""
+    for part in parts[:-1]:
+        prefix = f"{prefix}/{part}" if prefix else part
+        cur = cur / part
+        ok = dir_ok.get(prefix)
+        if ok is None:
+            if cur.is_symlink():
+                try:
+                    ok = cur.resolve().is_relative_to(top)
+                except (OSError, RuntimeError):
+                    ok = False
+            else:
+                ok = True
+            dir_ok[prefix] = ok
+        if not ok:
+            return False
+    leaf = cur / parts[-1]
+    if leaf.is_symlink():
+        try:
+            return leaf.resolve().is_relative_to(top)
+        except (OSError, RuntimeError):
+            return False
+    return True
+
+
 def repository_files(root: Path) -> tuple[list[str], list[tuple[str, str]]]:
     notes: list[tuple[str, str]] = []
     files = owners.git_files(root)
     if files is None:
         files = walk(root, ignored(root, notes))
     files = [f for f in files if not SKIP_DIRS.intersection(f.split("/")[:-1])]
+    top = root.resolve()
+    dir_ok: dict[str, bool] = {}
+    files = [f for f in files if stays_inside(root, top, f, dir_ok)]
     odd = sum(not utf8(f) for f in files)
     if odd:
         notes.append((".", f"{count(odd, 'file name')} {'is' if odd == 1 else 'are'} not UTF-8; --suggest-refs never suggests them"))
@@ -93,7 +126,7 @@ def utf8(name: str) -> bool:
     return True
 
 
-def ignored(root: Path, notes: list[tuple[str, str]]) -> list[re.Pattern]:
+def ignored(root: Path, notes: list[tuple[str, str]]) -> list[owners.GlobPattern]:
     path = root / ".gitignore"
     if not path.is_file() or not path.resolve().is_relative_to(root.resolve()):
         return []
@@ -109,7 +142,7 @@ def ignored(root: Path, notes: list[tuple[str, str]]) -> list[re.Pattern]:
     return patterns
 
 
-def walk(root: Path, patterns: list[re.Pattern]) -> list[str]:
+def walk(root: Path, patterns: list[owners.GlobPattern]) -> list[str]:
     out = []
     for dirpath, dirnames, filenames in os.walk(root):
         here = Path(dirpath).relative_to(root).as_posix()

@@ -122,11 +122,49 @@ def _names_entry(entry) -> bool:
         and all(isinstance(n, str) for n in entry["names"])
 
 
+def _check_vuln(vid: str, v, where: str) -> dict:
+    if not isinstance(v, dict):
+        raise ValueError(f"{where} record {vid} must be an object")
+    db = v.get("database_specific")
+    if db is not None and not isinstance(db, dict):
+        raise ValueError(f"{where} record {vid} database_specific must be an object")
+    aliases = v.get("aliases")
+    if aliases is not None and (not isinstance(aliases, list) or not all(isinstance(a, str) for a in aliases)):
+        raise ValueError(f"{where} record {vid} aliases must be a list of strings")
+    sev = v.get("severity")
+    if sev is not None and (not isinstance(sev, list) or not all(isinstance(s, dict) for s in sev)):
+        raise ValueError(f"{where} record {vid} severity must be a list of objects")
+    affected = v.get("affected")
+    if affected is not None:
+        if not isinstance(affected, list) or not all(isinstance(a, dict) for a in affected):
+            raise ValueError(f"{where} record {vid} affected must be a list of objects")
+        for a in affected:
+            pkg = a.get("package")
+            if pkg is not None and not isinstance(pkg, dict):
+                raise ValueError(f"{where} record {vid} affected package must be an object")
+            ranges = a.get("ranges")
+            if ranges is not None:
+                if not isinstance(ranges, list) or not all(isinstance(r, dict) for r in ranges):
+                    raise ValueError(f"{where} record {vid} affected ranges must be a list of objects")
+                for r in ranges:
+                    events = r.get("events")
+                    if events is not None and (not isinstance(events, list) or not all(isinstance(ev, dict) for ev in events)):
+                        raise ValueError(f"{where} record {vid} range events must be a list of objects")
+    return v
+
+
 def read_osv_cache(text: str) -> dict:
     cache = json.loads(text)
     if not isinstance(cache, dict) or not isinstance(cache.get("queries"), dict) or not isinstance(cache.get("vulns"), dict) \
             or not isinstance(cache.get("fetched_at"), str):
         raise ValueError("an OSV cache needs fetched_at, queries (package id to advisory ids) and vulns (advisory id to record)")
+    for pid, vids in cache["queries"].items():
+        if not isinstance(pid, str) or not isinstance(vids, list) or not all(isinstance(v, str) for v in vids):
+            raise ValueError(f"an OSV cache's queries[{pid!r}] must be a list of advisory ids")
+    for vid, record in cache["vulns"].items():
+        if not isinstance(vid, str):
+            raise ValueError("an OSV cache's vulns keys must be advisory ids")
+        _check_vuln(vid, record, "OSV cache")
     names = cache.get("names", {})
     if not isinstance(names, dict) or not all(_names_entry(e) for e in names.values()):
         raise ValueError("an OSV cache's names map each ecosystem to {fetched_at, names}, the package names OSV stores")
@@ -203,14 +241,23 @@ def fetch_advisories(packages: list[dict], opener=urllib.request.urlopen, cache:
     for i in range(0, len(asks), BATCH):
         chunk = asks[i:i + BATCH]
         reply = _post(OSV_BATCH, {"queries": [q for _, q in chunk]}, opener)
-        for (pid, _), r in zip(chunk, reply.get("results", [])):
-            hits[pid] += [v["id"] for v in (r.get("vulns") or []) if v["id"] not in hits[pid]]
+        results = reply.get("results", []) if isinstance(reply, dict) else []
+        if not isinstance(results, list):
+            raise NetworkFailed("OSV querybatch returned a non-list results field")
+        for (pid, _), r in zip(chunk, results):
+            if not isinstance(r, dict):
+                continue
+            vulns = r.get("vulns") or []
+            if not isinstance(vulns, list):
+                continue
+            hits[pid] += [v["id"] for v in vulns if isinstance(v, dict) and isinstance(v.get("id"), str) and v["id"] not in hits[pid]]
     fetched = fetched_at or now()
     nodes = []
     vids = sorted({v for vs in hits.values() for v in vs})
     for vid in vids:
         if vid not in cache:
             cache[vid] = _get(OSV_VULN.format(id=vid), opener)
+        _check_vuln(vid, cache[vid], "OSV")
     for vid in vids:
         v = cache[vid]
         sev, source = severity_of(vid, v, cache)
@@ -226,12 +273,17 @@ def fetch_advisories(packages: list[dict], opener=urllib.request.urlopen, cache:
 
 
 def _own_severity(v: dict) -> str:
-    return str((v.get("database_specific") or {}).get("severity") or "").upper()
+    if not isinstance(v, dict):
+        return ""
+    db = v.get("database_specific")
+    return str(db.get("severity") or "").upper() if isinstance(db, dict) else ""
 
 
 def ghsa_aliases(vid: str, v: dict, records: dict) -> list[str]:
-    named = {a for a in v.get("aliases") or [] if isinstance(a, str) and a.startswith("GHSA-")}
-    back = {k for k, r in records.items() if k.startswith("GHSA-") and vid in ((r or {}).get("aliases") or [])}
+    aliases = v.get("aliases") if isinstance(v, dict) else None
+    named = {a for a in (aliases or []) if isinstance(a, str) and a.startswith("GHSA-")}
+    back = {k for k, r in records.items() if isinstance(k, str) and k.startswith("GHSA-") and isinstance(r, dict)
+            and isinstance(r.get("aliases"), list) and vid in r["aliases"]}
     return sorted(named | back)
 
 

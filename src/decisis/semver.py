@@ -11,6 +11,8 @@ FLOATING = re.compile(r"^v?(\d+)(?:\.(\d+))?$")
 
 
 def parse(v: str) -> tuple:
+    if not isinstance(v, str):
+        raise ValueError(f"not a semantic version: {v!r}")
     m = _V.match(v.strip())
     if not m:
         raise ValueError(f"not a semantic version: {v!r}")
@@ -27,13 +29,22 @@ def order(ecosystem: str):
 
 
 def _sorted(events: list[dict], key) -> list[tuple[str, tuple]]:
+    if not isinstance(events, list):
+        raise ValueError("events must be a list")
     out = []
     for ev in events:
+        if not isinstance(ev, dict):
+            raise ValueError("event must be a mapping")
         kind = next((k for k in EVENTS if k in ev), None)
-        if kind == "introduced" and ev[kind] == "0":
+        if kind is None:
+            continue
+        val = ev[kind]
+        if not isinstance(val, str):
+            raise ValueError(f"event {kind} must be a string, not {val!r}")
+        if kind == "introduced" and val == "0":
             out.append((kind, (0,)))
-        elif kind is not None:
-            out.append((kind, (1, key(ev[kind]))))
+        else:
+            out.append((kind, (1, key(val))))
     return sorted(out, key=lambda e: e[1])
 
 
@@ -78,36 +89,59 @@ def span_in_range(low: str, high: str, events: list[dict], key=parse) -> bool | 
 
 
 def same_package(ecosystem: str, name: str, pkg: dict) -> bool:
-    if (pkg.get("ecosystem") or "").lower() != ecosystem.lower():
+    if not isinstance(pkg, dict):
+        return False
+    pkg_eco = pkg.get("ecosystem")
+    pkg_name = pkg.get("name")
+    if not isinstance(pkg_eco, str) or not isinstance(pkg_name, str):
+        return False
+    if pkg_eco.lower() != ecosystem.lower():
         return False
     if ecosystem.lower() == "pypi":
-        return pypi_name(pkg.get("name") or "") == pypi_name(name)
+        return pypi_name(pkg_name) == pypi_name(name)
     if ecosystem.lower() == "github actions":
-        return (pkg.get("name") or "").lower() == name.lower()
+        return pkg_name.lower() == name.lower()
     if ecosystem.lower() == "terraform":
-        return terraform_name(pkg.get("name") or "") == terraform_name(name)
-    return pkg.get("name") == name
+        return terraform_name(pkg_name) == terraform_name(name)
+    return pkg_name == name
 
 
 def _verdict(version: str, ecosystem: str, r: dict) -> bool | None:
+    if not isinstance(r, dict):
+        return None
     key = parse if r.get("type") == "SEMVER" else order(ecosystem)
     if key is None:
         return None
+    events = r.get("events")
+    if events is None:
+        events = []
     span = floating(version, ecosystem)
     if span is not None:
-        return span_in_range(*span, r.get("events") or [], key)
-    return in_range(version, r.get("events") or [], key)
+        return span_in_range(*span, events, key)
+    return in_range(version, events, key)
 
 
 def affects(version: str, ecosystem: str, name: str, affected: list[dict]) -> bool | None:
+    if not isinstance(affected, list):
+        return None
     verdicts = []
     for a in affected:
+        if not isinstance(a, dict):
+            verdicts.append(None)
+            continue
         if not same_package(ecosystem, name, a.get("package") or {}):
             continue
-        if version in (a.get("versions") or []):
+        versions = a.get("versions") or []
+        if isinstance(versions, list) and version in versions:
             return True
-        for r in a.get("ranges") or []:
-            if r.get("type") in ("SEMVER", "ECOSYSTEM"):
+        ranges = a.get("ranges") or []
+        if not isinstance(ranges, list):
+            verdicts.append(None)
+            continue
+        for r in ranges:
+            if not isinstance(r, dict):
+                verdicts.append(None)
+            elif r.get("type") in ("SEMVER", "ECOSYSTEM"):
                 verdicts.append(_verdict(version, ecosystem, r))
     if any(v is True for v in verdicts):
         return True
