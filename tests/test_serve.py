@@ -672,7 +672,7 @@ def test_a_reload_reaches_a_client_listening_on_the_2026_wire(tmp_path):
 
 @pytest.mark.parametrize("breakage,why", [
     (lambda p: rewrite(p, b'{"nodes": [}'), "JSONDecodeError"),
-    (lambda p: rewrite(p, b'{"meta": {}}'), "KeyError: 'nodes'"),
+    (lambda p: rewrite(p, b'{"meta": {}}'), "ValueError: snapshot must have a list of nodes"),
     (lambda p: p.unlink(), "FileNotFoundError"),
 ], ids=["not-json", "not-a-snapshot", "deleted"])
 def test_a_snapshot_that_fails_to_reload_leaves_the_previous_one_and_the_reply_says_why(breakage, why, tmp_path, boxes):

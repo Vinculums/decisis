@@ -104,10 +104,7 @@ def dump(graph: Subgraph) -> str:
 def load(text: str) -> Subgraph:
     if not isinstance(text, str):
         raise ValueError("the snapshot must be JSON text")
-    try:
-        d = json.loads(text)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"the snapshot is not valid JSON: {e}") from None
+    d = json.loads(text)
     if not isinstance(d, dict):
         raise ValueError("the snapshot must be a JSON object")
     if "meta" in d and not isinstance(d["meta"], dict):
