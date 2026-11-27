@@ -1,6 +1,6 @@
 [project]
 name = "decisis"
-version = "0.4.5"
+version = "0.4.6"
 description = "Stand by what was decided: join a team's decisions with code and outside facts in a throwaway Relate graph, and keep only verified findings. Works offline; connects to Vinc when you configure it."
 readme = "README.md"
 requires-python = ">=3.11"
