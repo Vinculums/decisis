@@ -1,24 +1,3 @@
-"""Judge a change set against the review and import rules of the decisions in a snapshot.
-
-The changed files come from `--changed` or from `git diff --name-only REF...HEAD` in the repository. Each file
-is passed to `impact`, which lists the decisions that govern it; superseded decisions, and decisions closed by a `valid_until`
-on or before the run's date, are listed apart and never judged. Every other decision whose `rule` has a `review_required` or
-`imports_forbidden` entry is judged, since the rule's own globs name the files it covers. A decision in a `SUPERSEDES` cycle is
-not superseded and not closed, so its rules are judged, and each cycle is a result under `unresolved`; the result names each
-member whose `valid_until` has passed. The Action passes the cycles a pull request adds, which take effect once it is
-merged, as `arriving`, and each is a result under `unresolved` too. It passes the cycles of the base the pull request removes as
-`leaving`, and each is left out of `unresolved`; the rules of its decisions are judged all the same. `review_required` is judged on each changed file against the
-reviewers given. `imports_forbidden` is judged on the imports of each changed Python, JavaScript, TypeScript, Go, Rust,
-Java or Kotlin file its `from` globs cover (see `imports.py`); no code of the repository is run. A violation that one of the
-decision's own waivers covers is `waived` through the waiver's expiry date, listed apart and never counted for the
-exit code. The waiver of a waived result that ends within `warn_days` of the run's date is also listed under
-`expiring_soon`; that list changes no verdict and no exit code. A rule or waiver of any decision that is not
-superseded and cannot be read is under `rule_problems`, whatever the decision governs. An ADR that `init` could not
-read is not in the snapshot, so its rules cannot be judged; each one the snapshot's `meta.problems` lists is under
-`unread_decisions` with its file and reason. A changed file that a CODEOWNERS owner set covers and no `review_required`
-rule covers is listed under `codeowners` with its owners; the list is information only, decisis does not enforce CODEOWNERS,
-and it changes no verdict, exit code or SARIF result.
-"""
 from __future__ import annotations
 
 import datetime
@@ -51,6 +30,8 @@ def changed_since(root: Path, ref: str) -> list[str]:
 
 
 def normal(path: str) -> str:
+    if "\x00" in path:
+        raise ValueError(f"a changed file must be a path inside the repository, not {path!r}")
     p = posixpath.normpath(path.strip())
     if not path.strip() or p.startswith("/") or p in (".", "..") or p.startswith("../"):
         raise ValueError(f"a changed file must be a path inside the repository, not {path!r}")

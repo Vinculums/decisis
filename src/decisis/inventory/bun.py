@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-from .js import ORPHAN, manifest_label, mapping, npm_package, requirements, split_spec
+from .js import ORPHAN, manifest_label, npm_package, requirements, split_spec
 from .shape import Inventory, text_digest
 
 FORMAT = "bun"
@@ -56,7 +56,18 @@ def _parse(text: str, filename: str) -> dict:
     doc = _loads(text)
     if not isinstance(doc, dict) or not isinstance(doc.get("packages"), dict):
         raise ValueError(f"{filename} is not a Bun text lockfile (JSON with workspaces and packages)")
+    if "workspaces" in doc and not isinstance(doc["workspaces"], dict):
+        raise ValueError(f"{filename} workspaces must be a mapping")
     return doc
+
+
+def _dict_field(obj: dict, field: str, where: str) -> dict:
+    if field not in obj:
+        return {}
+    value = obj[field]
+    if not isinstance(value, dict):
+        raise ValueError(f"bun.lock {where} {field} must be a mapping")
+    return value
 
 
 def _segments(key: str) -> list[str]:
@@ -75,18 +86,24 @@ def _lookup(packages: dict, parent: list[str], dep: str) -> str | None:
     return None
 
 
-def _ident(entry) -> tuple[str, str]:
-    return split_spec(str(entry[0])) if isinstance(entry, list) and entry else ("", "")
+def _ident(entry, key: str) -> tuple[str, str]:
+    if not isinstance(entry, list) or not entry or not isinstance(entry[0], str):
+        raise ValueError(f"bun.lock package {key!r} must be a non-empty list starting with a string")
+    return split_spec(entry[0])
 
 
-def _meta(entry) -> dict:
-    return next((x for x in entry[1:] if isinstance(x, dict)), {}) if isinstance(entry, list) else {}
+def _meta(entry, key: str) -> dict:
+    meta = next((x for x in entry[1:] if isinstance(x, dict)), {})
+    for field, _ in PACKAGE_FIELDS:
+        _dict_field(meta, field, f"package {key!r}")
+    return meta
 
 
 def _nodes(inv: Inventory, packages: dict, filename: str) -> dict[str, object]:
     keys: dict[str, object] = {}
     for key, entry in sorted(packages.items()):
-        name, ref = _ident(entry)
+        name, ref = _ident(entry, key)
+        _meta(entry, key)
         if ref.startswith("workspace:"):
             keys[key] = f"workspace:{ref[len('workspace:'):]}"
             continue
@@ -98,16 +115,22 @@ def _nodes(inv: Inventory, packages: dict, filename: str) -> dict[str, object]:
 
 def _workspaces(inv: Inventory, workspaces: dict, filename: str) -> None:
     for path, ws in sorted(workspaces.items()):
+        if not isinstance(ws, dict):
+            raise ValueError(f"bun.lock workspace {path!r} must be a mapping")
+        if "name" in ws and not isinstance(ws["name"], str):
+            raise ValueError(f"bun.lock workspace {path!r} name must be a string")
+        for field in ("dependencies", "optionalDependencies", "peerDependencies", "devDependencies"):
+            _dict_field(ws, field, f"workspace {path!r}")
         if path == "":
             inv.root("workspace:.")
         else:
-            inv.workspace(f"workspace:{path}", path, str(mapping(ws).get("name") or ""), f"{inv.repo}:{filename}#workspaces/{path}")
+            inv.workspace(f"workspace:{path}", path, ws.get("name") or "", f"{inv.repo}:{filename}#workspaces/{path}")
 
 
 def _edges(inv: Inventory, packages: dict, workspaces: dict, keys: dict) -> None:
     for path, ws in sorted(workspaces.items()):
-        path, ws = path or ".", mapping(ws)
-        parent = [str(ws["name"])] if ws.get("name") and path != "." else []
+        path = path or "."
+        parent = [ws["name"]] if ws.get("name") and path != "." else []
         for dep, spec, note, dev in requirements(ws):
             target = _lookup(packages, parent, dep)
             if target is not None:
@@ -116,8 +139,9 @@ def _edges(inv: Inventory, packages: dict, workspaces: dict, keys: dict) -> None
         if isinstance(keys[key], str):
             continue
         name, version = keys[key]
+        meta = _meta(entry, key)
         for field, note in PACKAGE_FIELDS:
-            for dep, spec in sorted(mapping(_meta(entry).get(field)).items()):
+            for dep, spec in sorted(_dict_field(meta, field, f"package {key!r}").items()):
                 target = _lookup(packages, _segments(key), dep)
                 if target is not None:
                     inv.depends(keys[key], keys[target], f"{name} {version} requires {dep} {spec}{note}")
@@ -125,7 +149,7 @@ def _edges(inv: Inventory, packages: dict, workspaces: dict, keys: dict) -> None
 
 def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
     doc = _parse(text, filename)
-    packages, workspaces = doc["packages"], mapping(doc.get("workspaces"))
+    packages, workspaces = doc["packages"], doc.get("workspaces", {})
     inv = Inventory(repo, "bun-lockfile", text_digest(text))
     keys = _nodes(inv, packages, filename)
     _workspaces(inv, workspaces, filename)

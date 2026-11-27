@@ -106,17 +106,29 @@ def default_root() -> Path:
     return TMPFS if TMPFS.is_dir() and os.access(TMPFS, os.W_OK) else Path(tempfile.gettempdir())
 
 
+RESERVED_PROPS = frozenset({"title", "domain"})
+
+
 class LoadMismatch(ValueError):
     pass
 
 
-def _mismatch(graph: Subgraph, got: dict) -> str:
+def _mismatch(graph: Subgraph, got: dict, overwritten: list[str] | None = None) -> str:
     ids = [n["id"] for n in graph.nodes]
     known = set(ids)
     out = [f"loaded {got['nodes']} nodes and {got['edges']} edges, but the snapshot has {len(graph.nodes)} nodes and {len(graph.edges)} edges"]
-    dupes = sorted({i for i in ids if ids.count(i) > 1})
+    seen: set = set()
+    dupes_set: set = set()
+    for i in ids:
+        if i in seen:
+            dupes_set.add(i)
+        else:
+            seen.add(i)
+    dupes = sorted(dupes_set, key=str)
     if dupes:
-        out.append("repeated node ids: " + ", ".join(dupes[:5]))
+        out.append("repeated node ids: " + ", ".join(str(i) for i in dupes[:5]))
+    if overwritten:
+        out.append("node props overrode id: " + ", ".join(overwritten[:5]))
     dangling = [f"{e['source']} -{e['type']}-> {e['target']}" for e in graph.edges if e["source"] not in known or e["target"] not in known]
     if dangling:
         out.append("edges with a missing endpoint: " + ", ".join(dangling[:5]))
@@ -136,13 +148,17 @@ class Sandbox:
         check_size(graph, self.limits)
         _warm()
         con = relate.connect(str(self.path))
+        overwritten: list[str] = []
         try:
             made: dict[str, list[int]] = {}
             for kind in sorted({n["kind"] for n in graph.nodes}):
-                rows = [{"id": n["id"], "title": n.get("title") or "", "domain": n.get("domain") or "", "props": _flat(n.get("props"))}
+                rows = [{"id": n["id"], "title": n.get("title") or "", "domain": n.get("domain") or "",
+                         "props": {k: v for k, v in _flat(n.get("props")).items() if k not in RESERVED_PROPS}}
                         for n in graph.nodes if n["kind"] == kind]
                 for r in con.execute(f"UNWIND $rows AS r CREATE (n:{_label(kind)} {{id: r.id, title: r.title, domain: r.domain}}) SET n += r.props "
-                                     "RETURN n.id AS id, id(n) AS nid", {"rows": rows}).fetchall():
+                                     "RETURN r.id AS want, n.id AS id, id(n) AS nid", {"rows": rows}).fetchall():
+                    if r["id"] != r["want"]:
+                        overwritten.append(str(r["want"]))
                     if isinstance(r["id"], str):
                         made.setdefault(r["id"], []).append(r["nid"])
             seek = {i: n[0] for i, n in made.items() if len(n) == 1}
@@ -156,8 +172,9 @@ class Sandbox:
             con.close()
         self.loaded = True
         got = {"nodes": dict(nodes)["c"] if nodes else 0, "edges": dict(edges)["c"] if edges else 0}
-        if got != {"nodes": len(graph.nodes), "edges": len(graph.edges)}:
-            raise LoadMismatch(_mismatch(graph, got))
+        ids = [n["id"] for n in graph.nodes]
+        if got != {"nodes": len(graph.nodes), "edges": len(graph.edges)} or len(ids) != len(set(ids)) or overwritten:
+            raise LoadMismatch(_mismatch(graph, got, sorted(set(overwritten))))
         return got
 
     def query(self, cypher: str, params: dict | None = None) -> list[dict]:

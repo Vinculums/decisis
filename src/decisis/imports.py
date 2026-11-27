@@ -1,59 +1,3 @@
-"""The imports a source file makes, read without running any of the repository's code.
-
-Python files are parsed with `ast`. `import a.b`, `from a.b import c` and relative imports are listed, and
-`importlib.import_module` and `__import__` calls with a literal name are read like an import. A module name
-is looked up under the root of the file's own package (the first directory above it without an
-`__init__.py`), the nearest directory above it with a `pyproject.toml`, `setup.py` or `setup.cfg` and its
-`src/`, the repository root and `src/`: `a/b.py`, `a/b.pyi`, `a/b/__init__.py`, or the directory
-`a/b/` of a namespace package when it holds a Python file. A relative import resolves from the file's own
-directory. A module found under none of those roots is external (the standard library or an installed
-package), unless its first part is a package or module somewhere in the repository and not a standard
-library name, which makes it unresolved.
-
-JavaScript and TypeScript files are read with a scanner that skips comments, strings, template literals,
-regular expressions and, outside `.ts`, `.mts` and `.cts` files, JSX text. It lists `import ... from "x"`,
-`import "x"`, `export ... from "x"`, and `require("x")` and `import("x")` with a literal specifier. A
-relative specifier resolves to the file itself, the file with one of `EXTENSIONS`, a `.ts` file for a `.js`
-specifier, or an `index` file in that directory. `paths` and `baseUrl` from the nearest `tsconfig.json` or
-`jsconfig.json` above the file, with its `extends` chain inside the repository, apply to other specifiers;
-one that matches a `paths` pattern but names no file is unresolved. Any other specifier is an external
-package, given the target `node_modules/<specifier>`, unless it names a package of an npm, pnpm, Yarn or Bun workspace
-of the repository (`workspaces.py`): it then resolves to that package's files through `exports`, `main` and the other
-entry fields, and a `workspace:` link of the nearest `package.json` can give the package another name.
-
-Go files are read with a scanner that skips comments, strings and runes. Single and grouped `import`
-declarations are listed, with an alias, dot or blank name. A path equal to or under the `module` path of the
-nearest `go.mod` names the package directory below it, given with a trailing `/`; the directory and each
-`.go` file directly in it are the paths a `to` glob is matched against. Any other path is external; with no
-`go.mod`, a path whose first element has a `.` is unresolved.
-
-Rust files are read with a scanner that skips comments (block comments nest), strings, raw, byte and C
-strings, and character literals, and tells lifetimes apart. `use` trees are expanded into one path each,
-and `mod x;` and `extern crate x;` are listed. The nearest `Cargo.toml` with a `[package]` gives the crate
-root, and the crate's modules are the tree of `mod` declarations from it (with `#[path]`, `cfg_attr` paths
-and inline modules). Each name of a path is looked up in the module reached so far as a child module, an
-item it declares, a name it binds with `use` or `extern crate` (followed to what it binds) or a name a glob
-`use` brings in; an item ends the path at its file, and a name found none of those ways is unresolved. A
-first name that is none of those is a crate of the repository (by its `Cargo.toml` name, a `path`, a
-`package` rename or a workspace dependency) or external. A module file `a/b.rs` is also matched as its
-directory `a/b/`.
-
-Java and Kotlin files are read by `jvm.py`: `import a.b.C`, `import a.b.*`, `import static a.b.C.m` and Kotlin
-`import a.b.C as D` resolve to the source file of the class, or the package directory for a wildcard, by the
-`package` line of each source file and by its path under the source roots; a class of no source file is external,
-and one that a package of the repository could hold is unresolved.
-
-A plain text search for the same import forms runs over every JavaScript, TypeScript, Go, Rust, Java and Kotlin file as
-well. A specifier it finds that the scanner did not read as code is listed as unresolved, with the file it
-would name, so a scanner mistake can never make an import disappear; a Go, Rust, Java or Kotlin hit that would be external
-is left out, since it could not be a violation. In a Rust file the text search runs over the file with every comment,
-string, raw, byte and C string and character literal the scanner read blanked out, so `use` and `mod` text in them is
-neither an import nor a disagreement; it still lists a hit in the part of a file the scanner could not scan to its end.
-
-A call whose specifier is not a literal, a relative import that names no file, a file that cannot be parsed
-or scanned to its end, and a config that cannot be read or extends a package are unresolved. Every path is
-checked to stay inside the repository after symbolic links.
-"""
 from __future__ import annotations
 
 import ast
@@ -242,21 +186,63 @@ def python_imports(repo: Repo, rel: str, data: bytes) -> list[Import]:
     except (SyntaxError, ValueError, RecursionError, MemoryError) as e:
         return [Import(None, rel, UNRESOLVED, None, f"the file cannot be parsed ({type(e).__name__})")]
     roots = repo.python_roots(rel)
+    funcs, mods = dynamic_aliases(tree)
     out: list[Import] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             out += [module_import(repo, roots, node.lineno, f"import {a.name}", a.name) for a in node.names]
         elif isinstance(node, ast.ImportFrom):
             out += from_import(repo, roots, rel, node)
-        elif isinstance(node, ast.Call) and dynamic_import(node.func):
+        elif isinstance(node, ast.Call) and dynamic_import(node.func, funcs, mods):
             out.append(call_import(repo, roots, node))
     return out
 
 
-def dynamic_import(func: ast.expr) -> bool:
+def dynamic_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
+    funcs = {"__import__", "import_module"}
+    mods = {"importlib", "builtins"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                if a.name in ("importlib", "builtins") and a.asname:
+                    mods.add(a.asname)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            for a in node.names:
+                if (node.module == "importlib" and a.name == "import_module") or (node.module == "builtins" and a.name == "__import__"):
+                    funcs.add(a.asname or a.name)
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                val = node.value
+                targets = [t for t in node.targets if isinstance(t, ast.Name)]
+            elif isinstance(node, ast.AnnAssign) and node.value is not None and isinstance(node.target, ast.Name):
+                val = node.value
+                targets = [node.target]
+            else:
+                continue
+            is_func = (isinstance(val, ast.Name) and val.id in funcs) or (
+                isinstance(val, ast.Attribute) and val.attr in ("import_module", "__import__")
+                and isinstance(val.value, ast.Name) and val.value.id in mods
+            )
+            is_mod = isinstance(val, ast.Name) and val.id in mods
+            if is_func or is_mod:
+                bag = funcs if is_func else mods
+                for t in targets:
+                    if t.id not in bag:
+                        bag.add(t.id)
+                        changed = True
+    return funcs, mods
+
+
+def dynamic_import(func: ast.expr, funcs: set[str] | frozenset[str] = frozenset(("__import__", "import_module")),
+                   mods: set[str] | frozenset[str] = frozenset(("importlib", "builtins"))) -> bool:
     if isinstance(func, ast.Name):
-        return func.id in ("__import__", "import_module")
-    return isinstance(func, ast.Attribute) and func.attr == "import_module"
+        return func.id in funcs
+    if isinstance(func, ast.Attribute):
+        return func.attr == "import_module" or (func.attr == "__import__" and isinstance(func.value, ast.Name) and func.value.id in mods)
+    return False
 
 
 def call_import(repo: Repo, roots: list[str], node: ast.Call) -> Import:

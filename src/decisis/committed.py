@@ -1,16 +1,3 @@
-"""Read the decisions a commit holds without checking the commit out or running anything from it.
-
-`built` copies the files `decisis init` reads (the ADR and postmortem records and the CODEOWNERS file) from the
-commit's tree into a private temporary directory, through the hardened git helper, and runs `init.build` there.
-Only regular files are copied. What lies in an ADR directory is judged by `init.Survey`, the rule `init` applies to
-a working tree, so links, submodules and files in subfolders are listed the same way and the caps stop at the same entry.
-`stored` reads a snapshot file from the commit's tree and returns `None` when the commit has no file at the path.
-`changes` names the decisions and waivers that one snapshot adds, changes or removes against another. `supersession` names
-what that change does to supersession: each `SUPERSEDES` edge between decisions that one snapshot adds or removes against
-the other, the decisions that become superseded or return to force, and each `SUPERSEDES` cycle added or removed. A cycle
-of the old snapshot is removed when its members no longer lie together in one cycle of the new one, so a cycle that
-only grows is not removed.
-"""
 from __future__ import annotations
 
 import json

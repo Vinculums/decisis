@@ -1,18 +1,3 @@
-"""SARIF 2.1.0 logs of the `check` and `audit` reports, for GitHub code scanning.
-
-One run holds one report. The tool driver is `decisis` with its installed version, and each rule kind that judged
-something is a `reportingDescriptor`. A violated result is an `error` and an unresolved one a `warning`; a waived one
-is a `note` whose message starts with "Waived until <date>:" and carries an external, accepted suppression whose
-justification is the waiver. GitHub code scanning does not read the suppression, so the level is what keeps a waived
-finding from showing as an open error. A result that is not violated is left out. `check` points each result at the
-changed file and the import line, `audit` at the inventory file. Every result has a `partialFingerprints` value hashed
-from the decision, the rule kind, the file and the import or package, so a later run of the same finding is the same
-alert, whether it is violated or waived.
-
-Report text comes from snapshots and pull requests and is only ever put into JSON values: a message has its link
-syntax escaped, a location is a percent-encoded repository-relative path or none, and nothing is formatted into
-markup. A path that is absolute, leaves the repository, names a drive or holds a backslash gets no location.
-"""
 from __future__ import annotations
 
 import hashlib

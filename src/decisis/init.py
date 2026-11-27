@@ -1,16 +1,3 @@
-"""Build a snapshot from what a repository already records: ADRs, CODEOWNERS and postmortems.
-
-Each reader takes a `Tree` and returns `(nodes, edges)` in snapshot shape. `build` runs the readers, merges
-what they return and sorts it, so the same tree always gives the same bytes. A file that cannot be read or
-parsed is listed in `meta.problems` with its path and the reason, and skipped; an entry about an ADR file has
-`kind: "decision"`, and `unread_decisions` reads back the ADRs left out for `check` and `audit`, with each front matter key
-the reader does not know that is close to `rule` or `waivers` or spells them as a compound, such as `ruleset` or `waiver-list`.
-ADRs are read only from the files directly in an ADR directory; `Survey` lists, as `ignored`, what lies below it, by one rule that `committed` applies to a commit's tree as well.
-A front matter `rule` or `waivers` may also be written as YAML, which `yamltext.plain` reads within fixed bounds; every other key reads as a subset of YAML.
-Nothing is guessed from prose,
-except that `--suggest-refs` adds the paths an ADR's text names and marks them as suggested.
-docs/data-model.md lists the front matter keys and headings each reader understands.
-"""
 from __future__ import annotations
 
 import difflib

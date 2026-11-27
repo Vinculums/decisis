@@ -22,8 +22,30 @@ def detect(text: str, filename: str) -> bool:
     return isinstance(meta, dict) and "content-hash" in meta and isinstance(doc.get("package"), list)
 
 
+def _table(obj: dict, key: str, where: str) -> dict:
+    if key not in obj:
+        return {}
+    value = obj[key]
+    if not isinstance(value, dict):
+        raise ValueError(f"{where} {key} must be a table")
+    return value
+
+
+def _str_list(obj: dict, key: str, where: str) -> list[str]:
+    if key not in obj:
+        return []
+    value = obj[key]
+    if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+        raise ValueError(f"{where} {key} must be a list of strings")
+    return value
+
+
 def lock_version(doc: dict) -> str:
-    version = str((doc.get("metadata") or {}).get("lock-version") or "1.0")
+    meta = _table(doc, "metadata", "poetry.lock")
+    raw = meta.get("lock-version")
+    if raw is not None and not isinstance(raw, (str, int, float)):
+        raise ValueError("poetry.lock metadata lock-version must be a string")
+    version = str(raw or "1.0")
     if version.split(".")[0] not in ("1", "2"):
         raise ValueError(f"poetry.lock lock-version {version} is not one audit reads; it reads lock-version 1.x and 2.x")
     return version
@@ -39,7 +61,7 @@ def dev_mark(p: dict) -> bool | None:
 
 
 def not_pypi(p: dict) -> str:
-    source = p.get("source") or {}
+    source = _table(p, "source", "poetry.lock package")
     if source.get("type") in NOT_PYPI:
         return f"poetry.lock installs it from a {source['type']} source ({source.get('url', '')}), not from PyPI"
     return ""
@@ -51,25 +73,33 @@ def requirement_name(spec: str) -> str:
 
 
 def poetry_roots(poetry: dict) -> list[tuple[str, bool, str]]:
-    out = [(n, False, "") for n in poetry.get("dependencies") or {} if n.lower() != "python"]
-    out += [(n, True, " (dev-dependencies)") for n in poetry.get("dev-dependencies") or {}]
-    for group, body in sorted((poetry.get("group") or {}).items()):
-        out += [(n, group != "main", f" (group {group})") for n in (body or {}).get("dependencies") or {}]
+    out = [(n, False, "") for n in _table(poetry, "dependencies", "pyproject.toml tool.poetry") if n.lower() != "python"]
+    out += [(n, True, " (dev-dependencies)") for n in _table(poetry, "dev-dependencies", "pyproject.toml tool.poetry")]
+    for group, body in sorted(_table(poetry, "group", "pyproject.toml tool.poetry").items()):
+        if not isinstance(body, dict):
+            raise ValueError(f"pyproject.toml tool.poetry.group.{group} must be a table")
+        out += [(n, group != "main", f" (group {group})")
+                for n in _table(body, "dependencies", f"pyproject.toml tool.poetry.group.{group}")]
     return out
 
 
 def project_roots(pyproject: dict) -> list[tuple[str, bool, str]]:
-    project = pyproject.get("project") or {}
-    out = [(requirement_name(s), False, "") for s in project.get("dependencies") or []]
-    for extra, reqs in sorted((project.get("optional-dependencies") or {}).items()):
+    project = _table(pyproject, "project", "pyproject.toml")
+    out = [(requirement_name(s), False, "") for s in _str_list(project, "dependencies", "pyproject.toml project")]
+    for extra, reqs in sorted(_table(project, "optional-dependencies", "pyproject.toml project").items()):
+        if not isinstance(reqs, list) or not all(isinstance(s, str) for s in reqs):
+            raise ValueError(f"pyproject.toml project.optional-dependencies.{extra} must be a list of strings")
         out += [(requirement_name(s), False, f" (extra {extra})") for s in reqs]
-    for group, reqs in sorted((pyproject.get("dependency-groups") or {}).items()):
+    for group, reqs in sorted(_table(pyproject, "dependency-groups", "pyproject.toml").items()):
+        if not isinstance(reqs, list):
+            raise ValueError(f"pyproject.toml dependency-groups.{group} must be a list")
         out += [(requirement_name(s), True, f" (group {group})") for s in reqs if isinstance(s, str)]
     return out
 
 
 def roots(pyproject: dict) -> list[tuple[str, bool, str]]:
-    poetry = (pyproject.get("tool") or {}).get("poetry") or {}
+    tool = _table(pyproject, "tool", "pyproject.toml")
+    poetry = _table(tool, "poetry", "pyproject.toml tool")
     return [r for r in poetry_roots(poetry) + project_roots(pyproject) if r[0]]
 
 
@@ -86,7 +116,7 @@ def describe(spec) -> str:
 
 def requirements(p: dict) -> list[tuple[str, str]]:
     out = []
-    for name, spec in (p.get("dependencies") or {}).items():
+    for name, spec in _table(p, "dependencies", "poetry.lock package").items():
         for one in spec if isinstance(spec, list) else [spec]:
             out.append((name, describe(one)))
     return out
@@ -110,7 +140,22 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
     doc = tomllib.loads(text)
     version = lock_version(doc)
     pyproject_text = (siblings or {}).get("pyproject.toml")
-    packages = [p for p in doc.get("package") or [] if isinstance(p, dict) and p.get("name")]
+    if "package" in doc:
+        raw_packages = doc["package"]
+        if not isinstance(raw_packages, list):
+            raise ValueError("poetry.lock package must be a list of tables")
+    else:
+        raw_packages = []
+    for p in raw_packages:
+        if not isinstance(p, dict):
+            raise ValueError("poetry.lock package entries must be tables")
+        if not isinstance(p.get("name"), str) or not p["name"]:
+            raise ValueError("poetry.lock package name must be a non-empty string")
+        if "version" in p and not isinstance(p["version"], str):
+            raise ValueError("poetry.lock package version must be a string")
+        _table(p, "dependencies", "poetry.lock package")
+        _table(p, "source", "poetry.lock package")
+    packages = raw_packages
     inv = Inventory(repo, "poetry-lockfile", text_digest(text, *([pyproject_text] if pyproject_text is not None else [])))
     by_name: dict[str, list[tuple]] = {}
     for p in packages:

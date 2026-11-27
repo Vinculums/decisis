@@ -102,9 +102,40 @@ def dump(graph: Subgraph) -> str:
 
 
 def load(text: str) -> Subgraph:
-    d = json.loads(text)
+    if not isinstance(text, str):
+        raise ValueError("the snapshot must be JSON text")
+    try:
+        d = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"the snapshot is not valid JSON: {e}") from None
+    if not isinstance(d, dict):
+        raise ValueError("the snapshot must be a JSON object")
+    if "meta" in d and not isinstance(d["meta"], dict):
+        raise ValueError("snapshot meta must be a JSON object")
     meta = d.get("meta", {})
+    if "nodes" not in d or not isinstance(d["nodes"], list):
+        raise ValueError("snapshot must have a list of nodes")
+    if "edges" not in d or not isinstance(d["edges"], list):
+        raise ValueError("snapshot must have a list of edges")
     for key in ("nodes", "edges"):
-        if isinstance(meta.get(key), int) and meta[key] != len(d[key]):
-            raise ValueError(f"the snapshot says it has {meta[key]} {key} but lists {len(d[key])}")
+        count = meta.get(key)
+        if isinstance(count, bool):
+            raise ValueError(f"snapshot meta {key} must be an integer, not a boolean")
+        if type(count) is int and count != len(d[key]):
+            raise ValueError(f"the snapshot says it has {count} {key} but lists {len(d[key])}")
+    for i, n in enumerate(d["nodes"]):
+        if not isinstance(n, dict):
+            raise ValueError(f"snapshot node {i} must be an object")
+        if not isinstance(n.get("id"), str):
+            raise ValueError(f"snapshot node {i} must have a string id")
+        if not isinstance(n.get("kind"), str):
+            raise ValueError(f"snapshot node {i} must have a string kind")
+        if "props" in n and n["props"] is not None and not isinstance(n["props"], dict):
+            raise ValueError(f"snapshot node {i} props must be an object")
+    for i, e in enumerate(d["edges"]):
+        if not isinstance(e, dict):
+            raise ValueError(f"snapshot edge {i} must be an object")
+        for field in ("source", "target", "type"):
+            if not isinstance(e.get(field), str):
+                raise ValueError(f"snapshot edge {i} must have a string {field}")
     return Subgraph(d["nodes"], d["edges"], meta)

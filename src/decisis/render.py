@@ -1,9 +1,3 @@
-"""Mermaid and HTML views of the `impact`, `paths`, `audit` and `check` reports.
-
-Each kind names a title, a graph builder and the HTML sections in `KINDS`. A graph is a list of nodes
-(id, label, class) and edges (source, label, target, violated); `mermaid` and `html` read only that table,
-so a new report kind is one more entry.
-"""
 from __future__ import annotations
 
 import html as _html

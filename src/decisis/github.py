@@ -1,10 +1,3 @@
-"""Read decisions from a repository's merged pull requests through the GitHub REST API.
-
-`PullReader` binds `read_pulls` to one repository and its options and is an `init` reader: it takes a `Tree`
-and returns `(nodes, edges)`. Its repr leaves out the token. It sends only GET requests, only to api.github.com, and sends
-the token only in the Authorization header. A rate limit stops the read; what was read before it is kept
-and the stop is listed in `meta.problems`. docs/data-model.md lists the fields each pull request gives.
-"""
 from __future__ import annotations
 
 import hashlib

@@ -1,32 +1,3 @@
-"""Java and Kotlin imports, read without running any of the repository's code.
-
-A file is scanned with a lexer that skips comments (Kotlin block comments nest), strings with their escapes,
-Java text blocks, Kotlin raw strings and `${...}` templates, character literals and Kotlin backtick names. The
-header of the file is read from the token list: file annotations, `package`, and every `import`: `import a.b.C`,
-`import a.b.*`, Java `import static a.b.C.m` and `import static a.b.C.*`, and Kotlin `import a.b.C as D`. An
-import that cannot be read is unresolved.
-
-The sources of the repository are every `.java` and `.kt` file below the repository root, except build output
-(a `build` or `target` directory beside a `build.gradle`, `build.gradle.kts` or `pom.xml`) and hidden,
-`node_modules` and other tool directories. Each is filed under the package its `package` line declares and
-under the package of its path below a source root: a directory `src/<set>/java` or `src/<set>/kotlin`
-(`src/main/java`, `src/test/kotlin`, `src/jvmMain/kotlin`), or a source directory a Gradle script gives with
-`srcDir`, `srcDirs` or `setSrcDirs`, or a `pom.xml` gives with `sourceDirectory`, `testSourceDirectory` or a
-`source` entry, in a string literal relative to the module. A Kotlin file's top-level classes and functions
-are found by name as well as by the file's own name, a Kotlin file `Util.kt` is also the class `UtilKt` that
-Java sees, and `@file:JvmName` names a class too.
-
-An import names a class by its longest prefix that is a class of the repository; what follows is a member, a
-nested class or a static member, which the class's file holds. Every file that a prefix names is followed, in
-every source root, so a package split over several modules, or a class and a package of one name, give every
-file. A wildcard names the package: the directories that hold it, given with a trailing `/`, and each source
-file directly in them. A name that is no class of the repository is external, unless a package of the
-repository holds a prefix of it, which makes it unresolved: the class may be generated, or live in a library
-that shares the package. The name of a member is never placed in an enclosing file it is not found in.
-
-A plain text search for the same import forms runs beside the scanner. A name it finds that the scanner did
-not read as an import, and that is not external, is unresolved.
-"""
 from __future__ import annotations
 
 import os
