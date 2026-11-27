@@ -61,7 +61,7 @@ The HTML page is one file with inline styles only: no scripts, fonts or network 
 offline. Its only links are the sources of the findings and, in the signature, this repository.
 
 `check --format html` and `audit --format html` end with one line that says what the run did, for example
-`Audited locally with decisis 0.4.3 (0 LLM calls · deterministic graph check · digest: 599582f5f4f7)`:
+`Audited locally with decisis 0.4.4 (0 LLM calls · deterministic graph check · digest: 599582f5f4f7)`:
 `locally` only when the run contacted no host, otherwise what it fetched and from where, and a digest of the
 result that is the same for the same inputs. [The signature](data-model.md#the-signature) defines each part.
 `--no-signature` leaves the line out of the page and changes nothing else; no other format has the line.
