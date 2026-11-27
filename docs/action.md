@@ -6,7 +6,7 @@ reads a snapshot from the pull request's base commit (or builds one there with `
 change touches, the violations, and a Mermaid path graph. It is on the GitHub Marketplace as
 [decisis check](https://github.com/marketplace/actions/decisis-check).
 
-Refer to it as `Vinculums/decisis@v0` to follow every 0.x release, or as `Vinculums/decisis@v0.4.3` for one
+Refer to it as `Vinculums/decisis@v0` to follow every 0.x release, or as `Vinculums/decisis@v0.4.4` for one
 release. A tag can be moved, so for a required check pin the full commit SHA of a release instead, with the
 version in a comment, as the example below does for `actions/checkout`; Dependabot and Renovate update
 such pins. The action installs decisis from its own checkout, so the version it runs is the one you refer to.
