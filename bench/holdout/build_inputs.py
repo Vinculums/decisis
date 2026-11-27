@@ -1,14 +1,3 @@
-"""Build the stored inputs of one held-out repository from a clone at its pinned commit.
-
-This needs the clone, and with --osv the network; `compare` never runs it and reads only what it wrote.
-
-    python bench/holdout/build_inputs.py CLONE bench/holdout/<repo> [--osv FETCHED_AT]
-
-It reads bench/holdout/<repo>/mapping.json, checks that every sentence it quotes is in the ADR it names,
-runs `decisis init` on the clone, adds the mapped code paths to each ADR's decision, and keeps only ids,
-paths, titles and a short statement per node. With a package-lock.json in the mapping it also stores a
-trimmed copy of the lockfile and, with --osv, an OSV cache for exactly the packages decisis reads from it.
-"""
 from __future__ import annotations
 
 import argparse
@@ -127,7 +116,7 @@ def dump(path: Path, data: dict) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description="Build the stored inputs of one held-out repository from a clone at its pinned commit.")
     ap.add_argument("clone", type=Path)
     ap.add_argument("out", type=Path, help="bench/holdout/<repo>, which holds mapping.json")
     ap.add_argument("--osv", metavar="FETCHED_AT", help="also build osv-cache.json from api.osv.dev, stamped with this time")

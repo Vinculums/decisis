@@ -205,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     try:
         return run(a)
+    except (OSError, UnicodeDecodeError) as e:
+        ap.exit(1, f"{ap.prog}: error: {e}\n")
     except ValueError as e:
         ap.error(str(e))
     except (external.NetworkRefused, external.NetworkFailed, gh.GitHubFailed, sb.LimitExceeded, sb.relate.Error) as e:

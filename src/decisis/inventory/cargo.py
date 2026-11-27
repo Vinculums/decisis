@@ -22,7 +22,26 @@ def _pick(by_name: dict, ref: str) -> tuple | None:
 
 def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
     doc = tomllib.loads(text)
-    packages = [p for p in doc.get("package") or [] if isinstance(p, dict) and p.get("name")]
+    if "package" in doc:
+        raw_packages = doc["package"]
+        if not isinstance(raw_packages, list):
+            raise ValueError("Cargo.lock package must be a list of tables")
+    else:
+        raw_packages = []
+    for p in raw_packages:
+        if not isinstance(p, dict):
+            raise ValueError("Cargo.lock package entries must be tables")
+        if "name" in p and not isinstance(p["name"], str):
+            raise ValueError("Cargo.lock package name must be a string")
+        if "version" in p and not isinstance(p["version"], str):
+            raise ValueError("Cargo.lock package version must be a string")
+        if "source" in p and not isinstance(p["source"], str):
+            raise ValueError("Cargo.lock package source must be a string")
+        if "dependencies" in p:
+            deps = p["dependencies"]
+            if not isinstance(deps, list) or not all(isinstance(ref, str) for ref in deps):
+                raise ValueError("Cargo.lock package dependencies must be a list of strings")
+    packages = [p for p in raw_packages if p.get("name")]
     inv = Inventory(repo, "cargo-lockfile", text_digest(text))
     by_name: dict[str, list[dict]] = {}
     for p in packages:

@@ -17,6 +17,7 @@ SEVERITY = ["LOW", "MODERATE", "MEDIUM", "HIGH", "CRITICAL"]
 SCOPES = ("all", "shipped")
 MODIFIERS = ("dependencies",)
 OPERATORS = ("AND", "OR", "WITH")
+MAX_LICENSE_DEPTH = 64
 MATCH, CLEAR, UNKNOWN = "match", "clear", "unknown"
 VERDICT = {MATCH: "violated", CLEAR: "not_violated", UNKNOWN: "unresolved"}
 SHIPPED_ONLY = "reached only through development dependencies; the rule covers shipped ones"
@@ -97,27 +98,27 @@ def license_tree(expression: str):
     if not tokens:
         return None
     try:
-        tree, end = _any_of(tokens, 0)
+        tree, end = _any_of(tokens, 0, 0)
     except (IndexError, ValueError):
         return None
     return tree if end == len(tokens) else None
 
 
-def _joined(tokens: list[str], i: int, word: str, part) -> tuple:
-    node, i = part(tokens, i)
+def _joined(tokens: list[str], i: int, word: str, part, depth: int) -> tuple:
+    node, i = part(tokens, i, depth)
     parts = [node]
     while i < len(tokens) and tokens[i].upper() == word:
-        node, i = part(tokens, i + 1)
+        node, i = part(tokens, i + 1, depth)
         parts.append(node)
     return (parts[0] if len(parts) == 1 else (word.lower(), tuple(parts))), i
 
 
-def _any_of(tokens: list[str], i: int) -> tuple:
-    return _joined(tokens, i, "OR", _all_of)
+def _any_of(tokens: list[str], i: int, depth: int = 0) -> tuple:
+    return _joined(tokens, i, "OR", _all_of, depth)
 
 
-def _all_of(tokens: list[str], i: int) -> tuple:
-    return _joined(tokens, i, "AND", _term)
+def _all_of(tokens: list[str], i: int, depth: int = 0) -> tuple:
+    return _joined(tokens, i, "AND", _term, depth)
 
 
 def _word(token: str) -> str:
@@ -126,9 +127,11 @@ def _word(token: str) -> str:
     return token
 
 
-def _term(tokens: list[str], i: int) -> tuple:
+def _term(tokens: list[str], i: int, depth: int = 0) -> tuple:
     if tokens[i] == "(":
-        node, i = _any_of(tokens, i + 1)
+        if depth >= MAX_LICENSE_DEPTH:
+            raise ValueError("license expression nesting too deep")
+        node, i = _any_of(tokens, i + 1, depth + 1)
         if tokens[i] != ")":
             raise ValueError(tokens[i])
         return node, i + 1

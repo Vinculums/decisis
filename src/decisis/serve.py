@@ -1,17 +1,3 @@
-"""A read-only MCP server over stdio: impact, paths, audit, check and query on one snapshot.
-
-Before each tool call the server compares the snapshot file's mtime and size with the copy it holds and reloads it
-when either changed; a file that fails to load leaves the previous copy in place and the reply says so. After a
-reload the query tool's schema is rebuilt and the server sends notifications/tools/list_changed from the first call
-that completes, so a reload inside a call the client cancelled is announced by the next one.
-Each tool call loads the snapshot into its own sandbox and deletes it before the reply. The sandboxes live
-in one private directory that the server removes when stdin closes or on SIGTERM or SIGINT, even while a call runs,
-and that records its owner so that decisis gc removes it after a SIGKILL. No tool writes,
-proposes or commits; query refuses write clauses before it runs and runs on a read-only connection. File reads
-are limited to the snapshot, the OSV cache given at start, and lockfiles and changed files under the root given at start.
-Audit asks api.osv.dev only when the server was started with --allow-network. Check runs git diff only through the
-hardened helper check --base uses, with a ref that cannot pass for an option.
-"""
 from __future__ import annotations
 
 import json

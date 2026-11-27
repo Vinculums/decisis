@@ -1,15 +1,3 @@
-"""The one-line signature under an HTML report and under the pull request comment.
-
-The line states only facts of the run that made it. The verb is `Checked` for a run that only checked a change set and
-`Audited` for a run that audited an inventory. The line says `locally` only when the run is known to have contacted
-no host; otherwise it names what was fetched and from which host, and when the run's traffic was not recorded it says
-neither. Posting the comment is not traffic of the analysis.
-
-The digest is the first `DIGEST_LENGTH` hexadecimal characters of the SHA-256 of the reports the run produced, as JSON
-with sorted keys and no spaces, ASCII only, after every key in `VOLATILE` is removed at any depth. Those keys hold the
-date the run judged waivers on and the times data was fetched or extracted, so the same inputs give the same digest on
-any day and any run.
-"""
 from __future__ import annotations
 
 import hashlib

@@ -1,20 +1,3 @@
-"""GitHub CODEOWNERS: which line owns each file, and the fewest paths that cover each owner set.
-
-Patterns follow GitHub's rules: a leading or middle `/` anchors the pattern at the repository root, otherwise it
-matches at any depth; a trailing `/` matches a directory and everything below it; `*` and `?` stay within one
-path segment; `**` spans segments. A pattern whose last segment is literal also owns everything below a
-directory of that name; one whose last segment has a wildcard matches files only (`docs/*` owns
-`docs/a.md` but not `docs/b/c.md`). The last matching line owns a file.
-
-A directory covers an owner set only when the lines give that set to every file that could be added at any
-depth below it: the last line that matches such a file owns it with that set. A line that matches only some
-of the files below the directory, and a later line that gives some of them to others, keep the directory from
-being a path of the set; the narrower directories or the single files are listed instead.
-
-`git` runs git on the repository whose `.git` is in the given directory or the nearest one above it, named with
-`--git-dir` and `--work-tree`, so a directory the checkout holds cannot pose as a bare repository. Replace refs,
-hooks, fsmonitor, lazy fetches and pagers are off, and an implicit bare repository is refused.
-"""
 from __future__ import annotations
 
 import functools

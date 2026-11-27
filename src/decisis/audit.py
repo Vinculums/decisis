@@ -17,13 +17,15 @@ ORDER = {"affected": 0, "unresolved": 1, "not_affected": 2}
 
 
 def governance_links(vinc_nodes: list[dict], repo: str) -> list[dict]:
-    pattern = re.compile(rf"^{re.escape(repo)}(:|$)")
+    pattern = re.compile(rf"^{re.escape(repo)}(:|$)", re.IGNORECASE)
     out = []
     for n in vinc_nodes:
-        ref = (n.get("props") or {}).get("code_ref") or ""
-        if isinstance(ref, str) and pattern.match(ref):
+        raw = (n.get("props") or {}).get("code_ref")
+        refs = [raw] if isinstance(raw, str) else [r for r in raw if isinstance(r, str)] if isinstance(raw, list) else []
+        match = next((r.strip() for r in refs if pattern.match(r.strip())), None)
+        if match is not None:
             out.append({"source": f"repo:{repo}", "target": n["id"], "type": "DESCRIBED_BY",
-                        "evidence": f"{n['id']} has code_ref {ref}"})
+                        "evidence": f"{n['id']} has code_ref {match}"})
     return out
 
 
@@ -46,7 +48,6 @@ def ruled_decisions(vinc: Subgraph) -> list[dict]:
 
 
 def retired(graph: Subgraph, day: datetime.date | None) -> tuple[dict[str, list[str]], dict[str, str]]:
-    """The decisions that no longer govern: each superseded one with what replaces it, and each closed one with its valid_until."""
     replaced = impact.superseded_by(graph)
     return replaced, impact.closed_by(graph, day, replaced)
 
@@ -102,6 +103,8 @@ def idle(graph: Subgraph, rows: list[dict], repo: str, day: datetime.date | None
 
 def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch_advisories, filename: str = "package-lock.json",
             siblings: dict[str, str] | None = None, day: datetime.date | None = None) -> Subgraph:
+    if any(n["id"] == f"repo:{repo}" for n in vinc.nodes):
+        raise ValueError(f"the snapshot already has a node with id repo:{repo}")
     pkg_nodes, dep_edges = inventory.read(lock_text, filename, repo, siblings)
     if (pinned := external.pinned_at(advisories)) is not None:
         for node in pkg_nodes:
@@ -110,7 +113,7 @@ def compose(vinc: Subgraph, lock_text: str, repo: str, advisories=external.fetch
     if inventory.advisories(lock_text, filename):
         nothing_to_query(pkg_nodes, filename)
     adv_nodes, adv_edges = advisories(pkg_nodes)
-    links = governance_links(vinc.nodes, repo)
+    links = [] if from_init(vinc.meta) else governance_links(vinc.nodes, repo)
     kept = recorded_links(vinc, repo, day)
     lock_hash = next((n["props"].get("content_hash") for n in pkg_nodes if n["kind"] == "Repository"), "")
     nodes, edges = vinc.nodes + pkg_nodes + adv_nodes, vinc.edges + dep_edges + adv_edges + links + kept

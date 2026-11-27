@@ -3,7 +3,7 @@ from __future__ import annotations
 import posixpath
 import re
 
-from .js import NAME, ORPHAN, manifest_label, mapping, npm_package, split_spec, yaml_tree
+from .js import NAME, ORPHAN, manifest_label, npm_package, split_spec, yaml_tree
 from .shape import Inventory, text_digest
 
 FORMAT = "pnpm"
@@ -36,21 +36,46 @@ def _importer_target(path: str, name: str, ref: str):
     return _target(name, ref)
 
 
+def _dict_field(obj: dict, field: str, where: str) -> dict:
+    if field not in obj:
+        return {}
+    value = obj[field]
+    if not isinstance(value, dict):
+        raise ValueError(f"pnpm lockfile {where} {field} must be a mapping")
+    return value
+
+
 def _importer_ref(value) -> tuple[str, str]:
     if isinstance(value, dict):
-        return str(value.get("specifier", value.get("version", ""))), str(value.get("version", ""))
-    return str(value), str(value)
+        spec = value.get("specifier", value.get("version", ""))
+        ver = value.get("version", "")
+        if not isinstance(spec, str) or not isinstance(ver, str):
+            raise ValueError("pnpm lockfile importer dependency version must be a string")
+        return spec, ver
+    if not isinstance(value, str):
+        raise ValueError("pnpm lockfile importer dependency must be a string or mapping")
+    return value, value
 
 
 def _instances(doc: dict) -> dict[str, tuple[dict, dict]]:
-    packages = mapping(doc.get("packages"))
-    if isinstance(doc.get("snapshots"), dict):
-        return {k: (mapping(v), mapping(packages.get(k.split("(", 1)[0]))) for k, v in doc["snapshots"].items()}
-    return {k: (mapping(v), mapping(v)) for k, v in packages.items()}
+    packages = _dict_field(doc, "packages", "top-level")
+    for k, v in packages.items():
+        if not isinstance(k, str) or not isinstance(v, dict):
+            raise ValueError("pnpm lockfile packages entries must be mappings")
+    if "snapshots" in doc:
+        snapshots = _dict_field(doc, "snapshots", "top-level")
+        out = {}
+        for k, v in snapshots.items():
+            if not isinstance(k, str) or not isinstance(v, dict):
+                raise ValueError("pnpm lockfile snapshots entries must be mappings")
+            out[k] = (v, packages.get(k.split("(", 1)[0], {}))
+        return out
+    return {k: (v, v) for k, v in packages.items()}
 
 
 def _check(doc: dict, filename: str) -> None:
-    version = str(doc.get("lockfileVersion", ""))
+    raw = doc.get("lockfileVersion")
+    version = raw if isinstance(raw, str) else ""
     if version.split(".")[0] not in VERSIONS:
         raise ValueError(f"{filename} has lockfileVersion {version or 'none'}; audit reads pnpm lockfile versions 6 and 9")
 
@@ -65,8 +90,12 @@ def _importers(inv: Inventory, importers: dict, filename: str) -> None:
 
 def _importer_edges(inv: Inventory, importers: dict) -> None:
     for path, imp in sorted(importers.items()):
+        if not isinstance(imp, dict):
+            raise ValueError(f"pnpm lockfile importer {path!r} must be a mapping")
         for field, note, dev in IMPORTER_FIELDS:
-            for dep, value in sorted(mapping(mapping(imp).get(field)).items()):
+            for dep, value in sorted(_dict_field(imp, field, f"importer {path!r}").items()):
+                if not isinstance(dep, str):
+                    raise ValueError(f"pnpm lockfile importer {path!r} {field} key must be a string")
                 spec, ref = _importer_ref(value)
                 inv.depends(f"workspace:{path}", _importer_target(path, dep, ref), f"{manifest_label(path)} requires {dep} {spec}{note}", dev)
 
@@ -74,11 +103,13 @@ def _importer_edges(inv: Inventory, importers: dict) -> None:
 def _package_edges(inv: Inventory, instances: dict) -> None:
     for key, (snap, meta) in sorted(instances.items()):
         name, version = _key(key)
-        peers = mapping(meta.get("peerDependencies"))
+        peers = _dict_field(meta, "peerDependencies", f"package {key!r}")
         for field, note in SNAPSHOT_FIELDS:
-            for dep, ref in sorted(mapping(snap.get(field)).items()):
+            for dep, ref in sorted(_dict_field(snap, field, f"snapshot {key!r}").items()):
+                if not isinstance(dep, str) or not isinstance(ref, str):
+                    raise ValueError(f"pnpm lockfile snapshot {key!r} {field} entries must be strings")
                 kind = " (peer)" if dep in peers else note
-                inv.depends((name, version), _target(dep, str(ref)), f"{name} {version} requires {dep} {str(ref).split('(', 1)[0]}{kind}")
+                inv.depends((name, version), _target(dep, ref), f"{name} {version} requires {dep} {ref.split('(', 1)[0]}{kind}")
 
 
 def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = None) -> tuple[list[dict], list[dict]]:
@@ -88,10 +119,12 @@ def read(text: str, filename: str, repo: str, siblings: dict[str, str] | None = 
     instances = _instances(doc)
     for key, (_, meta) in sorted(instances.items()):
         name, version = _key(key)
-        res = mapping(meta.get("resolution"))
+        res = _dict_field(meta, "resolution", f"package {key!r}")
         pkg = npm_package(name, version, str(res.get("repo") or res.get("directory") or ""))
         inv.add((name, version), pkg, f"{repo}:{filename}#{name}@{version}", dev=DEV.get(str(meta.get("dev"))))
-    importers = mapping(doc.get("importers")) or {".": doc}
+    importers = _dict_field(doc, "importers", "top-level") if "importers" in doc else {".": doc}
+    if any(not isinstance(path, str) for path in importers):
+        raise ValueError("pnpm lockfile importers keys must be strings")
     _importers(inv, importers, filename)
     _importer_edges(inv, importers)
     _package_edges(inv, instances)

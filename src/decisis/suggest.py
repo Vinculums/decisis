@@ -1,14 +1,3 @@
-"""Code refs suggested from the paths an ADR's own text names, for `init --suggest-refs`.
-
-A candidate is a backticked token, a word with a `/` or a file extension, or a Markdown link target (relative
-to the ADR, or a GitHub file URL); in a fenced code block only words with a `/` count. A backticked token that holds
-spaces is one more candidate when the whole of it names an existing file or directory, so a path with a space in it
-is found; when it does not, its words are read one by one as before. A bare word must be a path
-from the repository root; a word with a `/` or an extension may also match every path that ends with it. Paths in
-the ADR's own directory are records, not code, and are never suggested. A candidate that matches more than
-`MAX_MATCHES` paths, or that is only a bare common name, is skipped and returned with the reason. Each suggestion
-keeps the first sentence that named it.
-"""
 from __future__ import annotations
 
 import os

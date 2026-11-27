@@ -1,14 +1,3 @@
-"""Score `decisis init --suggest-refs` against the hand mapping of each held-out repository.
-
-This needs one clone per repository at the commit its mapping pins; `compare` never runs it.
-
-    python bench/holdout/score_suggest_refs.py CLONES --out bench/holdout/suggest-refs.json --table bench/holdout/suggest-refs.md
-
-CLONES holds one clone per repository, named as its directory here (cf-cli, turtles, ...). A pair is an ADR and a
-path, with the repository name, `./` and a trailing `/` removed. Precision is the suggested pairs the mapping has,
-over all suggested pairs; recall is the mapped pairs that were suggested, over all mapped pairs. A mapped path that
-is not in the clone cannot be suggested, and the result lists it as missing from the repository.
-"""
 from __future__ import annotations
 
 import argparse
@@ -82,7 +71,7 @@ def table(result: dict) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description="Score `decisis init --suggest-refs` against the hand mapping of each held-out repository.")
     ap.add_argument("clones", type=Path)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--table", type=Path)

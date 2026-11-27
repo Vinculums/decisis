@@ -1,19 +1,3 @@
-"""Which decisions, records and concepts govern a code path.
-
-A node anchors a path when one of its `code_ref` values, or a decision's `subject_path` and `also_touches`,
-names that path. A ref may carry a repository
-prefix (`Demo:api/server.py`) and a symbol suffix (`store/backend.py:_guard`); both are dropped before
-matching. A ref matches a queried path when it is the same path, when it lies under the queried path
-(the query names a directory), or when it is a directory that holds the queried path. From each
-anchor, decisions and records within a bounded number of hops are listed with the edge path and the
-evidence on each edge, in the snapshot's own edge direction.
-
-The walk follows only edges that carry governance, each from the node that governs to the node it governs
-(`CARRIES`). An edge type it does not name, or a direction it does not name, is not followed.
-
-A decision no longer governs when it is superseded (`superseded_by`) or closed by its `valid_until` date (`closed_by`). Each
-is listed apart from `governing`, under `superseded` and `closed`, and a node in a `SUPERSEDES` cycle is neither.
-"""
 from __future__ import annotations
 
 import datetime
@@ -22,7 +6,7 @@ from dataclasses import dataclass
 
 from . import cycles, rules
 from .queries import load as query
-from .sandbox import Limits, Subgraph, sandbox
+from .sandbox import Limits, LoadMismatch, Subgraph, sandbox
 
 GOVERNING = ["decision", "record"]
 KIND_ORDER = {"decision": 0, "record": 1, "concept": 2}
@@ -30,7 +14,6 @@ MAX_HOPS = 6
 
 
 def code_path(ref: str, repo: str | None = None) -> str | None:
-    """The repository-relative path a code_ref names, or None when it names another repository."""
     ref = ref.strip()
     head, sep, tail = ref.partition(":")
     if sep and head and "/" not in head and "." not in head and ("/" in tail or "." in tail.split(":", 1)[0]):
@@ -101,7 +84,6 @@ def match_kind(ref_path: str, path: str) -> str | None:
 
 
 def prepare(graph: Subgraph, repo: str | None = None) -> Subgraph:
-    """Add `kind` and the normalized `code_paths` to each node so the query can match and filter."""
     nodes = []
     for n in graph.nodes:
         props = {**(n.get("props") or {}), "kind": n["kind"]}
@@ -124,13 +106,13 @@ def carry_of(rel: str, source_kind: str) -> Carry | None:
 
 
 def governance_edges(graph: Subgraph) -> list[dict]:
-    """Each edge that carries governance, oriented from the node that governs to the node it governs."""
     by_id = {n["id"]: n for n in graph.nodes}
+    dangling = [f"{e['source']} -{e['type']}-> {e['target']}" for e in graph.edges if e["source"] not in by_id or e["target"] not in by_id]
+    if dangling:
+        raise LoadMismatch("edges with a missing endpoint: " + ", ".join(dangling[:5]))
     out: dict[tuple[str, str, str], dict] = {}
     for e in graph.edges:
-        s, t = by_id.get(e["source"]), by_id.get(e["target"])
-        if s is None or t is None:
-            continue
+        s, t = by_id[e["source"]], by_id[e["target"]]
         c = carry_of(e["type"], s["kind"])
         if c is None:
             continue
@@ -213,10 +195,6 @@ def in_cycle(graph: Subgraph) -> set[str]:
 
 
 def superseded_by(graph: Subgraph) -> dict[str, list[str]]:
-    """Each superseded decision and what replaces it: the target of a SUPERSEDES edge, or a decision whose status says superseded.
-
-    A node in a SUPERSEDES cycle is not superseded, whatever its status says, so its rules are judged as if there were no cycle.
-    """
     held = in_cycle(graph)
     out: dict[str, set[str]] = {}
     for n in graph.nodes:
@@ -229,28 +207,31 @@ def superseded_by(graph: Subgraph) -> dict[str, list[str]]:
     return {k: sorted(v) for k, v in out.items()}
 
 
-_UNTIL = re.compile(r"([0-9]{4})(?:-([0-9]{2})(?:-([0-9]{2}))?)?"
-                    r"(?:[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?(?:Z|[+-][0-9]{2}(?::?[0-9]{2})?)?)?")
+_UNTIL = re.compile(
+    r"([0-9]{4})(?:-([0-9]{2})(?:-([0-9]{2})"
+    r"([T ][0-9]{2}:[0-9]{2}(?::[0-9]{2}(?:\.[0-9]+)?)?(?:Z|[+-](?:[01][0-9]|2[0-3])(?::?[0-5][0-9])?)?)?)?)?"
+)
 
 
 def until_of(value) -> datetime.date | None:
-    """The first day a `valid_until` value names, or None when it is empty or not a date.
-
-    Vinc writes `YYYY`, `YYYY-MM` or `YYYY-MM-DD` and reads the interval as half open, so a year or a month closes on its first
-    day, as comparing the text does there. A time after the day (`2026-11-25T15:11:23Z`) is dropped.
-    """
-    match = _UNTIL.fullmatch(value.strip()) if isinstance(value, str) else None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    match = _UNTIL.fullmatch(text)
     if match is None:
         return None
-    year, month, day = (int(g) if g else 1 for g in match.groups())
+    year, month, day, clock = match.groups()
     try:
-        return datetime.date(year, month, day)
-    except ValueError:
+        if clock is not None:
+            iso = text[:-1] + "+00:00" if text.endswith("Z") else text
+            dt = datetime.datetime.fromisoformat(iso)
+            return dt.astimezone(datetime.timezone.utc).date() if dt.tzinfo is not None else dt.date()
+        return datetime.date(int(year), int(month) if month else 1, int(day) if day else 1)
+    except (ValueError, OverflowError):
         return None
 
 
 def valid_until(node: dict) -> tuple[datetime.date, str] | None:
-    """The earliest date that the node's own `valid_until` field or its `props.valid_until` names, with the value as written."""
     found = []
     for raw in (node.get("valid_until"), (node.get("props") or {}).get("valid_until")):
         if (day := until_of(raw)) is not None:
@@ -259,10 +240,6 @@ def valid_until(node: dict) -> tuple[datetime.date, str] | None:
 
 
 def lapsed(graph: Subgraph, day: datetime.date) -> dict[str, str]:
-    """Each decision whose `valid_until` is on or before `day`, with that value as written.
-
-    Nothing else is asked here: `closed_by` leaves out the ones that a supersession or a cycle decides first.
-    """
     out = {}
     for n in graph.nodes:
         until = valid_until(n) if n["kind"] == "decision" else None
@@ -272,12 +249,6 @@ def lapsed(graph: Subgraph, day: datetime.date) -> dict[str, str]:
 
 
 def closed_by(graph: Subgraph, day: datetime.date | None = None, replaced: dict[str, list[str]] | None = None) -> dict[str, str]:
-    """Each decision that its `valid_until` has closed as of `day` (default: today in UTC), with that date as written.
-
-    Vinc reads a decision's interval as half open, [valid_from, valid_until): it no longer holds on the day `valid_until` names.
-    A decision that is superseded is not listed, because it is listed as superseded with what replaces it. A node in a
-    `SUPERSEDES` cycle is not listed either: the cycle keeps it in force, as it does against a `status` that says superseded.
-    """
     replaced = superseded_by(graph) if replaced is None else replaced
     held = in_cycle(graph)
     return {nid: value for nid, value in lapsed(graph, day or rules.today()).items() if nid not in replaced and nid not in held}

@@ -89,43 +89,85 @@ def _v1_name(spec: str) -> str:
     return split_spec(wanted[4:])[0] if wanted.startswith("npm:") else name
 
 
+def _v1_str(entry: dict, field: str, spec: str) -> str:
+    if field not in entry:
+        return ""
+    value = entry[field]
+    if not isinstance(value, str):
+        raise ValueError(f"yarn.lock entry {spec!r} {field} must be a string")
+    return value
+
+
+def _v1_deps(entry: dict, field: str, spec: str) -> dict[str, str]:
+    if field not in entry:
+        return {}
+    value = entry[field]
+    if not isinstance(value, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
+        raise ValueError(f"yarn.lock entry {spec!r} {field} must be a mapping of strings")
+    return value
+
+
 def _read_v1(text: str, filename: str, repo: str, siblings: dict[str, str] | None):
     entries = parse_v1(text, filename)
     names = {spec: _v1_name(spec) for spec in entries}
+    versions: dict[str, str] = {}
     inv = Inventory(repo, "yarn-lockfile", text_digest(text))
     for spec, entry in sorted(entries.items()):
+        version = _v1_str(entry, "version", spec)
+        versions[spec] = version
         wanted = split_spec(spec)[1]
-        source = str(entry.get("resolved", "")) if V1_FOREIGN.match(wanted) else ""
-        inv.add((names[spec], entry.get("version", "")), npm_package(names[spec], str(entry.get("version", "")), source),
-                f"{repo}:{filename}#{spec}")
+        source = _v1_str(entry, "resolved", spec) if V1_FOREIGN.match(wanted) else ""
+        inv.add((names[spec], version), npm_package(names[spec], version, source), f"{repo}:{filename}#{spec}")
     found = manifests(siblings)
     workspaces = _workspace_keys(inv, found, filename)
 
     def resolve(dep: str, spec: str):
         if dep in workspaces:
             return workspaces[dep]
-        entry = entries.get(f"{dep}@{spec}")
-        return None if entry is None else (names[f"{dep}@{spec}"], entry.get("version", ""))
+        key = f"{dep}@{spec}"
+        return None if key not in entries else (names[key], versions[key])
 
     _manifest_edges(inv, found, resolve)
     for spec, entry in sorted(entries.items()):
-        name = names[spec]
+        name, version = names[spec], versions[spec]
         for field, note in (("dependencies", ""), ("optionalDependencies", " (optional)")):
-            for dep, wanted in sorted(mapping(entry.get(field)).items()):
+            for dep, wanted in sorted(_v1_deps(entry, field, spec).items()):
                 target = resolve(dep, wanted)
                 if target is not None:
-                    inv.depends((name, entry.get("version", "")), target, f"{name} {entry.get('version')} requires {dep} {wanted}{note}")
+                    inv.depends((name, version), target, f"{name} {version} requires {dep} {wanted}{note}")
     inv.adopt_orphans(ORPHAN)
     return inv.result()
+
+
+def _berry_dict(entry: dict, field: str, key: str) -> dict:
+    if field not in entry:
+        return {}
+    value = entry[field]
+    if not isinstance(value, dict):
+        raise ValueError(f"yarn.lock entry {key!r} {field} must be a mapping")
+    return value
 
 
 def _berry_entries(doc: dict) -> tuple[dict[str, dict], dict[str, str]]:
     entries, descriptors = {}, {}
     for key, entry in doc.items():
-        if key == "__metadata" or not isinstance(entry, dict) or not entry.get("resolution"):
+        if key == "__metadata":
+            if not isinstance(entry, dict):
+                raise ValueError("yarn.lock __metadata must be a mapping")
             continue
-        entries[str(entry["resolution"])] = entry
-        descriptors.update({d.strip(): str(entry["resolution"]) for d in str(key).split(",") if d.strip()})
+        if not isinstance(entry, dict):
+            raise ValueError(f"yarn.lock entry {key!r} must be a mapping")
+        resolution = entry.get("resolution")
+        if resolution is not None and not isinstance(resolution, str):
+            raise ValueError(f"yarn.lock entry {key!r} resolution must be a string")
+        if "version" in entry and not isinstance(entry["version"], str):
+            raise ValueError(f"yarn.lock entry {key!r} version must be a string")
+        for field in ("dependencies", "peerDependencies", "dependenciesMeta"):
+            _berry_dict(entry, field, str(key))
+        if not resolution:
+            continue
+        entries[resolution] = entry
+        descriptors.update({d.strip(): resolution for d in str(key).split(",") if d.strip()})
     return entries, descriptors
 
 
@@ -146,7 +188,7 @@ def _berry_nodes(inv: Inventory, entries: dict, filename: str) -> dict[str, obje
             else:
                 inv.workspace(keys[resolution], rest, name, f"{inv.repo}:{filename}#{resolution}")
             continue
-        version = str(entry.get("version", ""))
+        version = entry.get("version", "")
         keys[resolution] = (name, version)
         source = "" if protocol in REGISTRY_PROTOCOLS else resolution[len(name) + 1:]
         inv.add(keys[resolution], npm_package(name, version, source), f"{inv.repo}:{filename}#{resolution}")
@@ -157,8 +199,14 @@ def _peer(dep: str, wanted: str, descriptors: dict, keys: dict):
     exact = descriptors.get(f"{dep}@npm:{wanted}") or descriptors.get(f"{dep}@{wanted}")
     if exact:
         return keys[exact]
-    found = [k for k in keys.values() if isinstance(k, tuple) and k[0] == dep]
-    return max(found, key=lambda k: semver.parse(k[1])) if found else None
+    found = []
+    for k in keys.values():
+        if isinstance(k, tuple) and k[0] == dep:
+            try:
+                found.append((semver.parse(k[1]), k))
+            except ValueError:
+                continue
+    return max(found, key=lambda item: item[0])[1] if found else None
 
 
 def _dev_only(manifest: dict | None, dep: str) -> bool:
@@ -172,16 +220,23 @@ def _berry_edges(inv: Inventory, entries: dict, descriptors: dict, keys: dict, f
     for resolution, entry in sorted(entries.items()):
         name, protocol, rest = _protocol(resolution)
         manifest = found.get(rest) if protocol == "workspace" else None
-        meta = mapping(entry.get("dependenciesMeta"))
+        meta = _berry_dict(entry, "dependenciesMeta", resolution)
         label = manifest_label(rest) if protocol == "workspace" else f"{name} {entry.get('version')}"
-        for dep, wanted in sorted(mapping(entry.get("dependencies")).items()):
+        for dep, wanted in sorted(_berry_dict(entry, "dependencies", resolution).items()):
+            if not isinstance(dep, str) or not isinstance(wanted, str):
+                raise ValueError(f"yarn.lock entry {resolution!r} dependencies must map strings to strings")
             target = descriptors.get(f"{dep}@{wanted}") or descriptors.get(f"{dep}@npm:{wanted}")
             dev = _dev_only(manifest, dep)
-            note = " (optional)" if mapping(meta.get(dep)).get("optional") == "true" else " (dev)" if dev else ""
+            dep_meta = meta.get(dep)
+            if dep_meta is not None and not isinstance(dep_meta, dict):
+                raise ValueError(f"yarn.lock entry {resolution!r} dependenciesMeta.{dep} must be a mapping")
+            note = " (optional)" if (dep_meta or {}).get("optional") == "true" else " (dev)" if dev else ""
             if target is not None:
                 inv.depends(keys[resolution], keys[target], f"{label} requires {dep} {wanted}{note}", dev)
-        for dep, wanted in sorted(mapping(entry.get("peerDependencies")).items()):
-            target = _peer(dep, str(wanted), descriptors, keys)
+        for dep, wanted in sorted(_berry_dict(entry, "peerDependencies", resolution).items()):
+            if not isinstance(dep, str) or not isinstance(wanted, str):
+                raise ValueError(f"yarn.lock entry {resolution!r} peerDependencies must map strings to strings")
+            target = _peer(dep, wanted, descriptors, keys)
             if target is not None:
                 inv.depends(keys[resolution], target, f"{label} requires {dep} {wanted} (peer)")
 

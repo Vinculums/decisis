@@ -157,12 +157,20 @@ def package_record(rid: str, g: dict, found: list, verdicts: dict, repo: str, to
 
 def propose(report: dict, repo: str, space: str, today: str | None = None,
             lockfile_path: str = "package-lock.json", ref: str | None = None) -> dict:
+    if not isinstance(report, dict):
+        raise ValueError("report must be a JSON object")
+    meta = report.get("meta")
+    if meta is not None and not isinstance(meta, dict):
+        raise ValueError("report meta must be a JSON object")
+    findings = report.get("findings", [])
+    if not isinstance(findings, list) or not all(isinstance(f, dict) for f in findings):
+        raise ValueError("report findings must be a list of objects")
     today = today or date.today().isoformat()
-    lock_hash = (report.get("meta") or {}).get("lockfile_hash", "")
+    lock_hash = (meta or {}).get("lockfile_hash", "")
     evidence = _evidence(repo, today, ref, lock_hash, lockfile_path)
     groups: dict[str, dict] = {}
     held = []
-    for f in report.get("findings", []):
+    for f in findings:
         if f["status"] != "affected":
             held.append(_held(f))
             continue
@@ -215,7 +223,17 @@ def render(plan: dict) -> str:
 
 
 def check_approval(plan: dict, approve: str) -> None:
-    if approve != plan.get("digest") or digest(plan) != plan.get("digest"):
+    if not isinstance(plan, dict):
+        raise ValueError("plan must be a JSON object")
+    if not isinstance(plan.get("space"), str):
+        raise ValueError("plan must have a string space")
+    if not isinstance(plan.get("nodes"), list):
+        raise ValueError("plan must have a list of nodes")
+    if not isinstance(plan.get("edges"), list):
+        raise ValueError("plan must have a list of edges")
+    if not isinstance(plan.get("digest"), str):
+        raise ValueError("plan must have a string digest")
+    if approve != plan["digest"] or digest(plan) != plan["digest"]:
         raise SystemExit("approval does not match this write set; nothing was written")
 
 

@@ -1,10 +1,3 @@
-"""docs/mcp.md shows how to start `decisis serve --mcp` from each AI coding tool it names.
-
-Each tool has a section that gives the config file, a snippet, where relative paths are read from, and the
-documentation page the format was checked against with the date. These tests read the snippets out of the doc,
-parse them as the tool's file format and check what they would run. They import neither mcp nor jsonschema,
-so they run in the suite without the mcp extra.
-"""
 from __future__ import annotations
 
 import datetime
@@ -21,7 +14,6 @@ from decisis import cli
 ROOT = Path(__file__).resolve().parents[1]
 MCP_DOC = (ROOT / "docs" / "mcp.md").read_text(encoding="utf-8")
 
-# The tools the doc must cover, and the config files each one's documentation names.
 TOOLS = {
     "Claude Code": [".mcp.json", "~/.claude.json"],
     "Cursor": [".cursor/mcp.json", "~/.cursor/mcp.json"],
@@ -29,7 +21,7 @@ TOOLS = {
     "VS Code": [".mcp.json", "~/.copilot/mcp-config.json", ".vscode/mcp.json"],
     "OpenAI Codex CLI": ["~/.codex/config.toml", ".codex/config.toml"],
 }
-TOP_LEVEL_KEYS = ("mcpServers", "servers")  # `servers` is the VS Code editor format
+TOP_LEVEL_KEYS = ("mcpServers", "servers")
 FENCE = re.compile(r"```(\w*)\n(.*?)```", re.S)
 
 
@@ -55,7 +47,6 @@ def serves_the_snapshot(command: str, args: list[str], *, where: str) -> None:
 
 
 def server_entries(text: str) -> list[tuple[str, str, dict]]:
-    """Each config snippet in a section as (language, top-level key, the `decisis` server entry)."""
     found = []
     for lang, block in FENCE.findall(text):
         if lang == "json":

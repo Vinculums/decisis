@@ -1,23 +1,3 @@
-"""Workspace packages: the packages of an npm, pnpm, Yarn or Bun workspace, found by name for `imports.py`.
-
-A directory declares a workspace with `workspaces` in its `package.json` (a list, or an object with a
-`packages` list) or with a `packages` list in a `pnpm-workspace.yaml` beside it. Each directory below it that
-has a `package.json` with a `name`, and that a pattern of the list covers and no `!` pattern removes, is a
-workspace package. A declaration that cannot be read, or that uses a pattern syntax this reader does not know,
-widens to every named package below that directory, so a package is never lost to a pattern.
-
-A bare specifier is the name of a workspace package, or that name and a subpath (`@shop/db`, `@shop/db/client`).
-A dependency `"x": "workspace:*"` of the nearest `package.json` above the importing file that has it (or
-`workspace:<name>@<range>`, or `workspace:../path`) links the name `x` to that package; a link to a package no
-workspace has is `unresolved`, never external. Where several workspace packages have one name, each is followed.
-
-The files a specifier names in the package are those its `exports` map gives for the subpath (every condition and
-every array member, `*` patterns and trailing `/` folders included), or, with no `exports`, `main`, `module`,
-`types`, `typings`, `browser` and `source` for the package itself, or the file below the package directory for a
-subpath, read like a relative import. A subpath the `exports` do not list is `unresolved`. When none of the files
-exists (a build output that is not in the checkout), the target is the package directory, given with a trailing
-`/`, and the declared paths, with the `src/` files they would be built from, are the other files it names.
-"""
 from __future__ import annotations
 
 import os

@@ -21,7 +21,6 @@ NO_ADVISORIES = {"fetched_at": "", "queries": {}, "vulns": {}}
 
 
 def load_inputs(root: Path, doc: dict) -> dict:
-    """The inputs of one repository. Without an audit section the repository has impact tasks only."""
     read = lambda p: (root / p).read_text(encoding="utf-8")
     a, i = doc["inputs"].get("audit"), doc["inputs"]["impact"]
     snaps = [co.load(read(p)) for p in i["snapshots"]]
@@ -34,7 +33,6 @@ def load_inputs(root: Path, doc: dict) -> dict:
 
 
 def input_sets(root: Path, doc: dict) -> dict[str, dict]:
-    """Inputs by repository: one set for a task file with `repo` and `inputs`, one per entry of `repos` otherwise."""
     if "repos" not in doc:
         return {doc["repo"]: load_inputs(root, doc)}
     return {name: load_inputs(root, {"repo": name, "inputs": spec}) for name, spec in doc["repos"].items()}

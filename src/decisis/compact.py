@@ -1,4 +1,3 @@
-"""Short forms of the tool reports for an agent's context: counts, ids and titles, and the first items of each list."""
 from __future__ import annotations
 
 import copy

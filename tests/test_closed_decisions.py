@@ -133,8 +133,6 @@ def test_the_text_view_names_a_closed_decision_and_its_date(capsys, tmp_path):
     assert "decision:b" in out.split("closed by valid_until")[0]
 
 
-# check
-
 def test_check_does_not_judge_a_closed_decision_and_lists_it_with_its_date(tmp_path):
     g = graph(decision(A, "2026-11-01"), decision(B, "2026-11-26"), decision(C, "2026-11-27"))
     report = checked(g, tmp_path)
@@ -177,8 +175,6 @@ def test_the_check_command_takes_today_and_closes_on_it(tmp_path, capsys):
     assert out["summary"]["violated"] == 0 and out["closed"][0]["valid_until"] == "2026-11-01"
 
 
-# a SUPERSEDES cycle
-
 def cycled(until_a: str | None = "2026-11-01", until_b: str | None = None):
     return graph(decision(A, until_a), decision(B, until_b), supersedes=((A, B), (B, A)))
 
@@ -220,8 +216,6 @@ def test_a_decision_closed_outside_a_cycle_closes_while_the_cycle_holds_its_memb
     assert ids(result["closed"]) == [C] and ids(result["governing"]) == ["concept:pay", A, B]
     assert violators(checked(g, tmp_path)) == [A, B]
 
-
-# audit
 
 def audit_init(snap: dict, day: datetime.date = DAY, repo: str = "Shop") -> dict:
     return audit.run(co.load(json.dumps(snap)), lock(), repo, advisories=advisories(), day=day)
@@ -292,8 +286,6 @@ def test_the_audit_command_takes_today(tmp_path, capsys, no_network):
     assert json.loads(capsys.readouterr().out)["violations"] == 0
 
 
-# propose
-
 def closed(snap: dict, old: str) -> dict:
     node(snap, old)["props"]["valid_until"] = "2020-01-01"
     return snap
@@ -315,8 +307,6 @@ def test_propose_judges_on_the_date_of_the_audit_report_and_not_on_the_day_it_ru
         code, plan, _ = propose(tmp_path, capsys, report, snap, "Demo")
         assert (code, bool(plan["held"])) == ((1, True) if held_records else (0, False))
 
-
-# the other views
 
 def test_the_html_and_mermaid_views_set_a_closed_decision_apart(tmp_path, capsys):
     snap = tmp_path / "snap.json"

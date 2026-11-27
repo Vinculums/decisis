@@ -6,6 +6,34 @@ from .shape import development, digest, json_object, license_ids, make_purl, now
 
 FORMAT = "npm"
 SIBLINGS: tuple[str, ...] = ()
+DEP_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
+MAX_V1_DEPTH = 64
+
+
+def _dep_map(meta: dict, field: str, where: str) -> dict:
+    if field not in meta:
+        return {}
+    value = meta[field]
+    if not isinstance(value, dict):
+        raise ValueError(f"npm lockfile {where} {field} must be a mapping")
+    return value
+
+
+def _validate_v1_deps(deps) -> None:
+    stack = [(deps, 0)]
+    while stack:
+        current, depth = stack.pop()
+        if not isinstance(current, dict):
+            raise ValueError("npm lockfile dependencies must be a mapping")
+        if depth > MAX_V1_DEPTH:
+            raise ValueError("npm lockfile dependencies nesting too deep")
+        for name, entry in current.items():
+            if not isinstance(entry, dict):
+                raise ValueError(f"npm lockfile dependency {name!r} must be a mapping")
+            if "version" in entry and not isinstance(entry["version"], str):
+                raise ValueError(f"npm lockfile dependency {name!r} version must be a string")
+            if "dependencies" in entry:
+                stack.append((entry["dependencies"], depth + 1))
 
 
 def detect(text: str, filename: str) -> bool:
@@ -39,9 +67,23 @@ def _props(name: str, meta: dict, repo: str, path: str, fetched: str) -> dict:
 
 def parse_npm_lock(text: str, repo: str, include_dev: bool = True) -> tuple[list[dict], list[dict]]:
     lock = json.loads(text)
+    if not isinstance(lock, dict):
+        raise ValueError("npm lockfile must be a JSON object")
+    version_num = lock.get("lockfileVersion", 0)
     pkgs = lock.get("packages")
-    if not isinstance(pkgs, dict) or lock.get("lockfileVersion", 0) < 2:
+    if not isinstance(pkgs, dict) or isinstance(version_num, bool) or not isinstance(version_num, (int, float)) or version_num < 2:
         raise ValueError("needs an npm lockfile v2 or v3 with a packages map")
+    if "dependencies" in lock:
+        _validate_v1_deps(lock["dependencies"])
+    for path, meta in pkgs.items():
+        if not isinstance(meta, dict):
+            raise ValueError(f"npm lockfile package entry {path!r} must be a mapping")
+        if "version" in meta and not isinstance(meta["version"], str):
+            raise ValueError(f"npm lockfile package {path!r} version must be a string")
+        if "name" in meta and not isinstance(meta["name"], str):
+            raise ValueError(f"npm lockfile package {path!r} name must be a string")
+        for field in DEP_FIELDS:
+            _dep_map(meta, field, f"package {path!r}")
     fetched = now()
     repo_id = f"repo:{repo}"
     nodes = {repo_id: {"id": repo_id, "kind": "Repository", "title": repo,
@@ -60,15 +102,16 @@ def parse_npm_lock(text: str, repo: str, include_dev: bool = True) -> tuple[list
         nodes.setdefault(pid, {"id": pid, "kind": "Package", "title": f"{name}@{meta['version']}",
                                "props": _props(name, meta, repo, path, fetched)})
     root = pkgs.get("", {})
-    direct = {dep: f"{dep}: {spec}" for dep, spec in (root.get("dependencies") or {}).items()}
+    direct = {dep: f"{dep}: {spec}" for dep, spec in _dep_map(root, "dependencies", "root").items()}
     if include_dev:
-        direct.update({dep: f"{dep}: {spec}" for dep, spec in (root.get("devDependencies") or {}).items()})
-    shipped_direct = set(root.get("dependencies") or {})
+        direct.update({dep: f"{dep}: {spec}" for dep, spec in _dep_map(root, "devDependencies", "root").items()})
+    shipped_direct = set(_dep_map(root, "dependencies", "root"))
     for field, kind in (("peerDependencies", "peer"), ("optionalDependencies", "optional")):
-        for dep, spec in (root.get(field) or {}).items():
+        section = _dep_map(root, field, "root")
+        for dep, spec in section.items():
             if dep not in shipped_direct:
                 direct[dep] = f"{dep}: {spec} ({kind})"
-        shipped_direct |= set(root.get(field) or {})
+        shipped_direct |= set(section)
     edges, links = [], {}
 
     def link(src: str, dst: str, why: str, dev: bool) -> None:
@@ -82,8 +125,9 @@ def parse_npm_lock(text: str, repo: str, include_dev: bool = True) -> tuple[list
             link(repo_id, ids[target], direct[dep], dep not in shipped_direct or bool(pkgs[target].get("dev")))
     for path, pid in sorted(ids.items()):
         meta = pkgs[path]
-        required = {**(meta.get("dependencies") or {}), **(meta.get("optionalDependencies") or {})}
-        for dep in sorted({*required, *(meta.get("peerDependencies") or {})}):
+        required = {**_dep_map(meta, "dependencies", f"package {path!r}"),
+                    **_dep_map(meta, "optionalDependencies", f"package {path!r}")}
+        for dep in sorted({*required, *_dep_map(meta, "peerDependencies", f"package {path!r}")}):
             target = _resolve(pkgs, path, dep)
             if target in ids:
                 link(pid, ids[target], f"{path} requires {dep}" + ("" if dep in required else " (peer)"), bool(pkgs[target].get("dev")))

@@ -1,9 +1,3 @@
-"""Write a new MADR file with `status: proposed`, the code refs, the rule and the waivers given, for `decisis new-adr`.
-
-The rule is read with `rules.parse` and each waiver with `rules.waivers`, the readers `audit` and `check` use, and the
-whole file is read back with `init`'s front matter reader before anything is written, so `init` reads it into a
-decision with the same code refs, rule and waivers. The file is the next number in the ADR directory and is never overwritten.
-"""
 from __future__ import annotations
 
 import datetime

@@ -1,10 +1,3 @@
-"""examples/bookshop commits what each command prints, and these tests run the commands again and compare.
-
-The tests copy the example to a temporary directory and run the commands there, as its README shows them, so
-nothing is written into the repository. To rewrite the committed outputs after a change that moves them, run
-`DECISIS_GOLDEN=write python -m pytest tests/test_examples.py` and read the diff. The test that drives the
-MCP server needs the mcp extra and is skipped without it; it imports mcp inside the test, not at module level.
-"""
 from __future__ import annotations
 
 import json
@@ -27,7 +20,6 @@ DAY = "2026-11-25"
 CHANGED = "src/bookshop/ui/catalog.py src/bookshop/payments/charge.py"
 AUDIT = f"--repo Bookshop --osv-cache osv-cache.json --today {DAY}"
 
-# (the command as the README shows it, its exit code, the file that holds what it prints, whether the README shows the output)
 STEPS = [
     ("decisis init --repo-dir app --repo Bookshop --out snapshot.json", 0, "outputs/init.json", True),
     (f"decisis check snapshot.json --repo-dir app --changed {CHANGED} --reviewers @bob --format text", 1, "outputs/check.txt", True),
@@ -36,7 +28,6 @@ STEPS = [
     (f"decisis audit snapshot.json app/.github/workflows/ci.yml {AUDIT}", 0, "outputs/audit-workflow.json", False),
     (f"decisis audit snapshot.json app/.github/workflows/ci.yml {AUDIT} --format mermaid", 0, "outputs/audit-workflow.md", False),
 ]
-# What an agent asks over MCP, in the order outputs/mcp-session.json records it.
 CALLS = [
     ("impact", {"code_paths": ["src/bookshop/payments/charge.py"]}),
     ("check", {"changed": CHANGED.split(), "reviewers": ["@bob"], "today": DAY}),

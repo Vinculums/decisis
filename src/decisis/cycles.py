@@ -1,13 +1,3 @@
-"""`SUPERSEDES` cycles in a snapshot.
-
-A superseded decision does not govern, so decisions that name each other as the one that replaces them would all drop
-out and leave no rule in force. A cycle is a set of nodes that reach each other through `SUPERSEDES` edges, or one node
-with an edge to itself. `find` lists each cycle that holds a decision. `impact.superseded_by` treats no member of a cycle
-as superseded, and `impact.closed_by` treats none as closed by its `valid_until`: the cycle wins over the date. `init` lists
-each cycle in `meta.problems`, and `check` lists each one as a result that cannot be judged, naming each member whose date it holds back.
-The edges stay in the snapshot as the evidence. `Cycle.arriving` words a cycle that a pull request adds, which the
-Action reads from the pull request's head and lists as a result that cannot be judged in the run that reads the base.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass

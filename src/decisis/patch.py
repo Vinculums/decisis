@@ -1,13 +1,3 @@
-"""The code refs `init --suggest-refs` suggests, written as one unified diff over the ADRs, for `init --patch FILE`.
-
-Each ADR whose snapshot entry has `code_ref_source: suggested` gets one hunk: a `code_ref` list added before the closing
-`---` of its front matter, a new front matter block above the first line when it has none, or, when a `code_ref` key is
-there and empty, that line replaced. A comment line above each run of refs names the sentence they came from; `init`
-skips comment lines in front matter, so the refs read back exactly as they were suggested, now stated. An ADR that
-states a code path is never touched. The diff is made from the snapshot and the bytes `init` read: an ADR that changed
-since is left out with a note. The tokens `--suggest-refs` skipped are listed in the header, which `git apply` ignores.
-No ADR is written. `write` creates FILE and never replaces a file, and `target` refuses a FILE inside an ADR directory.
-"""
 from __future__ import annotations
 
 import json

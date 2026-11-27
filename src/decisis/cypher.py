@@ -1,14 +1,3 @@
-"""Read-only Cypher on a snapshot: a check that refuses anything but a read before the query runs, and the schema an agent reads.
-
-The check splits the text into tokens the way Relate does: strings with backslash escapes, // and /* */ comments,
-backticked names with doubled backticks, and $parameters. Clause words are looked for only outside those. A query must
-start with MATCH, OPTIONAL, WITH, UNWIND, RETURN or CALL, hold one statement, name no write, load or admin clause, and call
-only the read procedures listed in READ_PROCEDURES. CALL { } subqueries are refused too: Relate plans every one of them as
-read-write, so the plan check below would refuse them anyway; COLLECT { }, COUNT { }, EXISTS { } and UNION are planned as reads. A word right after a property dot or a colon, or right before a colon,
-is a name (n.set, :Remove, {delete: 1}) and is not taken for a clause. What the check cannot classify, such as an unclosed
-quote or a character outside ASCII in the query text, is refused. The query process then plans the query with EXPLAIN on a
-read-only connection and runs it only when Relate plans it as a read; the read-only connection refuses writes on its own.
-"""
 from __future__ import annotations
 
 import re
@@ -88,6 +77,8 @@ def refuse(text: str, at: int, why: str) -> None:
 
 
 def check(text: str) -> None:
+    if len(text.encode("utf-8", "surrogatepass")) > MAX_CYPHER:
+        refuse(text, 0, f"the query is longer than {MAX_CYPHER} bytes")
     toks = statement(text, tokens(text))
     first = toks[0]
     if first.kind != "word" or first.text.upper() not in STARTS:
