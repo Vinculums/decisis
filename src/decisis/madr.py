@@ -61,6 +61,15 @@ def checked_title(title: str) -> str:
     return title
 
 
+def checked_refs(code_refs: list[str] | tuple[str, ...]) -> list[str]:
+    out = []
+    for raw in code_refs:
+        if not isinstance(raw, str) or any(ord(c) < 32 or ord(c) == 127 for c in raw) or not raw.strip():
+            raise ValueError(f"--code-ref {raw!r} must be one line of text")
+        out.append(raw.strip())
+    return out
+
+
 def checked_rule(text: str | None) -> dict | None:
     if text is None:
         return None
@@ -128,7 +137,7 @@ def write(repo_dir: str | Path, title: str, adr_dir: str | None = None, code_ref
     root = Path(os.path.abspath(repo_dir))
     if not root.is_dir():
         raise ValueError(f"--repo-dir {repo_dir} is not a directory")
-    title, stated, refs, day = checked_title(title), checked_rule(rule), [r.strip() for r in code_refs], checked_date(date)
+    title, stated, refs, day = checked_title(title), checked_rule(rule), checked_refs(code_refs), checked_date(date)
     waived = checked_waivers(waivers)
     text = text_of(title, day, refs, stated, waived)
     try:
