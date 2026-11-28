@@ -73,9 +73,16 @@ def finding(f: dict) -> dict:
 
 def query(report: dict) -> dict:
     out = {"loaded": report["loaded"], "columns": report["columns"], "row_count": report["row_count"], "rows": first(report["rows"])}
+    if "profile" in report:
+        out["profile"] = report["profile"]
     if "cut" in report:
         out["cut"] = report["cut"]
     return out
+
+
+def search(report: dict) -> dict:
+    return {"loaded": report["loaded"], "query": report["query"], "kinds": report["kinds"],
+            "match_count": report["match_count"], "matches": first(report["matches"])}
 
 
 def check(report: dict) -> dict:
@@ -103,7 +110,7 @@ def judged(r: dict) -> dict:
     return {k: r[k] for k in ("file", "line", "decision", "rule", "why", "import", "waiver", "expired_waiver") if r.get(k) is not None}
 
 
-SHORT = {"impact": impact, "paths": paths, "audit": audit, "check": check, "query": query}
+SHORT = {"impact": impact, "paths": paths, "audit": audit, "check": check, "query": query, "search": search}
 
 
 def fit(report: dict, size, limit: int) -> dict:

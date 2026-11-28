@@ -154,7 +154,7 @@
     "Read back: every node and edge matches.",
     "A new checkout of the records finds 10 of 10 edges with their type and direction.",
     "The space now holds 16 nodes and 16 edges.",
-    "Sample Relate database for judges: demo/sample.rl (64 KB, synthetic data only).",
+    "Sample Relate database for judges: demo/sample.rl (88 KB, synthetic data only).",
     "Operational sandbox deleted: yes."
    ],
    "data": {
@@ -382,9 +382,9 @@
   "digest": "d761d1c8a44d62e2"
  },
  "timestamps": {
-  "started_at": "2026-11-23T16:43:49Z",
-  "checked_out_at": "2026-11-23T16:43:49Z",
-  "read_back_at": "2026-11-23T16:43:49Z",
-  "finished_at": "2026-11-23T16:43:49Z"
+  "started_at": "2026-11-28T13:10:05Z",
+  "checked_out_at": "2026-11-28T13:10:05Z",
+  "read_back_at": "2026-11-28T13:10:05Z",
+  "finished_at": "2026-11-28T13:10:05Z"
  }
 }

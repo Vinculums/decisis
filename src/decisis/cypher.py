@@ -4,7 +4,9 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 
-from .sandbox import Limits, NotReadOnly, Subgraph, _flat, _label, sandbox
+from pathlib import Path
+
+from .sandbox import Limits, NotReadOnly, Subgraph, _flat, _label, query_store, sandbox
 
 MAX_ROWS = 500
 MAX_BYTES = 1024 * 1024
@@ -17,7 +19,8 @@ REFUSED = {
                      "PROFILE"), "is not a read clause"),
 }
 READ_PROCEDURES = ("db.labels", "db.relationshipTypes", "db.propertyKeys", "db.schema.visualization",
-                   "db.schema.nodeTypeProperties", "db.schema.relTypeProperties")
+                   "db.schema.nodeTypeProperties", "db.schema.relTypeProperties",
+                   "db.index.fulltext.queryNodes", "db.index.fulltext.queryRelationships")
 SCHEMA_LABELS = 40
 SCHEMA_KEYS = 40
 SCHEMA_JOINS = 8
@@ -141,16 +144,36 @@ def unquote(tok: Token) -> str:
     return tok.text[1:-1].replace("``", "`") if tok.kind == "name" else tok.text
 
 
-def run(graph: Subgraph, text: str, params: dict | None = None, root=None, limits: Limits | None = None) -> dict:
-    check(text)
-    with sandbox(root, limits) as box:
-        counts = box.load(graph)
-        page = box.page(text, params or {}, MAX_ROWS, MAX_BYTES)
-    report = {"loaded": counts, "columns": page["columns"], "row_count": page["total"], "rows": page["rows"]}
+def is_store(path: Path) -> bool:
+    if path.is_file() and path.suffix.lower() == ".rl":
+        return True
+    return path.is_dir() and ((path / "manifest.json").is_file() or (path / ".cypherlite" / "manifest.json").is_file())
+
+
+def format_report(loaded: dict | None, page: dict, store: Path | None = None) -> dict:
+    head = {"store": str(store)} if store is not None else {"loaded": loaded}
+    report = {**head, "columns": page["columns"], "row_count": page["total"], "rows": page["rows"]}
+    if "profile" in page:
+        report["profile"] = page["profile"]
     if len(page["rows"]) < page["total"]:
         report["cut"] = (f"{len(page['rows'])} of {page['total']} rows are shown: results stop at {MAX_ROWS} rows and "
                          f"{MAX_BYTES} bytes; add LIMIT and SKIP, or return fewer or smaller columns")
     return report
+
+
+def run(graph: Subgraph, text: str, params: dict | None = None, root=None, limits: Limits | None = None,
+        profile: bool = False, fulltext: bool = False) -> dict:
+    check(text)
+    with sandbox(root, limits) as box:
+        counts = box.load(graph, fulltext=fulltext)
+        page = box.page(text, params or {}, MAX_ROWS, MAX_BYTES, profile=profile)
+    return format_report(counts, page)
+
+
+def run_store(store: Path, text: str, params: dict | None = None, limits: Limits | None = None, profile: bool = False) -> dict:
+    check(text)
+    page = query_store(store, text, params or {}, MAX_ROWS, MAX_BYTES, limits=limits, profile=profile)
+    return format_report(None, page, store=store)
 
 
 def shown(name: str) -> str | None:

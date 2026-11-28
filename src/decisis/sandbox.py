@@ -135,6 +135,39 @@ def _mismatch(graph: Subgraph, got: dict, overwritten: list[str] | None = None) 
     return "; ".join(out)
 
 
+FULLTEXT_INDEX = "decisis_text"
+
+
+def _constraint_name(label: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_]", "_", label)
+    if safe == label:
+        return f"uniq_{safe}_id"
+    import hashlib
+    return f"uniq_{safe}_{hashlib.sha256(label.encode('utf-8')).hexdigest()[:8]}_id"
+
+
+def apply_schema(con, graph: Subgraph) -> None:
+    by_label: dict[str, list[dict]] = {}
+    for n in graph.nodes:
+        by_label.setdefault(_label(n["kind"]), []).append(n)
+    type_entries = []
+    constraints = []
+    for label, nodes in sorted(by_label.items()):
+        quoted = "`" + label.replace("`", "``") + "`"
+        constraints.append(f"CREATE CONSTRAINT `{_constraint_name(label)}` IF NOT EXISTS FOR (n:{quoted}) REQUIRE n.id IS UNIQUE")
+        if all(isinstance(n["id"], str) for n in nodes):
+            type_entries.append(f"(:{quoted} => {{id :: STRING NOT NULL}})")
+    if type_entries:
+        con.execute("ALTER CURRENT GRAPH TYPE SET { " + ", ".join(type_entries) + " }")
+    for stmt in constraints:
+        con.execute(stmt)
+
+
+def apply_fulltext(con) -> None:
+    con.execute(f"CREATE FULLTEXT INDEX {FULLTEXT_INDEX} IF NOT EXISTS "
+                "FOR (n:Decision|Record|Concept) ON EACH [n.title, n.statement, n.summary, n.body, n.domain]")
+
+
 class Sandbox:
     def __init__(self, root: Path | None = None, limits: Limits | None = None):
         self.limits = limits or Limits.resolve()
@@ -142,7 +175,7 @@ class Sandbox:
         self.path = self.dir / "task.rl"
         self.loaded = False
 
-    def load(self, graph: Subgraph) -> dict:
+    def load(self, graph: Subgraph, schema: bool = True, fulltext: bool = False) -> dict:
         if self.loaded:
             raise RuntimeError("a sandbox is loaded once; build a new one for a new task")
         check_size(graph, self.limits)
@@ -150,6 +183,7 @@ class Sandbox:
         con = relate.connect(str(self.path))
         overwritten: list[str] = []
         try:
+            con.autocommit = False
             made: dict[str, list[int]] = {}
             for kind in sorted({n["kind"] for n in graph.nodes}):
                 rows = [{"id": n["id"], "title": n.get("title") or "", "domain": n.get("domain") or "",
@@ -166,15 +200,21 @@ class Sandbox:
                 for by_id, rows in _runs([e for e in graph.edges if e["type"] == rel], seek):
                     match = "MATCH (a) WHERE id(a) = r.s MATCH (b) WHERE id(b) = r.t" if by_id else "MATCH (a {id: r.s}), (b {id: r.t})"
                     con.execute(f"UNWIND $rows AS r {match} CREATE (a)-[:{_label(rel)} {{evidence: r.evidence}}]->(b)", {"rows": rows})
+            con.commit()
+            con.autocommit = True
             nodes = con.execute("MATCH (n) RETURN count(n) AS c").single()
             edges = con.execute("MATCH ()-[r]->() RETURN count(r) AS c").single()
+            got = {"nodes": dict(nodes)["c"] if nodes else 0, "edges": dict(edges)["c"] if edges else 0}
+            ids = [n["id"] for n in graph.nodes]
+            if got != {"nodes": len(graph.nodes), "edges": len(graph.edges)} or len(ids) != len(set(ids)) or overwritten:
+                raise LoadMismatch(_mismatch(graph, got, sorted(set(overwritten))))
+            if schema and graph.nodes:
+                apply_schema(con, graph)
+            if fulltext:
+                apply_fulltext(con)
         finally:
             con.close()
         self.loaded = True
-        got = {"nodes": dict(nodes)["c"] if nodes else 0, "edges": dict(edges)["c"] if edges else 0}
-        ids = [n["id"] for n in graph.nodes]
-        if got != {"nodes": len(graph.nodes), "edges": len(graph.edges)} or len(ids) != len(set(ids)) or overwritten:
-            raise LoadMismatch(_mismatch(graph, got, sorted(set(overwritten))))
         return got
 
     def query(self, cypher: str, params: dict | None = None) -> list[dict]:
@@ -185,24 +225,48 @@ class Sandbox:
             _reraise(*reply[1:])
         return reply[1]
 
-    def page(self, cypher: str, params: dict | None, max_rows: int, max_bytes: int) -> dict:
+    def page(self, cypher: str, params: dict | None, max_rows: int, max_bytes: int, profile: bool = False) -> dict:
         if not self.loaded:
             raise RuntimeError("load the sandbox before querying it")
-        reply = _ask((str(self.path), cypher, params or {}, (max_rows, max_bytes)), self.limits.query_seconds)
+        reply = _ask((str(self.path), cypher, params or {}, (max_rows, max_bytes, profile)), self.limits.query_seconds)
         if reply[0] == "error":
             _reraise(*reply[1:])
-        columns, rows, total = reply[1:]
-        return {"columns": columns, "rows": rows, "total": total}
+        columns, rows, total, prof = reply[1:]
+        return {"columns": columns, "rows": rows, "total": total, **({"profile": prof} if prof is not None else {})}
+
+    def save(self, dest: Path) -> Path:
+        if not self.loaded:
+            raise RuntimeError("load the sandbox before saving it")
+        if dest.is_symlink():
+            raise ValueError(f"--keep-graph refuses a symbolic link: {dest}")
+        if dest.is_dir():
+            raise ValueError(f"--keep-graph expects a file path, not a directory: {dest}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(self.path, dest)
+        return dest
 
     def destroy(self) -> None:
         shutil.rmtree(self.dir, ignore_errors=True)
 
 
+def query_store(store: Path, cypher: str, params: dict | None, max_rows: int, max_bytes: int,
+                limits: Limits | None = None, profile: bool = False) -> dict:
+    lim = limits or Limits.resolve()
+    _warm()
+    reply = _ask((str(store), cypher, params or {}, (max_rows, max_bytes, profile)), lim.query_seconds)
+    if reply[0] == "error":
+        _reraise(*reply[1:])
+    columns, rows, total, prof = reply[1:]
+    return {"columns": columns, "rows": rows, "total": total, **({"profile": prof} if prof is not None else {})}
+
+
 @contextmanager
-def sandbox(root: Path | None = None, limits: Limits | None = None) -> Iterator[Sandbox]:
+def sandbox(root: Path | None = None, limits: Limits | None = None, keep_graph: Path | None = None) -> Iterator[Sandbox]:
     box = Sandbox(root, limits)
     try:
         yield box
+        if keep_graph is not None and box.loaded:
+            box.save(keep_graph)
     finally:
         box.destroy()
 
@@ -340,7 +404,13 @@ def _answer(path: str, cypher: str, params: dict) -> tuple:
 READ_ONLY_PLAN = "r"
 
 
-def _page_answer(path: str, cypher: str, params: dict, max_rows: int, max_bytes: int) -> tuple:
+def _profile_summary(summary) -> dict:
+    return {"elapsed_ms": round(summary.elapsed_ms, 3), "parse_ms": round(summary.parse_ms, 3),
+            "plan_ms": round(summary.plan_ms, 3), "execute_ms": round(summary.execute_ms, 3),
+            "plan": summary.plan, "notifications": summary.notifications}
+
+
+def _page_answer(path: str, cypher: str, params: dict, max_rows: int, max_bytes: int, profile: bool = False) -> tuple:
     try:
         con = relate.connect(path, read_only=True)
         try:
@@ -348,9 +418,11 @@ def _page_answer(path: str, cypher: str, params: dict, max_rows: int, max_bytes:
             if kind != READ_ONLY_PLAN:
                 return ("error", __name__, "NotReadOnly", f"Relate plans this query as query type {kind!r}, not read only ({READ_ONLY_PLAN!r}); "
                                                          "it was not run")
-            cursor = con.execute(cypher, params)
+            stmt = ("PROFILE\n" + cypher) if profile else cypher
+            cursor = con.execute(stmt, params)
             rows = cursor.fetchall()
-            return ("page", list(cursor.keys()), _cut(rows, max_rows, max_bytes), len(rows))
+            prof = _profile_summary(cursor.consume()) if profile else None
+            return ("page", list(cursor.keys()), _cut(rows, max_rows, max_bytes), len(rows), prof)
         finally:
             con.close()
     except Exception as e:

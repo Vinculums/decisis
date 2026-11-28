@@ -199,7 +199,7 @@ jobs:
           fail-on-violation: false
 ```
 
-It is on the Marketplace as [decisis check](https://github.com/marketplace/actions/decisis-check). The decisions come from the pull request's base commit, so editing a decision file does not change the pull request's own verdict; guard the workflow and the decision files with CODEOWNERS and make the check required. The comment's footer holds one factual line, for example `Checked with decisis 0.4.6 (0 LLM calls · deterministic graph check · pull request reviews from api.github.com · digest: …)`, that says what the run fetched and gives a digest of the result; `signature: false` leaves it out, as `--no-signature` does for `check` and `audit` with `--format html`. [Inputs, permissions, fork handling and the trust model](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
+It is on the Marketplace as [decisis check](https://github.com/marketplace/actions/decisis-check). The decisions come from the pull request's base commit, so editing a decision file does not change the pull request's own verdict; guard the workflow and the decision files with CODEOWNERS and make the check required. The comment's footer holds one factual line, for example `Checked with decisis 0.5.0 (0 LLM calls · deterministic graph check · pull request reviews from api.github.com · digest: …)`, that says what the run fetched and gives a digest of the result; `signature: false` leaves it out, as `--no-signature` does for `check` and `audit` with `--format html`. [Inputs, permissions, fork handling and the trust model](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
 
 ## AI agents: skill and MCP
 
@@ -208,7 +208,7 @@ pip install "decisis[mcp]"
 claude mcp add decisis -- decisis serve --mcp --snapshot snapshot.json --osv-cache osv-cache.json
 ```
 
-The server gives an agent `impact`, `paths`, `audit` and a read-only Cypher `query` as MCP tools. It has no
+The server gives an agent `impact`, `paths`, `audit`, `check`, `search` and a read-only Cypher `query` as MCP tools. It has no
 tool that writes. [`skills/decisis/SKILL.md`](https://github.com/Vinculums/decisis/blob/main/skills/decisis/SKILL.md)
 teaches an agent when to use each tool. [MCP setup and the `query` rules](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md).
 
@@ -226,15 +226,25 @@ Code: [the config file and snippet for each tool](https://github.com/Vinculums/d
 | `new-adr "<title>" [--code-ref <path>]... [--rule <json>]` | nothing | writes the next-numbered MADR file with `status: proposed`, after checking the rule as `audit` and `check` read it; never overwrites |
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `check <snapshot> (--changed <file>... \| --base <ref>)` | nothing; with `--base`, git | the decisions that govern a change set, and the `review_required` and `imports_forbidden` rules it breaks; exits 1 on a violation |
-| `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids |
-| `query <snapshot> <cypher> [--param KEY=VALUE]` | nothing | one read-only Cypher statement on a throwaway graph of the snapshot, rows as JSON |
-| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev (and OSV's GitHub Actions export for workflows), unless `--osv-cache` | advisories the repository reaches and the decisions they break |
+| `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids; with `--keep-graph FILE` saves a copy of the `.rl` graph |
+| `query <snapshot or .rl or vault> <cypher> [--param KEY=VALUE] [--profile]` | nothing | one read-only Cypher statement on a snapshot, saved `.rl` file or Markdown vault, rows as JSON; `--profile` adds Relate's execution plan and operator timings |
+| `search <snapshot> <query>` | nothing | offline keyword search over decisions, records and concepts using Relate's built-in fulltext index (no model) |
+| `export-vault <snapshot> --out <dir> [--lockfile FILE --repo NAME]` | nothing (or api.osv.dev with `--lockfile` and no `--osv-cache`) | exports a snapshot or composed audit graph as a Relate Markdown vault (Obsidian-ready `.md` notes with `[[wikilinks]]`, git-diffable and queryable with Cypher) |
+| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev (and OSV's GitHub Actions export for workflows), unless `--osv-cache` | advisories the repository reaches and the decisions they break; `--keep-graph FILE` saves `.rl` and `--export-vault DIR` writes a Markdown vault |
 | `propose <report> <snapshot> <lockfile or SBOM> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
 | `compare [--tasks FILE]` | nothing; the held-out tasks need a checkout of this repository | the [benchmarks](https://github.com/Vinculums/decisis/blob/main/docs/benchmark.md) |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
 | `commit <plan> --approve <digest>` | a full Vinc key | writes an approved write set and reads it back |
 | `gc` | nothing | removes task directories that a killed run left behind, and prints them |
-| `serve --mcp --snapshot <file>` | the `mcp` extra; the network for api.osv.dev only with `--allow-network` | `impact`, `paths`, `audit`, `check` and `query` as read-only MCP tools over stdio ([MCP](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md)) |
+| `serve --mcp --snapshot <file>` | the `mcp` extra; the network for api.osv.dev only with `--allow-network` | `impact`, `paths`, `audit`, `check`, `search` and `query` as read-only MCP tools over stdio ([MCP](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md)) |
+
+To inspect a saved `.rl` graph or exported Markdown vault visually in Neo4j Browser, run Relate's built-in server read-only:
+
+```bash
+decisis audit snapshot.json package-lock.json --repo Shop --keep-graph audit.rl --export-vault audit-vault/
+decisis query audit.rl "MATCH (d:Decision) RETURN d.id, d.title" --profile
+relate serve --database audit.rl --bolt 7687 --read-only
+```
 
 [Flags, limits and the Mermaid and HTML views](https://github.com/Vinculums/decisis/blob/main/docs/commands.md).
 

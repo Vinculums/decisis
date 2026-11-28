@@ -71,10 +71,10 @@ def boxes(monkeypatch, tmp_path):
     return root, made
 
 
-def test_the_server_lists_only_the_five_read_only_tools_with_the_cli_bounds():
+def test_the_server_lists_only_the_six_read_only_tools_with_the_cli_bounds():
     listed, _ = over_mcp(tools())
     by = {t.name: t for t in listed.tools}
-    assert sorted(by) == ["audit", "check", "impact", "paths", "query"]
+    assert sorted(by) == ["audit", "check", "impact", "paths", "query", "search"]
     assert all(t.annotations.read_only_hint and not t.annotations.destructive_hint for t in listed.tools)
     assert not by["audit"].annotations.open_world_hint
     hops = by["impact"].input_schema["properties"]["hops"]
@@ -305,7 +305,7 @@ def test_the_cli_serves_over_stdio(no_network):
                 result = await client.call_tool("impact", {"code_paths": ["reports/export.py"], "hops": 1})
                 return names, result
     names, result = anyio.run(drive)
-    assert names == ["audit", "check", "impact", "paths", "query"]
+    assert names == ["audit", "check", "impact", "paths", "query", "search"]
     assert not result.is_error and result.structured_content["hops"] == 1
 
 

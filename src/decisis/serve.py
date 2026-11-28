@@ -17,7 +17,7 @@ from mcp.server.lowlevel.server import NotificationOptions
 from mcp.server.stdio import stdio_server
 from mcp.server.subscriptions import InMemorySubscriptionBus, ListenHandler, ToolsListChanged
 
-from . import audit, check, compact, cypher, external, impact, inventory, rules
+from . import audit, check, compact, cypher, external, impact, inventory, rules, search
 from . import checkout as co
 from .cli import MAX_LIMIT
 from .queries import load as query
@@ -106,9 +106,25 @@ SCHEMAS = {
                        "description": "one read-only Cypher statement; refer to values as $name and pass them in params"},
             "params": {"type": "object", "maxProperties": MAX_PARAMS, "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"},
                        "description": "values for the $name parameters in cypher"},
+            "profile": {"type": "boolean", "default": False,
+                        "description": "return Relate's PROFILE plan, operator timings and engine notifications alongside the rows"},
             "detail": DETAIL,
         },
         "required": ["cypher"],
+        "additionalProperties": False,
+    },
+    "search": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "minLength": 1, "maxLength": search.MAX_QUERY,
+                      "description": "keywords to match against decision, record and concept titles and statements using Relate's offline fulltext index"},
+            "kinds": {"type": "array", "items": {"type": "string", "enum": list(search.SEARCHABLE)}, "minItems": 1, "maxItems": 3,
+                      "description": "restrict matches to these node kinds (default: decision, record, concept)"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": search.MAX_LIMIT, "default": search.DEFAULT_LIMIT,
+                      "description": f"most matches to return (1 to {search.MAX_LIMIT})"},
+            "detail": DETAIL,
+        },
+        "required": ["query"],
         "additionalProperties": False,
     },
 }
@@ -135,10 +151,12 @@ DESCRIPTIONS = {
              "lockfile. CREATE, MERGE, SET, DELETE, REMOVE, LOAD CSV, admin clauses and procedures other than the db.labels "
              f"family are refused before the query runs. Results stop at {cypher.MAX_ROWS} rows and {cypher.MAX_BYTES} bytes "
              "with a note when cut, and a query that runs past the server's time limit is stopped.",
+    "search": "Search decisions, records and concepts in the snapshot by keywords using Relate's built-in offline fulltext index "
+              "(no model, no network). Use it when a decision or postmortem governs a topic without naming an exact code path.",
 }
 
 INSTRUCTIONS = ("decisis answers read-only questions about one Vinc snapshot in a throwaway Relate graph. "
-                "Ask impact, paths, audit and check first; use query with read-only Cypher for a question they do not answer. "
+                "Ask impact, paths, audit, check and search first; use query with read-only Cypher for a question they do not answer. "
                 "Call check with base or changed to judge a change before it is committed. "
                 "Each tool returns a summary unless called with detail \"full\". "
                 "It never writes to Vinc: to record findings, run decisis propose and show the person the write set.")
@@ -171,9 +189,17 @@ class Tools:
 
     def query(self, args: dict) -> dict:
         try:
-            return cypher.run(self.graph, args["cypher"], args.get("params") or {}, root=self.scratch)
+            return cypher.run(self.graph, args["cypher"], args.get("params") or {}, root=self.scratch,
+                              profile=bool(args.get("profile", False)))
         except NotReadOnly as e:
             raise Refused(f"query: {e}") from None
+
+    def search(self, args: dict) -> dict:
+        try:
+            return search.run(self.graph, args["query"], args.get("limit", search.DEFAULT_LIMIT),
+                              args.get("kinds"), root=self.scratch)
+        except ValueError as e:
+            raise Refused(f"search: {e}") from None
 
     def impact(self, args: dict) -> dict:
         repo = args.get("repo")

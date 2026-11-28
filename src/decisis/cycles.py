@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .queries import load as query
+
 SUPERSEDES = "SUPERSEDES"
 RULE = "supersedes_cycle"
 IN_FORCE = "in force"
@@ -104,3 +106,23 @@ def find(nodes: list[dict], edges: list[dict]) -> list[Cycle]:
             continue
         out.append(Cycle(tuple(group), decisions, tuple(sorted({f for m in group if (f := source_file(by_id[m]))}))))
     return sorted(out, key=lambda c: c.members)
+
+
+def find_in(box, nodes: list[dict]) -> list[Cycle]:
+    by_id = {n["id"]: n for n in nodes}
+    out = []
+    seen: set[tuple[str, ...]] = set()
+    for row in box.query(query("supersedes_cycles")):
+        group = tuple(sorted(set(row["members"])))
+        if not group or group in seen:
+            continue
+        seen.add(group)
+        decisions = tuple(m for m in group if m in by_id and by_id[m]["kind"] == DECISION)
+        if not decisions:
+            continue
+        out.append(Cycle(group, decisions, tuple(sorted({f for m in group if m in by_id and (f := source_file(by_id[m]))}))))
+    return sorted(out, key=lambda c: c.members)
+
+
+def chains_in(box) -> list[dict]:
+    return box.query(query("supersedes_chains"))

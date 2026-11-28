@@ -17,7 +17,8 @@
   "check",
   "impact",
   "paths",
-  "query"
+  "query",
+  "search"
  ],
  "calls": [
   {
