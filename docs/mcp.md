@@ -14,7 +14,7 @@ evidence, and a write path that needs a person's digest.
 
 ## Serve it over MCP
 
-`decisis serve --mcp` gives an agent the same `impact`, `paths`, `audit`, `check` and `query` as MCP tools over
+`decisis serve --mcp` gives an agent the same `impact`, `paths`, `audit`, `check`, `search` and `query` as MCP tools over
 stdio, on the snapshot file named when the server starts. It needs the optional `mcp` extra; the base install keeps
 `relate-db` and `PyYAML` as its only dependencies:
 

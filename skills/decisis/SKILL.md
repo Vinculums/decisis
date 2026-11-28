@@ -15,8 +15,9 @@ back to Vinc.
 - "This code path changes; which decisions and records govern it?" (`impact`)
 - "Does this change set lack a required reviewer or make an import a decision forbids?" (`check`, exits 1 on a violation)
 - "How are these two nodes connected?" (`paths`)
-- A question about the snapshot the three above do not answer, such as "which decisions have no `ABOUT`
-  edge?" or "how many records does each concept have?" (`query`, read-only Cypher)
+- "Which decisions, records or concepts mention this topic even without an explicit code path?" (`search`, offline Relate fulltext)
+- A question about the snapshot the fixed tools do not answer, such as "which decisions have no `ABOUT`
+  edge?" or "how many records does each concept have?" (`query`, read-only Cypher, with optional `profile: true`)
 
 Do not use it to edit the graph by hand. It writes only through `commit`, and only with the digest
 a person approved.
@@ -37,7 +38,7 @@ an unattended demo. The run writes `demo/transcript.json`, `demo/expected_findin
 
 ## As an MCP server
 
-With the `mcp` extra, the same `impact`, `paths`, `audit`, `check` and `query` are MCP tools over stdio, on the
+With the `mcp` extra, the same `impact`, `paths`, `audit`, `check`, `search` and `query` are MCP tools over stdio, on the
 snapshot file named when the server starts. For Claude Code:
 
 ```

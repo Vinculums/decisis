@@ -166,7 +166,7 @@ def collect(rows: list[dict], graph: Subgraph, path: str, repo: str | None = Non
 
 
 def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = None, root=None, limits: Limits | None = None,
-        day: datetime.date | None = None) -> dict:
+        day: datetime.date | None = None, keep_graph=None) -> dict:
     if not 0 <= hops <= MAX_HOPS:
         raise ValueError(f"hops must be between 0 and {MAX_HOPS}")
     wanted = []
@@ -181,13 +181,14 @@ def run(graph: Subgraph, paths: list[str], hops: int = 3, repo: str | None = Non
     day = day or rules.today()
     replaced = superseded_by(graph)
     closed = closed_by(graph, day, replaced)
-    with sandbox(root, limits) as box:
+    with sandbox(root, limits, keep_graph=keep_graph) as box:
         counts = box.load(Subgraph(prepared.nodes, governance_edges(prepared), prepared.meta))
         for raw, p in wanted:
             rows = [from_anchor(r) for r in box.query(cypher, {"path": p, "dir": p + "/", "kinds": GOVERNING})]
             results.append(split_superseded({"path": raw, "matched_as": p}, collect(rows, prepared, p, repo), replaced, closed))
     dated = any(valid_until(n) for n in graph.nodes if n["kind"] == "decision")
-    return {"loaded": counts, "hops": hops, "repo": repo, **({"today": day.isoformat()} if dated else {}), "impact": results}
+    return {"loaded": counts, "hops": hops, "repo": repo, **({"today": day.isoformat()} if dated else {}),
+            **({"saved_graph": str(keep_graph)} if keep_graph is not None else {}), "impact": results}
 
 
 def in_cycle(graph: Subgraph) -> set[str]:

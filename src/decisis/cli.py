@@ -23,7 +23,9 @@ from . import patch
 from . import render
 from . import rules
 from . import sarif
+from . import search
 from . import signature
+from . import vault
 from . import commit as wb
 from . import checkout as co
 from .queries import load as query
@@ -64,6 +66,14 @@ WARN_HELP = ("list under expiring_soon the waivers that cover a result and expir
 
 SIGNATURE_HELP = ("leave the one-line signature (the decisis version, the facts of the run and a digest of the result) out of --format html; "
                   "no other output changes")
+
+
+KEEP_GRAPH_HELP = ("save a copy of the Relate database (.rl) here before deleting the throwaway sandbox; "
+                   "inspect it later with decisis query or relate serve --bolt 7687 --read-only")
+
+
+def keep_graph_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--keep-graph", type=Path, metavar="FILE", help=KEEP_GRAPH_HELP)
 
 
 def signature_flag(parser: argparse.ArgumentParser) -> None:
@@ -126,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--hops", type=bounded(1, impact.MAX_HOPS), default=4, help=f"longest path to look for (1 to {impact.MAX_HOPS})")
     p.add_argument("--limit", type=bounded(1, MAX_LIMIT), default=10, help=f"most paths to return (1 to {MAX_LIMIT})")
     p.add_argument("--format", choices=["json", *VIEWS], default="json")
+    keep_graph_flag(p)
     im = sub.add_parser("impact", help="list the decisions, records and concepts that govern one or more code paths")
     im.add_argument("snapshot")
     im.add_argument("code_paths", nargs="+", metavar="code_path", help="a file or directory, for example reports/export.py or storage/")
@@ -133,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     im.add_argument("--repo", help="skip code_refs that name another repository, for example Demo")
     im.add_argument("--format", choices=["json", "text", *VIEWS], default="json")
     im.add_argument("--today", type=day, metavar="DATE", help=IMPACT_TODAY_HELP)
+    keep_graph_flag(im)
     ck = sub.add_parser("check", help="judge a change set against the review and import rules of the decisions in a snapshot; exits 1 on a violation")
     ck.add_argument("snapshot")
     ck.add_argument("--repo-dir", default=".", help="the repository the changed files are read from (default: the current directory)")
@@ -147,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     ck.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
     warn_flag(ck)
     signature_flag(ck)
+    keep_graph_flag(ck)
     au = sub.add_parser("audit", help="join a Vinc snapshot, a lockfile or SBOM and OSV advisories in a throwaway Relate graph")
     au.add_argument("snapshot")
     au.add_argument("lockfile", help="package-lock.json, a CycloneDX or SPDX JSON SBOM, uv.lock, Cargo.lock, go.mod (read with the go.sum next to it), "
@@ -160,6 +173,10 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
     warn_flag(au)
     signature_flag(au)
+    keep_graph_flag(au)
+    au.add_argument("--export-vault", type=Path, metavar="DIR",
+                    help="export the composed audit graph as a Relate Markdown vault (Obsidian-ready folder with [[wikilinks]])")
+    au.add_argument("--force", action="store_true", help="with --export-vault: replace an existing non-empty directory")
     pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
     pr.add_argument("snapshot", help="the snapshot the audit read")
@@ -189,14 +206,33 @@ def main(argv: list[str] | None = None) -> int:
     gc.add_argument("--root", type=Path, help="the directory that holds the task directories (default: /dev/shm, or the system temporary directory)")
     gc.add_argument("--grace", type=bounded(0, 86400), default=sb.GRACE_SECONDS, metavar="SECONDS",
                     help=f"leave directories younger than this (default {sb.GRACE_SECONDS})")
-    qy = sub.add_parser("query", help="run one read-only Cypher statement on a throwaway Relate graph of a snapshot and print the rows as JSON")
-    qy.add_argument("snapshot")
+    qy = sub.add_parser("query", help="run one read-only Cypher statement on a snapshot, .rl file or Relate vault and print the rows as JSON")
+    qy.add_argument("snapshot", help="a JSON snapshot, a saved .rl Relate file or a Relate Markdown vault directory")
     qy.add_argument("cypher", help="one statement that starts with MATCH, OPTIONAL MATCH, WITH, UNWIND, RETURN or CALL; writes are refused")
     qy.add_argument("--param", action="append", default=[], type=param, metavar="KEY=VALUE",
                     help="a value for $KEY; VALUE is read as JSON when it parses (12, true, [1, 2]), else as text")
-    for s in (p, im, ck, au, pr, qy):
+    qy.add_argument("--profile", action="store_true",
+                    help="include Relate's PROFILE execution plan, parse/plan/execute timings and engine notifications")
+    sr = sub.add_parser("search", help="search decisions, records and concepts by keywords using Relate's offline fulltext index")
+    sr.add_argument("snapshot")
+    sr.add_argument("query", help="keywords to match against titles, statements and bodies")
+    sr.add_argument("--kind", action="append", choices=list(search.SEARCHABLE),
+                    help="restrict results to this node kind; repeat for more")
+    sr.add_argument("--limit", type=bounded(1, search.MAX_LIMIT), default=search.DEFAULT_LIMIT,
+                    help=f"most matches to return (1 to {search.MAX_LIMIT}, default {search.DEFAULT_LIMIT})")
+    sr.add_argument("--format", choices=["json", "text"], default="json")
+    ev = sub.add_parser("export-vault", help="export a snapshot (or composed audit graph) as a Relate Markdown vault for Obsidian, git and Cypher")
+    ev.add_argument("snapshot")
+    ev.add_argument("--out", type=Path, required=True, metavar="DIR", help="target directory for the Markdown vault")
+    ev.add_argument("--lockfile", help="optional lockfile or SBOM to compose with the snapshot before exporting")
+    ev.add_argument("--repo", help="with --lockfile: repository name as it appears in Vinc code_ref")
+    ev.add_argument("--osv-cache", metavar="FILE", help="with --lockfile: read OSV advisories from this file and never from the network")
+    ev.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
+    ev.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
+    ev.add_argument("--force", action="store_true", help="replace an existing non-empty directory")
+    for s in (p, im, ck, au, pr, qy, sr, ev):
         limit_flags(s)
-    sv = sub.add_parser("serve", help="serve impact, paths, audit, check and query to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
+    sv = sub.add_parser("serve", help="serve impact, paths, audit, check, search and query to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
     sv.add_argument("--mcp", action="store_true", required=True, help="speak MCP over stdin and stdout")
     sv.add_argument("--snapshot", type=Path, required=True, help="the JSON snapshot every tool call reads")
     sv.add_argument("--osv-cache", type=Path, metavar="FILE", help="audit reads OSV advisories from this file and never from the network")
@@ -290,11 +326,37 @@ def run(a: argparse.Namespace) -> int:
         print(json.dumps(receipt, ensure_ascii=False, indent=1))
         return 0 if receipt["verified"] else 1
     if a.cmd == "query":
-        report = cypher.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.cypher, params_of(a.param), limits=limits(a))
+        source = Path(a.snapshot)
+        if cypher.is_store(source):
+            report = cypher.run_store(source, a.cypher, params_of(a.param), limits=limits(a), profile=a.profile)
+        else:
+            report = cypher.run(co.load(source.read_text(encoding="utf-8")), a.cypher, params_of(a.param),
+                                limits=limits(a), profile=a.profile)
         sys.stdout.write(init.dump(report))
         return 0
+    if a.cmd == "search":
+        report = search.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.query, a.limit, a.kind, limits=limits(a))
+        if a.format == "text":
+            print(search.render(report))
+        else:
+            sys.stdout.write(init.dump(report))
+        return 0
+    if a.cmd == "export-vault":
+        graph = co.load(Path(a.snapshot).read_text(encoding="utf-8"))
+        if a.lockfile:
+            if not a.repo:
+                raise ValueError("--lockfile needs --repo")
+            advisories = external.fetch_advisories
+            if a.osv_cache:
+                advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
+            lock_text, siblings = inventory.load(Path(a.lockfile), root=a.root)
+            graph = audit.compose(graph, lock_text, a.repo, advisories, Path(a.lockfile).name, siblings, a.today)
+        result = vault.export(graph, a.out, force=a.force, limits=limits(a))
+        sys.stdout.write(init.dump(result))
+        return 0
     if a.cmd == "impact":
-        report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo, limits=limits(a), day=a.today)
+        report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo,
+                            limits=limits(a), day=a.today, keep_graph=a.keep_graph)
         if a.format == "text":
             print(impact.render(report))
         elif a.format in VIEWS:
@@ -312,7 +374,7 @@ def run(a: argparse.Namespace) -> int:
         text, siblings = inventory.load(Path(a.lockfile), root=a.root)
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
                            advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings, day=a.today,
-                           warn_days=a.warn_days)
+                           warn_days=a.warn_days, keep_graph=a.keep_graph, export_vault=a.export_vault, force_vault=a.force)
         text = init.dump(report)[:-1]
         if a.format in VIEWS or a.format == "sarif":
             if a.out:
@@ -326,6 +388,8 @@ def run(a: argparse.Namespace) -> int:
                               **({"unread_decisions": len(report["unread_decisions"])} if report.get("unread_decisions") else {}),
                               **({"not_governing": len(report["not_governing"])} if report.get("not_governing") else {}),
                               **({rules.EXPIRING: len(report[rules.EXPIRING])} if report.get(rules.EXPIRING) else {}),
+                              **({"saved_graph": report["saved_graph"]} if report.get("saved_graph") else {}),
+                              **({"vault": report["vault"]} if report.get("vault") else {}),
                               "out": a.out}))
         else:
             sys.stdout.write(text + "\n")
@@ -355,10 +419,10 @@ def run(a: argparse.Namespace) -> int:
         print(json.dumps(graph.meta))
         return 0
     graph = co.load(Path(a.snapshot).read_text(encoding="utf-8"))
-    with sandbox(limits=limits(a)) as box:
+    with sandbox(limits=limits(a), keep_graph=a.keep_graph) as box:
         counts = box.load(graph)
         rows = box.query(query("paths_between", hops=a.hops, limit=a.limit), {"source": a.source, "target": a.target})
-    report = {"loaded": counts, "paths": rows}
+    report = {"loaded": counts, **({"saved_graph": str(a.keep_graph)} if a.keep_graph is not None else {}), "paths": rows}
     if a.format in VIEWS:
         sys.stdout.write(VIEWS[a.format]("paths", render.annotate_paths(report, graph, a.source, a.target)))
         return 0
@@ -378,7 +442,7 @@ def run_check(a: argparse.Namespace) -> int:
         raise ValueError(f"--repo-dir {a.repo_dir} is not a directory")
     changed = check.changed_since(root, a.base) if a.base is not None else a.changed
     report = check.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), changed, root, a.reviewers, a.hops, a.repo,
-                       base=a.base, limits=limits(a), day=a.today, warn_days=a.warn_days)
+                       base=a.base, limits=limits(a), day=a.today, warn_days=a.warn_days, keep_graph=a.keep_graph)
     if a.format == "text":
         print(check.render(report))
     elif a.format in VIEWS:
