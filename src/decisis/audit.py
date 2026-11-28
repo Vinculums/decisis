@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import json
 import re
+from contextlib import contextmanager
 
 from pathlib import Path
 
@@ -312,6 +313,21 @@ def expiring(findings: list[dict], day: datetime.date, warn_days: int) -> list[d
                                 if p["verdict"] == rules.WAIVED], day, warn_days)
 
 
+SHIPPED_STEP = "DECISIS_SHIPPED_STEP"
+
+
+@contextmanager
+def shipped_steps(box, graph: Subgraph):
+    if any(e["type"] == SHIPPED_STEP for e in graph.edges):
+        raise ValueError(f"the graph already has {SHIPPED_STEP} edges, the type audit derives for shipped dependency steps; "
+                         "rename that edge type in the snapshot")
+    box.write(query("shipped_steps"))
+    try:
+        yield
+    finally:
+        box.write(f"MATCH ()-[s:{SHIPPED_STEP}]->() DELETE s")
+
+
 def advisory_paths(box, repo: str, depth: int) -> list[dict]:
     params = {"repo": f"repo:{repo}"}
     any_rows = box.query(query("advisory_paths_any", depth=depth), params)
@@ -324,10 +340,11 @@ def analyze(box, graph: Subgraph, repo: str, depth: int = 8, day: datetime.date 
     if not 1 <= depth <= MAX_DEPTH:
         raise ValueError(f"depth must be between 1 and {MAX_DEPTH}")
     counts = box.load(graph)
-    rows = advisory_paths(box, repo, depth)
     day = day or rules.today()
-    decisions = governing(box, graph, repo, day)
-    findings = ordered(verify(rows, graph, decisions, day) + package_findings(graph, decisions, repo, depth, day, box=box))
+    with shipped_steps(box, graph):
+        rows = advisory_paths(box, repo, depth)
+        decisions = governing(box, graph, repo, day)
+        findings = ordered(verify(rows, graph, decisions, day) + package_findings(graph, decisions, repo, depth, day, box=box))
     summary = {s: sum(1 for f in findings if f["status"] == s) for s in ("affected", "unresolved", "not_affected")}
     soon = expiring(findings, day, warn_days)
     return {"meta": graph.meta, "loaded": counts, "today": day.isoformat(), "governing": decisions, "summary": summary,

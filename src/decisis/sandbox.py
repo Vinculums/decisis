@@ -232,6 +232,15 @@ class Sandbox:
             _reraise(*reply[1:])
         return reply[1]
 
+    def write(self, cypher: str, params: dict | None = None) -> None:
+        if not self.loaded:
+            raise RuntimeError("load the sandbox before writing to it")
+        con = relate.connect(str(self.path))
+        try:
+            con.execute(cypher, params or {}).fetchall()
+        finally:
+            con.close()
+
     def page(self, cypher: str, params: dict | None, max_rows: int, max_bytes: int, profile: bool = False) -> dict:
         if not self.loaded:
             raise RuntimeError("load the sandbox before querying it")

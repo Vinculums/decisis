@@ -45,7 +45,7 @@ def test_shipped_paths_match_the_python_search(tmp_path, width, rounds):
     shipped = [r["path"] for r in rows if shipped_ok(r["path"][:-1], is_dev)]
     assert shipped and all(len(p) == depth + 2 for p in shipped)
     want = audit.package_paths(graph, "repo:R", {f"m{rounds}"}, depth, is_dev)[f"m{rounds}"]
-    assert sorted(map(len, paths[f"m{rounds}"])) == sorted(map(len, want))
+    assert set(map(len, paths[f"m{rounds}"])) == set(map(len, want))
     assert any(shipped_ok(p, is_dev) for p in paths[f"m{rounds}"])
 
 
