@@ -280,12 +280,17 @@ VINC_API_KEY=<full key> decisis commit plan.json --approve <digest>
 git clone https://github.com/Vinculums/decisis.git && cd decisis
 uv venv .venv && uv pip install --python .venv/bin/python -e ".[dev,mcp]"
 .venv/bin/python -m pytest -q
+.venv/bin/python scripts/gate_comments.py
 .venv/bin/decisis demo --approve d761d1c8a44d62e2
 ```
 
 The last line approves the demo's write set as a person would. The held-out benchmark is slow and runs only
 when asked: `DECISIS_SLOW=1 .venv/bin/python -m pytest -q -m slow`. `fixtures/` and `bench/` hold lockfiles
 with known advisories on purpose, so Dependabot alerts on those paths are dismissed as test fixtures.
+
+Code carries no comments and no docstrings, only machine pragmas such as `# noqa` or `# type: ignore`.
+`scripts/gate_comments.py` counts them per file against `scripts/comments-baseline.json`, a baseline that only goes
+down; the `test` workflow runs it. Put the reason for a change in the commit message.
 
 ## Name and history
 
