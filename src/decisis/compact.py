@@ -82,7 +82,8 @@ def query(report: dict) -> dict:
 
 def search(report: dict) -> dict:
     return {"loaded": report["loaded"], "query": report["query"], "kinds": report["kinds"],
-            "match_count": report["match_count"], "matches": first(report["matches"])}
+            "match_count": report["match_count"], "matches": first(report["matches"]),
+            **({"cut": report["cut"]} if "cut" in report else {})}
 
 
 def check(report: dict) -> dict:

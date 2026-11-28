@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from pathlib import Path
 
-from .sandbox import Limits, NotReadOnly, Subgraph, _flat, _label, query_store, sandbox
+from .sandbox import STORE_SUFFIX, Limits, NotReadOnly, Subgraph, _flat, _label, query_store, sandbox, store_size
 
 MAX_ROWS = 500
 MAX_BYTES = 1024 * 1024
@@ -145,7 +145,7 @@ def unquote(tok: Token) -> str:
 
 
 def is_store(path: Path) -> bool:
-    if path.is_file() and path.suffix.lower() == ".rl":
+    if path.is_file() and path.suffix.lower() == STORE_SUFFIX:
         return True
     return path.is_dir() and ((path / "manifest.json").is_file() or (path / ".cypherlite" / "manifest.json").is_file())
 
@@ -172,6 +172,8 @@ def run(graph: Subgraph, text: str, params: dict | None = None, root=None, limit
 
 def run_store(store: Path, text: str, params: dict | None = None, limits: Limits | None = None, profile: bool = False) -> dict:
     check(text)
+    limits = limits or Limits.resolve()
+    store_size(store, limits)
     page = query_store(store, text, params or {}, MAX_ROWS, MAX_BYTES, limits=limits, profile=profile)
     return format_report(None, page, store=store)
 

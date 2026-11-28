@@ -354,15 +354,20 @@ def unresolved_packages(graph: Subgraph) -> list[dict]:
 def run(vinc: Subgraph, lock_text: str, repo: str, depth: int = 8, advisories=external.fetch_advisories,
         limits: Limits | None = None, filename: str = "package-lock.json", siblings: dict[str, str] | None = None,
         root=None, day: datetime.date | None = None, warn_days: int = rules.WARN_DAYS,
-        keep_graph: Path | None = None, export_vault: Path | None = None, force_vault: bool = False) -> dict:
+        keep_graph: Path | None = None, export_vault: Path | None = None, force_vault: bool = False,
+        force_graph: bool = False, inputs: tuple[Path, ...] = ()) -> dict:
     day = day or rules.today()
+    if export_vault is not None:
+        vault.check_target(export_vault, force_vault, inputs)
     graph = compose(vinc, lock_text, repo, advisories, filename, siblings, day)
-    with sandbox(root, limits, keep_graph=keep_graph) as box:
+    if export_vault is not None:
+        vault.check_graph(graph)
+    with sandbox(root, limits, keep_graph=keep_graph, force=force_graph) as box:
         report = analyze(box, graph, repo, depth, day, warn_days)
     extra = [n for n in inventory.notes(lock_text, filename) if n not in report["inventory_notes"]]
     out = {**report, "inventory_notes": report["inventory_notes"] + extra}
     if keep_graph is not None:
         out["saved_graph"] = str(keep_graph)
     if export_vault is not None:
-        out["vault"] = vault.export(graph, export_vault, force=force_vault, limits=limits)
+        out["vault"] = vault.export(graph, export_vault, force=force_vault, limits=limits, inputs=inputs)
     return out

@@ -68,12 +68,16 @@ SIGNATURE_HELP = ("leave the one-line signature (the decisis version, the facts 
                   "no other output changes")
 
 
-KEEP_GRAPH_HELP = ("save a copy of the Relate database (.rl) here before deleting the throwaway sandbox; "
-                   "inspect it later with decisis query or relate serve --bolt 7687 --read-only")
+KEEP_GRAPH_HELP = ("save a copy of the Relate database here before deleting the throwaway sandbox; the name must end in .rl, "
+                   "an existing file is refused unless --force is given, and an input of the run is never replaced; "
+                   "inspect it later with decisis query")
+FORCE_GRAPH_HELP = "with --keep-graph: replace an existing .rl file (never an input of the run)"
 
 
-def keep_graph_flag(parser: argparse.ArgumentParser) -> None:
+def keep_graph_flag(parser: argparse.ArgumentParser, force: bool = True) -> None:
     parser.add_argument("--keep-graph", type=Path, metavar="FILE", help=KEEP_GRAPH_HELP)
+    if force:
+        parser.add_argument("--force", action="store_true", help=FORCE_GRAPH_HELP)
 
 
 def signature_flag(parser: argparse.ArgumentParser) -> None:
@@ -173,10 +177,12 @@ def main(argv: list[str] | None = None) -> int:
     au.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
     warn_flag(au)
     signature_flag(au)
-    keep_graph_flag(au)
+    keep_graph_flag(au, force=False)
     au.add_argument("--export-vault", type=Path, metavar="DIR",
                     help="export the composed audit graph as a Relate Markdown vault (Obsidian-ready folder with [[wikilinks]])")
-    au.add_argument("--force", action="store_true", help="with --export-vault: replace an existing non-empty directory")
+    au.add_argument("--force", action="store_true",
+                    help=f"replace an existing --keep-graph file, and an --export-vault directory that holds the {vault.MARKER} file "
+                         "decisis writes; an input of the run is never replaced")
     pr = sub.add_parser("propose", help="re-derive an audit report's records and print the exact write set the owner approves")
     pr.add_argument("report")
     pr.add_argument("snapshot", help="the snapshot the audit read")
@@ -229,7 +235,9 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--osv-cache", metavar="FILE", help="with --lockfile: read OSV advisories from this file and never from the network")
     ev.add_argument("--root", type=Path, metavar="DIR", help=ROOT_HELP)
     ev.add_argument("--today", type=day, metavar="DATE", help=TODAY_HELP)
-    ev.add_argument("--force", action="store_true", help="replace an existing non-empty directory")
+    ev.add_argument("--force", action="store_true",
+                    help=f"replace an existing vault: only a directory that holds the {vault.MARKER} file decisis writes, never the "
+                         "current directory, your home directory, the filesystem root or a directory that holds an input")
     for s in (p, im, ck, au, pr, qy, sr, ev):
         limit_flags(s)
     sv = sub.add_parser("serve", help="serve impact, paths, audit, check, search and query to an agent as a read-only MCP server over stdio (needs decisis[mcp])")
@@ -285,7 +293,25 @@ def subject_file(text: str, path: Path) -> str:
     return "package-lock.json" if inventory.detect(text, path.name) == "npm" else path.name
 
 
+def inputs_of(a: argparse.Namespace) -> tuple[Path, ...]:
+    names = ("snapshot", "lockfile", "osv_cache", "repo_dir", "report")
+    return tuple(Path(v) for v in (getattr(a, n, None) for n in names) if v)
+
+
+def check_outputs(a: argparse.Namespace) -> None:
+    sources = inputs_of(a)
+    kept = getattr(a, "keep_graph", None)
+    if kept is not None:
+        sb.check_keep_graph(kept, a.force, sources)
+    target = a.out if a.cmd == "export-vault" else getattr(a, "export_vault", None)
+    if target is not None:
+        vault.check_target(target, a.force, sources)
+        if kept is not None and vault.within(os.path.realpath(kept), os.path.realpath(target)):
+            raise ValueError(f"--keep-graph {kept} is inside the vault directory {target}; save the graph outside the vault")
+
+
 def run(a: argparse.Namespace) -> int:
+    check_outputs(a)
     if a.cmd == "serve":
         return serve(a)
     if a.cmd == "gc":
@@ -351,12 +377,12 @@ def run(a: argparse.Namespace) -> int:
                 advisories = external.cached_advisories(external.read_osv_cache(Path(a.osv_cache).read_text(encoding="utf-8")))
             lock_text, siblings = inventory.load(Path(a.lockfile), root=a.root)
             graph = audit.compose(graph, lock_text, a.repo, advisories, Path(a.lockfile).name, siblings, a.today)
-        result = vault.export(graph, a.out, force=a.force, limits=limits(a))
+        result = vault.export(graph, a.out, force=a.force, limits=limits(a), inputs=inputs_of(a))
         sys.stdout.write(init.dump(result))
         return 0
     if a.cmd == "impact":
         report = impact.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), a.code_paths, a.hops, a.repo,
-                            limits=limits(a), day=a.today, keep_graph=a.keep_graph)
+                            limits=limits(a), day=a.today, keep_graph=a.keep_graph, force_graph=a.force)
         if a.format == "text":
             print(impact.render(report))
         elif a.format in VIEWS:
@@ -374,7 +400,8 @@ def run(a: argparse.Namespace) -> int:
         text, siblings = inventory.load(Path(a.lockfile), root=a.root)
         report = audit.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), text, a.repo, a.depth,
                            advisories=advisories, limits=limits(a), filename=Path(a.lockfile).name, siblings=siblings, day=a.today,
-                           warn_days=a.warn_days, keep_graph=a.keep_graph, export_vault=a.export_vault, force_vault=a.force)
+                           warn_days=a.warn_days, keep_graph=a.keep_graph, export_vault=a.export_vault, force_vault=a.force,
+                           force_graph=a.force, inputs=inputs_of(a))
         text = init.dump(report)[:-1]
         if a.format in VIEWS or a.format == "sarif":
             if a.out:
@@ -419,7 +446,7 @@ def run(a: argparse.Namespace) -> int:
         print(json.dumps(graph.meta))
         return 0
     graph = co.load(Path(a.snapshot).read_text(encoding="utf-8"))
-    with sandbox(limits=limits(a), keep_graph=a.keep_graph) as box:
+    with sandbox(limits=limits(a), keep_graph=a.keep_graph, force=a.force) as box:
         counts = box.load(graph)
         rows = box.query(query("paths_between", hops=a.hops, limit=a.limit), {"source": a.source, "target": a.target})
     report = {"loaded": counts, **({"saved_graph": str(a.keep_graph)} if a.keep_graph is not None else {}), "paths": rows}
@@ -442,7 +469,8 @@ def run_check(a: argparse.Namespace) -> int:
         raise ValueError(f"--repo-dir {a.repo_dir} is not a directory")
     changed = check.changed_since(root, a.base) if a.base is not None else a.changed
     report = check.run(co.load(Path(a.snapshot).read_text(encoding="utf-8")), changed, root, a.reviewers, a.hops, a.repo,
-                       base=a.base, limits=limits(a), day=a.today, warn_days=a.warn_days, keep_graph=a.keep_graph)
+                       base=a.base, limits=limits(a), day=a.today, warn_days=a.warn_days, keep_graph=a.keep_graph,
+                       force_graph=a.force)
     if a.format == "text":
         print(check.render(report))
     elif a.format in VIEWS:
