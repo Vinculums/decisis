@@ -1,0 +1,9 @@
+{
+  "_meta": {
+    "what": "files -> comment lines that are not machine pragmas, counted by scripts/gate_comments.py",
+    "regenerate": "python -X utf8 scripts/gate_comments.py --write-baseline",
+    "rule": "the count only goes down; a new file starts at zero",
+    "total": 0
+  },
+  "files": {}
+}
