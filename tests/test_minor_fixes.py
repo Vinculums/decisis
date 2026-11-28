@@ -56,6 +56,13 @@ def test_search_finds_a_korean_word_written_with_a_particle():
     assert ids(search.run(WORDS, "결제")) == ["decision:r"]
 
 
+def test_search_widens_a_korean_word_next_to_a_parenthesis():
+    report = search.run(WORDS, "(데이터베이스 OR pages)")
+    assert ids(report) == ["concept:k", "decision:b", "decision:e"]
+    assert report["searched_as"] == "((데이터베이스 OR 데이터베이스*) OR pages)"
+    assert ids(search.run(WORDS, "(pages OR 데이터베이스)")) == ["concept:k", "decision:b", "decision:e"]
+
+
 def test_search_refuses_a_query_with_no_words():
     with pytest.raises(ValueError, match="no letters or digits"):
         search.run(WORDS, "🚀")

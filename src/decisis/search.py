@@ -15,8 +15,12 @@ GROUPING = frozenset({"AND", "OR", "NOT", "&&", "||"})
 
 
 def widen(term: str) -> str:
-    if HANGUL.search(term) and not term.startswith('"') and not any(ch in term for ch in "*?~:()"):
-        return f"({term} OR {term}*)"
+    core = term.lstrip("(")
+    opened = term[:len(term) - len(core)]
+    word = core.rstrip(")")
+    closed = core[len(word):]
+    if word and HANGUL.search(word) and not word.startswith('"') and not any(ch in word for ch in "*?~:()"):
+        return f"{opened}({word} OR {word}*){closed}"
     return term
 
 
