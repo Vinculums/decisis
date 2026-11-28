@@ -148,11 +148,14 @@ DESCRIPTIONS = {
              "and never run.",
     "query": "Run one read-only Cypher statement on a fresh sandbox of the snapshot and return its rows. Use it for a question "
              "the fixed tools do not answer: impact for the decisions on code paths, paths between two ids, audit for a "
-             "lockfile. CREATE, MERGE, SET, DELETE, REMOVE, LOAD CSV, admin clauses and procedures other than the db.labels "
-             f"family are refused before the query runs. Results stop at {cypher.MAX_ROWS} rows and {cypher.MAX_BYTES} bytes "
+             "lockfile. CREATE, MERGE, SET, DELETE, REMOVE, LOAD CSV and admin clauses are refused before the query runs, and "
+             "only the db.labels family, db.schema.* and the db.index.fulltext.queryNodes and queryRelationships reads are "
+             "callable; this sandbox has no fulltext index, so use search for keywords. "
+             f"Results stop at {cypher.MAX_ROWS} rows and {cypher.MAX_BYTES} bytes "
              "with a note when cut, and a query that runs past the server's time limit is stopped.",
     "search": "Search decisions, records and concepts in the snapshot by keywords using Relate's built-in offline fulltext index "
-              "(no model, no network). Use it when a decision or postmortem governs a topic without naming an exact code path.",
+              "(no model, no network). Use it when a decision or postmortem governs a topic without naming an exact code path. "
+              "kinds filters inside the index query, and a cut note says when more nodes match than limit.",
 }
 
 INSTRUCTIONS = ("decisis answers read-only questions about one Vinc snapshot in a throwaway Relate graph. "

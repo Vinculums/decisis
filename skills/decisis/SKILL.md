@@ -22,6 +22,13 @@ back to Vinc.
 Do not use it to edit the graph by hand. It writes only through `commit`, and only with the digest
 a person approved.
 
+Its local outputs are guarded: `--keep-graph FILE` needs a name that ends in `.rl` and refuses an existing file
+unless `--force` is given, and never replaces an input of the run. `export-vault --force` (and
+`audit --export-vault --force`) replaces only a directory that holds the `.decisis-vault` file a decisis export writes,
+and never the current directory, your home directory, the filesystem root or a directory that holds an input. A
+vault keeps every node property under its own name, so a query gives the same rows on the vault and on the
+saved `.rl` file.
+
 ## Try it first: the demo
 
 Runs offline with no Vinc account: a synthetic space in an in-process fake Vinc, the demo lockfile,
@@ -92,7 +99,8 @@ miss a direction or an edge type they handle. Use `query` when no fixed tool ans
 - Write one read statement that starts with `MATCH`, `OPTIONAL MATCH`, `WITH`, `UNWIND`, `RETURN` or `CALL`.
   Pass values in `params` and refer to them as `$name`. Return ids and properties, not whole nodes.
 - Writes (`CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`), `LOAD CSV`, admin clauses, procedures other than
-  `db.labels`, `db.relationshipTypes`, `db.propertyKeys` and `db.schema.*`, and `CALL { }` subqueries are
+  `db.labels`, `db.relationshipTypes`, `db.propertyKeys`, `db.schema.*` and the `db.index.fulltext.*` reads
+  (the query sandbox has no fulltext index; use `search` for keywords), and `CALL { }` subqueries are
   refused before the query runs. Use `COLLECT { }`, `COUNT { }`, `EXISTS { }` or `UNION` instead of a
   subquery, and put a label or key named like a clause in backticks.
 - Results stop at 500 rows and 1 MiB with a `cut` note; add `LIMIT` and `SKIP` rather than asking again

@@ -199,7 +199,7 @@ jobs:
           fail-on-violation: false
 ```
 
-It is on the Marketplace as [decisis check](https://github.com/marketplace/actions/decisis-check). The decisions come from the pull request's base commit, so editing a decision file does not change the pull request's own verdict; guard the workflow and the decision files with CODEOWNERS and make the check required. The comment's footer holds one factual line, for example `Checked with decisis 0.5.0 (0 LLM calls · deterministic graph check · pull request reviews from api.github.com · digest: …)`, that says what the run fetched and gives a digest of the result; `signature: false` leaves it out, as `--no-signature` does for `check` and `audit` with `--format html`. [Inputs, permissions, fork handling and the trust model](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
+It is on the Marketplace as [decisis check](https://github.com/marketplace/actions/decisis-check). The decisions come from the pull request's base commit, so editing a decision file does not change the pull request's own verdict; guard the workflow and the decision files with CODEOWNERS and make the check required. The comment's footer holds one factual line, for example `Checked with decisis 0.5.1 (0 LLM calls · deterministic graph check · pull request reviews from api.github.com · digest: …)`, that says what the run fetched and gives a digest of the result; `signature: false` leaves it out, as `--no-signature` does for `check` and `audit` with `--format html`. [Inputs, permissions, fork handling and the trust model](https://github.com/Vinculums/decisis/blob/main/docs/action.md).
 
 ## AI agents: skill and MCP
 
@@ -226,11 +226,11 @@ Code: [the config file and snippet for each tool](https://github.com/Vinculums/d
 | `new-adr "<title>" [--code-ref <path>]... [--rule <json>]` | nothing | writes the next-numbered MADR file with `status: proposed`, after checking the rule as `audit` and `check` read it; never overwrites |
 | `impact <snapshot> <code path>...` | nothing | the decisions and records that govern a file or directory |
 | `check <snapshot> (--changed <file>... \| --base <ref>)` | nothing; with `--base`, git | the decisions that govern a change set, and the `review_required` and `imports_forbidden` rules it breaks; exits 1 on a violation |
-| `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids; with `--keep-graph FILE` saves a copy of the `.rl` graph |
+| `paths <snapshot> <from> <to>` | nothing | bounded paths between two ids; with `--keep-graph FILE.rl` saves a copy of the `.rl` graph (an existing file only with `--force`, an input never) |
 | `query <snapshot or .rl or vault> <cypher> [--param KEY=VALUE] [--profile]` | nothing | one read-only Cypher statement on a snapshot, saved `.rl` file or Markdown vault, rows as JSON; `--profile` adds Relate's execution plan and operator timings |
 | `search <snapshot> <query>` | nothing | offline keyword search over decisions, records and concepts using Relate's built-in fulltext index (no model) |
-| `export-vault <snapshot> --out <dir> [--lockfile FILE --repo NAME]` | nothing (or api.osv.dev with `--lockfile` and no `--osv-cache`) | exports a snapshot or composed audit graph as a Relate Markdown vault (Obsidian-ready `.md` notes with `[[wikilinks]]`, git-diffable and queryable with Cypher) |
-| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev (and OSV's GitHub Actions export for workflows), unless `--osv-cache` | advisories the repository reaches and the decisions they break; `--keep-graph FILE` saves `.rl` and `--export-vault DIR` writes a Markdown vault |
+| `export-vault <snapshot> --out <dir> [--lockfile FILE --repo NAME]` | nothing (or api.osv.dev with `--lockfile` and no `--osv-cache`) | exports a snapshot or composed audit graph as a Relate Markdown vault (Obsidian-ready `.md` notes with `[[wikilinks]]`, git-diffable and queryable with Cypher); `--force` replaces only a vault decisis wrote, marked by its `.decisis-vault` file |
+| `audit <snapshot> <lockfile or SBOM> --repo <name>` | the network for api.osv.dev (and OSV's GitHub Actions export for workflows), unless `--osv-cache` | advisories the repository reaches and the decisions they break; `--keep-graph FILE.rl` saves `.rl` and `--export-vault DIR` writes a Markdown vault, both refused before the audit runs when the target is taken and `--force` is not given |
 | `propose <report> <snapshot> <lockfile or SBOM> --repo <name> --space <space>` | the network for api.osv.dev, unless `--osv-cache` | re-derives each record, holds back any that fail, and prints the exact write set and its approval digest |
 | `compare [--tasks FILE]` | nothing; the held-out tasks need a checkout of this repository | the [benchmarks](https://github.com/Vinculums/decisis/blob/main/docs/benchmark.md) |
 | `checkout <seed>... --out <file>` | a read-only Vinc key | exports a bounded subgraph from Vinc |
@@ -245,6 +245,8 @@ decisis audit snapshot.json package-lock.json --repo Shop --keep-graph audit.rl 
 decisis query audit.rl "MATCH (d:Decision) RETURN d.id, d.title" --profile
 relate serve --database audit.rl --bolt 7687 --read-only
 ```
+
+`--keep-graph` and `export-vault` never replace an input of the run, and `--force` never empties the current directory, your home directory, the filesystem root or a directory that is not a decisis vault: [saved graphs and vaults](https://github.com/Vinculums/decisis/blob/main/docs/commands.md#saved-graphs-and-vaults).
 
 [Flags, limits and the Mermaid and HTML views](https://github.com/Vinculums/decisis/blob/main/docs/commands.md).
 

@@ -36,6 +36,8 @@ bounds as the commands (`hops` 0 to 6 for `impact`, 1 to 6 for `paths`, `limit` 
 `audit` takes the lockfile path as an argument and reads it only under `--root` (default: the current
 directory), after following symlinks. It reads advisories from `--osv-cache`; without a cache it asks
 api.osv.dev only when the server was started with `--allow-network`, and otherwise returns an error.
+`search` filters `kinds` inside its fulltext query, so a decision is found even when more than 100 concepts rank
+above it, and adds a `cut` note when more nodes match than `limit`.
 
 ## Set up your tool
 
@@ -270,7 +272,9 @@ count and the labels it joins, and two example queries. A query must be one stat
 `MATCH`, `OPTIONAL MATCH`, `WITH`, `UNWIND`, `RETURN` or `CALL`. The text is checked before anything
 runs: `CREATE`, `MERGE`, `SET`, `DELETE`, `REMOVE`, `FOREACH`, `LOAD CSV`, `DROP`, `SHOW`, `USE` and the
 other admin clauses are refused in any case, after comments and inside subqueries, and only the
-`db.labels`, `db.relationshipTypes`, `db.propertyKeys` and `db.schema.*` procedures may be called. Clause
+`db.labels`, `db.relationshipTypes`, `db.propertyKeys`, `db.schema.*`, `db.index.fulltext.queryNodes` and
+`db.index.fulltext.queryRelationships` procedures may be called. The query sandbox has no fulltext index, so for
+keywords use the `search` tool, which builds one. Clause
 words inside strings, comments and backticked names do not count; a label, type or key named like a clause
 goes in backticks. Relate plans every `CALL { }` subquery as read-write, so those are refused too; use
 `COLLECT { }`, `COUNT { }`, `EXISTS { }` or `UNION`. Then the query process plans the statement with
