@@ -14,6 +14,8 @@
 
 ![decisis demo: a dependency audit on synthetic data, from the decision to the advisory it breaks](https://raw.githubusercontent.com/Vinculums/decisis/main/docs/media/demo.gif)
 
+**[Watch the decisis explainer video (1:56)](https://drive.google.com/file/d/14JvwIcmERP63fM_bOJMgUvgFd0jyUDn8/view?usp=sharing)**
+
 decisis (from *stare decisis*, "stand by what was decided") checks a change against the decisions your
 team already made. It joins those decisions with your code paths, a lockfile and OSV advisories in a
 throwaway [Relate](https://github.com/relatedb/relate) graph, and shows the path from a decision to the
