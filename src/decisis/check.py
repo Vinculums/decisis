@@ -175,12 +175,13 @@ def failed(report: dict, on_unresolved: bool) -> bool:
 def run(graph: Subgraph, changed: list[str], root: Path, reviewers: list[str] = (), hops: int = 3, repo: str | None = None,
         base: str | None = None, limits: Limits | None = None, sandbox_root=None, day: datetime.date | None = None,
         warn_days: int = rules.WARN_DAYS, arriving: list[cycles.Cycle] = (), leaving: list[cycles.Cycle] = (),
-        keep_graph: Path | None = None) -> dict:
+        keep_graph: Path | None = None, force_graph: bool = False) -> dict:
     files = sorted({normal(p) for p in changed})
     if len(files) > MAX_CHANGED:
         raise ValueError(f"the change set has {len(files)} files, more than the {MAX_CHANGED} check judges")
     day = day or rules.today()
-    report = impact.run(graph, files, hops, repo, root=sandbox_root, limits=limits, day=day, keep_graph=keep_graph)
+    report = impact.run(graph, files, hops, repo, root=sandbox_root, limits=limits, day=day, keep_graph=keep_graph,
+                         force_graph=force_graph)
     replaced = impact.superseded_by(graph)
     closed = impact.closed_by(graph, day, replaced)
     decisions = judged(graph, replaced.keys() | closed.keys())

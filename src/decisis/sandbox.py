@@ -93,13 +93,17 @@ def _pick(value: int | None, env: Mapping[str, str], name: str, default: int, ce
 
 
 def check_size(graph: Subgraph, limits: Limits) -> None:
+    check_counts(len(graph.nodes), len(graph.edges), limits, "the graph to load has", "nothing was written")
+
+
+def check_counts(nodes: int, edges: int, limits: Limits, lead: str, tail: str) -> None:
     over = []
-    if len(graph.nodes) > limits.max_nodes:
-        over.append(f"{len(graph.nodes)} nodes, over the cap of {limits.max_nodes} (raise it with --max-nodes or DECISIS_MAX_NODES, at most {CEILING_NODES})")
-    if len(graph.edges) > limits.max_edges:
-        over.append(f"{len(graph.edges)} edges, over the cap of {limits.max_edges} (raise it with --max-edges or DECISIS_MAX_EDGES, at most {CEILING_EDGES})")
+    if nodes > limits.max_nodes:
+        over.append(f"{nodes} nodes, over the cap of {limits.max_nodes} (raise it with --max-nodes or DECISIS_MAX_NODES, at most {CEILING_NODES})")
+    if edges > limits.max_edges:
+        over.append(f"{edges} edges, over the cap of {limits.max_edges} (raise it with --max-edges or DECISIS_MAX_EDGES, at most {CEILING_EDGES})")
     if over:
-        raise TooLarge("the graph to load has " + "; and ".join(over) + "; nothing was written")
+        raise TooLarge(f"{lead} " + "; and ".join(over) + f"; {tail}")
 
 
 def default_root() -> Path:
@@ -114,25 +118,39 @@ class LoadMismatch(ValueError):
 
 
 def _mismatch(graph: Subgraph, got: dict, overwritten: list[str] | None = None) -> str:
-    ids = [n["id"] for n in graph.nodes]
-    known = set(ids)
+    found = unloadable(graph, overwritten)
+    if got == {"nodes": len(graph.nodes), "edges": len(graph.edges)} and found:
+        return "the snapshot cannot be loaded: " + "; ".join(found)
     out = [f"loaded {got['nodes']} nodes and {got['edges']} edges, but the snapshot has {len(graph.nodes)} nodes and {len(graph.edges)} edges"]
-    seen: set = set()
-    dupes_set: set = set()
-    for i in ids:
-        if i in seen:
-            dupes_set.add(i)
-        else:
-            seen.add(i)
-    dupes = sorted(dupes_set, key=str)
+    return "; ".join(out + found)
+
+
+def check_ids(graph: Subgraph) -> None:
+    bad = [n.get("id") for n in graph.nodes
+           if not ((isinstance(n.get("id"), str) and n["id"]) or (type(n.get("id")) is int))]
+    if bad:
+        shown = ", ".join(repr(b)[:40] for b in bad[:5])
+        raise ValueError(f"a node id must be non-empty text or a whole number, not {shown}; nothing was written")
+
+
+def unloadable(graph: Subgraph, overwritten: list[str] | None = None) -> list[str]:
+    kinds: dict = {}
+    for n in graph.nodes:
+        kinds.setdefault(n["id"], []).append(str(n["kind"]))
+    out = []
+    dupes = sorted((i for i, k in kinds.items() if len(k) > 1), key=str)
     if dupes:
-        out.append("repeated node ids: " + ", ".join(str(i) for i in dupes[:5]))
+        out.append("repeated node ids: " + ", ".join(f"{i} ({', '.join(kinds[i])})" for i in dupes[:5]))
     if overwritten:
         out.append("node props overrode id: " + ", ".join(overwritten[:5]))
-    dangling = [f"{e['source']} -{e['type']}-> {e['target']}" for e in graph.edges if e["source"] not in known or e["target"] not in known]
+    dangling = [f"{e['source']} -{e['type']}-> {e['target']}" for e in graph.edges if e["source"] not in kinds or e["target"] not in kinds]
     if dangling:
         out.append("edges with a missing endpoint: " + ", ".join(dangling[:5]))
-    return "; ".join(out)
+    return out
+
+
+def prop_ids(graph: Subgraph) -> list[str]:
+    return sorted({str(n["id"]) for n in graph.nodes if "id" in (n.get("props") or {}) and n["props"]["id"] != n["id"]})
 
 
 FULLTEXT_INDEX = "decisis_text"
@@ -179,6 +197,7 @@ class Sandbox:
         if self.loaded:
             raise RuntimeError("a sandbox is loaded once; build a new one for a new task")
         check_size(graph, self.limits)
+        check_ids(graph)
         _warm()
         con = relate.connect(str(self.path))
         overwritten: list[str] = []
@@ -225,6 +244,15 @@ class Sandbox:
             _reraise(*reply[1:])
         return reply[1]
 
+    def write(self, cypher: str, params: dict | None = None) -> None:
+        if not self.loaded:
+            raise RuntimeError("load the sandbox before writing to it")
+        con = relate.connect(str(self.path))
+        try:
+            con.execute(cypher, params or {}).fetchall()
+        finally:
+            con.close()
+
     def page(self, cypher: str, params: dict | None, max_rows: int, max_bytes: int, profile: bool = False) -> dict:
         if not self.loaded:
             raise RuntimeError("load the sandbox before querying it")
@@ -234,15 +262,20 @@ class Sandbox:
         columns, rows, total, prof = reply[1:]
         return {"columns": columns, "rows": rows, "total": total, **({"profile": prof} if prof is not None else {})}
 
-    def save(self, dest: Path) -> Path:
+    def save(self, dest: Path, force: bool = False) -> Path:
         if not self.loaded:
             raise RuntimeError("load the sandbox before saving it")
-        if dest.is_symlink():
-            raise ValueError(f"--keep-graph refuses a symbolic link: {dest}")
-        if dest.is_dir():
-            raise ValueError(f"--keep-graph expects a file path, not a directory: {dest}")
+        check_keep_graph(dest, force)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(self.path, dest)
+        part = dest.parent / f".{dest.name}.{uuid.uuid4().hex}.part"
+        try:
+            shutil.copyfile(self.path, part)
+            if force:
+                os.replace(part, dest)
+            else:
+                _place_new(part, dest)
+        finally:
+            part.unlink(missing_ok=True)
         return dest
 
     def destroy(self) -> None:
@@ -260,13 +293,60 @@ def query_store(store: Path, cypher: str, params: dict | None, max_rows: int, ma
     return {"columns": columns, "rows": rows, "total": total, **({"profile": prof} if prof is not None else {})}
 
 
+def _place_new(part: Path, dest: Path) -> None:
+    try:
+        os.link(part, dest)
+    except FileExistsError:
+        raise ValueError(f"--keep-graph {dest} already exists; pass --force to replace it") from None
+    except OSError:
+        if os.path.lexists(dest):
+            raise ValueError(f"--keep-graph {dest} already exists; pass --force to replace it") from None
+        os.replace(part, dest)
+
+
+def same_path(a: Path, b: Path) -> bool:
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return os.path.realpath(a) == os.path.realpath(b)
+
+
+def check_keep_graph(dest: Path, force: bool = False, inputs: tuple[Path, ...] = ()) -> None:
+    if dest.is_symlink():
+        raise ValueError(f"--keep-graph refuses a symbolic link: {dest}")
+    if dest.is_dir():
+        raise ValueError(f"--keep-graph expects a file path, not a directory: {dest}")
+    if dest.suffix.lower() != STORE_SUFFIX:
+        raise ValueError(f"--keep-graph saves a Relate database, so its name must end in {STORE_SUFFIX}: {dest}")
+    for src in inputs:
+        if same_path(dest, src):
+            raise ValueError(f"--keep-graph {dest} is an input of this run; decisis never replaces an input, even with --force")
+    if os.path.lexists(dest) and not force:
+        raise ValueError(f"--keep-graph {dest} already exists; pass --force to replace it")
+
+
+STORE_SUFFIX = ".rl"
+
+
+def store_size(store: Path, limits: Limits) -> None:
+    _warm()
+    counts = []
+    for cypher in ("MATCH (n) RETURN count(n) AS c", "MATCH ()-[r]->() RETURN count(r) AS c"):
+        reply = _ask((str(store), cypher, {}), limits.query_seconds)
+        if reply[0] == "error":
+            _reraise(*reply[1:])
+        counts.append(dict(reply[1][0])["c"] if reply[1] else 0)
+    check_counts(counts[0], counts[1], limits, f"the saved graph {store} has", "the query was not run")
+
+
 @contextmanager
-def sandbox(root: Path | None = None, limits: Limits | None = None, keep_graph: Path | None = None) -> Iterator[Sandbox]:
+def sandbox(root: Path | None = None, limits: Limits | None = None, keep_graph: Path | None = None,
+            force: bool = False) -> Iterator[Sandbox]:
     box = Sandbox(root, limits)
     try:
         yield box
         if keep_graph is not None and box.loaded:
-            box.save(keep_graph)
+            box.save(keep_graph, force)
     finally:
         box.destroy()
 

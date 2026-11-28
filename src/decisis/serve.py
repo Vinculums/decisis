@@ -148,11 +148,14 @@ DESCRIPTIONS = {
              "and never run.",
     "query": "Run one read-only Cypher statement on a fresh sandbox of the snapshot and return its rows. Use it for a question "
              "the fixed tools do not answer: impact for the decisions on code paths, paths between two ids, audit for a "
-             "lockfile. CREATE, MERGE, SET, DELETE, REMOVE, LOAD CSV, admin clauses and procedures other than the db.labels "
-             f"family are refused before the query runs. Results stop at {cypher.MAX_ROWS} rows and {cypher.MAX_BYTES} bytes "
+             "lockfile. CREATE, MERGE, SET, DELETE, REMOVE, LOAD CSV and admin clauses are refused before the query runs, and "
+             "only the db.labels family, db.schema.* and the db.index.fulltext.queryNodes and queryRelationships reads are "
+             "callable; this sandbox has no fulltext index, so use search for keywords. "
+             f"Results stop at {cypher.MAX_ROWS} rows and {cypher.MAX_BYTES} bytes "
              "with a note when cut, and a query that runs past the server's time limit is stopped.",
     "search": "Search decisions, records and concepts in the snapshot by keywords using Relate's built-in offline fulltext index "
-              "(no model, no network). Use it when a decision or postmortem governs a topic without naming an exact code path.",
+              "(no model, no network). Use it when a decision or postmortem governs a topic without naming an exact code path. "
+              "kinds filters inside the index query, and a cut note says when more nodes match than limit.",
 }
 
 INSTRUCTIONS = ("decisis answers read-only questions about one Vinc snapshot in a throwaway Relate graph. "
@@ -268,8 +271,35 @@ def validated(name: str, arguments: dict | None) -> dict:
         jsonschema.validate(args, SCHEMAS[name])
     except jsonschema.ValidationError as e:
         where = "/".join(str(p) for p in e.absolute_path) or "arguments"
-        raise Refused(f"{name}: {where}: {e.message}") from None
+        raise Refused(f"{name}: {where}: {schema_problem(e)}") from None
     return args
+
+
+SHOWN = 60
+
+
+def shown_value(value) -> str:
+    text = json.dumps(value, ensure_ascii=False) if not isinstance(value, str) else repr(value)
+    if isinstance(value, str) and len(value) > SHOWN:
+        return f"a string of {len(value)} characters starting {value[:20]!r}"
+    if len(text) > SHOWN:
+        return f"a {type(value).__name__} of {len(text)} characters"
+    return text
+
+
+def schema_problem(e) -> str:
+    rule, limit = e.validator, e.validator_value
+    if rule == "maxLength":
+        return f"{shown_value(e.instance)} is longer than {limit} characters"
+    if rule == "minLength":
+        return f"{shown_value(e.instance)} is shorter than {limit} characters"
+    if rule == "enum":
+        return f"{shown_value(e.instance)} is not one of {', '.join(map(str, limit))}"
+    if rule == "type":
+        return f"{shown_value(e.instance)} is not of type {limit}"
+    if rule in ("minimum", "maximum", "maxItems", "minItems", "maxProperties", "required", "additionalProperties", "pattern"):
+        return e.message if len(e.message) <= 2 * SHOWN + 40 else f"{shown_value(e.instance)} breaks the {rule} rule ({limit})"
+    return e.message if len(e.message) <= 2 * SHOWN + 40 else f"{shown_value(e.instance)} breaks the {rule} rule"
 
 
 def inside_repo(raw: str, repo: str | None) -> str:

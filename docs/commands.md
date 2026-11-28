@@ -4,8 +4,8 @@ The README has the table of commands. This page has the flags, the limits and th
 
 ## Flags
 
-Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR --suggest-refs --patch FILE`, `new-adr --adr-dir DIR --code-ref PATH --rule JSON --date DATE`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --today DATE --keep-graph FILE --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --warn-days N --no-signature --keep-graph FILE --format text`, `paths --hops N --limit N --keep-graph FILE`,
-`audit --osv-cache FILE --depth N --root DIR --warn-days N --no-signature --keep-graph FILE --export-vault DIR`, `query --param KEY=VALUE --profile`, `search --kind KIND --limit N --format text`, `export-vault --out DIR --lockfile FILE --repo NAME --osv-cache FILE --force`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit),
+Useful flags: `init --repo-dir DIR --repo NAME --adr-dir DIR --suggest-refs --patch FILE`, `new-adr --adr-dir DIR --code-ref PATH --rule JSON --date DATE`, `init --github OWNER/REPO --label NAME --since DATE --limit N`, `impact --hops N --today DATE --keep-graph FILE --force --format text`, `check --repo-dir DIR --reviewers HANDLE... --fail-on-unresolved --warn-days N --no-signature --keep-graph FILE --force --format text`, `paths --hops N --limit N --keep-graph FILE --force`,
+`audit --osv-cache FILE --depth N --root DIR --warn-days N --no-signature --keep-graph FILE --export-vault DIR --force`, `query --param KEY=VALUE --profile`, `search --kind KIND --limit N --format text`, `export-vault --out DIR --lockfile FILE --repo NAME --osv-cache FILE --force`, `propose --osv-cache FILE --depth N` (give `propose` the same inputs and depth as the audit),
 `serve --osv-cache FILE --allow-network --root DIR`, `gc --root DIR --grace SECONDS`.
 
 ## Limits
@@ -15,7 +15,58 @@ anything, and stop any query that runs longer than 60 seconds; the task director
 and the command exits with 1. Raise a limit with `--max-nodes`, `--max-edges` or `--query-timeout`, or with
 `DECISIS_MAX_NODES`, `DECISIS_MAX_EDGES` or `DECISIS_QUERY_TIMEOUT`, up to 1,000,000 nodes, 5,000,000 edges
 and 3,600 seconds. `audit --depth` and `propose --depth` are 1 to 16, `paths --hops` 1 to 6 and `paths --limit`
-1 to 100.
+1 to 100. `query` on a saved `.rl` file or a vault counts its nodes and edges first and refuses one over the same
+caps without running the statement.
+
+## Saved graphs and vaults
+
+`--keep-graph FILE` (on `paths`, `impact`, `check` and `audit`) copies the sandbox's Relate database to `FILE`
+before the sandbox is deleted. The name must end in `.rl`, the extension `query` reads as a saved graph. An
+existing file is refused unless `--force` is given, and a file that is an input of the run (the snapshot, the
+lockfile, the OSV cache, the report) is refused even with `--force`. The checks run before any work, and the copy
+is written next to `FILE` and moved into place, so a failed run leaves the old file as it was. `paths` and `audit`
+save the graph they loaded; `impact` and `check` save the graph they query, the snapshot's nodes with only the
+edges that carry governance.
+
+`export-vault --out DIR` and `audit --export-vault DIR` write a Relate Markdown vault: one note per node under a
+folder per label, with the node's properties as YAML front matter and its edges as `[[wikilinks]]`. The vault
+holds a `.decisis-vault` file at its top, and `--force` replaces only a directory that holds it. Without
+`--force` a non-empty directory is refused. The current directory, a directory above it, your home directory or
+one above it, the filesystem root, and any directory that holds an input of the run are refused even with
+`--force`. `audit --export-vault` checks the directory before the audit runs.
+
+Before writing, the export refuses a snapshot that the sandbox would refuse: a repeated node id (also one id
+under two kinds), an edge with a missing endpoint, or a `props.id` that differs from the node's id; the error
+names the ids. The vault is written to a new directory next to `DIR`, its node and edge counts are checked, and
+only then is it moved to `DIR` (the old vault is removed after the move). On any failure nothing is left behind
+and an old vault stays as it was. The reported `nodes` and `edges` are the counts read back from the vault.
+
+Every node property is kept under its own name, `name`, `body` and `id` included, so a query gives the same
+rows on the saved `.rl` file and on the vault. The note's file name is stored in the property `decisis_file`
+(made from the id, unique per label) and the note text below the front matter in `decisis_note` (the title as a
+heading and the statement or summary); a snapshot that already uses either name is refused. `title` and `domain`
+are the node's own fields, as in the sandbox.
+
+`audit` walks the shipped dependency paths on `DECISIS_SHIPPED_STEP` edges it adds in the sandbox, one for each
+`DEPENDS_ON` edge whose target is not a dev package, so Relate finds them with its breadth-first search instead
+of listing every path; it removes them before `--keep-graph` saves the graph. A snapshot that already has edges
+of that type is refused.
+
+`search --kind KIND` filters inside the fulltext query, so a match is found however many nodes of other kinds
+rank above it, and a node whose kind is written in upper case (`RECORD`, `Decision`) is indexed as its kind. When
+more nodes match than `--limit`, the reply carries a `cut` note (in text, a last line) that says so.
+
+## Search words
+
+`search` reads `+word` as a word every match must hold and `-word` as a word no match may hold; a word with a
+hyphen inside (`dead-code`) is one word. A query of only `-word` terms is refused, and so is a query with no
+letters or digits (the index drops symbols and emoji). A word in Hangul also matches the words it starts, so
+`데이터베이스` finds `데이터베이스를`. `AND`, `OR`, `NOT` and parentheses are passed to the index as they are. When
+decisis rewrites the query, the reply shows what the index was asked under `searched_as`.
+
+## Version
+
+`decisis --version` prints the installed version.
 
 ## Checkout
 
@@ -61,7 +112,7 @@ The HTML page is one file with inline styles only: no scripts, fonts or network 
 offline. Its only links are the sources of the findings and, in the signature, this repository.
 
 `check --format html` and `audit --format html` end with one line that says what the run did, for example
-`Audited locally with decisis 0.5.0 (0 LLM calls · deterministic graph check · digest: 599582f5f4f7)`:
+`Audited locally with decisis 0.5.1 (0 LLM calls · deterministic graph check · digest: 599582f5f4f7)`:
 `locally` only when the run contacted no host, otherwise what it fetched and from where, and a digest of the
 result that is the same for the same inputs. [The signature](data-model.md#the-signature) defines each part.
 `--no-signature` leaves the line out of the page and changes nothing else; no other format has the line.
