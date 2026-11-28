@@ -238,13 +238,15 @@ Code: [the config file and snippet for each tool](https://github.com/Vinculums/d
 | `gc` | nothing | removes task directories that a killed run left behind, and prints them |
 | `serve --mcp --snapshot <file>` | the `mcp` extra; the network for api.osv.dev only with `--allow-network` | `impact`, `paths`, `audit`, `check`, `search` and `query` as read-only MCP tools over stdio ([MCP](https://github.com/Vinculums/decisis/blob/main/docs/mcp.md)) |
 
-To inspect a saved `.rl` graph or exported Markdown vault visually in Neo4j Browser, run Relate's built-in server read-only:
+To inspect a saved `.rl` graph or an exported Markdown vault later, query it read-only with `decisis query`; the vault also opens as a folder in Obsidian:
 
 ```bash
 decisis audit snapshot.json package-lock.json --repo Shop --keep-graph audit.rl --export-vault audit-vault/
 decisis query audit.rl "MATCH (d:Decision) RETURN d.id, d.title" --profile
-relate serve --database audit.rl --bolt 7687 --read-only
+decisis query audit-vault/ "MATCH (p:Package)-[:AFFECTED_BY]->(a:Advisory) RETURN p.id, a.id"
 ```
+
+The `relate-db` package that `pip install decisis` brings in is the Python library only and has no `relate` command, so a Bolt server for Neo4j Browser is not part of this install.
 
 `--keep-graph` and `export-vault` never replace an input of the run, and `--force` never empties the current directory, your home directory, the filesystem root or a directory that is not a decisis vault: [saved graphs and vaults](https://github.com/Vinculums/decisis/blob/main/docs/commands.md#saved-graphs-and-vaults).
 

@@ -103,6 +103,7 @@ def limits(a: argparse.Namespace) -> sb.Limits:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="decisis")
+    ap.add_argument("--version", action="version", version=f"decisis {signature.version()}")
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("checkout", help="export a bounded subgraph from Vinc to a JSON snapshot")
     c.add_argument("seeds", nargs="+")
@@ -318,7 +319,8 @@ def run(a: argparse.Namespace) -> int:
         return gc(a.root or sb.default_root(), a.grace)
     if a.cmd == "compare":
         root = demo.default_fixtures().parent
-        result = compare.run(root, a.tasks or root / "bench" / "tasks.json")
+        tasks = a.tasks or root / "bench" / "tasks.json"
+        result = compare.run(compare.root_for(tasks, json.loads(tasks.read_text(encoding="utf-8")), root), tasks)
         if a.out:
             a.out.write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         table = compare.render(result)

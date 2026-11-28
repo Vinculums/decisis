@@ -277,6 +277,34 @@ def _cmp(c: dict, b: dict) -> str:
     return "mixed"
 
 
+def input_files(doc: dict) -> list[str]:
+    found: list[str] = []
+
+    def walk(value) -> None:
+        if isinstance(value, str) and "/" in value and Path(value).suffix:
+            found.append(value)
+        elif isinstance(value, dict):
+            for v in value.values():
+                walk(v)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v)
+
+    walk({k: v for k, v in doc.items() if k in ("inputs", "repos")})
+    return found
+
+
+def root_for(tasks_path: Path, doc: dict, default: Path) -> Path:
+    wanted = input_files(doc)
+    for root in (default, *tasks_path.resolve().parents):
+        if all((root / f).is_file() for f in wanted):
+            return root
+    missing = next(f for f in wanted if not (default / f).is_file())
+    raise ValueError(f"the inputs of {tasks_path} are not under {default} or a directory above the tasks file ({missing} is missing); "
+                     "the held-out tasks need a checkout of the decisis repository: run decisis compare --tasks bench/holdout/tasks.json "
+                     "from that checkout")
+
+
 def run(root: Path, tasks_path: Path) -> dict:
     raw = tasks_path.read_bytes()
     doc = json.loads(raw)

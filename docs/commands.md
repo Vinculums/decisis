@@ -53,8 +53,20 @@ of listing every path; it removes them before `--keep-graph` saves the graph. A 
 of that type is refused.
 
 `search --kind KIND` filters inside the fulltext query, so a match is found however many nodes of other kinds
-rank above it. When more nodes match than `--limit`, the reply carries a `cut` note (in text, a last line) that
-says so.
+rank above it, and a node whose kind is written in upper case (`RECORD`, `Decision`) is indexed as its kind. When
+more nodes match than `--limit`, the reply carries a `cut` note (in text, a last line) that says so.
+
+## Search words
+
+`search` reads `+word` as a word every match must hold and `-word` as a word no match may hold; a word with a
+hyphen inside (`dead-code`) is one word. A query of only `-word` terms is refused, and so is a query with no
+letters or digits (the index drops symbols and emoji). A word in Hangul also matches the words it starts, so
+`데이터베이스` finds `데이터베이스를`. `AND`, `OR`, `NOT` and parentheses are passed to the index as they are. When
+decisis rewrites the query, the reply shows what the index was asked under `searched_as`.
+
+## Version
+
+`decisis --version` prints the installed version.
 
 ## Checkout
 

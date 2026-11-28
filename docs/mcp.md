@@ -37,7 +37,9 @@ bounds as the commands (`hops` 0 to 6 for `impact`, 1 to 6 for `paths`, `limit` 
 directory), after following symlinks. It reads advisories from `--osv-cache`; without a cache it asks
 api.osv.dev only when the server was started with `--allow-network`, and otherwise returns an error.
 `search` filters `kinds` inside its fulltext query, so a decision is found even when more than 100 concepts rank
-above it, and adds a `cut` note when more nodes match than `limit`.
+above it, and adds a `cut` note when more nodes match than `limit`; it reads `+word` and `-word` as
+[`decisis search`](commands.md#search-words) does. An argument that breaks a tool's schema is refused with the field and the rule
+it breaks, and a long value is named by its length, not repeated.
 
 ## Set up your tool
 

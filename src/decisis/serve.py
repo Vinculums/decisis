@@ -271,8 +271,35 @@ def validated(name: str, arguments: dict | None) -> dict:
         jsonschema.validate(args, SCHEMAS[name])
     except jsonschema.ValidationError as e:
         where = "/".join(str(p) for p in e.absolute_path) or "arguments"
-        raise Refused(f"{name}: {where}: {e.message}") from None
+        raise Refused(f"{name}: {where}: {schema_problem(e)}") from None
     return args
+
+
+SHOWN = 60
+
+
+def shown_value(value) -> str:
+    text = json.dumps(value, ensure_ascii=False) if not isinstance(value, str) else repr(value)
+    if isinstance(value, str) and len(value) > SHOWN:
+        return f"a string of {len(value)} characters starting {value[:20]!r}"
+    if len(text) > SHOWN:
+        return f"a {type(value).__name__} of {len(text)} characters"
+    return text
+
+
+def schema_problem(e) -> str:
+    rule, limit = e.validator, e.validator_value
+    if rule == "maxLength":
+        return f"{shown_value(e.instance)} is longer than {limit} characters"
+    if rule == "minLength":
+        return f"{shown_value(e.instance)} is shorter than {limit} characters"
+    if rule == "enum":
+        return f"{shown_value(e.instance)} is not one of {', '.join(map(str, limit))}"
+    if rule == "type":
+        return f"{shown_value(e.instance)} is not of type {limit}"
+    if rule in ("minimum", "maximum", "maxItems", "minItems", "maxProperties", "required", "additionalProperties", "pattern"):
+        return e.message if len(e.message) <= 2 * SHOWN + 40 else f"{shown_value(e.instance)} breaks the {rule} rule ({limit})"
+    return e.message if len(e.message) <= 2 * SHOWN + 40 else f"{shown_value(e.instance)} breaks the {rule} rule"
 
 
 def inside_repo(raw: str, repo: str | None) -> str:

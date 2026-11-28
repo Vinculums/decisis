@@ -118,8 +118,19 @@ class LoadMismatch(ValueError):
 
 
 def _mismatch(graph: Subgraph, got: dict, overwritten: list[str] | None = None) -> str:
+    found = unloadable(graph, overwritten)
+    if got == {"nodes": len(graph.nodes), "edges": len(graph.edges)} and found:
+        return "the snapshot cannot be loaded: " + "; ".join(found)
     out = [f"loaded {got['nodes']} nodes and {got['edges']} edges, but the snapshot has {len(graph.nodes)} nodes and {len(graph.edges)} edges"]
-    return "; ".join(out + unloadable(graph, overwritten))
+    return "; ".join(out + found)
+
+
+def check_ids(graph: Subgraph) -> None:
+    bad = [n.get("id") for n in graph.nodes
+           if not ((isinstance(n.get("id"), str) and n["id"]) or (type(n.get("id")) is int))]
+    if bad:
+        shown = ", ".join(repr(b)[:40] for b in bad[:5])
+        raise ValueError(f"a node id must be non-empty text or a whole number, not {shown}; nothing was written")
 
 
 def unloadable(graph: Subgraph, overwritten: list[str] | None = None) -> list[str]:
@@ -186,6 +197,7 @@ class Sandbox:
         if self.loaded:
             raise RuntimeError("a sandbox is loaded once; build a new one for a new task")
         check_size(graph, self.limits)
+        check_ids(graph)
         _warm()
         con = relate.connect(str(self.path))
         overwritten: list[str] = []

@@ -11,7 +11,7 @@ from pathlib import Path
 import relate
 
 from .sandbox import (RESERVED_PROPS, Limits, LoadMismatch, Subgraph, _flat, _label, _runs, apply_schema, check_size,
-                      prop_ids, unloadable)
+                      check_ids, prop_ids, unloadable)
 
 SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 MAX_NAME = 80
@@ -91,6 +91,7 @@ def check_target(out_dir: Path, force: bool = False, inputs: tuple[Path, ...] = 
 
 
 def check_graph(graph: Subgraph) -> None:
+    check_ids(graph)
     found = unloadable(graph, prop_ids(graph))
     if found:
         raise LoadMismatch("the snapshot cannot be exported as a vault: " + "; ".join(found) + "; nothing was written")
